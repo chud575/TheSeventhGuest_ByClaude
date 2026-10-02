@@ -555,7 +555,7 @@ export default {
     moon.map = fx.windowCookie({ cols: 2, rows: 4 });
     root.add(moon, moon.target);
     root.add(new THREE.HemisphereLight(0x5068c0, 0x1c120a, 1.9));
-    root.add(fx.areaLight({ center: [0, WIN.sill + WIN.h / 2, Z0 + 0.05], normal: [0, -0.35, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 3.5 }));
+    root.add(fx.areaLight({ center: [0, WIN.sill + WIN.h / 2, Z0 - 0.12], normal: [0, -0.35, 1], width: WIN.w - 0.1, height: WIN.h - 0.1, color: 0x8ea6ff, intensity: 4 }));
     // gasolier: one shadowed warm light at the globe ring + a soft up-light for the ceiling
     let chandBase = 10;
     const chandLight = new THREE.PointLight(0xffa860, 10, 12, 2);
@@ -680,7 +680,7 @@ export default {
       main: { position: [-0.22, 1.63, 3.72], target: [0.22, 1.36, -4.0], fov: 60, label: 'The doorway', look: { yaw: [-45, 45], pitch: [-28, 24] } },
       door: { position: [-0.22, 1.63, 3.6], target: [-0.1, 1.4, 8.0], fov: 58, label: 'The way out' },
       table: { position: [T.x - 0.55, 1.58, T.z + 1.95], target: [T.x, 0.86, T.z], fov: 52, label: 'The table', look: { yaw: [-50, 50], pitch: [-35, 25] }, grade: { exposure: 1.45, bloomStrength: 0.2, godRayWeight: 0.12 } },
-      window: { position: [-0.05, 1.62, -2.2], target: [0.0, 1.8, Z0], fov: 64, label: 'The window', look: { yaw: [-70, 70], pitch: [-30, 30] }, grade: { exposure: 1.15, contrast: 1.12 } },
+      window: { position: [-1.35, 1.62, -1.55], target: [0.35, 1.62, Z0], fov: 60, label: 'The window', look: { yaw: [-70, 70], pitch: [-30, 30] }, grade: { exposure: 1.15, contrast: 1.12 } },
       back: { position: [-0.55, 1.6, -2.15], target: [0.6, 1.35, Z1], fov: 58, label: 'Looking back' },
       sideboard: { position: [-0.7, 1.6, 1.0], target: [X0, 1.35, SB_Z - 0.1], fov: 56, label: 'The sideboard' },
     };
@@ -811,7 +811,7 @@ export default {
         }
       },
       update(dt, t) {},
-      dispose() { if (window.__debug?.dining) delete window.__debug.dining; },
+      dispose() { const d = window.__debug; if (d) { delete d.dining; if (d.solvers) delete d.solvers.dining; if (d.states) delete d.states.dining; } },
     };
   },
 };
