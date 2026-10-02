@@ -71,9 +71,9 @@ export default {
     // ================================================================ materials
     const mat = {
       floor: M.create('checker', { tiles: 4, a: 'carrara', b: 'nero', diagonal: true, polish: 0.85, repeat: [1 / 3.2, 1 / 3.2], size: big }),
-      wall: M.create('damask', { repeat: [1.35, 1.35], base: [0.085, 0.12, 0.3], motif: [0.14, 0.19, 0.42], sheen: 0.6 }),
-      panel: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.75, repeat: [1.1, 1.1], clearcoat: 0.5, clearcoatRoughness: 0.25, color: [0.62, 0.48, 0.42] }),
-      mahogany: M.create('mahogany', { repeat: [1, 1], color: [0.66, 0.5, 0.44] }),
+      wall: M.create('damask', { repeat: [1.35, 1.35], base: [0.075, 0.1, 0.22], motif: [0.125, 0.155, 0.31], sheen: 0.6 }),
+      panel: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.75, repeat: [1.1, 1.1], clearcoat: 0.5, clearcoatRoughness: 0.25, color: [0.52, 0.38, 0.33] }),
+      mahogany: M.create('mahogany', { repeat: [1, 1], color: [0.56, 0.4, 0.35] }),
       dark: M.create('ebony', { repeat: [1, 1] }),
       ceiling: M.create('plaster', { color: [0.13, 0.16, 0.27], cracks: 0.25, stains: 0.45, repeat: [0.4, 0.4] }),
       soffit: M.create('plaster', { color: [0.42, 0.42, 0.44], cracks: 0.3, stains: 0.5, repeat: [0.6, 0.6] }),
@@ -94,8 +94,8 @@ export default {
     const carpetSet = carpetTexture(ctx.textures);
     mat.carpet = new THREE.MeshPhysicalMaterial({ map: carpetSet.map, normalMap: carpetSet.normalMap, roughnessMap: carpetSet.ormMap, aoMap: carpetSet.ormMap, roughness: 1, metalness: 0, sheen: 0.7, sheenRoughness: 0.6, sheenColor: new THREE.Color(0.8, 0.35, 0.3), envMapIntensity: 0.4 });
     mat.shade = new THREE.MeshStandardMaterial({ color: 0x2a2116, emissive: new THREE.Color(1.0, 0.6, 0.28), emissiveIntensity: 2.6, roughness: 0.35, transparent: true, opacity: 0.94 });
-    mat.spider = new THREE.MeshPhysicalMaterial({ color: 0x060505, roughness: 0.25, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.12, envMapIntensity: 1.4 });
-    mat.mark = new THREE.MeshStandardMaterial({ color: 0x400000, emissive: 0xff1a08, emissiveIntensity: 1.4, roughness: 0.4 });
+    mat.spider = new THREE.MeshPhysicalMaterial({ color: 0x1c1512, roughness: 0.25, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.12, envMapIntensity: 1.4 });
+    mat.mark = new THREE.MeshStandardMaterial({ color: 0x400000, emissive: 0xff1a08, emissiveIntensity: 2.4, roughness: 0.4 });
 
     // ================================================================ floor, medallion, ceiling
     {
@@ -103,7 +103,7 @@ export default {
       floor.rotation.x = -Math.PI / 2; floor.name = 'floor';
       add(floor, { cast: false });
       const medSet = medallionTexture(ctx.textures, MED_PR / MED_R);
-      const medMat = new THREE.MeshPhysicalMaterial({ map: medSet.map, normalMap: medSet.normalMap, roughnessMap: medSet.ormMap, metalnessMap: medSet.ormMap, aoMap: medSet.ormMap, roughness: 1, metalness: 1, clearcoat: 0.45, clearcoatRoughness: 0.08, envMapIntensity: 1.1 });
+      const medMat = new THREE.MeshPhysicalMaterial({ map: medSet.map, normalMap: medSet.normalMap, roughnessMap: medSet.ormMap, metalnessMap: medSet.ormMap, aoMap: medSet.ormMap, roughness: 1, metalness: 1, clearcoat: 0.12, clearcoatRoughness: 0.35, envMapIntensity: 1.1 });
       const med = new THREE.Mesh(new THREE.CircleGeometry(MED_R, 160), medMat);
       med.rotation.x = -Math.PI / 2; med.position.copy(MED); med.name = 'medallion';
       add(med, { cast: false });
@@ -595,7 +595,7 @@ export default {
       const top = stair.newel.userData.top;
       const lamp = new THREE.Group();
       lamp.add(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.09, 0], [0.085, 0.02], [0.05, 0.05], [0.035, 0.1], [0.05, 0.16], [0.02, 0.22], [0.016, 0.5], [0.03, 0.53], [0.06, 0.56], [0.0, 0.57]], 28), mat.brass));
-      const globe = new THREE.Mesh(new THREE.SphereGeometry(0.11, 32, 20), new THREE.MeshStandardMaterial({ color: 0x302418, emissive: new THREE.Color(1.0, 0.68, 0.38), emissiveIntensity: 3.2, roughness: 0.3 }));
+      const globe = new THREE.Mesh(new THREE.SphereGeometry(0.11, 32, 20), new THREE.MeshStandardMaterial({ color: 0x302418, emissive: new THREE.Color(1.0, 0.68, 0.38), emissiveIntensity: 1.5, roughness: 0.3 }));
       globe.position.y = 0.66; globe.castShadow = false; lamp.add(globe);
       lamp.position.copy(top);
       add(lamp);
@@ -701,12 +701,20 @@ export default {
     root.add(fanShaft);
     // the clerestory windows on the west wall throw long slanted beams across the hall
     const westDir = V3(0.78, -0.52, -0.34).normalize();
+    const westCookie = fx.windowCookie({ cols: 3, rows: 4, arch: true });
     const westShafts = WIN.west.map((wi) => {
       const sh = fx.shaft({
         center: V3(X0 + 0.02, WIN.westY + WIN.westH * 0.42, wi.z), right: V3(0, 0, -(WIN.westW / 2 - 0.05)), up: V3(0, WIN.westH * 0.42, 0),
-        direction: westDir, length: 9.5, color: 0x9fb2ff, intensity: Number(ctx.params.get('wshaft') || 0.32), softness: 0.3, falloff: 0.9, panes: [3, 4], mullion: 0.025, noise: 0.75,
+        direction: westDir, length: 9.5, color: 0x9fb2ff, intensity: Number(ctx.params.get('wshaft') || 0.27), softness: 0.3, falloff: 0.9, panes: [3, 4], mullion: 0.025, noise: 0.75,
       });
       root.add(sh);
+      // matching unshadowed moon spot so the leaded panes land on the floor
+      const c = V3(X0 - 0.3, WIN.westY + WIN.westH * 0.42, wi.z);
+      const sp = new THREE.SpotLight(0xa3b6ff, 3200, 30, 0.3, 0.35, 2);
+      sp.position.copy(c).addScaledVector(westDir, -4);
+      sp.target.position.copy(c).addScaledVector(westDir, 12);
+      sp.map = westCookie; sp.castShadow = false;
+      if (ctx.params.get('wspot')) root.add(sp, sp.target);
       return sh;
     });
     root.add(fx.dust({ box: new THREE.Box3(V3(-5.6, 0.2, -4), V3(2.6, 7.5, 6.8)), count: 3600, shafts: [shaft, ...westShafts.slice(0, 2), fanShaft].slice(0, 4), size: 0.012, intensity: 2.4, ambient: 0.04 }));
@@ -721,8 +729,8 @@ export default {
       center_e: { position: [-1.25, 1.62, 2.55], target: [6, 1.9, 3.0], fov: 56, label: 'The library doors' },
       center_s: { position: [-1.25, 1.62, 2.55], target: [0.0, 2.7, 7], fov: 58, label: 'The front door', look: { yaw: [-45, 45], pitch: [-20, 40] } },
       stairs: { position: [3.25, 1.62, 3.65], target: [4.9, 3.0, -2.6], fov: 58, label: 'The staircase', look: { yaw: [-60, 50], pitch: [-25, 40] } },
-      landing: { position: [0.15, UF + 1.62, -4.85], target: [-0.35, 3.3, 6], fov: 60, label: 'The gallery landing', look: { yaw: [-60, 60], pitch: [-40, 30] } },
-      landing_n: { position: [0.15, UF + 1.62, -4.85], target: [-2.6, UF + 1.85, -7], fov: 58, label: 'The portrait' },
+      landing: { position: [-1.3, UF + 1.62, -4.9], target: [-0.4, 3.3, 6], fov: 60, label: 'The gallery landing', look: { yaw: [-60, 60], pitch: [-40, 30] } },
+      landing_n: { position: [-1.3, UF + 1.62, -4.9], target: [-2.6, UF + 1.85, -7], fov: 58, label: 'The portrait' },
     };
     const edges = [
       ['main', 'center', [[-0.9, 1.62, 4.2]]],

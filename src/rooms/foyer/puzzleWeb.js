@@ -66,7 +66,7 @@ export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials,
   const spiders = [];
   const home = [];
   for (let k = 0; k < SP; k++) {
-    const a = -Math.PI / 2 + (k - (SP - 1) / 2) * 0.13;  // texture angle near -90deg = world +z (near side)
+    const a = -Math.PI / 2 + (k - (SP - 1) / 2) * 0.22;  // texture angle near -90deg = world +z (near side)
     const r = radius * 0.875;
     home.push(new THREE.Vector3(center.x + Math.cos(a) * r, center.y + 0.004, center.z - Math.sin(a) * r));
     const sp = new THREE.Group();
@@ -74,7 +74,7 @@ export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials,
     const m = new THREE.Mesh(mark, materials.mark); m.position.set(0, 0.052, -0.035); sp.add(m);
     sp.position.copy(home[k]);
     sp.rotation.y = Math.PI + (k - 3) * 0.12;   // face the board centre
-    sp.scale.setScalar(1.25);
+    sp.scale.setScalar(2.1);
     group.add(sp);
     spiders.push(sp);
   }
@@ -110,6 +110,7 @@ export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials,
       if (i === selected) v = 1;
       else if (selected >= 0 && links(selected).includes(i) && !occ[i]) v = 0.45;
       else if (i === hover && selected < 0 && vacantWithMove(i) && placed < SP) v = 0.3;
+      else if (occ[i]) v = 0.16;
       ringTarget[i] = v;
     }
   }
@@ -151,7 +152,7 @@ export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials,
 
   const puzzle = {
     ...webMeta,
-    camera: { position: [center.x, 3.05, center.z + 1.95], target: [center.x, 0.0, center.z + 0.05], fov: 46 },
+    camera: { position: [center.x, 3.35, center.z + 1.75], target: [center.x, 0.0, center.z + 0.22], fov: 50 },
     cameraDuration: 1.5,
     setup(p) {
       if (solvedFlag) { p.status('The web is complete.'); return; }
@@ -220,7 +221,7 @@ export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials,
   return {
     puzzle, group, studs, spiders, points: pts,
     applySolved, resetState,
-    getState: () => ({ occupied: occ.slice(), placed, solved: solvedFlag, moves: moves.slice() }),
+    getState: () => ({ occupied: occ.slice(), placed, solved: solvedFlag, animating: !!anim, selected, moves: moves.slice() }),
     /** QA helper: perform one move programmatically (returns false if illegal) */
     tryMove(from, to) {
       if (occ[from] || occ[to] || !links(from).includes(to) || placed >= SP) return false;

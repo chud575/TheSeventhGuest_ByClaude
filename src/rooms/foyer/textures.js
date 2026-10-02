@@ -295,7 +295,7 @@ void surface(vec2 uv, inout Surface s) {
   vec3 b = brassC * (0.75 + 0.35 * wear);
   col = mix(col, b, inl);
   metal = inl;
-  rough = mix(0.08 + 0.05 * wear, 0.28 + 0.15 * wear, inl);
+  rough = mix(0.24 + 0.12 * wear, 0.3 + 0.15 * wear, inl);
   col = mix(col, vec3(0.08, 0.07, 0.06), joint * 0.8);
   h = 0.6 - joint * 0.3 - inl * 0.03;
   // scuffs & dull traffic patina
