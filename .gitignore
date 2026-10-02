@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.vite/
+*.log
+.DS_Store
+# review screenshots: iterations are ignored, finals are kept
+review/**/*.png
+review/**/*.jpg
+!review/**/final*.png
+!review/**/final*.jpg
+!review/**/*final.png
+!review/**/*final.jpg
