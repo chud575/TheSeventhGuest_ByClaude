@@ -285,7 +285,7 @@ export default {
         foot.position.set(Math.cos(-leg.rotation.y) * 0.4, 0.03, Math.sin(-leg.rotation.y) * 0.4); table.add(foot);
       }
       // runner + a few objects
-      const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.012, 48), M.basic('porcelain'));
+      const plate = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.07, 0], [0.075, 0.004], [0.1, 0.008], [0.125, 0.016], [0.122, 0.019], [0.095, 0.012], [0.07, 0.006], [0, 0.006]], 48), M.basic('porcelain'));
       plate.position.set(-0.32, 0.775, 0.18); table.add(plate);
       const goblet = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.035, 0.002], [0.01, 0.01], [0.006, 0.07], [0.03, 0.09], [0.04, 0.13], [0.038, 0.16], [0.0, 0.16]], 32), M.basic('crystal'));
       goblet.position.set(-0.18, 0.77, 0.32); table.add(goblet);
@@ -313,7 +313,7 @@ export default {
     add(candelabra);
     // one shared light for the candelabra (cheaper than three, casts table shadows)
     const candleLight = new THREE.PointLight(0xffa04a, 5.5, 9, 2);
-    candleLight.position.set(0.3, 1.28, 0.2);
+    candleLight.position.set(0.3, 1.5, 0.2);
     candleLight.castShadow = ctx.quality.shadows;
     candleLight.shadow.mapSize.set(512, 512);
     candleLight.shadow.bias = -0.003; candleLight.shadow.normalBias = 0.03; candleLight.shadow.radius = 4;
@@ -430,7 +430,7 @@ export default {
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
     const shaft = fx.shaft({
       center: winCenter, right: new THREE.Vector3(WIN.w / 2, 0, 0), up: new THREE.Vector3(0, WIN.h * 0.5, 0),
-      direction: beamDir, length: 3.6, color: 0x9fb6ff, intensity: 0.32, softness: 0.3, falloff: 1.1, panes: [2, 3], mullion: 0.035, noise: 0.7,
+      direction: beamDir, length: 3.6, color: 0x9fb6ff, intensity: Number(ctx.params.get('shaft') || 0.7), softness: 0.3, falloff: 1.1, panes: [2, 3], mullion: 0.035, noise: 0.7,
     });
     root.add(shaft);
     const dust = fx.dust({ box: new THREE.Box3(new THREE.Vector3(-1.8, 0.1, Z0 + 0.05), new THREE.Vector3(1.4, 3.0, 0.6)), count: 2200, shafts: [shaft], size: 0.011, intensity: 2.2, ambient: 0.05 });

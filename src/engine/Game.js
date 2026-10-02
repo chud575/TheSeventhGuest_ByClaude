@@ -16,6 +16,7 @@ import { Hotspots } from './nav/Hotspots.js';
 import { Input } from './nav/Input.js';
 import { AudioEngine } from './audio/AudioEngine.js';
 import { UI } from './ui/UI.js';
+import { CURSORS } from './ui/cursors/cursors.js';
 import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js';
 import { START_ROOM, START_NODE, FALLBACK_ROOM, FLOORS, DEFAULT_SEED } from './config.js';
 
@@ -945,12 +946,15 @@ Game.prototype._shotScreen = async function (screen) {
     case 'hints': this.state.useHint('sandbox.candles'); T(() => this.openHints('sandbox.candles')); break;
     case 'puzzle': {
       const hs = this.hotspots.room.find((h) => h.puzzle);
-      if (hs) { this.settings.values.transitionSpeed = 50; await this.startPuzzle(hs.puzzle); }
+      if (hs) {
+        const pr = this.startPuzzle(hs.puzzle);
+        for (let i = 0; i < 5; i++) { this.nav.update(1, this.clockT); await new Promise((r) => setTimeout(r, 0)); }
+        await pr;
+      }
       break;
     }
     case 'caption': ui.caption('A ruined castle on a crag, a single window lit. Someone painted this from memory — or from inside.', { title: 'The Landscape', duration: 60 }); ui.subtitle({ text: 'Admiring my likeness? It never did capture my *best* side.', speaker: 'stauf', speakerName: 'Stauf' }, 60); ui.titleCard('Stauf Manor', this.room?.mod.title || '', 60); break;
     case 'cursors': {
-      const { CURSORS } = await import('./ui/cursors/cursors.js');
       const wrap = document.createElement('div');
       Object.assign(wrap.style, { position: 'absolute', inset: '0', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', placeItems: 'center', background: 'rgba(0,0,0,.55)', zIndex: 300 });
       for (const [name, c] of Object.entries(CURSORS)) {

@@ -41,15 +41,15 @@ vec3 grainColor(vec2 uv, float seed, out float poreMask, out float ringH) {
   float fineB = fbm(vec2(uv.x, vy) + off * 1.9, vec2(6.0, 420.0), 2) * 0.5 + 0.5;
   // 2) soft growth rings: low contrast, slightly arched (flat-sawn cathedral hints)
   float arch = (vy - 0.5) + 0.12 * uFigure * sin(TAU * uv.x + seed * 6.0) * smoothstep(0.0, 0.5, 0.5 - abs(vy - 0.5));
-  float r = abs(arch) * uRingFreq * 9.0 + fbm(uv + off * 1.3, vec2(4.0, 3.0), 3) * 0.6;
+  float r = abs(arch) * uRingFreq * 6.0 + fbm(uv + off * 1.3, vec2(4.0, 3.0), 3) * 0.6;
   float f = fract(r);
   float late = smoothstep(0.0, 0.25, f) * (1.0 - smoothstep(0.45, 1.0, f));
   ringH = late;
   // 3) ribbon / mottled figure (chatoyant bands across the grain)
   float ribbon = sin(TAU * (vy * uRingFreq * 2.0 + fbm(uv + off * 3.1, vec2(5.0, 2.0), 3) * 0.6)) * 0.5 + 0.5;
   float tone = fbm(uv + off * 2.3, vec2(2.0, 3.0), 4) * 0.5 + 0.5;
-  vec3 col = mix(vec3(uEarly), vec3(uLate), clamp(0.25 + late * 0.3 + (fineA - 0.5) * 0.9 + (tone - 0.5) * 0.5, 0.0, 1.0));
-  col *= 0.9 + 0.12 * fineB + 0.08 * (ribbon - 0.5) * uFigure;
+  vec3 col = mix(vec3(uEarly), vec3(uLate), clamp(0.3 + late * 0.22 + (fineA - 0.5) * 0.6 + (tone - 0.5) * 0.45, 0.0, 1.0));
+  col *= 0.92 + 0.1 * fineB + 0.05 * (ribbon - 0.5) * uFigure;
   // pores: tiny dark dashes following the grain
   float pn = vnoise(vec2(uv.x, vy) * vec2(90.0, 1600.0) + off, vec2(90.0, 1600.0));
   poreMask = smoothstep(0.8, 0.93, pn);

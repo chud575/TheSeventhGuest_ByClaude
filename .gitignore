@@ -10,3 +10,4 @@ review/**/*.jpg
 !review/**/final*.jpg
 !review/**/*final.png
 !review/**/*final.jpg
+review/blind_test/
