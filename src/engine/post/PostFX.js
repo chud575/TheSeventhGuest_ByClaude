@@ -28,7 +28,7 @@ export const DEFAULT_GRADE = {
   vignetteSoftness: 0.62,
   grain: 0.035,
   grainSize: 1.6,
-  chromaticAberration: 0.0016,
+  chromaticAberration: 0.0007,
   bloomStrength: 0.42,
   bloomRadius: 0.55,
   bloomThreshold: 0.92,
@@ -124,6 +124,7 @@ export class PostFX {
       uLightPos: { value: [0, 1, 2, 3].map(() => new THREE.Vector2()) },
       uLightColor: { value: [0, 1, 2, 3].map(() => new THREE.Vector3(1, 1, 1)) },
       uLightStrength: { value: [1, 1, 1, 1] },
+      uLightRadius: { value: [0.3, 0.3, 0.3, 0.3] },
       uLightCount: { value: 0 },
       uThreshold: { value: 1.1 },
       uDensity: { value: 0.92 },
@@ -278,10 +279,12 @@ export class PostFX {
     r.setRenderTarget(this.sceneRT);
     r.clear(true, true, true);
     r.render(scene, camera);
+    this.sceneInfo = { calls: r.info.render.calls, triangles: r.info.render.triangles };
     let hdr = this.sceneRT;
+    const off = this.disabled || {};
 
     // 2. ambient occlusion (multiplied into the HDR frame)
-    if (this.ao && g.aoIntensity > 0.001) {
+    if (this.ao && g.aoIntensity > 0.001 && !off.ao) {
       this.ao.camera = camera;
       this.ao.scene = scene;
       this.ao.blendIntensity = g.aoIntensity;
@@ -295,7 +298,7 @@ export class PostFX {
 
     // 3. god rays (half res, additive in grade)
     let raysOn = 0;
-    if (this.preset.godRays && this.godRaySources.length && g.godRayWeight > 0) {
+    if (this.preset.godRays && this.godRaySources.length && g.godRayWeight > 0 && !off.rays) {
       const u = this.raysMat.uniforms;
       let n = 0;
       const v = new THREE.Vector3();
@@ -308,6 +311,7 @@ export class PostFX {
         const c = src.color || new THREE.Color(0.75, 0.85, 1.0);
         u.uLightColor.value[n].set(c.r, c.g, c.b);
         u.uLightStrength.value[n] = src.strength ?? 1;
+        u.uLightRadius.value[n] = src.radius ?? 0.3;
         n++;
       }
       if (n > 0) {
@@ -325,7 +329,7 @@ export class PostFX {
     }
 
     // 4. bloom (in place, additive)
-    if (this.bloom && g.bloomStrength > 0.001) {
+    if (this.bloom && g.bloomStrength > 0.001 && !off.bloom) {
       this.bloom.strength = g.bloomStrength;
       this.bloom.radius = g.bloomRadius;
       this.bloom.threshold = g.bloomThreshold;

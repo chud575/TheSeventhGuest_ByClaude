@@ -19,6 +19,7 @@ uniform sampler2D tColor;
 uniform vec2 uLightPos[4];
 uniform vec3 uLightColor[4];
 uniform float uLightStrength[4];
+uniform float uLightRadius[4];
 uniform int uLightCount;
 uniform float uThreshold;
 uniform float uDensity;
@@ -32,10 +33,13 @@ uniform float uJitter;
 
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 
-vec3 brightSample(vec2 uv) {
+vec3 brightSample(vec2 uv, vec2 lp, float radius) {
   vec3 c = texture2D(tColor, clamp(uv, 0.001, 0.999)).rgb;
   float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  return c * smoothstep(uThreshold, uThreshold * 2.5 + 0.001, l);
+  // only pixels around the source (the window itself) emit rays — candles etc. don't streak
+  vec2 d = (uv - lp) * vec2(uAspect, 1.0);
+  float near = 1.0 - smoothstep(radius * 0.6, radius, length(d));
+  return c * smoothstep(uThreshold, uThreshold * 2.5 + 0.001, l) * near;
 }
 
 void main() {
@@ -50,7 +54,7 @@ void main() {
     vec3 sum = vec3(0.0);
     for (int i = 0; i < SAMPLES; i++) {
       uv -= delta;
-      sum += brightSample(uv) * illum;
+      sum += brightSample(uv, lp, uLightRadius[li]) * illum;
       illum *= uDecay;
     }
     // fade as the source leaves the frame
@@ -196,6 +200,9 @@ vec3 sampleDof(vec2 uv) {
 
 void main() {
   vec3 hdr = uDofOn > 0.5 ? sampleDof(vUv) : texture2D(tColor, vUv).rgb;
+  // never let a NaN/Inf from any shader poison the frame
+  if (any(isnan(hdr)) || any(isinf(hdr))) hdr = vec3(0.0);
+  hdr = min(hdr, vec3(6.0e4));
   if (uRaysOn > 0.5) hdr += texture2D(tRays, vUv).rgb;
 
   // depth haze (very subtle aerial perspective inside large rooms)
