@@ -499,6 +499,7 @@ export default {
       cb.position.set(T.x + Math.sin(phi) * 0.44, TABLE_H, T.z + Math.cos(phi) * 0.44);
       cb.rotation.y = phi; cb.scale.setScalar(0.9);
       add(cb); tableCandles.push(...cb.userData.candles);
+      for (const c of cb.userData.candles) if (c.userData.flame) c.userData.flame.material.uniforms.uIntensity.value = 5;
     }
 
     // ================================================================ sideboard (left wall) + its candelabrum
@@ -544,8 +545,8 @@ export default {
     hang(S.back, S.back.len / 2 + 1.28, 2.08, 0.42, 0.54, { subject: 1, seed: 31, frameW: 0.07, size: 512 });
 
     // ================================================================ lights
-    const moonPos = V3(0.9, 5.6, Z0 - 4.6), moonTarget = V3(-0.3, 0, 0.2);
-    const moon = new THREE.SpotLight(0xa9bfff, 1700, 22, 0.24, 0.4, 2);
+    const moonPos = V3(1.9, 5.4, Z0 - 4.4), moonTarget = V3(-1.05, 0, 0.5);
+    const moon = new THREE.SpotLight(0xa9bfff, 2600, 22, 0.24, 0.35, 2);
     moon.position.copy(moonPos); moon.target.position.copy(moonTarget);
     moon.castShadow = Q.shadows;
     moon.shadow.mapSize.set(Q.shadowMapSize, Q.shadowMapSize);
@@ -604,27 +605,63 @@ export default {
 
     // ================================================================ ghost guests
     const ghostMat = fx.ghostMaterial({ color: 0x7c9cff, rimColor: 0xd6e4ff, opacity: 0.0, intensity: 1.15, dissolveY: 0.45, dissolveSoft: 0.5 });
-    const ghostGeo = (() => {
-      const body = G.latheFromProfile([[0.0, 0.44], [0.17, 0.46], [0.2, 0.6], [0.18, 0.8], [0.2, 0.98], [0.23, 1.08], [0.19, 1.16], [0.07, 1.2], [0.055, 1.26], [0.0, 1.27]], 28);
-      const head = new THREE.SphereGeometry(0.1, 20, 14); head.scale(0.9, 1.12, 1); head.translate(0, 1.37, 0.01);
-      const parts = [body, head].map((g) => { g.deleteAttribute('uv'); return g.index ? g.toNonIndexed() : g; });
-      return G.mergeGeometries(parts);
-    })();
+    /** a seated diner, elbows on the table (local +z = toward the table) */
+    const guestGeometry = (lady) => {
+      const parts = [];
+      const capsule = (a, b, r) => {
+        const A = V3(...a), B = V3(...b);
+        const len = A.distanceTo(B);
+        const g = new THREE.CapsuleGeometry(r, len, 4, 10);
+        const q = new THREE.Quaternion().setFromUnitVectors(V3(0, 1, 0), B.clone().sub(A).normalize());
+        g.applyQuaternion(q); g.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
+        parts.push(g);
+      };
+      const torso = G.latheFromProfile(lady
+        ? [[0.0, 0.5], [0.2, 0.52], [0.18, 0.66], [0.13, 0.8], [0.15, 0.95], [0.17, 1.05], [0.16, 1.13], [0.08, 1.19], [0.0, 1.2]]
+        : [[0.0, 0.5], [0.17, 0.52], [0.18, 0.7], [0.16, 0.86], [0.18, 0.99], [0.2, 1.08], [0.19, 1.15], [0.09, 1.2], [0.0, 1.22]], 22);
+      torso.scale(1, 1, 0.66); torso.rotateX(0.07);
+      parts.push(torso);
+      for (const sx of [-1, 1]) {
+        const sh = new THREE.SphereGeometry(0.065, 12, 8); sh.translate(sx * 0.17, 1.1, 0.02); parts.push(sh);
+        capsule([sx * 0.19, 1.08, 0.02], [sx * 0.21, 0.86, 0.2], 0.045);
+        capsule([sx * 0.21, 0.86, 0.2], [sx * 0.1, 0.8, 0.42], 0.038);
+        const hand = new THREE.SphereGeometry(0.04, 10, 8); hand.scale(0.8, 0.5, 1.2); hand.translate(sx * 0.07, 0.79, 0.47); parts.push(hand);
+        capsule([sx * 0.09, 0.55, 0.0], [sx * 0.1, 0.56, 0.4], lady ? 0.085 : 0.07);
+        capsule([sx * 0.1, 0.55, 0.42], [sx * 0.1, 0.08, 0.46], 0.05);
+      }
+      const neck = new THREE.CylinderGeometry(0.045, 0.05, 0.14, 12); neck.translate(0, 1.25, 0.03); parts.push(neck);
+      const head = new THREE.SphereGeometry(0.1, 20, 14); head.scale(0.88, 1.12, 1.0); head.translate(0, 1.4, 0.05); parts.push(head);
+      const jaw = new THREE.SphereGeometry(0.075, 14, 10); jaw.scale(0.95, 0.8, 1.0); jaw.translate(0, 1.33, 0.08); parts.push(jaw);
+      const nose = new THREE.ConeGeometry(0.018, 0.05, 8); nose.rotateX(Math.PI / 2 + 0.3); nose.translate(0, 1.4, 0.16); parts.push(nose);
+      if (lady) {
+        const bun = new THREE.SphereGeometry(0.065, 14, 10); bun.translate(0, 1.48, -0.06); parts.push(bun);
+        const hair = new THREE.SphereGeometry(0.108, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.55); hair.scale(0.92, 1.1, 1.02); hair.translate(0, 1.41, 0.04); parts.push(hair);
+        const skirt = G.latheFromProfile([[0.0, 0.62], [0.22, 0.6], [0.3, 0.4], [0.34, 0.1], [0.0, 0.1]], 18); skirt.scale(1, 1, 1.2); skirt.translate(0, 0, 0.12); parts.push(skirt);
+      } else {
+        const collar = new THREE.CylinderGeometry(0.06, 0.065, 0.06, 14, 1, true); collar.translate(0, 1.22, 0.03); parts.push(collar);
+        const lapel = new THREE.ConeGeometry(0.09, 0.22, 3); lapel.rotateX(Math.PI); lapel.scale(1, 1, 0.3); lapel.translate(0, 1.06, 0.11); parts.push(lapel);
+      }
+      return G.mergeGeometries(parts.map((g) => { if (g.attributes.uv) g.deleteAttribute('uv'); return g.index ? g.toNonIndexed() : g; }));
+    };
+    const ghostGeos = [guestGeometry(true), guestGeometry(false)];
+    const ghostDepth = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: true, transparent: true, opacity: 1 });
     const ghosts = places.map(({ phi, dir }, k) => {
-      const m = new THREE.Mesh(ghostGeo, ghostMat);
-      m.position.copy(T).addScaledVector(dir, TABLE_R + 0.24);
+      const m = new THREE.Mesh(ghostGeos[k % 2], ghostMat);
+      m.position.copy(T).addScaledVector(dir, TABLE_R + 0.26);
       m.rotation.y = phi + Math.PI;
-      m.rotation.x = -0.05;
       m.renderOrder = 7; m.visible = false; m.userData.keep = true; m.userData.noBake = true;
+      // depth pre-pass: only the nearest surface of the figure is drawn (no see-through limbs)
+      const pre = new THREE.Mesh(m.geometry, ghostDepth); pre.renderOrder = 6; pre.userData.noBake = true; m.add(pre);
       root.add(m);
       return m;
     });
     const ghostFade = { v: 0, target: 0 };
+    if (ctx.params.get('ghosts') === '1') { ghostFade.v = ghostFade.target = 1; }   // review: show the spectral guests
     ctx.onUpdate((dt, t) => {
       ghostFade.v += (ghostFade.target - ghostFade.v) * Math.min(1, dt * 1.6);
-      const o = ghostFade.v * 0.7;
+      const o = ghostFade.v * 0.85;
       ghostMat.uniforms.uOpacity.value = o;
-      ghosts.forEach((g, k) => { g.visible = o > 0.01; g.position.y = Math.sin(t * 0.9 + k) * 0.012; g.rotation.y = places[k].phi + Math.PI + Math.sin(t * 0.4 + k * 1.7) * 0.12; });
+      ghosts.forEach((g, k) => { g.visible = o > 0.01; g.position.y = Math.sin(t * 0.9 + k) * 0.01; g.rotation.y = places[k].phi + Math.PI + Math.sin(t * 0.4 + k * 1.7) * 0.06; });
     });
     async function summonGuests(afterCake = false) {
       const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
@@ -642,8 +679,8 @@ export default {
     const nodes = {
       main: { position: [-0.22, 1.63, 3.72], target: [0.22, 1.36, -4.0], fov: 60, label: 'The doorway', look: { yaw: [-45, 45], pitch: [-28, 24] } },
       door: { position: [-0.22, 1.63, 3.6], target: [-0.1, 1.4, 8.0], fov: 58, label: 'The way out' },
-      table: { position: [T.x - 0.55, 1.58, T.z + 1.95], target: [T.x, 0.86, T.z], fov: 52, label: 'The table', look: { yaw: [-50, 50], pitch: [-35, 25] }, grade: { exposure: 1.6 } },
-      window: { position: [-0.05, 1.62, -2.2], target: [0.0, 1.8, Z0], fov: 64, label: 'The window', look: { yaw: [-70, 70], pitch: [-30, 30] }, grade: { exposure: 1.4 } },
+      table: { position: [T.x - 0.55, 1.58, T.z + 1.95], target: [T.x, 0.86, T.z], fov: 52, label: 'The table', look: { yaw: [-50, 50], pitch: [-35, 25] }, grade: { exposure: 1.45, bloomStrength: 0.2, godRayWeight: 0.12 } },
+      window: { position: [-0.05, 1.62, -2.2], target: [0.0, 1.8, Z0], fov: 64, label: 'The window', look: { yaw: [-70, 70], pitch: [-30, 30] }, grade: { exposure: 1.15, contrast: 1.12 } },
       back: { position: [-0.55, 1.6, -2.15], target: [0.6, 1.35, Z1], fov: 58, label: 'Looking back' },
       sideboard: { position: [-0.7, 1.6, 1.0], target: [X0, 1.35, SB_Z - 0.1], fov: 56, label: 'The sideboard' },
     };
@@ -765,7 +802,7 @@ export default {
       scene: root,
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
-      grade: { exposure: 1.8, contrast: 1.08, saturation: 1.0, bloomStrength: 0.35, bloomThreshold: 1.1, godRayWeight: 0.4, godRayThreshold: 3.0, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4 },
+      grade: { exposure: 1.8, contrast: 1.08, saturation: 1.0, bloomStrength: 0.35, bloomThreshold: 1.1, godRayWeight: 0.3, godRayThreshold: 3.0, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4 },
       environment: { position: [0.0, 1.8, 1.2], intensity: 0.8 },
       onEnter() {
         if (!ctx.state.has('dining.greeted')) {
