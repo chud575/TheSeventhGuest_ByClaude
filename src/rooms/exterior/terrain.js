@@ -216,8 +216,8 @@ export function buildGrass({ material, regions, count = 5000, seed = 5, avoid = 
   const m = instanced(geo, material, mats, { cast: false, receive: true, name: 'grass' });
   const c = new THREE.Color();
   for (let i = 0; i < mats.length; i++) {
-    const v = 0.6 + R() * 0.8;
-    c.setRGB(v * (0.95 + R() * 0.15), v, v * (0.8 + R() * 0.25));
+    const v = 0.35 + Math.pow(R(), 1.5) * 1.1;
+    c.setRGB(v * (1.0 + R() * 0.15), v * 0.96, v * (0.72 + R() * 0.2));
     m.setColorAt(i, c);
   }
   m.instanceColor.needsUpdate = true;

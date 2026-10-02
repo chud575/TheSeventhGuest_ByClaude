@@ -151,10 +151,13 @@ export function patchFog(material, U) {
   vHFogW = (modelMatrix * hw).xyz; }`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\nvarying vec3 vHFogW;\n${HFOG_PARS}`)
-      .replace('#include <fog_fragment>', `{ vec4 hf = hfogEval(cameraPosition, vHFogW); gl_FragColor.rgb = mix(gl_FragColor.rgb, hf.rgb, hf.a); }`);
+      .replace('#include <fog_fragment>', `${material.userData.groundShade ? `{ float gd = length(vHFogW - cameraPosition);
+  float cs = hfNoise(vec3(vHFogW.xz * 0.045 + vec2(uHFogTime * 0.03, uHFogTime * 0.01), 3.7));
+  gl_FragColor.rgb *= mix(0.42, 1.0, smoothstep(2.0, 17.0, gd)) * mix(0.55, 1.1, smoothstep(0.3, 0.7, cs)); }` : ''}
+{ vec4 hf = hfogEval(cameraPosition, vHFogW); gl_FragColor.rgb = mix(gl_FragColor.rgb, hf.rgb, hf.a); }`);
   };
   const key = material.customProgramCacheKey?.bind(material);
-  material.customProgramCacheKey = () => (key ? key() : '') + '|hfog';
+  material.customProgramCacheKey = () => (key ? key() : '') + '|hfog' + (material.userData.groundShade ? 'g' : '');
   material.needsUpdate = true;
   return material;
 }

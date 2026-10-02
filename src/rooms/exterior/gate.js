@@ -74,7 +74,7 @@ export function buildGate(ctx, M) {
     flame.position.y = 0.12; L.add(flame);
     group.add(L);
     lanterns.push(L);
-    const pl = new THREE.PointLight(0xffa458, 9, 16, 2);
+    const pl = new THREE.PointLight(0xffa458, 14, 18, 2);
     pl.position.set(x, ly + 0.62, GATE.z + 0.05);
     group.add(pl);
     lights.push(pl);

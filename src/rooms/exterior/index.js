@@ -7,7 +7,7 @@ import { height, buildTerrain, buildPath, buildGrass, grassTexture, GATE_Z } fro
 import { buildMansion, F, DOOR, TOWER, PORCH } from './mansion.js';
 import { gnarledTree } from './trees.js';
 import { buildGate } from './gate.js';
-import { buildGraveyard, placeTree } from './props.js';
+import { buildGraveyard, placeTree, buildDressing } from './props.js';
 import { buildMist } from './mist.js';
 import { createMedallion, createGatePuzzle, gateMeta } from './puzzleGate.js';
 
@@ -21,6 +21,8 @@ import { createMedallion, createGatePuzzle, gateMeta } from './puzzleGate.js';
 
 const MOON_DIR = new THREE.Vector3(-0.18, 0.5, -0.847).normalize();
 const v3 = (a) => new THREE.Vector3(...a);
+// the moonlight comes from a little higher than the visible disc (a cinematographer's cheat: shorter house shadow)
+const LIGHT_DIR = new THREE.Vector3(-0.2, 0.66, -0.72).normalize();
 
 // lightning schedule (seconds within a 41 s cycle): strike times; each strike is a few flickers
 const STRIKES = [6.2, 17.8, 18.35, 29.4, 36.9];
@@ -73,24 +75,31 @@ export default {
       brass: ctx.materials.create('brass', { tarnish: 0.5, polish: 0.6 }),
       terracotta: new THREE.MeshStandardMaterial({ color: 0x3a1e14, roughness: 0.85, name: 'terracotta' }),
       mound: pbr(TX.ground, { name: 'mound', color: 0x9a9080 }),
+      rock: pbr(TX.rock, { name: 'rock', color: 0xb0b0b4 }),
+      _x: null,
       lanternGlass: new THREE.MeshStandardMaterial({ color: 0x000000, emissive: new THREE.Color(1.0, 0.62, 0.3), emissiveIntensity: 7, roughness: 0.2, transparent: true, opacity: 0.92, name: 'lanternGlass' }),
     };
     M.iron.color.setScalar(1.0);
+    M.rock.userData.groundShade = true;
     for (const k of ['siding', 'slate', 'ashlar', 'stoneDark']) applyMacroVariation(M[k], { amount: 0.45, scale: 0.18 });
 
     // ------------------------------------------------------------ sky
     const sky = createSky({ timeUniform: ctx.time, moonDir: MOON_DIR });
     root.add(sky.mesh);
+    if (P.get('skyoff')) sky.mesh.visible = false;
 
     // ------------------------------------------------------------ terrain + path + grass
     const groundMat = pbr(TX.ground, { name: 'ground', color: 0x3a3833 });
     applyMacroVariation(groundMat, { amount: 0.8, scale: 0.09 });
+    groundMat.userData.groundShade = true;
     const terrain = buildTerrain({ material: groundMat });
     root.add(terrain);
     const pathMat = pbr(TX.path, { name: 'path', alphaTest: 0.5, color: 0xc4c0b8 });
+    pathMat.userData.groundShade = true;
     pathMat.polygonOffset = true; pathMat.polygonOffsetFactor = -2; pathMat.polygonOffsetUnits = -2;
     root.add(buildPath({ material: pathMat }));
-    const grassMat = new THREE.MeshStandardMaterial({ map: grassTexture(ctx), alphaTest: 0.4, side: THREE.FrontSide, roughness: 0.9, color: 0x9a927e, name: 'grass' });
+    const grassMat = new THREE.MeshStandardMaterial({ map: grassTexture(ctx), alphaTest: 0.4, side: THREE.FrontSide, roughness: 0.9, color: 0x5e584a, name: 'grass' });
+    grassMat.userData.groundShade = true;
     root.add(buildGrass({
       material: grassMat, count: ctx.quality.particles >= 1 ? 14000 : 7000,
       regions: [
@@ -136,14 +145,22 @@ export default {
       root.add(placeTree(g, barkMat, t));
     }
 
+    // ------------------------------------------------------------ foreground dressing
+    M.bark = barkMat;
+    root.add(buildDressing(ctx, M, {
+      rocks: [[7.0, 41.5, 0.9, 0.3], [8.3, 42.7, 0.5, 1.2], [6.1, 42.4, 0.32, 2.0], [-0.9, 40.4, 0.55, 0.8], [-1.7, 39.6, 0.3, 1.4], [9.5, 44.5, 1.1, 0.3],
+        [2.6, 34.2, 0.4, 0.5], [-2.9, 34.6, 0.5, 2.3], [14.5, 40.0, 1.4, 0.7], [-9, 38.5, 1.2, 1.9], [6.5, 51.5, 0.5, 0.2]],
+      bushes: [[7.7, 40.6, 1.0, 5], [-1.3, 39.0, 0.9, 8], [9.6, 38.4, 1.1, 31], [12.8, 41.5, 1.2, 12], [-6.5, 40.2, 1.1, 17], [3.4, 35.5, 0.7, 21], [-1.8, 35.2, 0.8, 26]],
+    }));
+
     // ------------------------------------------------------------ graveyard
     const graves = buildGraveyard(ctx, M, { cx: -10.5, cz: 21 });
     root.add(graves.group);
 
     // ------------------------------------------------------------ lights
-    const moon = new THREE.DirectionalLight(0xa8bcff, Number(P.get('moon') || 2.4));
+    const moon = new THREE.DirectionalLight(0xa8bcff, Number(P.get('moon') || 2.0));
     const shadowCenter = new THREE.Vector3(0, 0, 14);
-    moon.position.copy(shadowCenter).addScaledVector(MOON_DIR, 60);
+    moon.position.copy(shadowCenter).addScaledVector(P.get('ldir') ? new THREE.Vector3(...P.get('ldir').split(',').map(Number)).normalize() : LIGHT_DIR, 60);
     moon.target.position.copy(shadowCenter);
     moon.castShadow = ctx.quality.shadows;
     moon.shadow.mapSize.set(ctx.quality.shadowMapSize, ctx.quality.shadowMapSize);
@@ -159,7 +176,7 @@ export default {
     const key = new THREE.DirectionalLight(0x8fa6e8, Number(P.get('key') || 0.55));
     key.position.set(60, 28, 22); key.target.position.set(0, 5, 0);
     root.add(key, key.target);
-    const hemi = new THREE.HemisphereLight(0x3a4c80, 0x0e0c0a, Number(P.get('hemi') || 0.75));
+    const hemi = new THREE.HemisphereLight(0x3a4c80, 0x0e0c0a, Number(P.get('hemi') || 0.6));
     root.add(hemi);
     // lightning (key light from the strike direction)
     const bolt = new THREE.DirectionalLight(0xc8d4ff, 0);
@@ -252,7 +269,7 @@ export default {
     const eye = 1.64;
     const at = (x, z, dy = eye) => [x, height(x, z) + dy, z];
     const nodes = {
-      main: { position: at(9.0, 49.0), target: [-1.2, 7.6, 0], fov: 50, label: 'The foot of the hill', look: { yaw: [-45, 45], pitch: [-20, 30] } },
+      main: { position: at(5.5, 47.0), target: [-0.5, 6.5, 6], fov: 46, label: 'The foot of the hill', look: { yaw: [-45, 45], pitch: [-20, 30] } },
       gate: { position: at(0.35, GATE_Z + 3.4), target: [0.0, gate.y0 + 3.6, 12], fov: 54, label: 'The gate', look: { yaw: [-55, 55], pitch: [-30, 35] } },
       drive: { position: at(1.1, 22.5), target: [-0.2, 7.2, 0], fov: 54, label: 'The drive', look: { yaw: [-60, 60], pitch: [-25, 35] } },
       graves: { position: at(1.1, 22.5), target: [-10.5, height(-10.5, 21) + 0.6, 20.6], fov: 50, label: 'The family plot' },
@@ -363,7 +380,7 @@ export default {
       // lamps flicker gently
       const fl = 0.93 + 0.07 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1.0);
       porchLights.forEach((l, i) => { l.intensity = 7 * (i ? fl : 2 - fl - 0.0) * 0.98; });
-      gate.lights.forEach((l, i) => { l.intensity = 9 * (0.92 + 0.08 * Math.sin(t * (5.1 + i) + i * 2.0)); });
+      gate.lights.forEach((l, i) => { l.intensity = 14 * (0.92 + 0.08 * Math.sin(t * (5.1 + i) + i * 2.0)); });
     };
     update(0, ctx.time.value);
     if (P.get('door') === 'open') { doorOpen.v = doorOpen.target = 1; applyDoor(); }

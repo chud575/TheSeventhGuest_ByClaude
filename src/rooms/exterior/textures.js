@@ -248,7 +248,29 @@ void surface(vec2 uv, inout Surface s) {
   s.ao = 1.0;
 }` });
 
-  return { siding, slate, bark, ground, path, ashlar, trim, iron };
+  // Weathered field rock: lichen blotches, moss in the crevices. Triplanar-ish box UVs, 1 tile = 2 m.
+  const rock = T.generate('ext:rock1', {
+    size: 1024, normalStrength: 4.0,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  float n = fbm(uv, vec2(6.0), 7) * 0.5 + 0.5;
+  float r = ridged(uv + 1.7, vec2(4.0), 6);
+  float cr = voronoiEdge(uv * 5.0, vec2(5.0), 0.9);
+  float crack = (1.0 - smoothstep(0.0, 0.025, cr + (n - 0.5) * 0.05)) * smoothstep(0.45, 0.6, fbm(uv + 2.2, vec2(3.0), 4) * 0.5 + 0.5);
+  vec3 col = mix(vec3(0.16, 0.16, 0.155), vec3(0.34, 0.33, 0.31), n) * (0.8 + 0.3 * r);
+  float lich = smoothstep(0.6, 0.75, fbm(uv + 4.2, vec2(10.0), 5) * 0.5 + 0.5);
+  col = mix(col, vec3(0.52, 0.53, 0.46), lich * 0.5);
+  float moss = smoothstep(0.55, 0.8, fbm(uv + 8.1, vec2(5.0), 5) * 0.5 + 0.5 + crack * 0.3);
+  col = mix(col, vec3(0.1, 0.13, 0.06), moss * 0.7);
+  col *= 1.0 - crack * 0.6;
+  s.albedo = col;
+  s.height = r * 0.5 + n * 0.4 - crack * 0.35 + lich * 0.03;
+  s.rough = 0.88 - lich * 0.05;
+  s.metal = 0.0;
+  s.ao = mix(0.4, 1.0, 1.0 - crack);
+}` });
+
+  return { siding, slate, bark, ground, path, ashlar, trim, iron, rock };
 }
 
 /** Build a MeshStandardMaterial from a forge TextureSet. */

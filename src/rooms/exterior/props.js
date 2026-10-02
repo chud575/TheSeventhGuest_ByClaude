@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Bucket, mat4, rng } from './lib.js';
 import { height } from './terrain.js';
+import { gnarledTree } from './trees.js';
 
 /** The Stauf family plot: leaning headstones, a Celtic cross, an obelisk, a broken column. */
 export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13 } = {}) {
@@ -62,4 +63,47 @@ export function placeTree(geo, material, { x, z, ry = 0, s = 1 }) {
   m.castShadow = true; m.receiveShadow = true;
   m.name = 'tree';
   return m;
+}
+
+/** Lumpy field boulder: displaced icosphere (deterministic), flattened, with a buried base. */
+export function boulderGeometry(seed, r = 1) {
+  const R = rng(seed);
+  const g = new THREE.IcosahedronGeometry(r, 4);
+  const p = g.attributes.position;
+  const ph = [R() * 10, R() * 10, R() * 10];
+  const v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i).normalize();
+    const n = Math.sin(v.x * 2.1 + ph[0]) * 0.18 + Math.sin(v.y * 3.3 + ph[1]) * 0.12 + Math.sin(v.z * 2.7 + ph[2]) * 0.15
+      + Math.sin((v.x + v.z) * 7.0 + ph[1]) * 0.04 + Math.sin((v.y - v.x) * 11.0 + ph[2]) * 0.025;
+    // facet: quantise a little to suggest fractured planes
+    const k = 1 + n;
+    v.multiplyScalar(r * k);
+    v.y *= 0.62;
+    p.setXYZ(i, v.x, v.y, v.z);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+/** Foreground dressing: boulders and dead bramble bushes. */
+export function buildDressing(ctx, M, { rocks = [], bushes = [] }) {
+  const group = new THREE.Group();
+  group.name = 'dressing';
+  const B = new Bucket();
+  rocks.forEach(([x, z, r, ry, seed], i) => {
+    const y = height(x, z);
+    B.add(boulderGeometry(seed ?? i * 7 + 3, r), M.rock, mat4(x, y + r * 0.12, z, 0, ry || 0, 0), { uvScale: 0.5 });
+  });
+  B.build(group, { name: 'rocks' });
+  for (const [x, z, s, seed] of bushes) {
+    const g = gnarledTree({ seed, height: 1.6, trunkR: 0.035, spread: 1.3, depth: 4, droop: 0.1 });
+    const m = new THREE.Mesh(g, M.bark);
+    m.position.set(x, height(x, z) - 0.05, z);
+    m.scale.setScalar(s);
+    m.rotation.y = seed;
+    m.castShadow = true; m.receiveShadow = true;
+    group.add(m);
+  }
+  return group;
 }

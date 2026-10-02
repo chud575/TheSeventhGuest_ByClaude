@@ -77,8 +77,8 @@ void main() {
   // ---- base gradient: deep indigo zenith, misty blue-grey horizon, moon-side brighter
   float mo = max(dot(d, uMoonDir), 0.0);
   vec3 sky = mix(uHorizon, uZenith, pow(smoothstep(-0.05, 0.75, el), 0.7));
-  sky += vec3(0.08, 0.11, 0.2) * pow(mo, 3.0) * 0.45;
-  sky += vec3(0.25, 0.30, 0.42) * pow(mo, 24.0) * 1.0;
+  sky += vec3(0.08, 0.11, 0.2) * pow(mo, 8.0) * 0.18;
+  sky += vec3(0.25, 0.30, 0.42) * pow(mo, 40.0) * 0.6;
 
   // ---- stars
   vec2 sp = vec2(az * 180.0, el * 180.0);
@@ -101,7 +101,7 @@ void main() {
   vec3 moonC = vec3(1.0, 0.97, 0.9) * (0.62 + 0.38 * smoothstep(0.35, 0.65, maria)) * (0.85 + 0.15 * craters) * (0.55 + 0.45 * pow(limb, 0.5));
   vec3 moon = moonC * uMoonBright * disc;
   // corona + halo
-  vec3 glow = vec3(0.55, 0.62, 0.8) * (exp(-md * 18.0) * 1.2 + exp(-md * 5.0) * 0.25);
+  vec3 glow = vec3(0.55, 0.62, 0.8) * (exp(-md * 22.0) * 0.9 + exp(-md * 7.0) * 0.1);
   float halo = exp(-pow((md - 0.38) / 0.02, 2.0)) * 0.05;
   glow += vec3(0.6, 0.65, 0.8) * halo;
 
@@ -113,7 +113,7 @@ void main() {
   float c1 = fbm2(cp * 0.75 + vec2(warp * 0.9, warp * 0.4) + w1, 7);
   float c2 = fbm2(cp * 2.2 + vec2(-t * 0.02, t * 0.006) + warp, 5);
   float cov = uCloudCover;
-  float dens = smoothstep(0.62 - cov * 0.3, 0.9 - cov * 0.2, c1 + (c2 - 0.5) * 0.25);
+  float dens = smoothstep(0.6 - cov * 0.3, 0.78 - cov * 0.2, c1 + (c2 - 0.5) * 0.3);
   float wisp = smoothstep(0.5, 0.8, c2) * (1.0 - dens) * 0.45;
   dens = clamp(dens + wisp, 0.0, 1.0);
   dens *= smoothstep(-0.02, 0.12, el);
@@ -125,8 +125,8 @@ void main() {
   dens = max(dens, scud * 0.9);
   // lighting: thin parts near the moon glow silver; thick parts are dark slate
   float thin = 1.0 - smoothstep(0.2, 1.0, dens);
-  vec3 cloudDark = vec3(0.012, 0.015, 0.025) + uHorizon * 0.25;
-  vec3 cloudLit = vec3(0.55, 0.64, 0.9) * (pow(mo, 12.0) * 2.2 + pow(mo, 3.0) * 0.07);
+  vec3 cloudDark = vec3(0.011, 0.014, 0.026) + uHorizon * 0.3;
+  vec3 cloudLit = vec3(0.55, 0.64, 0.9) * (pow(mo, 90.0) * 1.8 + pow(mo, 14.0) * 0.16 + pow(mo, 2.0) * 0.02);
   float edge = smoothstep(0.0, 0.35, dens) * (1.0 - smoothstep(0.35, 0.9, dens));
   vec3 cloudCol = cloudDark + cloudLit * (thin * 0.45 + edge * 1.8);
   // lightning lights the cloud bellies
@@ -172,8 +172,8 @@ export function createSky({ timeUniform, moonDir }) {
     uBoltDir: { value: new THREE.Vector3(-0.5, 0.25, -1).normalize() },
     uBolt: { value: 0 },
     uBoltSeed: { value: 3 },
-    uHorizon: { value: new THREE.Color(0.022, 0.034, 0.075) },
-    uZenith: { value: new THREE.Color(0.004, 0.007, 0.022) },
+    uHorizon: { value: new THREE.Color(0.009, 0.014, 0.034) },
+    uZenith: { value: new THREE.Color(0.0015, 0.0025, 0.009) },
     uCloudCover: { value: 0.55 },
     uStars: { value: 1.0 },
   };
