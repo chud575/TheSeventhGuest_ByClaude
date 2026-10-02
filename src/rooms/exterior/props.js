@@ -29,7 +29,7 @@ export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13 } = {}) 
     // grave mound
     const mound = new THREE.SphereGeometry(1, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2);
     { const p = mound.attributes.position; for (let k = 0; k < p.count; k++) { const px = p.getX(k), py = p.getY(k), pz = p.getZ(k); const n = 1 + 0.12 * Math.sin(px * 9 + i) * Math.sin(pz * 7 + i * 2) + 0.06 * Math.sin(px * 23 + pz * 19); p.setXYZ(k, px * n, py * n, pz * n); } mound.computeVertexNormals(); }
-    B.add(mound, M.mound, mat4(x + Math.sin(0.25) * 0.9, y - 0.1, z + Math.cos(0.25) * 0.9, 0, 0.25 + (R() - 0.5) * 0.2, 0, 0.42, 0.11 + R() * 0.05, 0.9), { uvScale: 0.5 });
+    B.add(mound, M.mound, mat4(x + Math.sin(0.25) * 0.9, y - 0.1, z + Math.cos(0.25) * 0.9, 0, 0.25 + (R() - 0.5) * 0.2, 0, 0.42, 0.2 + R() * 0.08, 0.9), { uvScale: 0.5 });
     stones.push(new THREE.Vector3(x, y + h / 2, z));
   });
   // obelisk
@@ -54,9 +54,9 @@ export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13 } = {}) 
   // a votive lantern left burning on the newest grave: someone visits
   const votive = new THREE.Group();
   {
-    const [vx, vz] = [cx + 0.6 + 0.35, cz - 1.4 + 0.75];
+    const [vx, vz] = [cx + 2.2, cz + 1.6];
     const vy = height(vx, vz);
-    votive.position.set(vx, vy + 0.1, vz);
+    votive.position.set(vx, vy - 0.01, vz);
     const iron = M.iron;
     const parts = new Bucket();
     for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) parts.add(new THREE.BoxGeometry(0.012, 0.2, 0.012), iron, mat4(sx * 0.055, 0.11, sz * 0.055), { uv: 'keep' });
