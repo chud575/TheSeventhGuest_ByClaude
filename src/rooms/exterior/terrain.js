@@ -137,30 +137,45 @@ export function buildPath({ material, width = 2.5, from = 0, to = 1 }) {
   return mesh;
 }
 
-/** Dead-grass tuft texture (canvas, with alpha). */
+/** Dead-grass tuft texture (canvas, with alpha): many thin tapered straw blades and seed heads. */
 export function grassTexture(ctx) {
-  return ctx.textures.canvas('ext:grass3', 512, 512, (g, w, h) => {
+  return ctx.textures.canvas('ext:grass4', 512, 512, (g, w, h) => {
     g.clearRect(0, 0, w, h);
     const R = rng(77);
-    for (let i = 0; i < 46; i++) {
-      const x0 = w * (0.2 + 0.6 * R());
-      const len = h * (0.3 + 0.68 * R());
-      const bend = (R() - 0.5) * w * 0.5;
-      const wid = 3 + R() * 4;
-      const c = 0.55 + R() * 0.45;
+    const blade = (x0, len, bend, wid, c, dark) => {
+      const steps = 10;
+      const pts = [];
+      for (let k = 0; k <= steps; k++) {
+        const t = k / steps;
+        pts.push([x0 + bend * t * t, h - len * t, wid * (1 - t * 0.92)]);
+      }
       const grd = g.createLinearGradient(0, h, 0, h - len);
-      grd.addColorStop(0, `rgb(${Math.floor(60 * c)},${Math.floor(58 * c)},${Math.floor(40 * c)})`);
-      grd.addColorStop(1, `rgb(${Math.floor(210 * c)},${Math.floor(190 * c)},${Math.floor(140 * c)})`);
-      g.strokeStyle = grd;
-      g.lineCap = 'round';
-      // tapered blade: a few strokes of decreasing width
-      for (let k = 0; k < 3; k++) {
-        const f = 1 - k * 0.3;
-        g.lineWidth = wid * f;
-        g.beginPath();
-        g.moveTo(x0, h);
-        g.quadraticCurveTo(x0 + bend * 0.25, h - len * 0.55 * f, x0 + bend * f, h - len * (0.6 + 0.4 * f));
-        g.stroke();
+      const r0 = dark ? 50 : 80, r1 = dark ? 130 : 180;
+      grd.addColorStop(0, `rgb(${Math.floor(r0 * c)},${Math.floor(r0 * 0.95 * c)},${Math.floor(r0 * 0.7 * c)})`);
+      grd.addColorStop(0.55, `rgb(${Math.floor(r1 * 0.75 * c)},${Math.floor(r1 * 0.68 * c)},${Math.floor(r1 * 0.48 * c)})`);
+      grd.addColorStop(1, `rgb(${Math.floor(r1 * c)},${Math.floor(r1 * 0.92 * c)},${Math.floor(r1 * 0.7 * c)})`);
+      g.fillStyle = grd;
+      g.beginPath();
+      pts.forEach(([x, y, ww], i) => (i ? g.lineTo(x - ww / 2, y) : g.moveTo(x - ww / 2, y)));
+      for (let i = pts.length - 1; i >= 0; i--) g.lineTo(pts[i][0] + pts[i][2] / 2, pts[i][1]);
+      g.closePath();
+      g.fill();
+      return pts[pts.length - 1];
+    };
+    // back layer: darker, then lighter front blades
+    for (let pass = 0; pass < 2; pass++) {
+      const n = pass ? 70 : 60;
+      for (let i = 0; i < n; i++) {
+        const x0 = w * (0.12 + 0.76 * R());
+        const len = h * (0.35 + 0.62 * R());
+        const bend = (R() - 0.5) * w * 0.55 + (x0 - w / 2) * 0.5;
+        const wid = 2.5 + R() * 4.5;
+        const c = 0.6 + R() * 0.4;
+        const tip = blade(x0, len, bend, wid, c, pass === 0);
+        if (pass && R() < 0.12) { // seed head
+          g.fillStyle = `rgba(${Math.floor(190 * c)},${Math.floor(175 * c)},${Math.floor(135 * c)},0.95)`;
+          g.beginPath(); g.ellipse(tip[0], tip[1] + 10, 3, 14, (bend / w) * 0.8, 0, Math.PI * 2); g.fill();
+        }
       }
     }
   }, { tile: false });
@@ -171,11 +186,14 @@ export function buildGrass({ material, regions, count = 5000, seed = 5, avoid = 
   const quad = new THREE.PlaneGeometry(1, 1);
   quad.translate(0, 0.5, 0);
   const parts = [];
-  for (let k = 0; k < 3; k++) { const q = quad.clone(); q.rotateY((k * Math.PI) / 3); parts.push(q); }
+  for (let k = 0; k < 3; k++) {
+    const q = quad.clone(); q.rotateY((k * Math.PI) / 3); parts.push(q);
+    const b = quad.clone(); b.rotateY((k * Math.PI) / 3 + Math.PI); parts.push(b);   // back face (same lighting)
+  }
   const geo = mergeSimple(parts);
   // normals pointing up-ish so tufts light like the ground
   const nor = geo.attributes.normal;
-  for (let i = 0; i < nor.count; i++) nor.setXYZ(i, nor.getX(i) * 0.7, 0.5, nor.getZ(i) * 0.7);
+  for (let i = 0; i < nor.count; i++) nor.setXYZ(i, nor.getX(i) * 0.35, 0.94, nor.getZ(i) * 0.35);
   const R = rng(seed);
   const mats = [];
   const total = regions.reduce((s, r) => s + r.weight, 0);

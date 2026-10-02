@@ -114,40 +114,42 @@ void surface(vec2 uv, inout Surface s) {
   s.ao = mix(0.35, 1.0, h);
 }` });
 
-  // Ground: dead grass, bare earth, fallen leaves, pebbles. 1 tile = 6 m.
-  const ground = T.generate('ext:ground3', {
-    size: big, normalStrength: 2.0,
+  // Ground: matted dead grass, bare earth, leaf litter, pebbles. 1 tile = 6 m.
+  const ground = T.generate('ext:ground4', {
+    size: big, normalStrength: 2.2,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   float n1 = fbm(uv, vec2(4.0), 6) * 0.5 + 0.5;
   float n2 = fbm(uv + 3.0, vec2(16.0), 5) * 0.5 + 0.5;
-  // grass blade streaks
-  vec2 g = uv * 140.0;
-  float blades = 0.0;
-  for (int i = 0; i < 3; i++) {
-    float fi = float(i);
-    vec2 gg = rot2(fi * 2.1) * uv;
-    blades += smoothstep(0.55, 1.0, vnoise(vec2(gg.x * 600.0, gg.y * 60.0), vec2(600.0, 60.0))) * 0.4;
-  }
-  vec3 grass = mix(vec3(0.18, 0.17, 0.1), vec3(0.30, 0.26, 0.15), n2) * (0.7 + 0.5 * blades);
-  grass = mix(grass, vec3(0.11, 0.13, 0.08), smoothstep(0.55, 0.75, n1) * 0.6);
-  vec3 dirt = mix(vec3(0.10, 0.08, 0.06), vec3(0.17, 0.14, 0.11), n2);
-  float bare = smoothstep(0.58, 0.72, fbm(uv + 9.0, vec2(3.0), 6) * 0.5 + 0.5);
+  // matted thatch: short anisotropic streaks in a few clump directions (voronoi cells)
+  vec4 cl = voronoi(uv * 24.0, vec2(24.0), 1.0);
+  float ca = hash12(cl.zw) * 6.2831;
+  vec2 dir = vec2(cos(ca), sin(ca));
+  vec2 q = uv * 24.0;
+  float along = dot(q, dir), acr = dot(q, vec2(-dir.y, dir.x));
+  float thatch = vnoise(vec2(acr * 30.0, along * 3.0) + cl.zw * 17.0, vec2(1e4)) ;
+  thatch = smoothstep(0.2, 0.9, thatch) * 0.6 + 0.2;
+  float fine = fbm(uv * vec2(1.0), vec2(128.0), 3) * 0.5 + 0.5;
+  vec3 straw = mix(vec3(0.16, 0.15, 0.11), vec3(0.27, 0.25, 0.18), thatch) * (0.8 + 0.35 * n2);
+  straw = mix(straw, vec3(0.09, 0.105, 0.075), smoothstep(0.5, 0.75, n1) * 0.65);   // damp greener hollows
+  vec3 dirt = mix(vec3(0.07, 0.06, 0.05), vec3(0.13, 0.11, 0.09), fine);
+  float bare = smoothstep(0.6, 0.74, fbm(uv + 9.0, vec2(3.0), 6) * 0.5 + 0.5 + (fine - 0.5) * 0.15);
   // leaves
   vec4 v = voronoi(uv * 60.0, vec2(60.0), 1.0);
-  float leaf = smoothstep(0.32, 0.18, v.x) * step(0.9, hash12(v.zw));
-  vec3 leafC = mix(vec3(0.24, 0.12, 0.05), vec3(0.32, 0.22, 0.09), hash12(v.zw + 1.0));
+  float leaf = smoothstep(0.3, 0.16, v.x) * step(0.88, hash12(v.zw));
+  vec3 leafC = mix(vec3(0.17, 0.09, 0.04), vec3(0.26, 0.17, 0.08), hash12(v.zw + 1.0));
   // pebbles
   vec4 pv = voronoi(uv * 90.0, vec2(90.0), 1.0);
-  float peb = smoothstep(0.25, 0.12, pv.x) * step(0.93, hash12(pv.zw + 5.0)) * bare;
-  vec3 col = mix(grass, dirt, bare);
-  col = mix(col, leafC, leaf * 0.85);
-  col = mix(col, vec3(0.3, 0.29, 0.27) * (0.7 + 0.4 * hash12(pv.zw)), peb);
+  float peb = smoothstep(0.25, 0.12, pv.x) * step(0.9, hash12(pv.zw + 5.0)) * bare;
+  vec3 col = mix(straw, dirt, bare);
+  col = mix(col, leafC, leaf * 0.8);
+  col = mix(col, vec3(0.24, 0.235, 0.22) * (0.7 + 0.4 * hash12(pv.zw)), peb);
+  col *= 0.85 + 0.25 * fine;
   s.albedo = col;
-  s.height = 0.4 + blades * 0.25 * (1.0 - bare) + leaf * 0.15 + peb * 0.35 + n2 * 0.1;
-  s.rough = 0.92 - leaf * 0.1 - peb * 0.2;
+  s.height = 0.4 + thatch * 0.03 * (1.0 - bare) + leaf * 0.12 + peb * 0.35 + n2 * 0.12 + fine * 0.06;
+  s.rough = 0.94 - leaf * 0.08 - peb * 0.2;
   s.metal = 0.0;
-  s.ao = 0.75 + 0.25 * s.height;
+  s.ao = 0.7 + 0.3 * s.height;
 }` });
 
   // Path: irregular flagstones set in dark earth and gravel; alpha-ragged edges across U.
@@ -176,7 +178,7 @@ void surface(vec2 uv, inout Surface s) {
   col = mix(vec3(0.12, 0.11, 0.07), col, smoothstep(0.05, 0.16, e + rag));
   s.albedo = col;
   s.height = stone * (0.6 + 0.2 * n) + (1.0 - stone) * 0.2 * smoothstep(0.6, 0.2, gv.x);
-  s.rough = mix(0.85, 0.55, stone) - wet * 0.4;
+  s.rough = mix(0.9, 0.68, stone) - wet * 0.2;
   s.metal = 0.0;
   s.ao = mix(0.5, 1.0, stone);
 }` });

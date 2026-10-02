@@ -8,6 +8,7 @@ import { buildMansion, F, DOOR, TOWER, PORCH } from './mansion.js';
 import { gnarledTree } from './trees.js';
 import { buildGate } from './gate.js';
 import { buildGraveyard, placeTree } from './props.js';
+import { buildMist } from './mist.js';
 import { createMedallion, createGatePuzzle, gateMeta } from './puzzleGate.js';
 
 /**
@@ -18,7 +19,7 @@ import { createMedallion, createGatePuzzle, gateMeta } from './puzzleGate.js';
  * itself with a few lamp-lit windows and the front door waiting.
  */
 
-const MOON_DIR = new THREE.Vector3(0.16, 0.5, -0.85).normalize();
+const MOON_DIR = new THREE.Vector3(-0.18, 0.5, -0.847).normalize();
 const v3 = (a) => new THREE.Vector3(...a);
 
 // lightning schedule (seconds within a 41 s cycle): strike times; each strike is a few flickers
@@ -49,6 +50,7 @@ export default {
     const root = new THREE.Group();
     root.name = 'exterior';
     const P = ctx.params;
+    if (P.get('mdir')) MOON_DIR.set(...P.get('mdir').split(',').map(Number)).normalize();
     const U = createFogUniforms();
     U.uHFogMoonDir.value.copy(MOON_DIR);
     U.uHFogTime = ctx.time;   // share the engine clock
@@ -81,18 +83,19 @@ export default {
     root.add(sky.mesh);
 
     // ------------------------------------------------------------ terrain + path + grass
-    const groundMat = pbr(TX.ground, { name: 'ground', color: 0x4a4740 });
+    const groundMat = pbr(TX.ground, { name: 'ground', color: 0x3a3833 });
     applyMacroVariation(groundMat, { amount: 0.8, scale: 0.09 });
     const terrain = buildTerrain({ material: groundMat });
     root.add(terrain);
     const pathMat = pbr(TX.path, { name: 'path', alphaTest: 0.5, color: 0xc4c0b8 });
     pathMat.polygonOffset = true; pathMat.polygonOffsetFactor = -2; pathMat.polygonOffsetUnits = -2;
     root.add(buildPath({ material: pathMat }));
-    const grassMat = new THREE.MeshStandardMaterial({ map: grassTexture(ctx), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.95, color: 0x8a8678, name: 'grass' });
+    const grassMat = new THREE.MeshStandardMaterial({ map: grassTexture(ctx), alphaTest: 0.4, side: THREE.FrontSide, roughness: 0.9, color: 0x9a927e, name: 'grass' });
     root.add(buildGrass({
-      material: grassMat, count: ctx.quality.particles >= 1 ? 9000 : 4500,
+      material: grassMat, count: ctx.quality.particles >= 1 ? 14000 : 7000,
       regions: [
         { x0: -14, x1: 16, z0: 33, z1: 54, weight: 5 },   // valley side of the gate (hero foreground)
+        { x0: -6, x1: 9, z0: 36, z1: 52, weight: 3 },     // either side of the path near the camera
         { x0: -12, x1: 12, z0: 12, z1: 31, weight: 3 },   // the drive
         { x0: -24, x1: -12, z0: 8, z1: 40, weight: 1.2 },
         { x0: 12, x1: 26, z0: 8, z1: 40, weight: 1.2 },
@@ -156,7 +159,7 @@ export default {
     const key = new THREE.DirectionalLight(0x8fa6e8, Number(P.get('key') || 0.55));
     key.position.set(60, 28, 22); key.target.position.set(0, 5, 0);
     root.add(key, key.target);
-    const hemi = new THREE.HemisphereLight(0x3a4c80, 0x0e0c0a, Number(P.get('hemi') || 0.55));
+    const hemi = new THREE.HemisphereLight(0x3a4c80, 0x0e0c0a, Number(P.get('hemi') || 0.75));
     root.add(hemi);
     // lightning (key light from the strike direction)
     const bolt = new THREE.DirectionalLight(0xc8d4ff, 0);
@@ -205,6 +208,19 @@ export default {
         if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial || m.isMeshBasicMaterial) patchFog(m, U);
       }
     });
+
+    // ------------------------------------------------------------ ground mist (added after the fog patch: own shader)
+    const mist = buildMist({
+      timeUniform: ctx.time, moonDir: MOON_DIR, opacity: Number(P.get('mist') ?? 0.6),
+      sheets: [
+        { x0: -24, x1: 26, z0: 38, z1: 64, count: 16, w: [10, 18], h: [2.0, 3.6] },
+        { x0: -26, x1: 26, z0: 29, z1: 36, count: 9, w: [8, 14], h: [1.4, 2.4] },
+        { x0: -22, x1: 22, z0: 13, z1: 28, count: 9, w: [6, 12], h: [1.1, 2.0] },
+        { x0: -14, x1: -6, z0: 17, z1: 25, count: 3, w: [5, 8], h: [1.0, 1.6] },
+        { x0: -28, x1: 28, z0: -14, z1: 2, count: 7, w: [10, 16], h: [2.0, 3.5] },
+      ],
+    });
+    root.add(mist.mesh);
 
     // ------------------------------------------------------------ gate state
     const gateOpen = { v: ctx.state.isSolved(gateMeta.id) ? 1 : 0, target: ctx.state.isSolved(gateMeta.id) ? 1 : 0 };
@@ -331,6 +347,7 @@ export default {
       sky.uniforms.uBoltSeed.value = Math.floor(t / 41) * 7 + 3;
       bolt.intensity = f * 6;
       U.uHFogFlash.value = f * 0.15;
+      mist.uniforms.uFlash.value = f * 0.6;
       if (!ctx.shot && f > 0.6 && t - lastThunder > 3) { lastThunder = t; setTimeout(() => ctx.audio.thunder?.(), 900 + 600 * Math.random()); }
       // moon god-ray follows the camera (moon is at infinity)
       moonRay.position.copy(ctx.camera.position).addScaledVector(MOON_DIR, 70);
@@ -357,9 +374,9 @@ export default {
       godRays: [moonRay],
       start: 'main',
       grade: {
-        exposure: Number(P.get('exposure') || 1.7), toneMapping: 'agx', contrast: 1.1, saturation: 0.9,
+        exposure: Number(P.get('exposure') || 1.7), toneMapping: 'agx', contrast: 1.12, saturation: 1.05,
         shadowTint: [0.78, 0.92, 1.25], highlightTint: [1.15, 1.0, 0.82], splitAmount: 0.6,
-        vignette: 0.45, grain: 0.04, bloomStrength: 0.4, bloomThreshold: 1.6, bloomRadius: 0.6,
+        vignette: 0.45, grain: 0.04, bloomStrength: Number(P.get('bs') || 0.2), bloomThreshold: Number(P.get('bt') || 2.2), bloomRadius: 0.45,
         godRayWeight: 0.18, godRayThreshold: 3.0, aoIntensity: 0.8, aoRadius: 0.6, fogDensity: 0,
       },
       environment: { position: [0, 3.0, 20], intensity: 0.8 },

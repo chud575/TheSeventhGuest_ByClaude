@@ -84,12 +84,12 @@ export function instanced(geo, material, matrices, { cast = true, receive = true
 export function createFogUniforms() {
   return {
     uHFogColor: { value: new THREE.Color(0.035, 0.045, 0.07) },
-    uHFogMoonColor: { value: new THREE.Color(0.1, 0.12, 0.17) },
+    uHFogMoonColor: { value: new THREE.Color(0.05, 0.06, 0.085) },
     uHFogMoonDir: { value: new THREE.Vector3(0, 0.4, -1).normalize() },
-    uHFogDensity: { value: 0.016 },     // ground mist density at base height
+    uHFogDensity: { value: 0.03 },     // ground mist density at base height
     uHFogBase: { value: -5.5 },        // world y where the mist is at full density
-    uHFogFalloff: { value: 0.7 },     // 1/m exponential height falloff
-    uHFogHaze: { value: 0.0028 },       // aerial haze per metre
+    uHFogFalloff: { value: 0.9 },     // 1/m exponential height falloff
+    uHFogHaze: { value: 0.0009 },       // aerial haze per metre
     uHFogMax: { value: 0.92 },
     uHFogFlash: { value: 0.0 },
     uHFogTime: { value: 0 },
