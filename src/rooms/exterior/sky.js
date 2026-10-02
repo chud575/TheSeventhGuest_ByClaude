@@ -111,9 +111,10 @@ void main() {
   vec2 w1 = vec2(t * 0.010, t * 0.004);
   float warp = fbm2(cp * 0.6 + w1 * 2.0, 4);
   float c1 = fbm2(cp * 0.75 + vec2(warp * 0.9, warp * 0.4) + w1, 7);
-  float c2 = fbm2(cp * 2.2 + vec2(-t * 0.02, t * 0.006) + warp, 5);
+  float c2 = fbm2(cp * 2.6 + vec2(-t * 0.02, t * 0.006) + warp, 6);
+  float c3 = fbm2(cp * 7.0 + vec2(-t * 0.03, 0.0) + warp * 2.0, 4);
   float cov = uCloudCover;
-  float dens = smoothstep(0.6 - cov * 0.3, 0.78 - cov * 0.2, c1 + (c2 - 0.5) * 0.3);
+  float dens = smoothstep(0.6 - cov * 0.3, 0.72 - cov * 0.2, c1 + (c2 - 0.5) * 0.4 + (c3 - 0.5) * 0.12);
   float wisp = smoothstep(0.5, 0.8, c2) * (1.0 - dens) * 0.45;
   dens = clamp(dens + wisp, 0.0, 1.0);
   dens *= smoothstep(-0.02, 0.12, el);
@@ -126,7 +127,7 @@ void main() {
   // lighting: thin parts near the moon glow silver; thick parts are dark slate
   float thin = 1.0 - smoothstep(0.2, 1.0, dens);
   vec3 cloudDark = vec3(0.011, 0.014, 0.026) + uHorizon * 0.3;
-  vec3 cloudLit = vec3(0.55, 0.64, 0.9) * (pow(mo, 90.0) * 1.8 + pow(mo, 14.0) * 0.16 + pow(mo, 2.0) * 0.02);
+  vec3 cloudLit = vec3(0.55, 0.64, 0.9) * (pow(mo, 90.0) * 1.25 + pow(mo, 14.0) * 0.16 + pow(mo, 2.0) * 0.02);
   float edge = smoothstep(0.0, 0.35, dens) * (1.0 - smoothstep(0.35, 0.9, dens));
   vec3 cloudCol = cloudDark + cloudLit * (thin * 0.45 + edge * 1.8);
   // lightning lights the cloud bellies

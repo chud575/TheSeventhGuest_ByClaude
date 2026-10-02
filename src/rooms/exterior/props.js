@@ -25,33 +25,56 @@ export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13 } = {}) 
     const g = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.015, bevelSegments: 2, curveSegments: 14 });
     g.translate(0, 0, -d / 2);
     const m = mat4(x, y - 0.12, z, (R() - 0.5) * 0.25, 0.25 + (R() - 0.5) * 0.4, (R() - 0.5) * 0.22);
-    B.add(g, i % 3 === 0 ? M.stoneDark : M.ashlar, m, { uvScale: 1.2 });
+    B.add(g, i % 3 === 0 ? M.graveDark : M.grave, m, { uvScale: 1.2 });
     // grave mound
-    const mound = new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2);
-    B.add(mound, M.mound, mat4(x + Math.sin(0.25) * 0.9, y - 0.08, z + Math.cos(0.25) * 0.9, 0, 0.25, 0, 0.45, 0.16, 0.95), { uvScale: 0.5 });
+    const mound = new THREE.SphereGeometry(1, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+    { const p = mound.attributes.position; for (let k = 0; k < p.count; k++) { const px = p.getX(k), py = p.getY(k), pz = p.getZ(k); const n = 1 + 0.12 * Math.sin(px * 9 + i) * Math.sin(pz * 7 + i * 2) + 0.06 * Math.sin(px * 23 + pz * 19); p.setXYZ(k, px * n, py * n, pz * n); } mound.computeVertexNormals(); }
+    B.add(mound, M.mound, mat4(x + Math.sin(0.25) * 0.9, y - 0.1, z + Math.cos(0.25) * 0.9, 0, 0.25 + (R() - 0.5) * 0.2, 0, 0.42, 0.11 + R() * 0.05, 0.9), { uvScale: 0.5 });
     stones.push(new THREE.Vector3(x, y + h / 2, z));
   });
   // obelisk
   {
     const x = cx + 4.4, z = cz - 0.2, y = height(x, z);
-    B.add(new THREE.BoxGeometry(1.0, 0.3, 1.0), M.ashlar, mat4(x, y + 0.1, z), { uvScale: 1 });
-    B.add(new THREE.BoxGeometry(0.75, 0.6, 0.75), M.ashlar, mat4(x, y + 0.55, z), { uvScale: 1 });
-    B.add(new THREE.BoxGeometry(0.85, 0.1, 0.85), M.ashlar, mat4(x, y + 0.9, z), { uvScale: 1 });
+    B.add(new THREE.BoxGeometry(1.0, 0.3, 1.0), M.grave, mat4(x, y + 0.1, z), { uvScale: 1 });
+    B.add(new THREE.BoxGeometry(0.75, 0.6, 0.75), M.grave, mat4(x, y + 0.55, z), { uvScale: 1 });
+    B.add(new THREE.BoxGeometry(0.85, 0.1, 0.85), M.grave, mat4(x, y + 0.9, z), { uvScale: 1 });
     const ob = new THREE.CylinderGeometry(0.2, 0.32, 2.8, 4, 1);
-    B.add(ob, M.ashlar, mat4(x, y + 2.35, z, 0, Math.PI / 4, 0), { uvScale: 1 });
-    B.add(new THREE.ConeGeometry(0.2, 0.3, 4), M.ashlar, mat4(x, y + 3.9, z, 0, Math.PI / 4, 0), { uvScale: 1 });
+    B.add(ob, M.grave, mat4(x, y + 2.35, z, 0, Math.PI / 4, 0), { uvScale: 1 });
+    B.add(new THREE.ConeGeometry(0.2, 0.3, 4), M.grave, mat4(x, y + 3.9, z, 0, Math.PI / 4, 0), { uvScale: 1 });
     stones.push(new THREE.Vector3(x, y + 1.5, z));
   }
   // broken column on a plinth
   {
     const x = cx - 3.6, z = cz + 1.6, y = height(x, z);
-    B.add(new THREE.BoxGeometry(0.8, 0.5, 0.8), M.ashlar, mat4(x, y + 0.15, z), { uvScale: 1 });
-    B.add(G.latheFromProfile([[0.0, 0], [0.26, 0], [0.26, 0.06], [0.22, 0.12], [0.2, 0.2], [0.18, 1.5], [0.0, 1.5]], 18), M.ashlar, mat4(x, y + 0.4, z), { uvScale: 1 });
+    B.add(new THREE.BoxGeometry(0.8, 0.5, 0.8), M.grave, mat4(x, y + 0.15, z), { uvScale: 1 });
+    B.add(G.latheFromProfile([[0.0, 0], [0.26, 0], [0.26, 0.06], [0.22, 0.12], [0.2, 0.2], [0.18, 1.5], [0.0, 1.5]], 18), M.grave, mat4(x, y + 0.4, z), { uvScale: 1 });
     const top = new THREE.CylinderGeometry(0.18, 0.18, 0.2, 18);
-    B.add(top, M.ashlar, mat4(x + 0.03, y + 1.95, z, 0.3, 0, 0.25), { uvScale: 1 });
+    B.add(top, M.grave, mat4(x + 0.03, y + 1.95, z, 0.3, 0, 0.25), { uvScale: 1 });
   }
+  // a votive lantern left burning on the newest grave: someone visits
+  const votive = new THREE.Group();
+  {
+    const [vx, vz] = [cx + 0.6 + 0.35, cz - 1.4 + 0.75];
+    const vy = height(vx, vz);
+    votive.position.set(vx, vy + 0.1, vz);
+    const iron = M.iron;
+    const parts = new Bucket();
+    for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) parts.add(new THREE.BoxGeometry(0.012, 0.2, 0.012), iron, mat4(sx * 0.055, 0.11, sz * 0.055), { uv: 'keep' });
+    parts.add(new THREE.BoxGeometry(0.14, 0.02, 0.14), iron, mat4(0, 0.01, 0), { uv: 'keep' });
+    parts.add(new THREE.ConeGeometry(0.1, 0.08, 4), iron, mat4(0, 0.25, 0, 0, Math.PI / 4, 0), { uv: 'keep' });
+    parts.add(new THREE.TorusGeometry(0.03, 0.004, 4, 12), iron, mat4(0, 0.31, 0), { uv: 'keep' });
+    parts.build(votive, { name: 'votive' });
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.18, 0.1), M.lanternGlass);
+    glass.position.y = 0.11; glass.scale.setScalar(1); votive.add(glass);
+    const fl = ctx.fx.flame({ height: 0.04, width: 0.012, intensity: 8, seed: 3 });
+    fl.position.y = 0.05; votive.add(fl);
+    const pl = new THREE.PointLight(0xff9a48, 2.2, 7, 2);
+    pl.position.y = 0.16; votive.add(pl);
+    votive.userData.light = pl;
+  }
+  group.add(votive);
   B.build(group, { name: 'graves' });
-  return { group, stones };
+  return { group, stones, votive };
 }
 
 /** Gnarled-tree placement helper: world-space instance with height snapping. */

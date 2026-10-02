@@ -74,8 +74,10 @@ export default {
       doorWood: ctx.materials.create('walnut', { repeat: [1, 1], color: 0x8a6a58 }),
       brass: ctx.materials.create('brass', { tarnish: 0.5, polish: 0.6 }),
       terracotta: new THREE.MeshStandardMaterial({ color: 0x3a1e14, roughness: 0.85, name: 'terracotta' }),
-      mound: pbr(TX.ground, { name: 'mound', color: 0x9a9080 }),
+      mound: pbr(TX.ground, { name: 'mound', color: 0x5a554c, normalScale: 2 }),
       rock: pbr(TX.rock, { name: 'rock', color: 0xb0b0b4 }),
+      grave: pbr(TX.rock, { name: 'grave', color: 0xc4c4c8 }),
+      graveDark: pbr(TX.rock, { name: 'graveDark', color: 0x8a8a90 }),
       _x: null,
       lanternGlass: new THREE.MeshStandardMaterial({ color: 0x000000, emissive: new THREE.Color(1.0, 0.62, 0.3), emissiveIntensity: 7, roughness: 0.2, transparent: true, opacity: 0.92, name: 'lanternGlass' }),
     };
@@ -110,7 +112,7 @@ export default {
         { x0: 12, x1: 26, z0: 8, z1: 40, weight: 1.2 },
         { x0: -11, x1: 11, z0: -10, z1: 11, weight: 1.0 },
       ],
-      avoid: [[0, 7, 10.2], [9, 6, 3.2], [-10.5, 21, 1.0]],
+      avoid: [[0, 7, 10.2], [9, 6, 3.2]],
     }));
 
     // ------------------------------------------------------------ mansion
@@ -272,14 +274,14 @@ export default {
       main: { position: at(5.5, 47.0), target: [-0.5, 6.5, 6], fov: 46, label: 'The foot of the hill', look: { yaw: [-45, 45], pitch: [-20, 30] } },
       gate: { position: at(0.35, GATE_Z + 3.4), target: [0.0, gate.y0 + 3.6, 12], fov: 54, label: 'The gate', look: { yaw: [-55, 55], pitch: [-30, 35] } },
       drive: { position: at(1.1, 22.5), target: [-0.2, 7.2, 0], fov: 54, label: 'The drive', look: { yaw: [-60, 60], pitch: [-25, 35] } },
-      graves: { position: at(1.1, 22.5), target: [-10.5, height(-10.5, 21) + 0.6, 20.6], fov: 50, label: 'The family plot' },
+      graves: { position: at(-5.2, 24.8), target: [-11.2, height(-11, 20.5) + 0.9, 20.2], fov: 50, label: 'The family plot', look: { yaw: [-50, 50], pitch: [-30, 30] } },
       porch: { position: [0.25, height(0.2, 15.4) + eye, 15.4], target: [0, F + 2.0, TOWER.z1], fov: 54, label: 'The front steps', look: { yaw: [-60, 60], pitch: [-25, 40] } },
       porch_back: { position: [0.25, height(0.2, 15.4) + eye, 15.4], target: [1.5, height(1, 32) + 1.2, 40], fov: 54, label: 'The way you came' },
     };
     const edges = [
       ['main', 'gate', [at(2.6, 42), at(0.8, 37.5)], { duration: 5.0 }],
       ['gate', 'drive', [at(0.0, 30.5), at(0.6, 26.5)], { hidden: true, duration: 4.5 }],
-      ['drive', 'graves'],
+      ['drive', 'graves', [at(-2.4, 23.6)], { duration: 3.0 }],
       ['drive', 'porch', [at(1.0, 18.5)], { duration: 3.6 }],
       ['porch', 'porch_back'],
     ];
@@ -329,6 +331,13 @@ export default {
         onActivate: () => ctx.ui.caption('The stones are older than the house. Six bear no names at all — only dates, all the same night, and room left for a seventh.', { title: 'The Family Plot' }),
       },
       {
+        id: 'votive', nodes: ['graves'], object: graves.votive, cursor: 'examine', label: 'A votive lantern', priority: 2,
+        onActivate: async () => {
+          await ctx.ui.caption('A lantern burns on the newest grave. The wick is fresh, the glass still warm. Nobody has come up this hill in years.', { title: 'The Votive' });
+          await say('I keep a light for each of them. It would be *rude* not to.');
+        },
+      },
+      {
         id: 'knocker', nodes: ['porch'], sphere: { center: [0.45, F + 1.7, TOWER.z1 + 0.1], radius: 0.18 }, cursor: 'talk', label: 'The knocker', priority: 2,
         onActivate: async () => { ctx.audio.sfx?.('thud'); await say('No need to knock. I have been expecting you for *ever* so long.'); },
       },
@@ -342,12 +351,28 @@ export default {
     const moonRay = { position: new THREE.Vector3(), color: new THREE.Color(0.7, 0.78, 1.0), strength: 0.8, radius: 0.18 };
     const ghostFade = { v: 0, target: 0 };
 
-    // QA hooks
-    const debug = (window.__debug = window.__debug || {});
-    debug.solve = (room) => { if (!room || room === 'exterior') { puzzle.autoSolve({ solve: () => { ctx.state.markSolved?.(gateMeta.id); puzzle.onSolved(); } }); } };
+    // QA hooks (same convention as the other rooms: __debug.solve(id), __debug.state(id))
+    const debug = (window.__debug ||= {});
+    debug.solvers ||= {};
+    debug.states ||= {};
+    debug.solvers.exterior = async () => {
+      const game = window.__game;
+      if (game?.puzzle?.def?.id === gateMeta.id) { puzzle.autoSolve(game.puzzle.pctx); return true; }
+      // not in the puzzle: solve directly (rings home, gate swings open)
+      puzzle.autoSolve({ solve: () => {} });
+      ctx.state.markSolved?.(gateMeta.id);
+      puzzle.onSolved();
+      return true;
+    };
+    debug.states.exterior = () => ({
+      solved: ctx.state.isSolved(gateMeta.id), rings: puzzle.offsets, ringsAligned: puzzle.solvedNow(),
+      gateOpen: gateOpen.v, gateTarget: gateOpen.target, door: doorOpen.v, node: ctx.nav.current,
+    });
+    debug.solve ||= (id) => (debug.solvers[id || 'exterior'] ? debug.solvers[id || 'exterior']() : Promise.reject(new Error(`no solver for ${id}`)));
+    debug.state ||= (id) => (debug.states[id] ? debug.states[id]() : null);
     debug.exterior = {
       puzzle, gateOpen, doorOpen,
-      state: () => ({ solved: ctx.state.isSolved(gateMeta.id), rings: puzzle.offsets, gateOpen: gateOpen.v, door: doorOpen.v, node: ctx.nav.current }),
+      state: () => debug.states.exterior(),
       turn: (i, d = 1) => puzzle.turn(i, d),
       flash: (v = 1) => { forceFlash = v; },
     };
@@ -380,6 +405,7 @@ export default {
       // lamps flicker gently
       const fl = 0.93 + 0.07 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1.0);
       porchLights.forEach((l, i) => { l.intensity = 7 * (i ? fl : 2 - fl - 0.0) * 0.98; });
+      graves.votive.userData.light.intensity = 2.2 * (0.85 + 0.15 * Math.sin(t * 9.1) * Math.sin(t * 4.3 + 0.7));
       gate.lights.forEach((l, i) => { l.intensity = 14 * (0.92 + 0.08 * Math.sin(t * (5.1 + i) + i * 2.0)); });
     };
     update(0, ctx.time.value);

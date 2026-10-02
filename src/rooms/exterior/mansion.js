@@ -343,7 +343,7 @@ export function buildMansion(ctx, M) {
     tbox(DOOR.w + 1.9, 0.1, 0.34, 0, F + DOOR.h + 1.28, z + 0.17);
     // sidelights (lit glass)
     for (const s of [-1, 1]) {
-      win.glassRect.push({ matrix: mat4(s * (DOOR.w / 2 + 0.24), F + 0.5 + (DOOR.h - 0.5) / 2, z + 0.01, 0, 0, 0, 0.3, DOOR.h - 0.5, 1), lit: 0.9, tint: 0.3 });
+      win.glassRect.push({ matrix: mat4(s * (DOOR.w / 2 + 0.24), F + 0.5 + (DOOR.h - 0.5) / 2, z + 0.01, 0, 0, 0, 0.3, DOOR.h - 0.5, 1), lit: 0.25, tint: 0.3 });
       tbox(0.06, DOOR.h, 0.08, s * (DOOR.w / 2 + 0.06), F + DOOR.h / 2, z + 0.04, 0, M.sash);
       tbox(0.06, DOOR.h, 0.08, s * (DOOR.w / 2 + 0.42), F + DOOR.h / 2, z + 0.04, 0, M.sash);
       tbox(0.36, 0.5, 0.06, s * (DOOR.w / 2 + 0.24), F + 0.25, z + 0.03, 0, M.doorWood);
@@ -351,7 +351,7 @@ export function buildMansion(ctx, M) {
     }
     // transom fanlight (lit)
     const tw = DOOR.w + 0.84;
-    win.shape(new THREE.CircleGeometry(0.5, 32, 0, Math.PI), mat4(0, F + DOOR.h + 0.05, z + 0.01, 0, 0, 0, tw, tw, 1), 1.1);
+    win.shape(new THREE.CircleGeometry(0.5, 32, 0, Math.PI), mat4(0, F + DOOR.h + 0.05, z + 0.01, 0, 0, 0, tw, tw, 1), 0.55);
     tbox(tw + 0.1, 0.1, 0.1, 0, F + DOOR.h + 0.05, z + 0.05, 0, M.sash);
     for (let i = 1; i < 6; i++) {
       const a = (i / 6) * Math.PI;

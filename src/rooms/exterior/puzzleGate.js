@@ -240,7 +240,7 @@ export function createGatePuzzle(ctx, { rings, material, worldCenter, onSolved }
       }
     },
     reset(p) { off = START.slice(); ctx.state.set(key, off.slice()); p.status('The rings grind back to where Stauf left them.'); },
-    autoSolve(p) { off = off.map((o) => Math.round(o / STEPS) * STEPS); puzzle._glow = 2.2; p.solve(); },
+    autoSolve(p) { off = off.map((o) => Math.round(o / STEPS) * STEPS); ctx.state.set(key, [0, 0, 0, 0]); puzzle._glow = 2.2; p.solve(); },
     onSolved() { puzzle._glow = 2.2; onSolved?.(); },
     teardown() { hover = -1; puzzle._glow = ctx.state.isSolved?.(gateMeta.id) ? 0.35 : 0; },
     // QA helpers
