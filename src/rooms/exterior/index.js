@@ -9,6 +9,7 @@ import { gnarledTree } from './trees.js';
 import { buildGate } from './gate.js';
 import { buildGraveyard, placeTree, buildDressing } from './props.js';
 import { buildMist } from './mist.js';
+import { buildBats } from './bats.js';
 import { createMedallion, createGatePuzzle, gateMeta } from './puzzleGate.js';
 
 /**
@@ -220,6 +221,10 @@ export default {
     ghost.renderOrder = 8;
     root.add(ghost);
 
+    // ------------------------------------------------------------ bats wheeling about the tower
+    const bats = buildBats({ count: 9, centers: [{ x: 0, z: 5, r: [4, 8], y: [17, 22] }, { x: 8.5, z: 6, r: [3, 6], y: [18, 23] }] });
+    root.add(bats.mesh);
+
     // ------------------------------------------------------------ fog patch on every lit material
     root.traverse((o) => {
       if (!o.material || o === sky.mesh) return;
@@ -272,7 +277,7 @@ export default {
     const at = (x, z, dy = eye) => [x, height(x, z) + dy, z];
     const nodes = {
       main: { position: at(5.5, 47.0), target: [-0.5, 6.5, 6], fov: 46, label: 'The foot of the hill', look: { yaw: [-45, 45], pitch: [-20, 30] } },
-      gate: { position: at(0.35, GATE_Z + 3.4), target: [0.0, gate.y0 + 3.6, 12], fov: 54, label: 'The gate', look: { yaw: [-55, 55], pitch: [-30, 35] } },
+      gate: { position: at(0.35, GATE_Z + 3.4), target: [0.0, gate.y0 + 4.3, 12], fov: 54, label: 'The gate', look: { yaw: [-55, 55], pitch: [-30, 35] } },
       drive: { position: at(1.1, 22.5), target: [-0.2, 7.2, 0], fov: 54, label: 'The drive', look: { yaw: [-60, 60], pitch: [-25, 35] } },
       graves: { position: at(-5.2, 24.8), target: [-11.2, height(-11, 20.5) + 0.9, 20.2], fov: 50, label: 'The family plot', look: { yaw: [-50, 50], pitch: [-30, 30] } },
       porch: { position: [0.25, height(0.2, 15.4) + eye, 15.4], target: [0, F + 2.0, TOWER.z1], fov: 54, label: 'The front steps', look: { yaw: [-60, 60], pitch: [-25, 40] } },
@@ -381,12 +386,18 @@ export default {
 
     // ------------------------------------------------------------ per-frame
     let lastThunder = -10;
+    let strikeAt = -100;
+    const strike = () => { strikeAt = ctx.time.value; };
+    if (P.get('strike')) strikeAt = ctx.time.value - Number(P.get('strike'));
     const update = (dt, t) => {
       // lightning
-      const f = forceFlash ?? flashAt(t);
+      const ds = t - strikeAt;
+      const fs = ds >= 0 && ds < 1.5 ? Math.max(Math.exp(-ds * 8), ds > 0.15 ? Math.exp(-(ds - 0.15) * 12) * 0.8 : 0, ds > 0.4 ? Math.exp(-(ds - 0.4) * 5) * 0.5 : 0) : 0;
+      const f = forceFlash ?? Math.max(flashAt(t), fs);
+      bats.update(t);
       sky.uniforms.uFlash.value = f;
       sky.uniforms.uBolt.value = f > 0.05 ? Math.min(1, f * 1.4) : 0;
-      sky.uniforms.uBoltSeed.value = Math.floor(t / 41) * 7 + 3;
+      sky.uniforms.uBoltSeed.value = Math.floor(t / 41) * 7 + 3 + (fs > 0 ? 11 : 0);
       bolt.intensity = f * 6;
       U.uHFogFlash.value = f * 0.15;
       mist.uniforms.uFlash.value = f * 0.6;
@@ -436,15 +447,22 @@ export default {
         ctx.state.set('exterior.intro', true);
         ctx.cinematic(async (c, h) => {
           const n = nodes.main;
-          await ctx.nav.flyTo({ position: [18, 22, 78], target: [0, 9, 0], fov: 42 }, 0.01);
+          // high over the valley, drifting down through the mist toward the house on the hill
+          await ctx.nav.flyTo({ position: [16, 16, 84], target: [0, 9, 0], fov: 40 }, 0.01);
           forceFlash = null;
-          const p1 = ctx.nav.flyTo({ position: [9, 9, 60], target: [0, 9, 0], fov: 46 }, 7.5);
-          await h.wait(1.2);
+          const p1 = ctx.nav.flyTo({ position: [6.5, 0.5, 58], target: [-0.5, 7.5, 4], fov: 44 }, 9.0);
+          await h.wait(1.4);
           await say('The house on the hill. You came, as the others came — drawn by an invitation you do not remember accepting.');
           await p1;
-          await ctx.nav.flyTo({ position: n.position, target: n.target, fov: n.fov }, 4.5);
+          // slow push-in on the front door, then the sky splits
+          const p2 = ctx.nav.flyTo({ position: [2.6, -2.0, 42], target: [0, F + 2.2, TOWER.z1], fov: 24 }, 7.0);
           await say('Six guests. One house. And a seat at my table for *one* more.');
-          await ctx.nav.returnToNode(0.4);
+          await p2;
+          strike();
+          ctx.audio.thunder?.();
+          await h.wait(1.2);
+          await ctx.nav.flyTo({ position: n.position, target: n.target, fov: n.fov }, 3.5);
+          await ctx.nav.returnToNode(0.3);
         });
       },
       dispose() { if (window.__debug?.exterior) delete window.__debug.exterior; },

@@ -45,15 +45,15 @@ float boltDist(vec2 p, float seed) {
   float d = 1e3;
   float x = 0.0;
   vec2 prev = vec2(0.0, 0.0);
-  for (int i = 1; i <= 14; i++) {
+  for (int i = 1; i <= 26; i++) {
     float fi = float(i);
-    x += (fxHash12(vec2(fi, seed)) - 0.5) * 0.11;
-    vec2 cur = vec2(x, -fi * 0.07);
+    x += (fxHash12(vec2(fi, seed)) - 0.5) * 0.085 + (fxHash12(vec2(fi * 1.7, seed + 2.0)) - 0.5) * 0.03;
+    vec2 cur = vec2(x, -fi * 0.04 - fxHash12(vec2(fi, seed + 5.0)) * 0.015);
     vec2 pa = p - prev, ba = cur - prev;
     float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
     d = min(d, length(pa - ba * h) * (1.0 + fi * 0.03));
     // branches
-    if (fxHash12(vec2(fi * 3.1, seed)) > 0.62) {
+    if (fxHash12(vec2(fi * 3.1, seed)) > 0.72) {
       vec2 b0 = cur;
       float bx = (fxHash12(vec2(fi, seed + 7.0)) - 0.5) * 0.3;
       vec2 b1 = cur + vec2(bx, -0.1);
@@ -148,7 +148,7 @@ void main() {
     vec2 bp = vec2(dot(d, bs), dot(d, bu) - 0.32) * 1.2;
     if (bp.y < 0.02 && bp.y > -1.2 && dot(d, uBoltDir) > 0.0) {
       float bd = boltDist(bp, uBoltSeed);
-      float core = exp(-bd * 1400.0) * 9.0 + exp(-bd * 260.0) * 0.8 + exp(-bd * 40.0) * 0.12;
+      float core = exp(-bd * 2200.0) * 10.0 + exp(-bd * 300.0) * 0.7 + exp(-bd * 35.0) * 0.12;
       col += vec3(0.75, 0.82, 1.0) * core * uBolt;
     }
   }
