@@ -71,11 +71,11 @@ export function headSdf(px, py, pz) {
   // hollow under the cheekbone (gaunt)
   d = smax(d, -ell(ax, py, pz, 0.064, 0.024, 0.07, 0.01, 0.014, 0.008), 0.012);
   // jaw + chin
-  d = smin(d, ell(tx, py, pz, 0, -0.02, 0.04, 0.047, 0.032, 0.052), 0.02);
-  d = smin(d, ell(px, py, pz, 0, -0.043, 0.08, 0.019, 0.017, 0.016), 0.014);
+  d = smin(d, ell(tx, py, pz, 0, -0.016, 0.04, 0.047, 0.03, 0.052), 0.02);
+  d = smin(d, ell(px, py, pz, 0, -0.038, 0.079, 0.018, 0.016, 0.015), 0.014);
   // sagging jowls
   // under-chin / wattle
-  d = smin(d, ell(px, py, pz, 0, -0.056, 0.038, 0.032, 0.018, 0.03), 0.02);
+  d = smin(d, ell(px, py, pz, 0, -0.05, 0.036, 0.03, 0.017, 0.03), 0.02);
   // muzzle (around the mouth)
   d = smin(d, ell(px, py, pz, 0, 0.006, 0.082, 0.028, 0.024, 0.021), 0.012);
 
@@ -87,9 +87,9 @@ export function headSdf(px, py, pz) {
   d = Math.min(d, sph(ax, py, pz, EYE.x, EYE.y, EYE.z, EYE.r));
   // hooded upper lids (droop over the top third of the iris) + lower lid bags
   {
-    const lid = Math.max(sph(ax, py, pz, EYE.x, EYE.y + 0.0006, EYE.z - 0.0004, EYE.r + 0.0016), -(py - (EYE.y + 0.0035 - (ax - EYE.x) * 0.12)));
+    const lid = Math.max(sph(ax, py, pz, EYE.x, EYE.y + 0.0006, EYE.z - 0.0004, EYE.r + 0.0014), -(py - (EYE.y + 0.0048 - (ax - EYE.x) * 0.1)));
     d = smin(d, lid, 0.004);
-    const low = Math.max(sph(ax, py, pz, EYE.x, EYE.y - 0.0005, EYE.z - 0.0012, EYE.r + 0.0012), (py - (EYE.y - 0.0072)));
+    const low = Math.max(sph(ax, py, pz, EYE.x, EYE.y - 0.0005, EYE.z - 0.0012, EYE.r + 0.0011), (py - (EYE.y - 0.0078)));
     d = smin(d, low, 0.004);
     d = smin(d, ell(ax, py, pz, EYE.x + 0.002, EYE.y - 0.017, 0.088, 0.014, 0.006, 0.006), 0.008); // bags
   }
@@ -97,7 +97,7 @@ export function headSdf(px, py, pz) {
   // nose: long, slightly hooked
   d = smin(d, cap(px, py, pz, 0, 0.077, 0.098, 0, 0.036, 0.12, 0.0058, 0.0078), 0.008);
   d = smin(d, sph(px, py, pz, 0, 0.031, 0.12, 0.0098), 0.007);
-  d = smin(d, sph(ax, py, pz, 0.0125, 0.027, 0.108, 0.0072), 0.005);
+  d = smin(d, sph(ax, py, pz, 0.0108, 0.027, 0.108, 0.0062), 0.006);
   // columella / under-nose
   d = smin(d, cap(px, py, pz, 0, 0.023, 0.114, 0, 0.018, 0.104, 0.004), 0.004);
   // nostrils
@@ -116,9 +116,9 @@ export function headSdf(px, py, pz) {
   d = smax(d, -cap(px, py, pz, 0, 0.016, 0.109, 0, 0.008, 0.106, 0.0016), 0.002);
   // nasolabial folds: a groove with a fleshy bulge on the cheek side
   {
-    const fold = cap(ax, py, pz, 0.018, 0.026, 0.106, 0.028, -0.004, 0.094, 0.0014);
-    d = smax(d, -fold, 0.003);
-    d = smin(d, cap(ax, py, pz, 0.023, 0.024, 0.099, 0.031, -0.002, 0.089, 0.0025), 0.006);
+    const fold = cap(ax, py, pz, 0.017, 0.025, 0.104, 0.027, -0.003, 0.093, 0.0012);
+    d = smax(d, -fold, 0.004);
+    d = smin(d, ell(ax, py, pz, 0.034, 0.02, 0.078, 0.016, 0.02, 0.014), 0.012);  // soft cheek fat pad
   }
   // chin crease
   d = smax(d, -cap(px, py, pz, -0.012, -0.024, 0.093, 0.012, -0.024, 0.093, 0.0018), 0.003);
@@ -130,7 +130,7 @@ export function headSdf(px, py, pz) {
   }
   // crow's feet
   if (ax > 0.042 && ax < 0.06 && Math.abs(py - EYE.y) < 0.014 && pz > 0.05) {
-    d += 0.0004 * Math.cos(Math.atan2(py - EYE.y, ax - EYE.x) * 18);
+    d += 0.00012 * Math.cos(Math.atan2(py - EYE.y, ax - EYE.x) * 14) * smoothstep(0.042, 0.05, ax);
   }
 
   // ears (large in old age)
@@ -144,7 +144,7 @@ export function headSdf(px, py, pz) {
     d = smin(d, e, 0.006);
   }
   // neck (thin, sinewy)
-  d = smin(d, cap(px, py, pz, 0, -0.02, -0.012, 0, -0.14, 0.0, 0.047, 0.052), 0.03);
+  d = smin(d, cap(px, py, pz, 0, -0.02, -0.014, 0, -0.14, 0.0, 0.042, 0.048), 0.028);
   d = smin(d, cap(ax, py, pz, 0.018, -0.04, 0.035, 0.012, -0.12, 0.05, 0.009), 0.015); // sternocleidomastoid
   return d;
 }
@@ -172,8 +172,8 @@ export function hairSdf(px, py, pz) {
 export function browSdf(px, py, pz) {
   const ax = Math.abs(px);
   const n = fbm3(px * 300, py * 300, pz * 300, 3);
-  const b = cap(ax, py, pz, 0.011, 0.0875, 0.103, 0.05, 0.0895, 0.09, 0.0028, 0.0038);
-  return b - 0.0016 * n + 0.0008;
+  const b = cap(ax, py, pz, 0.01, 0.0865, 0.103, 0.05, 0.088, 0.091, 0.0036, 0.0046);
+  return b - 0.0022 * n + 0.0009;
 }
 
 // ------------------------------------------------------------------ CRAVAT

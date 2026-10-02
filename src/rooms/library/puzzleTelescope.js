@@ -98,14 +98,14 @@ export function createTelescopePuzzle(ctx, { parent, frieze, telescope, eyePose,
       void main(){
         vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
         float r = length(p);
-        float edge = smoothstep(0.9, 0.97, r);
-        float rim = smoothstep(0.86, 0.93, r) * (1.0 - smoothstep(0.95, 1.0, r));
+        float edge = smoothstep(1.0, 1.06, r);
+        float rim = smoothstep(0.95, 1.01, r) * (1.0 - smoothstep(1.03, 1.08, r));
         vec3 brass = vec3(0.35, 0.24, 0.1) * (0.6 + 0.4 * sin(atan(p.y, p.x) * 3.0 + 1.0));
         float a = max(edge, rim * 0.6);
         vec3 col = mix(brass * rim, vec3(0.0), edge);
         // faint crosshair etched in the reticle
         float ch = (1.0 - smoothstep(0.0, 0.003, abs(p.x))) + (1.0 - smoothstep(0.0, 0.003, abs(p.y)));
-        float chm = ch * 0.12 * step(r, 0.86) * step(0.05, r);
+        float chm = ch * 0.12 * step(r, 0.95) * step(0.05, r);
         gl_FragColor = vec4(col, clamp(a + chm, 0.0, 1.0));
       }`,
   }));
@@ -159,12 +159,14 @@ export function createTelescopePuzzle(ctx, { parent, frieze, telescope, eyePose,
       telescope.tubeVisible(false);
       vig.material.uniforms.uAspect.value = (ctx.camera.aspect || 1.33);
       vig.visible = true;
+      if (!ctx.state.isSolved(PUZZLE_ID)) tileMat.emissiveIntensity = 0.22;
       ctx.post.set({ exposure: 2.6, vignette: 0.0, dof: null, bloomStrength: 0.25 }, 0.4);
       p.status('Click a prism to turn it. ' + RIDDLE[0] + ' ' + RIDDLE[1]);
       ctx.audio.sfx?.('chime', { freq: 330 });
     },
     teardown() {
       vig.visible = false;
+      if (!ctx.state.isSolved(PUZZLE_ID)) tileMat.emissiveIntensity = 0.04;
       telescope.tubeVisible(true);
       ctx.post.reset(0.6);
     },

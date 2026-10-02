@@ -193,7 +193,7 @@ void surface(vec2 uv, inout Surface s) {
   col = mix(col, ochre, smoothstep(0.02, -0.02, inner) * 0.8);
   col = mix(col, black, smoothstep(0.03, -0.03, inner + 0.08));
   col = mix(col, ochre * 0.8, smoothstep(0.05, -0.05, dots) * smoothstep(-0.02, 0.05, med) * 0.4);
-  float pile = vnoise(uv * vec2(700.0, 700.0), vec2(700.0));
+  float pile = vnoise(uv * vec2(300.0, 300.0), vec2(300.0));
   float wear = smoothstep(0.55, 0.85, fbm(uv, vec2(3.0), 4) * 0.5 + 0.5);
   col *= 0.8 + 0.3 * pile;
   col = mix(col, col * 0.6 + vec3(0.08, 0.06, 0.05), wear * 0.5);

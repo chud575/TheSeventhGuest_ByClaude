@@ -410,7 +410,7 @@ export function buildProps(ctx, root, mat) {
     // a candle on a tall pricket stand beside the lectern
     const stand = new THREE.Group();
     stand.add(new THREE.Mesh(lathe([[0.001, 0], [0.14, 0], [0.12, 0.03], [0.04, 0.06], [0.025, 0.3], [0.035, 0.5], [0.02, 0.9], [0.03, 1.1], [0.07, 1.14], [0.06, 1.16], [0.001, 1.16]], 20), mat.iron));
-    const candle = ctx.fx.candle({ height: 0.28, radius: 0.02, lightIntensity: 2.4, lightDistance: 6, seed: 23, burn: 0.8 });
+    const candle = ctx.fx.candle({ height: 0.28, radius: 0.016, lightIntensity: 1.5, lightDistance: 6, seed: 23, burn: 0.8 });
     candle.position.y = 1.16;
     stand.add(candle);
     stand.position.copy(new THREE.Vector3(0.5, 0, 0).applyAxisAngle(V3(0, 1, 0), SPOTS.lectern.ry).add(V3(SPOTS.lectern.x, 0, SPOTS.lectern.z)));

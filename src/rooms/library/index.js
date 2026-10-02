@@ -44,7 +44,7 @@ export default {
       brick: M.create('brick', { color: [0.32, 0.15, 0.11], mortar: [0.3, 0.28, 0.26], rows: 8, cols: 4, soot: 0.55, repeat: [1 / 0.9, 1 / 0.56], size: hi ? 2048 : 1024, macro: 0.4 }),
       timber: M.create('wood', { species: 'oak', boards: 0, polish: 0.25, wear: 0.55, figure: 0.8, tint: [0.3, 0.24, 0.2], repeat: [1 / 1.6, 1 / 0.8], physical: true, clearcoat: 0.12, clearcoatRoughness: 0.5 }),
       timberDark: M.create('wood', { species: 'walnut', boards: 0, polish: 0.4, wear: 0.4, tint: [0.42, 0.36, 0.33], repeat: [1, 1], physical: true, clearcoat: 0.3, clearcoatRoughness: 0.35 }),
-      beam: M.create('wood', { species: 'oak', boards: 0, polish: 0.2, wear: 0.5, figure: 0.8, tint: [0.27, 0.22, 0.19], repeat: [1 / 1.8, 1 / 0.9], physical: true, clearcoat: 0.1, clearcoatRoughness: 0.5 }),
+      beam: M.create('wood', { species: 'oak', boards: 0, polish: 0.15, wear: 0.5, figure: 0.8, tint: [0.25, 0.2, 0.17], repeat: [1 / 1.8, 1 / 0.9], envMapIntensity: 0.25 }),
       caseWood: M.create('wood', { species: 'walnut', boards: 0, polish: 0.65, wear: 0.3, tint: [0.42, 0.34, 0.3], repeat: [1.4, 1.4], physical: true, clearcoat: 0.45, clearcoatRoughness: 0.3 }),
       caseDark: new THREE.MeshStandardMaterial({ color: 0x0d0907, roughness: 0.85, metalness: 0 }),
       column: M.create('ebony', { repeat: [3, 1], color: [0.62, 0.82, 0.82] }),
@@ -54,7 +54,7 @@ export default {
       mahogany: M.create('mahogany', { repeat: [1.5, 1.5], color: [0.55, 0.45, 0.42] }),
       doorWood: M.create('wood', { species: 'walnut', boards: 0, polish: 0.4, wear: 0.5, tint: [0.45, 0.38, 0.34], repeat: [1, 1], physical: true, clearcoat: 0.2, clearcoatRoughness: 0.4 }),
       deskLeather: M.create('leather', { color: [0.05, 0.12, 0.07], wear: 0.55, repeat: [2, 2] }),
-      tapestry: new THREE.MeshPhysicalMaterial({ map: tapRep.map, normalMap: tapRep.normalMap, roughnessMap: tapRep.roughnessMap, roughness: 1, metalness: 0, sheen: 0.8, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.55, 0.35, 0.25), envMapIntensity: 0.4, name: 'tapestry' }),
+      tapestry: new THREE.MeshPhysicalMaterial({ map: tapRep.map, normalMap: tapRep.normalMap, normalScale: new THREE.Vector2(0.5, 0.5), roughnessMap: tapRep.roughnessMap, roughness: 1, metalness: 0, sheen: 0.35, sheenRoughness: 0.6, sheenColor: new THREE.Color(0.35, 0.18, 0.12), envMapIntensity: 0.25, name: 'tapestry' }),
       brass: M.create('brass', { tarnish: 0.45, polish: 0.6, repeat: [2, 2] }),
       brassBright: M.create('brass', { tarnish: 0.2, polish: 0.85, repeat: [3, 3] }),
       iron: M.basic('iron', { color: 0x1c1b1a, roughness: 0.65 }),
@@ -66,11 +66,11 @@ export default {
       leatherBox: M.create('leather', { color: [0.2, 0.09, 0.05], wear: 0.5, repeat: [4, 4] }),
       leatherRed: M.create('leather', { color: [0.28, 0.04, 0.035], wear: 0.45, repeat: [4, 4] }),
       leatherGreen: M.create('leather', { color: [0.05, 0.12, 0.07], wear: 0.45, repeat: [4, 4] }),
-      hintPages: new THREE.MeshStandardMaterial({ color: 0xd8c8a0, roughness: 0.85, emissive: new THREE.Color(1.0, 0.82, 0.5), emissiveIntensity: 0.06 }),
+      hintPages: new THREE.MeshStandardMaterial({ color: 0xd8c8a0, roughness: 0.85, emissive: new THREE.Color(1.0, 0.82, 0.5), emissiveIntensity: 0.015 }),
       ribbon: new THREE.MeshStandardMaterial({ color: 0x5a0a10, roughness: 0.6, side: THREE.DoubleSide }),
       lampShade: new THREE.MeshStandardMaterial({ color: 0x302418, emissive: new THREE.Color(1.0, 0.66, 0.34), emissiveIntensity: 1.5, roughness: 0.4, transparent: true, opacity: 0.94, side: THREE.DoubleSide }),
       sconceShade: new THREE.MeshStandardMaterial({ color: 0x302418, emissive: new THREE.Color(1.0, 0.6, 0.3), emissiveIntensity: 2.0, roughness: 0.4, transparent: true, opacity: 0.92, side: THREE.DoubleSide }),
-      globe: new THREE.MeshPhysicalMaterial({ map: glob.map, normalMap: glob.normalMap, roughnessMap: glob.roughnessMap, roughness: 1, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.35, envMapIntensity: 0.35, name: 'globe' }),
+      globe: new THREE.MeshPhysicalMaterial({ map: glob.map, normalMap: glob.normalMap, roughnessMap: glob.roughnessMap, roughness: 1, metalness: 0, clearcoat: 0.08, clearcoatRoughness: 0.5, envMapIntensity: 0.25, roughness: 1.4, name: 'globe' }),
       horizonRing: new THREE.MeshStandardMaterial({ color: 0xb59f74, roughness: 0.7 }),
       curtain: M.create('velvet', { color: [0.05, 0.08, 0.2], crush: 0.55, repeat: [2, 2], side: THREE.DoubleSide }),
       plasterDark: M.create('plaster', { color: [0.3, 0.29, 0.3], cracks: 0.4, stains: 0.5, repeat: [0.8, 0.8] }),
@@ -113,10 +113,13 @@ export default {
       }
       cs.position.copy(bookcase.toWorld(0.95, 0.8, 0.3));
       root.add(cs);
-      const pl = new THREE.PointLight(0xffa456, 1.6, 5, 2);
+      const cs2 = cs.clone(); cs2.position.copy(bookcase.toWorld(3.2, 0.8, 0.3)); root.add(cs2);
+      const pl = new THREE.PointLight(0xffa456, 2.0, 5, 2);
       pl.position.copy(bookcase.toWorld(0.95, 1.12, 0.42));
-      root.add(pl);
-      ctx.onUpdate((dt, t) => { pl.intensity = 1.6 * (0.93 + 0.07 * Math.sin(t * 8.3) * Math.sin(t * 3.1 + 1)); });
+      const pl2 = new THREE.PointLight(0xffa456, 2.0, 5, 2);
+      pl2.position.copy(bookcase.toWorld(3.2, 1.12, 0.42));
+      root.add(pl, pl2);
+      ctx.onUpdate((dt, t) => { pl.intensity = 2.0 * (0.93 + 0.07 * Math.sin(t * 8.3) * Math.sin(t * 3.1 + 1)); pl2.intensity = 2.0 * (0.93 + 0.07 * Math.sin(t * 7.1 + 2) * Math.sin(t * 2.3)); });
     }
 
     // ================================================================ telescope aim + puzzle
@@ -127,12 +130,12 @@ export default {
       const tube = props.telescopeTube;
       tube.updateMatrixWorld(true);
       const pos = tube.localToWorld(V3(0, 0.0, 0.8));
-      return { position: pos.toArray(), target: friezeWorld.toArray(), fov: 10.5 };
+      return { position: pos.toArray(), target: friezeWorld.toArray(), fov: 12.5 };
     };
     const tel = createTelescopePuzzle(ctx, {
       parent: bookcase.group,
       frieze: bookcase.frieze,
-      telescope: { tubeVisible: (v) => { props.telescopeTube.visible = v; } },
+      telescope: { tubeVisible: (v) => { props.telescope.visible = v; } },
       eyePose,
       onSolvedFx: () => {
         ctx.state.set('library.friezeSpoken', true);
@@ -158,7 +161,7 @@ export default {
     // ================================================================ lighting
     // moonlight through the skylights (shadowed by the beam grid)
     const moon = new THREE.SpotLight(0xa8bcff, 2600, 26, 0.5, 0.55, 2);
-    moon.position.set(-2.6, 10.5, 2.4);
+    moon.position.set(-1.9, 11.0, 0.9);
     moon.target.position.set(-0.6, 0, -1.6);
     moon.castShadow = ctx.quality.shadows;
     moon.shadow.mapSize.set(ctx.quality.shadowMapSize, ctx.quality.shadowMapSize);
@@ -171,10 +174,14 @@ export default {
     // the bay window's moon spill
     root.add(fx.areaLight({ center: wallToWorld('left', OPEN.bay.x + OPEN.bay.w / 2, OPEN.bay.y + 1.1, 0.05).toArray(), normal: [1, -0.2, 0], width: OPEN.bay.w, height: OPEN.bay.h, color: 0x8ea6ff, intensity: 3 }));
     // a cold key on the ghost's face (as if a skylight pane singled him out)
-    const gk = new THREE.SpotLight(0xc8d8ff, 9, 5, 0.2, 0.8, 2);
-    gk.position.copy(GHOST_POS).add(V3(-0.9, 1.3, 0.7));
+    const gk = new THREE.SpotLight(0xd8e2ff, 12, 5, 0.2, 0.8, 2);
+    gk.position.copy(GHOST_POS).add(V3(-0.75, 0.55, 1.05));
     gk.target.position.copy(GHOST_POS).add(V3(0, 0.08, 0));
     root.add(gk, gk.target);
+    // faint warm spill so the foreground wing chair isn't a black hole
+    const fillW = new THREE.PointLight(0xffa060, 0.9, 4, 2);
+    fillW.position.set(0.1, 1.0, 0.9);
+    root.add(fillW);
 
     // ================================================================ volumetrics: shafts from the skylights + dust + floor mist
     const moonDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();

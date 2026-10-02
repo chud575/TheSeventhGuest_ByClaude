@@ -77,7 +77,7 @@ function surfaceNets(f, min, max, h) {
 }
 
 const parts = [
-  { name: 'head', f: headSdf, min: [-0.11, -0.16, -0.12], max: [0.11, 0.232, 0.15], h: H, region: 'skin' },
+  { name: 'head', f: headSdf, min: [-0.11, -0.16, -0.12], max: [0.11, 0.21, 0.15], h: H * 0.8, region: 'skin' },
   {
     name: 'hair', h: H,
     f: (x, y, z) => smax(Math.min(hairSdf(x, y, z), browSdf(x, y, z)), -(headSdf(x, y, z) + 0.0004), 0.001),
