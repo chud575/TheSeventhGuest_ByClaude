@@ -179,7 +179,7 @@ export default {
     gk.target.position.copy(GHOST_POS).add(V3(0, 0.08, 0));
     root.add(gk, gk.target);
     // faint warm spill so the foreground wing chair isn't a black hole
-    const fillW = new THREE.PointLight(0xffa060, 0.9, 4, 2);
+    const fillW = new THREE.PointLight(0xffa060, 1.5, 4, 2);
     fillW.position.set(0.1, 1.0, 0.9);
     root.add(fillW);
 

@@ -9,7 +9,7 @@ import { flicker } from '../../engine/fx/Flame.js';
 export const SPOTS = {
   desk: { x: -1.95, z: -0.55, ry: 0 },            // long axis along z
   chair: { x: -1.05, z: -0.75, ry: -1.75 },
-  wing: { x: 0.55, z: -0.2, ry: -1.95 },
+  wing: { x: 0.58, z: -0.15, ry: -1.9 },
   globe: { x: 0.36, z: -1.55 },
   telescope: { x: -3.2, z: 2.05 },
   lectern: { x: 0.45, z: 3.1, ry: Math.PI + 0.45 },
