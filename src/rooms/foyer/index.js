@@ -72,8 +72,8 @@ export default {
     const mat = {
       floor: M.create('checker', { tiles: 4, a: 'carrara', b: 'nero', diagonal: true, polish: 0.85, repeat: [1 / 3.2, 1 / 3.2], size: big }),
       wall: M.create('damask', { repeat: [1.35, 1.35], base: [0.085, 0.12, 0.3], motif: [0.14, 0.19, 0.42], sheen: 0.6 }),
-      panel: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.75, repeat: [1.1, 1.1], clearcoat: 0.5, clearcoatRoughness: 0.25 }),
-      mahogany: M.create('mahogany', { repeat: [1, 1] }),
+      panel: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.75, repeat: [1.1, 1.1], clearcoat: 0.5, clearcoatRoughness: 0.25, color: [0.62, 0.48, 0.42] }),
+      mahogany: M.create('mahogany', { repeat: [1, 1], color: [0.66, 0.5, 0.44] }),
       dark: M.create('ebony', { repeat: [1, 1] }),
       ceiling: M.create('plaster', { color: [0.13, 0.16, 0.27], cracks: 0.25, stains: 0.45, repeat: [0.4, 0.4] }),
       soffit: M.create('plaster', { color: [0.42, 0.42, 0.44], cracks: 0.3, stains: 0.5, repeat: [0.6, 0.6] }),
@@ -85,7 +85,7 @@ export default {
       columns: M.create('marble', { type: 'nero', polish: 0.9, repeat: [1, 1] }),
       sill: M.create('marble', { type: 'carrara', polish: 0.7, repeat: [1, 1] }),
       glass: M.create('glass', { dirt: 0.5, transparent: true, opacity: 0.16 }),
-      crystal: M.basic('crystal', { envMapIntensity: 2.2, opacity: 0.55 }),
+      crystal: M.basic('crystal', { envMapIntensity: 1.4, opacity: 0.42 }),
       iron: M.basic('iron'),
       black: M.basic('black'),
       rug: M.create('rug', { palette: 'tabriz', aspect: 1.5 / 3.4, knots: 200, wear: 0.45, fringe: 0.04, seed: 11, size: big }),
@@ -215,6 +215,37 @@ export default {
       const pb = new THREE.Mesh(G.boxUV(0.62, 0.55, 0.03, 1), mat.panel); pb.position.set(6 + sx, 0.275, 0.0); walls.front.group.add(pb);
     }
     add(wainscot);
+    // wainscot following the curved wall beneath the stair sweep
+    {
+      const Rw = CURVE_R - 0.012, a0 = -0.03, a1 = -Math.PI / 2 + 0.03;
+      const n = Math.round(((a0 - a1) * Rw) / 0.8);
+      const pw = ((a0 - a1) * Rw) / n;
+      const pg = G.raisedPanel(Math.max(0.2, pw - 0.12), 0.7, { border: 0.075, bevel: 0.035 });
+      for (let i = 0; i < n; i++) {
+        const a = a0 - (a0 - a1) * ((i + 0.5) / n);
+        const p = new THREE.Mesh(pg, mat.panel);
+        p.position.set(STAIR.cx + Math.cos(a) * (Rw - 0.02), 0.65, STAIR.cz + Math.sin(a) * (Rw - 0.02));
+        p.lookAt(STAIR.cx, 0.65, STAIR.cz);
+        add(p);
+      }
+      const arc = (r, y) => { const pts = []; for (let i = 0; i <= 40; i++) { const a = a1 + (a0 - a1) * (i / 40); pts.push(V3(STAIR.cx + Math.cos(a) * r, y, STAIR.cz + Math.sin(a) * r)); } return pts; };
+      // panelled backing as a thin curved band
+      const back = new THREE.Mesh(new THREE.CylinderGeometry(Rw - 0.006, Rw - 0.006, DADO - 0.05, 48, 1, true, Math.PI / 2, Math.PI / 2), mat.panel);
+      back.position.set(STAIR.cx, (DADO - 0.05) / 2, STAIR.cz);
+      const bm = mat.panel.clone(); bm.side = THREE.BackSide; back.material = bm;
+      add(back);
+      add(new THREE.Mesh(G.sweepProfile(G.PROFILES.chairRail(0.09, 0.045), arc(Rw, DADO - 0.06).reverse(), { uvScale: 1 }), mat.panel));
+      add(new THREE.Mesh(G.sweepProfile(G.PROFILES.baseboard(0.26, 0.032), arc(Rw, 0).reverse(), { uvScale: 1 }), mat.dark));
+      // a pedestal and marble urn in the curve
+      const a = -0.8, pr = Rw - 0.55;
+      const ped = new THREE.Group();
+      ped.add(new THREE.Mesh(G.latheFromProfile([[0.24, 0], [0.24, 0.08], [0.21, 0.1], [0.2, 0.16], [0.16, 0.2], [0.15, 0.95], [0.18, 0.98], [0.22, 1.04], [0.25, 1.06], [0.25, 1.12], [0, 1.12]], 4).rotateY(Math.PI / 4), mat.columns));
+      const urn = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.14, 0], [0.14, 0.04], [0.08, 0.07], [0.06, 0.12], [0.1, 0.18], [0.2, 0.3], [0.24, 0.42], [0.23, 0.52], [0.17, 0.6], [0.14, 0.64], [0.16, 0.68], [0.2, 0.7], [0.2, 0.73], [0.0, 0.72]], 48), M.create('marble', { type: 'carrara', polish: 0.75 }));
+      urn.position.y = 1.12; ped.add(urn);
+      for (const sd of [-1, 1]) { const h = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.014, 8, 20, Math.PI * 1.2), mat.sill); h.position.set(sd * 0.22, 1.12 + 0.52, 0); h.rotation.z = sd > 0 ? -0.6 : Math.PI + 0.6 - Math.PI * 0.2; ped.add(h); }
+      ped.position.set(STAIR.cx + Math.cos(a) * pr, 0, STAIR.cz + Math.sin(a) * pr);
+      add(ped);
+    }
     // a raked dado rail along the stair wall
     {
       const p = [];
@@ -441,7 +472,7 @@ export default {
     const chand = buildChandelier(ctx, {
       brass: mat.brass, crystal: mat.crystal, gilt: mat.gilt,
       tiers: [{ arms: 12, radius: 0.86, y: 0.0 }, { arms: 8, radius: 0.52, y: 0.4 }, { arms: 6, radius: 0.28, y: 0.72 }],
-      chain: 1.15, bodyHeight: 1.35, candleHeight: 0.15, lit: 1, seed: 3,
+      chain: 2.0, bodyHeight: 1.35, candleHeight: 0.15, lit: 1, seed: 3,
     });
     chand.group.position.set(MED.x, H, MED.z);
     add(chand.group, { cast: false });
@@ -449,7 +480,7 @@ export default {
     const gutter = (on) => chand.candles.forEach((c, i) => { const f = c.userData.flame; if (f) f.visible = on || (i * 7) % 5 < 3; c.userData.body.material.emissiveIntensity = f?.visible ? 0.04 : 0; });
     gutter(false);
     const chandLight = new THREE.PointLight(0xffa457, 140, 22, 2);
-    chandLight.position.copy(chand.lightAnchor).add(chand.group.position);
+    chandLight.position.copy(chand.lightAnchor).add(chand.group.position).add(V3(0, -0.75, 0));
     chandLight.castShadow = Q.shadows;
     chandLight.shadow.mapSize.set(512, 512);
     chandLight.shadow.bias = -0.004; chandLight.shadow.normalBias = 0.04; chandLight.shadow.radius = 5;
@@ -495,6 +526,29 @@ export default {
       s.add(new THREE.Mesh(G.frameGeometry(1.1, 0.8, { width: 0.1, depth: 0.06, uvScale: 1 }), mat.frame));
       s.position.set(X0 + 0.05, 2.25, 4.0); s.rotation.y = Math.PI / 2;
       add(s);
+    }
+
+    // ancestors climbing the stair wall (east wall over the straight flight, then the curve)
+    {
+      const hang = [
+        { s: 0.9, w: 0.75, h: 1.0, seed: 31, subj: 1 },
+        { s: 2.6, w: 0.9, h: 1.15, seed: 32, subj: 1 },
+        { s: 4.6, w: 1.1, h: 0.8, seed: 33, subj: 0 },
+        { s: 6.4, w: 0.75, h: 1.0, seed: 34, subj: 1 },
+      ];
+      for (const hp of hang) {
+        const g = new THREE.Group();
+        g.add(new THREE.Mesh(new THREE.PlaneGeometry(hp.w, hp.h), M.create('painting', { subject: hp.subj, seed: hp.seed, aspect: hp.w / hp.h, size: 512, cracks: 0.6, varnish: 0.8 })));
+        g.add(new THREE.Mesh(G.frameGeometry(hp.w, hp.h, { width: 0.1, depth: 0.06, uvScale: 1 }), mat.frame));
+        const y = pitchY(hp.s) + 1.75;
+        if (hp.s <= STAIR.straight) { g.position.set(X1 - 0.04, y, STAIR.z0 - hp.s); g.rotation.y = -Math.PI / 2; }
+        else {
+          const a = -(hp.s - STAIR.straight) / STAIR.R;
+          g.position.set(STAIR.cx + Math.cos(a) * (CURVE_R - 0.05), y, STAIR.cz + Math.sin(a) * (CURVE_R - 0.05));
+          g.lookAt(STAIR.cx, y, STAIR.cz);
+        }
+        add(g);
+      }
     }
 
     // ================================================================ grandfather clock, console, newel lamp, sconces
@@ -568,6 +622,17 @@ export default {
     sconceAt('back', lx.back(-3.3) - 0.0, 2.4, false);
     sconceAt('back', lx.back(DOORS.music.x) + 1.35, 2.4);
     sconceAt('left', lx.left(DOORS.dining.z) + 1.35, 2.4);
+    // a lone sconce on the curved stair wall, half way up
+    {
+      const a = -(5.5 - STAIR.straight) / STAIR.R, y = pitchY(5.5) + 1.55;
+      const s = buildSconce(ctx, { brass: mat.brass, shadeMat: mat.shade, arms: 2 });
+      s.position.set(STAIR.cx + Math.cos(a) * (CURVE_R - 0.02), y, STAIR.cz + Math.sin(a) * (CURVE_R - 0.02));
+      s.lookAt(STAIR.cx, y, STAIR.cz);
+      add(s);
+      const l = new THREE.PointLight(0xffa860, 4.5, 8, 2);
+      l.position.set(STAIR.cx + Math.cos(a) * (CURVE_R - 0.35), y + 0.12, STAIR.cz + Math.sin(a) * (CURVE_R - 0.35));
+      root.add(l); sconceLights.push(l);
+    }
     ctx.onUpdate((dt, t) => sconceLights.forEach((l, i) => { l.intensity = 4.5 * (0.97 + 0.03 * Math.sin(t * (8.3 + i) + i * 2.1)); }));
 
     // ================================================================ rug runner from the door
@@ -617,7 +682,7 @@ export default {
     moon.shadow.bias = -0.0003; moon.shadow.normalBias = 0.03; moon.shadow.radius = Q.shadowRadius;
     moon.shadow.camera.near = 6; moon.shadow.camera.far = 36;
     root.add(moon, moon.target);
-    const fill = new THREE.HemisphereLight(0x4a62b0, 0x1d130b, 0.9);
+    const fill = new THREE.HemisphereLight(0x4a62b0, 0x1d130b, 0.6);
     root.add(fill);
     root.add(fx.areaLight({ center: [0, WIN.great.y + 1.3, Z1 - 0.05], normal: [0, -0.35, -1], width: WIN.great.w, height: WIN.great.h, color: 0x8ea6ff, intensity: 7 }));
     root.add(fx.areaLight({ center: [0, 1.6, Z1 - 0.05], normal: [0, -0.1, -1], width: 3.0, height: 3.2, color: 0x7f95e8, intensity: 2.2 }));
@@ -626,7 +691,7 @@ export default {
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
     const shaft = fx.shaft({
       center: V3(0, WIN.great.y + 1.25, Z1 - 0.02), right: V3(WIN.great.w / 2 - 0.05, 0, 0), up: V3(0, WIN.great.h / 2 - 0.05, 0),
-      direction: beamDir, length: 11.5, color: 0xa3b4ff, intensity: Number(ctx.params.get('shaft') || 0.55), softness: 0.35, falloff: 0.55, panes: [4, 5], mullion: 0.02, noise: 0.7,
+      direction: beamDir, length: 11.5, color: 0xa3b4ff, intensity: Number(ctx.params.get('shaft') || 0.09), softness: 0.35, falloff: 0.55, panes: [4, 5], mullion: 0.02, noise: 0.7,
     });
     root.add(shaft);
     const fanShaft = fx.shaft({
@@ -634,13 +699,23 @@ export default {
       direction: beamDir, length: 4.5, color: 0xb8a8ff, intensity: 0.35, softness: 0.45, falloff: 0.9, panes: [6, 1], mullion: 0.03, noise: 0.6,
     });
     root.add(fanShaft);
-    root.add(fx.dust({ box: new THREE.Box3(V3(-2.6, 0.2, -2.5), V3(2.6, 7.5, 6.8)), count: 3200, shafts: [shaft, fanShaft], size: 0.012, intensity: 2.4, ambient: 0.04 }));
+    // the clerestory windows on the west wall throw long slanted beams across the hall
+    const westDir = V3(0.78, -0.52, -0.34).normalize();
+    const westShafts = WIN.west.map((wi) => {
+      const sh = fx.shaft({
+        center: V3(X0 + 0.02, WIN.westY + WIN.westH * 0.42, wi.z), right: V3(0, 0, -(WIN.westW / 2 - 0.05)), up: V3(0, WIN.westH * 0.42, 0),
+        direction: westDir, length: 9.5, color: 0x9fb2ff, intensity: Number(ctx.params.get('wshaft') || 0.32), softness: 0.3, falloff: 0.9, panes: [3, 4], mullion: 0.025, noise: 0.75,
+      });
+      root.add(sh);
+      return sh;
+    });
+    root.add(fx.dust({ box: new THREE.Box3(V3(-5.6, 0.2, -4), V3(2.6, 7.5, 6.8)), count: 3600, shafts: [shaft, ...westShafts.slice(0, 2), fanShaft].slice(0, 4), size: 0.012, intensity: 2.4, ambient: 0.04 }));
     root.add(fx.fog({ box: new THREE.Box3(V3(X0 + 0.3, 0, -6.5), V3(X1 - 0.3, 0.6, 6.5)), color: 0x0a0f1c, litColor: 0x2c3a5c, density: 0.35, heightFalloff: 4 }));
 
     // ================================================================ navigation
     const stairPath = [0.4, 1.6, 2.8, 3.8, 4.8, 5.8, 6.8, 7.8, 8.6].map((s) => stairEye(s, 0.05));
     const nodes = {
-      main: { position: [-0.45, 1.62, 5.75], target: [0.75, 2.75, -6], fov: 62, label: 'The Grand Foyer', look: { yaw: [-55, 55], pitch: [-28, 38] } },
+      main: { position: [-0.35, 1.6, 6.45], target: [0.65, 3.65, -6], fov: 64, label: 'The Grand Foyer', look: { yaw: [-55, 55], pitch: [-28, 38] } },
       center: { position: [-1.25, 1.62, 2.55], target: [-0.2, 2.25, -7], fov: 58, label: 'The gallery', look: { yaw: [-45, 45], pitch: [-25, 35] } },
       center_w: { position: [-1.25, 1.62, 2.55], target: [-6, 1.75, 0.0], fov: 56, label: 'The clock' },
       center_e: { position: [-1.25, 1.62, 2.55], target: [6, 1.9, 3.0], fov: 56, label: 'The library doors' },
@@ -745,7 +820,7 @@ export default {
       scene: root,
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
-      grade: { exposure: 1.75, contrast: 1.08, saturation: 0.95, bloomStrength: 0.45, bloomThreshold: 0.9, godRayWeight: 0.4, vignette: 0.42, aoIntensity: 1.1, aoRadius: 0.45 },
+      grade: { exposure: 1.75, contrast: 1.08, saturation: 0.95, bloomStrength: 0.32, bloomThreshold: 2.2, bloomRadius: 0.35, godRayWeight: 0.4, vignette: 0.42, aoIntensity: 1.1, aoRadius: 0.45 },
       environment: { position: [0, 2.2, 3.4], intensity: 0.85 },
       onEnter(c) {
         if (!ctx.state.has('foyer.greeted')) {
