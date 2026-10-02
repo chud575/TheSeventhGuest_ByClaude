@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { buildChair, webBackGeometry, buildTable, buildSideboard, buildCandelabrum, buildChandelier, buildPlaceSetting, plateGeometry, discUV, gobletGeometry } from './furniture.js';
-import { nightGardenTexture, ganacheTexture, spongeTexture, chinaTexture, wallpaperTexture } from './textures.js';
+import { nightGardenTexture, ganacheTexture, spongeTexture, chinaTexture, wallpaperTexture, ceilingFieldTexture } from './textures.js';
 import { createCakePuzzle, cakeMeta, CAKE_ID } from './puzzleCake.js';
 import { mergeStatic } from './merge.js';
 
@@ -82,8 +82,8 @@ export default {
       seat: M.create('velvet', { color: [0.1, 0.19, 0.3], crush: 0.4, pattern: 1, repeat: [4, 4], sheenColor: [0.3, 0.45, 0.6] }),
       brass: M.create('brass', { tarnish: 0.3, polish: 0.75, repeat: [3, 3] }),
       glass: M.create('glass', { dirt: 0.55, transparent: true, opacity: 0.12 }),
-      rug: M.create('rug', { palette: 'heriz', aspect: 3.3 / 5.0, knots: 220, wear: 0.45, fringe: 0.03, seed: 21, size: big }),
-      runner: M.create('rug', { palette: 'kashan', aspect: 0.85 / 5.8, knots: 90, wear: 0.5, fringe: 0.012, seed: 5, size: 1024 }),
+      rug: M.create('rug', { palette: 'heriz', colors: { field: [0.3, 0.035, 0.04], ivory: [0.62, 0.52, 0.4], gold: [0.52, 0.33, 0.14], rose: [0.5, 0.2, 0.18] }, aspect: 3.3 / 5.0, knots: 300, wear: 0.5, fringe: 0.03, seed: 21, size: big }),
+      runner: M.create('rug', { palette: 'kashan', colors: { ivory: [0.66, 0.58, 0.46] }, aspect: 0.85 / 5.8, knots: 110, wear: 0.5, fringe: 0.012, seed: 5, size: 1024 }),
       silver: M.basic('silver', { roughness: 0.25, envMapIntensity: 1.3 }),
       crystal: M.basic('crystal', { envMapIntensity: 1.5, opacity: 0.3 }),
       porcelain: M.basic('porcelain'),
@@ -93,6 +93,8 @@ export default {
       wine: new THREE.MeshPhysicalMaterial({ color: 0x3a0308, roughness: 0.05, transmission: 0, clearcoat: 1, name: 'wine' }),
     };
     mat.giltDark = M.create('gold', { wear: 0.6, dirt: 0.8, repeat: [2, 1], color: [0.45, 0.4, 0.36] });
+    mat.standSilver = M.basic('silver', { roughness: 0.38, envMapIntensity: 0.8, color: 0xb8b8bc });
+    mat.chairWood = M.create('mahogany', { repeat: [1.4, 1.4], color: [0.42, 0.27, 0.23] });
     mat.charger = new THREE.MeshStandardMaterial({ color: 0xc89a4a, metalness: 1, roughness: 0.3, envMapIntensity: 1.2, name: 'charger' });
     mat.frost = new THREE.MeshStandardMaterial({ color: 0x2a2018, emissive: new THREE.Color(1.0, 0.72, 0.42), emissiveIntensity: 0.8, roughness: 0.4, transparent: true, opacity: 0.9, name: 'frost' });
     mat.globe = new THREE.MeshStandardMaterial({ color: 0x2a2018, emissive: new THREE.Color(1.0, 0.7, 0.4), emissiveIntensity: 1.7, roughness: 0.3, name: 'globe' });
@@ -238,6 +240,27 @@ export default {
         l.position.set(T.x + Math.cos(a) * 0.32, H - 0.035, T.z + Math.sin(a) * 0.32); l.rotation.y = -a + Math.PI / 2; add(l);
       }
     }
+    {
+      const d = 0.64, k = C + 0.265;
+      const pts = [V2(X0 + k, Z0 + d), V2(X1 - k, Z0 + d), V2(X1 - d, Z0 + k), V2(X1 - d, Z1 - d), V2(X0 + d, Z1 - d), V2(X0 + d, Z0 + k)];
+      const xmin = X0 + d, w = (X1 - d) - xmin, zmin = Z0 + d, h = (Z1 - d) - zmin;
+      const tex = ceilingFieldTexture(ctx.textures, { aspect: w / h, rose: [(T.x - xmin) / w, (T.z - zmin) / h] });
+      const tris = THREE.ShapeUtils.triangulateShape(pts, []);
+      const pos = [], uv = [];
+      for (const t of tris) {
+        const [a, b, c] = t.map((i) => pts[i]);
+        const cross = (b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y);
+        const order = cross > 0 ? [a, b, c] : [a, c, b];
+        for (const q of order) { pos.push(q.x, H - 0.004, q.y); uv.push((q.x - xmin) / w, (q.y - zmin) / h); }
+      }
+      const fg = new THREE.BufferGeometry();
+      fg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      fg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      fg.computeVertexNormals();
+      if (fg.attributes.normal.getY(0) > 0) { const n = fg.attributes.normal; for (let i = 0; i < n.count; i++) n.setY(i, -n.getY(i)); fg.index = null; const p2 = fg.attributes.position.array; for (let i = 0; i < p2.length; i += 9) for (let j = 0; j < 3; j++) { const t0 = p2[i + 3 + j]; p2[i + 3 + j] = p2[i + 6 + j]; p2[i + 6 + j] = t0; } const u2 = fg.attributes.uv.array; for (let i = 0; i < u2.length; i += 6) for (let j = 0; j < 2; j++) { const t0 = u2[i + 2 + j]; u2[i + 2 + j] = u2[i + 4 + j]; u2[i + 4 + j] = t0; } fg.computeVertexNormals(); }
+      const fm = new THREE.MeshStandardMaterial({ map: tex.map, normalMap: tex.normalMap, roughnessMap: tex.ormMap, metalnessMap: tex.ormMap, roughness: 1, metalness: 1, envMapIntensity: 1.2, name: 'ceilingField' });
+      const field = add(new THREE.Mesh(fg, fm)); field.name = 'ceiling';
+    }
     const chand = buildChandelier(ctx, { brass: mat.brass, frost: mat.frost, globe: mat.globe, crystal: mat.crystal }, { drop: 1.25, arms: 5, armR: 0.4 });
     chand.position.set(T.x, H - 0.1, T.z);
     add(chand);
@@ -279,14 +302,11 @@ export default {
       // drapes
       const rodY = FRIEZE_Y - 0.1;
       for (const side of [-1, 1]) {
-        const cg = fixNaN(G.curtainGeometry({ width: 0.95, height: rodY + 0.06, folds: 7, depth: 0.07, tieback: 0.5, pool: 0.12, seed: side + 7, segX: 70, segY: 56 }), 70);
+        const cg = fixNaN(G.curtainGeometry({ width: 0.82, height: rodY + 0.06, folds: 7, depth: 0.075, tieback: 0, pool: 0.12, seed: side + 7, segX: 70, segY: 56 }), 70);
         const c = new THREE.Mesh(cg, mat.drape);
         c.position.set(wx + side * (WIN.w / 2 + 0.2), rodY, 0.14);
         if (side > 0) c.scale.x = -1;
         s.grp.add(c);
-        // tassel tieback
-        const tb = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.025, 0.01], [0.035, 0.05], [0.02, 0.1], [0.01, 0.12], [0, 0.13]], 12), mat.gilt);
-        tb.position.set(wx + side * (WIN.w / 2 + 0.43), 1.15, 0.2); tb.rotation.z = Math.PI; s.grp.add(tb);
       }
       // swagged valance: gathered pelmet whose hem dips in three swags, with jabots at the ends
       {
@@ -296,7 +316,7 @@ export default {
         for (let i = 0; i < pos.count; i++) {
           const x = pos.getX(i), y = pos.getY(i);
           const v = -y / 0.62;
-          const u = (x / vw + 0.5) * 2;
+          const u = (x / vw + 0.5);
           const f = u - Math.floor(u);
           const sw = Math.sin(f * Math.PI);
           const hem = 0.62 * (0.38 + 0.62 * Math.pow(sw, 0.8));
@@ -414,6 +434,30 @@ export default {
       }
     }
 
+    // gas sconces flanking the foyer door, and a pier mirror (seen from the window end)
+    const sconceLights = [];
+    {
+      const s = S.front;
+      const sconce = (x) => {
+        const g = new THREE.Group();
+        g.add(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.07, 0], [0.06, 0.02], [0.02, 0.035], [0, 0.04]], 20).rotateX(Math.PI / 2), mat.brass));
+        const arm = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V3(0, 0, 0.03), V3(0, -0.06, 0.12), V3(0, 0.0, 0.2), V3(0, 0.06, 0.2)]), 12, 0.009, 6), mat.brass); g.add(arm);
+        const cup = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.03, 0], [0.04, 0.02], [0.02, 0.03], [0, 0.03]], 14), mat.brass); cup.position.set(0, 0.06, 0.2); g.add(cup);
+        const shade = new THREE.Mesh(G.latheFromProfile([[0.025, 0], [0.06, 0.04], [0.075, 0.1], [0.06, 0.16], [0.035, 0.18]], 20), mat.globe); shade.position.set(0, 0.09, 0.2); g.add(shade);
+        g.position.set(lx.front(x), 1.95, 0.0); s.grp.add(g);
+        const wp = new THREE.Vector3(x, 2.15, Z1 - 0.25);
+        const l = new THREE.PointLight(0xffa860, 2.2, 6, 2); l.position.copy(wp); root.add(l); sconceLights.push(l);
+      };
+      sconce(-1.12); sconce(1.12);
+      const mg = new THREE.Group();
+      const mw = 0.9, mh = 1.5;
+      const glassM = new THREE.MeshPhysicalMaterial({ color: 0x9aa0a8, metalness: 1, roughness: 0.08, envMapIntensity: 1.0, name: 'mirror' });
+      mg.add(new THREE.Mesh(new THREE.PlaneGeometry(mw, mh), glassM));
+      mg.add(new THREE.Mesh(G.frameGeometry(mw, mh, { width: 0.12, depth: 0.07, uvScale: 1 }), mat.frame));
+      const crest = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 10), mat.gilt); crest.scale.set(2.2, 0.9, 0.35); crest.position.set(0, mh / 2 + 0.14, 0.04); mg.add(crest);
+      mg.position.set(lx.front(-2.0), 1.95, 0.035); s.grp.add(mg);
+    }
+
     // ================================================================ rugs
     {
       const rug = new THREE.Mesh(new THREE.PlaneGeometry(3.3, 5.0), mat.rug);
@@ -423,7 +467,7 @@ export default {
     }
 
     // ================================================================ table, chairs, settings
-    const furnMats = { wood: mat.wood, top: mat.woodTop, brass: mat.brass, gilt: mat.gilt, seat: mat.seat, metal: mat.silver };
+    const furnMats = { wood: mat.chairWood, top: mat.woodTop, brass: mat.brass, gilt: mat.gilt, seat: mat.seat, metal: mat.silver };
     const table = buildTable(ctx, furnMats, { radius: TABLE_R, height: TABLE_H });
     table.position.copy(T); add(table);
     const backGeo = webBackGeometry(G);
@@ -445,15 +489,15 @@ export default {
     // cake stand + cake (the puzzle)
     const STAND_H = 0.07;
     {
-      const st = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.11, 0], [0.11, 0.006], [0.08, 0.014], [0.03, 0.024], [0.022, 0.045], [0.03, 0.055], [0.06, 0.06], [0.31, 0.062], [0.315, 0.066], [0.3, STAND_H], [0, STAND_H]], 48), mat.silver);
+      const st = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.11, 0], [0.11, 0.006], [0.08, 0.014], [0.03, 0.024], [0.022, 0.045], [0.03, 0.055], [0.06, 0.06], [0.31, 0.062], [0.315, 0.066], [0.3, STAND_H], [0, STAND_H]], 48), mat.standSilver);
       st.position.set(T.x, TABLE_H, T.z); add(st);
     }
     // two small candelabra flanking the cake
     const tableCandles = [];
-    for (const [k, a] of [[0, -Math.PI / 2 + 0.0], [1, Math.PI / 2]]) {
+    for (const [k, phi] of [[0, THREE.MathUtils.degToRad(120)], [1, THREE.MathUtils.degToRad(240)]]) {
       const cb = buildCandelabrum(ctx, { metal: mat.silver }, { arms: 2, armR: 0.1, seed: 5 + k, candleH: 0.16 });
-      cb.position.set(T.x + Math.cos(a) * 0.43, TABLE_H, T.z + Math.sin(a) * 0.43);
-      cb.rotation.y = a; cb.scale.setScalar(0.9);
+      cb.position.set(T.x + Math.sin(phi) * 0.44, TABLE_H, T.z + Math.cos(phi) * 0.44);
+      cb.rotation.y = phi; cb.scale.setScalar(0.9);
       add(cb); tableCandles.push(...cb.userData.candles);
     }
 
@@ -510,7 +554,7 @@ export default {
     moon.map = fx.windowCookie({ cols: 2, rows: 4 });
     root.add(moon, moon.target);
     root.add(new THREE.HemisphereLight(0x5068c0, 0x1c120a, 1.9));
-    root.add(fx.areaLight({ center: [0, WIN.sill + WIN.h / 2, Z0 + 0.05], normal: [0, -0.35, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 6 }));
+    root.add(fx.areaLight({ center: [0, WIN.sill + WIN.h / 2, Z0 + 0.05], normal: [0, -0.35, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 3.5 }));
     // gasolier: one shadowed warm light at the globe ring + a soft up-light for the ceiling
     let chandBase = 10;
     const chandLight = new THREE.PointLight(0xffa860, 10, 12, 2);
@@ -532,7 +576,7 @@ export default {
     const tLight = new THREE.PointLight(0xffa04a, 1.6, 4, 2); tLight.position.set(T.x, TABLE_H + 0.45, T.z + 0.2); root.add(tLight);
     ctx.onUpdate((dt, t) => {
       const f = 0.96 + 0.025 * Math.sin(t * 7.3) * Math.sin(t * 2.9) + 0.015 * Math.sin(t * 13.1);
-      chandLight.intensity = chandBase * f; upLight.intensity = 2.0 * f; chandSpot.intensity = chandBase * 1.6 * f;
+      chandLight.intensity = chandBase * f; upLight.intensity = 2.0 * f; chandSpot.intensity = chandBase * 0.6 * f;
       sbLight.intensity = 3.2 * (0.9 + 0.1 * Math.sin(t * 9.7 + 1) * Math.sin(t * 4.1));
       tLight.intensity = 1.6 * (0.9 + 0.1 * Math.sin(t * 8.3) * Math.sin(t * 3.3 + 2));
     });
@@ -540,7 +584,7 @@ export default {
     // volumetric moon beam + dust + low mist
     const winCenter = V3(0, WIN.sill + WIN.h / 2, Z0 - 0.05);
     const beamDir = new THREE.Vector3().subVectors(moonTarget, moonPos).normalize();
-    const shaft = fx.shaft({ center: winCenter, right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h / 2, 0), direction: beamDir, length: 5.2, color: 0x9fb6ff, intensity: 0.55, softness: 0.3, falloff: 1.0, panes: [2, 4], mullion: 0.03, noise: 0.7 });
+    const shaft = fx.shaft({ center: winCenter, right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h / 2, 0), direction: beamDir, length: 5.2, color: 0x9fb6ff, intensity: 0.38, softness: 0.3, falloff: 1.0, panes: [2, 4], mullion: 0.03, noise: 0.7 });
     root.add(shaft);
     root.add(fx.dust({ box: new THREE.Box3(V3(-1.6, 0.1, Z0 + 0.1), V3(1.4, 3.0, 0.8)), count: 2600, shafts: [shaft], size: 0.011, intensity: 2.2, ambient: 0.05 }));
     root.add(fx.fog({ box: new THREE.Box3(V3(X0 + 0.1, 0, Z0 + 0.1), V3(X1 - 0.1, 0.5, Z1 - 0.3)), color: 0x0b111e, litColor: 0x33425f, density: 0.45, heightFalloff: 4 }));
@@ -598,8 +642,8 @@ export default {
     const nodes = {
       main: { position: [-0.22, 1.63, 3.72], target: [0.22, 1.36, -4.0], fov: 60, label: 'The doorway', look: { yaw: [-45, 45], pitch: [-28, 24] } },
       door: { position: [-0.22, 1.63, 3.6], target: [-0.1, 1.4, 8.0], fov: 58, label: 'The way out' },
-      table: { position: [T.x - 0.55, 1.58, T.z + 1.95], target: [T.x, 0.86, T.z], fov: 52, label: 'The table', look: { yaw: [-50, 50], pitch: [-35, 25] } },
-      window: { position: [-0.55, 1.6, -1.95], target: [0.0, 1.75, Z0], fov: 58, label: 'The window', look: { yaw: [-70, 70], pitch: [-30, 30] } },
+      table: { position: [T.x - 0.55, 1.58, T.z + 1.95], target: [T.x, 0.86, T.z], fov: 52, label: 'The table', look: { yaw: [-50, 50], pitch: [-35, 25] }, grade: { exposure: 1.6 } },
+      window: { position: [-0.05, 1.62, -2.2], target: [0.0, 1.8, Z0], fov: 64, label: 'The window', look: { yaw: [-70, 70], pitch: [-30, 30] }, grade: { exposure: 1.4 } },
       back: { position: [-0.55, 1.6, -2.15], target: [0.6, 1.35, Z1], fov: 58, label: 'Looking back' },
       sideboard: { position: [-0.7, 1.6, 1.0], target: [X0, 1.35, SB_Z - 0.1], fov: 56, label: 'The sideboard' },
     };

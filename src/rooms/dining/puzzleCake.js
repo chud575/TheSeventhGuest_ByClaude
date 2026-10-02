@@ -204,7 +204,7 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
     const sh = 0.86;
     og.setAttribute('position', new THREE.Float32BufferAttribute([P[0].x * sh, 0, P[0].y * sh, P[1].x * sh, 0, P[1].y * sh, P[2].x * sh, 0, P[2].y * sh], 3));
     og.setIndex([0, 1, 2, 0, 2, 1]);
-    const om = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.62, 0.22), transparent: true, opacity: 0, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    const om = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.5, 0.12), transparent: true, opacity: 0, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
     overlayMats.push(om);
     const ov = new THREE.Mesh(og, om); ov.position.y = height + 0.0035; ov.visible = false; ov.renderOrder = 4; ov.userData.noBake = true;
     m.add(ov);
@@ -286,7 +286,7 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
       const ov = overlays[i];
       let v = 0;
       if (owner[i] < 0) {
-        if (selected.has(i)) v = 0.55 + 0.15 * Math.sin(t * 5);
+        if (selected.has(i)) v = 0.42 + 0.12 * Math.sin(t * 5);
         else if (i === hover && !solvedFlag) v = 0.22;
       }
       ov.visible = v > 0.01;
@@ -455,5 +455,7 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
       return judge({ status() {}, fail() {}, say() {}, solve() {}, audio: null, ...p });
     },
     tick: (dt, t) => puzzle.update(dt, t),
+    /** QA: mark cells as the current (unjudged) selection */
+    select(ids) { selected = new Set(ids.filter((i) => owner[i] < 0)); refreshOverlays(1); },
   };
 }

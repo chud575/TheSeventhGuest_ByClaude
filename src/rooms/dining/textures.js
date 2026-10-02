@@ -71,10 +71,10 @@ export function ganacheTexture(forge) {
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   float sw = fbm(uv * 3.0 + fbm(uv * 2.0, vec2(2.0), 3) * 0.8, vec2(3.0), 4);
-  float ridge = 1.0 - abs(sin(sw * 9.0));
-  vec3 c = mix(vec3(0.07, 0.03, 0.02), vec3(0.13, 0.06, 0.035), ridge * 0.6 + 0.2 * fbm(uv * 12.0, vec2(12.0), 3));
+  float ridge = 1.0 - abs(sin(sw * 5.0));
+  vec3 c = mix(vec3(0.075, 0.032, 0.02), vec3(0.11, 0.05, 0.03), ridge * 0.35 + 0.25 * fbm(uv * 12.0, vec2(12.0), 3));
   s.albedo = c;
-  s.height = 0.5 + ridge * 0.12 + sw * 0.05;
+  s.height = 0.5 + ridge * 0.05 + sw * 0.04;
   s.rough = 0.16 + 0.12 * (1.0 - ridge);
   s.metal = 0.0; s.ao = 1.0;
 }`,
@@ -177,6 +177,70 @@ void surface(vec2 uv, inout Surface s) {
   s.height = 0.45 + 0.1 * (m + m2 * 0.6);
   s.rough = mix(0.85, 0.45, m);
   s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+}
+
+/**
+ * Painted ceiling field inside the beam frame: mottled Prussian blue with a gilt
+ * line border, corner fans and a large stencilled sunburst around the rose.
+ * UV spans the field's bounding box; uRose = rose position in that UV space.
+ */
+export function ceilingFieldTexture(forge, { aspect = 0.67, rose = [0.5, 0.5] } = {}) {
+  return forge.generate('dining:ceilingfield', {
+    size: 1024, aspect, tile: false, normalStrength: 0.6,
+    uniforms: { uRose: rose, uAsp: aspect },
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 p = vec2(uv.x * uAsp, uv.y);              // metric-ish (y = 1 = long side)
+  vec2 r = vec2(uRose.x * uAsp, uRose.y);
+  float mott = fbm(uv * 6.0, vec2(6.0), 5);
+  vec3 blue = vec3(0.1, 0.13, 0.3) * (0.85 + 0.3 * mott);
+  float gold = 0.0;
+  // borders: double gilt line inset from the edges
+  vec2 e = min(vec2(p.x, p.y), vec2(uAsp - p.x, 1.0 - p.y));
+  float de = min(e.x, e.y);
+  gold = max(gold, stroke(de - 0.035, 0.0, 0.0025));
+  gold = max(gold, stroke(de - 0.048, 0.0, 0.0012));
+  // running scroll between the lines
+  float along = e.x < e.y ? p.y : p.x;
+  float sc = stroke(de - 0.0415 - 0.005 * sin(along * 140.0), 0.0, 0.0009);
+  gold = max(gold, sc * 0.8);
+  // corner fans
+  for (int i = 0; i < 4; i++) {
+    vec2 c = vec2(mod(float(i), 2.0) < 0.5 ? 0.048 : uAsp - 0.048, i < 2 ? 0.048 : 0.952);
+    vec2 q = p - c;
+    float rr = length(q);
+    float ang = atan(q.y, q.x);
+    float rays = smoothstep(0.6, 0.95, abs(sin(ang * 9.0)));
+    gold = max(gold, rays * step(rr, 0.11) * step(0.02, rr) * 0.75);
+    gold = max(gold, stroke(rr - 0.11, 0.0, 0.0015));
+  }
+  // sunburst medallion around the rose
+  vec2 q = p - r;
+  float rr = length(q);
+  float ang = atan(q.y, q.x);
+  float petals = 0.105 + 0.012 * cos(ang * 16.0);
+  gold = max(gold, stroke(rr - petals, 0.0, 0.0012));
+  gold = max(gold, stroke(rr - 0.14, 0.0, 0.0012));
+  gold = max(gold, stroke(rr - 0.148, 0.0, 0.0007));
+  float rays = smoothstep(0.85, 0.99, abs(sin(ang * 32.0))) * step(0.078, rr) * step(rr, petals - 0.006);
+  gold = max(gold, rays * 0.7);
+  vec2 qq = polarRep(q, 24.0);
+  float lv = fill(sdVesica((qq - vec2(0.125, 0.0)).yx, 0.012, 0.0075), 0.0012);
+  gold = max(gold, lv);
+  // scattered gilt stars across the field
+  vec2 sg = uv * vec2(uAsp * 9.0, 9.0);
+  vec2 sf = fract(sg) - 0.5;
+  float st = fill(sdStar(sf, 0.07, 5.0, 2.5), 0.01) * step(0.2, rr) * step(0.12, de);
+  gold = max(gold, st * 0.65);
+  gold *= 0.75 + 0.25 * fbm(uv * 40.0, vec2(40.0), 3);
+  vec3 gilt = vec3(0.78, 0.58, 0.28);
+  s.albedo = mix(blue, gilt, gold);
+  s.metal = gold * 0.9;
+  s.rough = mix(0.85, 0.38, gold);
+  s.height = 0.5 + gold * 0.15;
+  s.ao = 1.0;
 }`,
   });
 }
