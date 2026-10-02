@@ -72,8 +72,8 @@ export default {
     const mat = {
       floor: M.create('checker', { tiles: 4, a: 'carrara', b: 'nero', diagonal: true, polish: 0.85, repeat: [1 / 3.2, 1 / 3.2], size: big }),
       wall: M.create('damask', { repeat: [1.35, 1.35], base: [0.075, 0.1, 0.22], motif: [0.125, 0.155, 0.31], sheen: 0.6 }),
-      panel: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.75, repeat: [1.1, 1.1], clearcoat: 0.5, clearcoatRoughness: 0.25, color: [0.52, 0.38, 0.33] }),
-      mahogany: M.create('mahogany', { repeat: [1, 1], color: [0.56, 0.4, 0.35] }),
+      panel: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.75, repeat: [1.1, 1.1], clearcoat: 0.5, clearcoatRoughness: 0.25, color: [0.45, 0.32, 0.27] }),
+      mahogany: M.create('mahogany', { repeat: [1, 1], color: [0.48, 0.33, 0.28] }),
       dark: M.create('ebony', { repeat: [1, 1] }),
       ceiling: M.create('plaster', { color: [0.13, 0.16, 0.27], cracks: 0.25, stains: 0.45, repeat: [0.4, 0.4] }),
       soffit: M.create('plaster', { color: [0.42, 0.42, 0.44], cracks: 0.3, stains: 0.5, repeat: [0.6, 0.6] }),
@@ -675,7 +675,7 @@ export default {
     const winC = V3(0, WIN.great.y + 1.4, Z1);
     const moon = new THREE.SpotLight(0xa7bcff, 8500, 40, 0.19, 0.45, 2);
     moon.position.set(-1.6, 12.6, 15.6);
-    moon.target.position.set(0.55, 0, -1.15);
+    moon.target.position.set(-0.3, 0, 0.2);
     moon.map = fx.windowCookie({ cols: 4, rows: 5 });
     moon.castShadow = Q.shadows;
     moon.shadow.mapSize.set(Q.shadowMapSize, Q.shadowMapSize);

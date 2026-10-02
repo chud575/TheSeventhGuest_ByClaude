@@ -152,7 +152,7 @@ export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials,
 
   const puzzle = {
     ...webMeta,
-    camera: { position: [center.x, 3.35, center.z + 1.75], target: [center.x, 0.0, center.z + 0.22], fov: 50 },
+    camera: { position: [center.x, 3.6, center.z + 1.2], target: [center.x, 0.0, center.z + 0.32], fov: 56 },
     cameraDuration: 1.5,
     setup(p) {
       if (solvedFlag) { p.status('The web is complete.'); return; }
