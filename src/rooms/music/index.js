@@ -52,7 +52,7 @@ export default {
     const ebony = M.create('ebony', { repeat: [2, 2], color: [0.55, 0.55, 0.6], clearcoat: 1.0, clearcoatRoughness: 0.06, roughness: 0.6 });
     const mahogany = M.create('mahogany', { repeat: [1.2, 1.2] });
     // (satin, not gloss: a sharp clearcoat on the panel bevels mirrored the bright bay as white slits)
-    const panelWood = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.6, wear: 0.35, figure: 0.7, repeat: [1.2, 1.2], clearcoat: 0.2, clearcoatRoughness: 0.5, envMapIntensity: 0.5, color: [0.52, 0.42, 0.4] });
+    const panelWood = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.6, wear: 0.35, figure: 0.7, repeat: [1.2, 1.2], clearcoat: 0.2, clearcoatRoughness: 0.5, envMapIntensity: 0.5, color: [0.46, 0.44, 0.46] });
     const celloWood = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.7, figure: 0.8, repeat: [1, 1], clearcoat: 0.45, clearcoatRoughness: 0.18, envMapIntensity: 0.18, color: [1.1, 0.55, 0.28] });
     const harpWood = M.create('walnut', { repeat: [2, 2], color: [1.0, 0.85, 0.7] });
     const plaster = M.create('plaster', { color: [0.3, 0.33, 0.42], cracks: 0.3, stains: 0.4, repeat: [0.45, 0.45] });
@@ -67,11 +67,14 @@ export default {
     const plateGold = new THREE.MeshPhysicalMaterial({ color: 0xa8742a, metalness: 0.9, roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.3, envMapIntensity: 0.75 });
     // mirror-black piano lacquer: crisp streaks of the windows and candles in the room probe
     const pianoLacquer = new THREE.MeshPhysicalMaterial({ color: 0x050505, roughness: 0.08, metalness: 0, clearcoat: 1.0, clearcoatRoughness: 0.03, envMapIntensity: 1.25 });
-    const doorWoodV = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], rotation: Math.PI / 2, clearcoat: 0.35, clearcoatRoughness: 0.45, envMapIntensity: 0.35, color: [0.68, 0.57, 0.52] });
-    const doorWoodH = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], clearcoat: 0.35, clearcoatRoughness: 0.45, envMapIntensity: 0.35, color: [0.68, 0.57, 0.52] });
+    const doorWoodV = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], rotation: Math.PI / 2, clearcoat: 0.35, clearcoatRoughness: 0.45, envMapIntensity: 0.35, color: [0.6, 0.6, 0.64] });
+    const doorWoodH = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], clearcoat: 0.35, clearcoatRoughness: 0.45, envMapIntensity: 0.35, color: [0.6, 0.6, 0.64] });
     // deep navy silk velvet: almost black where it faces you, a saturated blue-violet sheen
     // rolling over the fold crests (no grey specular: that is what made it read as plastic)
     // deep wine silk velvet: near-black in the hollows, a saturated crimson sheen rolling over every fold crest
+    // (M.create ignores array colours for its material multiplier, so tint the woods directly: a deep,
+    // desaturated mahogany toward #4a2216 rather than the raw orange-red of the generator)
+    panelWood.color.setRGB(0.5, 0.46, 0.46); doorWoodV.color.setRGB(0.62, 0.56, 0.56); doorWoodH.color.copy(doorWoodV.color);
     const velvet = M.create('velvet', { color: [0.05, 0.004, 0.009], crush: 0.45, repeat: [2, 2], side: THREE.DoubleSide });
     velvet.sheen = 1.0; velvet.sheenRoughness = 0.4; velvet.sheenColor = new THREE.Color().setRGB(0.5, 0.035, 0.06);
     // velvet has almost no specular: the pile scatters it into the sheen. (With the texture's roughness map
@@ -297,6 +300,17 @@ export default {
       // front wall (two runs beside the door)
       const fb = (xa, xb) => { const b = new THREE.Mesh(G.boxUV(xb - xa, DADO - 0.05, 0.02, 1), panelWood); b.position.set((xa + xb) / 2, (DADO - 0.05) / 2, Z1 - 0.01); add(b); };
       fb(X0, dl); fb(dr, X1);
+      // raised, bolection-moulded panels on the door wall too
+      for (const [xa, xb] of [[X0, dl], [dr, X1]]) {
+        const len = xb - xa, n = Math.max(1, Math.round(len / 0.78));
+        for (let i = 0; i < n; i++) {
+          const cx = xa + (len / n) * (i + 0.5);
+          const p = new THREE.Mesh(panelGeo, panelWood);
+          p.position.set(cx, 0.5, Z1 - 0.02); p.rotation.y = Math.PI; p.scale.set((len / n - 0.12) / 0.62, 1, 1); add(p);
+          const bo = new THREE.Mesh(bolGeo, panelWood);
+          bo.position.set(cx, 0.5, Z1 - 0.032); bo.rotation.y = Math.PI; bo.scale.set((len / n - 0.12) / 0.62, 1, 1); add(bo);
+        }
+      }
     }
     // pilasters between the windows: fluted gilt shafts on a panelled base
     for (const px of [-3.55, -1.175, 1.175, 3.55]) {
@@ -732,7 +746,7 @@ export default {
     // warm bounce off the boards and the rug (soft area lights lying on the floor, facing up): the wainscot
     // and the lower walls keep their detail instead of crushing to black, with no point-light hotspots
     add(fx.areaLight({ center: [X0 + 1.1, 0.03, FIRE.z], normal: [0.25, 1, 0], width: 1.4, height: 1.8, color: 0xff9255, intensity: 0.55 }));
-    add(fx.areaLight({ center: [0.3, 0.03, Z1 - 1.6], normal: [0, 1, 0.25], width: 3.0, height: 1.6, color: 0xffa060, intensity: 0.3 }));
+    add(fx.areaLight({ center: [0.3, 0.03, Z1 - 1.1], normal: [0, 1, 0.45], width: 3.6, height: 1.4, color: 0xffa060, intensity: 0.55 }));
 
     // opaque shadow blockers behind the bay wall: the wainscot board and the wall plane are thin,
     // so without these the moon leaks through the panel joints as bright slits

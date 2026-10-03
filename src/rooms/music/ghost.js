@@ -104,10 +104,10 @@ void main() {
   vec3 q = vLocal;
   float e = 0.0015;
   float fs = mix(mix(mix(55.0, 70.0, hair), 90.0, skin), 60.0, linen);
-  vec3 sc = mix(vec3(1.0), vec3(3.0, 0.6, 3.0), hair);
+  vec3 sc = mix(vec3(1.0), vec3(4.0, 0.5, 4.0), hair);   // strands: stretched along the fall of the hair
   float h0 = fxNoise(q * fs * sc);
   vec3 grad = vec3(fxNoise((q + vec3(e, 0.0, 0.0)) * fs * sc) - h0, fxNoise((q + vec3(0.0, e, 0.0)) * fs * sc) - h0, fxNoise((q + vec3(0.0, 0.0, e)) * fs * sc) - h0) / e;
-  float bump = mix(mix(0.0005, 0.0012, hair), 0.0004, skin);
+  float bump = mix(mix(0.0005, 0.0026, hair), 0.0004, skin);
   n = normalize(n - (grad - n * dot(grad, n)) * bump);
   float ndv = clamp(dot(n, v), 0.0, 1.0);
   float fres = pow(1.0 - ndv, 2.4);
@@ -122,7 +122,7 @@ void main() {
   float mist = 0.5;
   if (d0 < 2.0) mist = fxFbm(vLocal * vec3(9.0, 3.0, 9.0) + vec3(0.0, -uTime * 0.8, 0.0));
   // albedo by region: pale skin and linen, a grey-blue ghost of the black coat, dim hair
-  float val = cloth * 0.26 + hair * 0.48 + linen * 1.05 + skin * 1.0;
+  float val = cloth * 0.26 + hair * 0.62 + linen * 1.05 + skin * 1.0;
   float lit = 0.1 + 0.9 * key * key;
   vec3 body = mix(uShadow, uColor * val, lit * occ) + uFillColor * fill * val * occ * 0.55;
   // a soft specular sheen on skin and silk (wet-looking cold light on the brow, nose, cheekbones)
@@ -135,7 +135,7 @@ void main() {
   float hands = uHandBoost * smoothstep(0.3, 0.17, vLocal.z) * step(vLocal.y, 0.86);
   // facing planes are nearly clear (the room shows through him); grazing ones glow; the lit planes of
   // the face, the linen and the hands gain body so the features model in the cold key light
-  float solid = skin * 0.62 + linen * 0.5 + hair * 0.22 + cloth * 0.1;
+  float solid = skin * 0.62 + linen * 0.5 + hair * 0.46 + cloth * 0.1;
   float a = mix(0.05, 0.78, fres) + (0.2 + 0.8 * key) * occ * solid + fill * 0.12 * solid + hands;
   a *= (0.82 + 0.3 * flow) * mix(0.55, 1.0, occ);
   // dissolve below uDissolveY into drifting wisps

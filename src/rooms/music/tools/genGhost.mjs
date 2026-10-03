@@ -114,7 +114,7 @@ const HAIR_LOCKS = [], BEARD_LOCKS = [], MOUSTACHE = [], BROWS = [];
       const t = k / 5;
       const m = m0 + (Math.PI + 0.75 - m0) * t;       // meridian angle: 0 ahead, pi/2 up, pi behind
       const lat = u * (0.6 + 0.1 * Math.sin(t * Math.PI) - 0.15 * t) + j(0.03);
-      const lift = 0.004 + 0.014 * Math.sin(t * Math.PI) + j(0.002);
+      const lift = -0.004 + 0.018 * Math.sin(Math.min(1, t * 1.6) * Math.PI * 0.5) * (1 - 0.35 * t) + j(0.002);   // rooted in the scalp at the hairline
       cp.push(onSkullDir(lat, Math.sin(m), -Math.cos(m), lift));
     }
     HAIR_LOCKS.push(makeLock(cp, 0.007, 0.0125 + j(0.002), 0.004, 10));
@@ -130,7 +130,7 @@ const HAIR_LOCKS = [], BEARD_LOCKS = [], MOUSTACHE = [], BROWS = [];
         const t = k / 4;
         const az = az0 + s * (1.5 + 0.1 * v + j(0.1)) * t;      // back along the side of the head
         const el = el0 - (0.55 + 0.35 * v) * t;            // and down toward the collar, nearly straight
-        const lift = 0.006 + (0.008 + 0.008 * v) * Math.sin(Math.min(1, t * 1.3) * Math.PI * 0.9) + j(0.002);
+        const lift = -0.002 + (0.01 + 0.008 * v) * Math.sin(Math.min(1, t * 1.3) * Math.PI * 0.9) + j(0.002);
         cp.push(onSkull(az, el, lift));
       }
       // ends flick outward / under at the collar
@@ -198,7 +198,7 @@ export function head(x, y, z) {
     // eye bags under the lower lid
     d = smin(d, ell(x, y, z, [s * 0.033, -0.006, -0.078], [0.012, 0.005, 0.007]), 0.006);
     // ears (mostly under the side hair)
-    d = smin(d, ell(x, y, z, [s * 0.079, 0.0, 0.008], [0.011, 0.03, 0.019]), 0.01);
+    d = smin(d, ell(x, y, z, [s * 0.07, 0.0, 0.01], [0.009, 0.026, 0.016]), 0.01);   // (under the hair, as in the portrait)
   }
   // nose: straight bridge between the brows, a narrow wedge, rounded tip, nostril wings
   d = smin(d, ell(x, y, z, [0, -0.004, -0.096], [0.0105, 0.03, 0.013]), 0.008);
@@ -212,7 +212,7 @@ export function head(x, y, z) {
   d = smin(d, ell(x, y, z, [0, -0.066, -0.091], [0.017, 0.0052, 0.0085]), 0.006);
   // ---- hair, beard, moustache, brows
   let hr = ell(x, y, z, SK.c, [SK.r[0] + 0.004, SK.r[1] + 0.004, SK.r[2] + 0.004]);  // a close cap under the locks
-  hr = smax(hr, -(z + 0.04 - Math.max(0, y - 0.06) * 0.0 - (y - 0.075) * -0.35), 0.01);   // receding hairline: clear the forehead
+  hr = smax(hr, -(z + 0.04 - Math.max(0, y - 0.06) * 0.0 - (y - 0.075) * -0.35), 0.028);  // receding hairline: clear the forehead, feathered
   hr = smax(hr, (z - 0.02) - (y - 0.07) * -0.0 - 1, 0.01);
   hr = smax(hr, -(y + 0.13), 0.02);
   hr = smax(hr, -(y - 0.02 + Math.max(0, -z) * 1.2 + Math.max(0, z) * 1.6), 0.012);                         // the cap only above the ears at the front
@@ -258,7 +258,9 @@ function torsoCore(x, y, z) {
   let d = ell(x, y, z, [0, 0.63, 0.6], [0.165, 0.09, 0.14]);                          // pelvis on the seat
   d = smin(d, ell(x, y, z, [0, 0.76, 0.565], [0.145, 0.12, 0.112]), 0.05);           // abdomen / waist
   d = smin(d, ell(x, y, z, [0, 0.925, 0.515], [0.158, 0.13, 0.112]), 0.05);          // chest
-  d = smin(d, rcone(x, y, z, [-0.19, 1.02, 0.505], [0.19, 1.02, 0.505], 0.06, 0.06), 0.06);   // padded shoulders
+  d = smin(d, rcone(x, y, z, [-0.17, 1.015, 0.505], [0.17, 1.015, 0.505], 0.05, 0.05), 0.06);   // shoulders
+  // square, padded tailored shoulder line (not a mannequin's ball joints)
+  for (const s of [-1, 1]) d = smin(d, ell(x, y, z, [s * 0.165, 1.04, 0.505], [0.075, 0.032, 0.065]), 0.03);
   for (const s of [-1, 1]) d = smin(d, ell(x, y, z, [s * 0.06, 0.95, 0.585], [0.08, 0.1, 0.04]), 0.05);   // shoulder blades under the cloth
   return d;
 }
