@@ -240,7 +240,7 @@ void surface(vec2 uv, inout Surface s) {
  * pointsR = radius (normalised) of the eight star points.
  */
 export function medallionTexture(forge, pointsR) {
-  return forge.generate('foyer:medallion2', {
+  return forge.generate('foyer:medallion3', {
     size: 2048, aspect: 1, tile: false, uniforms: { uPR: pointsR },
     normalStrength: 0.8,
     glsl: /* glsl */ `
@@ -269,12 +269,10 @@ void surface(vec2 uv, inout Surface s) {
   nero = mix(nero, vec3(0.7, 0.58, 0.3), pyr * 0.6);
   vec3 rosso = marbleCol(p, vec3(0.24, 0.045, 0.04), vec3(0.55, 0.36, 0.3), 4.0, 1.6);
   // malachite heart: concentric botryoidal banding
-  vec2 mw = p + 0.05 * vec2(fbm(p * 5.0 + 3.0, vec2(64.0), 4), fbm(p * 5.0 + 8.0, vec2(64.0), 4));
-  float md = min(min(length(mw - vec2(0.06, -0.05)), length(mw - vec2(-0.07, 0.04)) * 1.15), length(mw - vec2(0.02, 0.09)) * 1.3);
-  float mb = sin(md * 190.0 + fbm(p * 9.0, vec2(64.0), 3) * 5.0) * 0.5 + 0.5;
-  mb = mix(mb, smoothstep(0.2, 0.8, mb), 0.6);
-  vec3 verde = mix(vec3(0.01, 0.08, 0.045), vec3(0.08, 0.36, 0.2), pow(mb, 1.6));
-  verde = mix(verde, vec3(0.02, 0.14, 0.08), smoothstep(0.6, 0.9, fbm(p * 3.0 + 1.0, vec2(64.0), 3) * 0.5 + 0.5) * 0.5);
+  // verde antico: deep bottle-green serpentine breccia, pale veins and milky clasts (no banding to moire)
+  vec3 verde = marbleCol(p, vec3(0.018, 0.06, 0.04), vec3(0.32, 0.4, 0.34), 21.0, 2.6);
+  float clast = smoothstep(0.62, 0.7, fbm(p * 7.0 + 3.0, vec2(64.0), 4) * 0.5 + 0.5);
+  verde = mix(verde, vec3(0.2, 0.26, 0.22), clast * 0.5);
   // the border ring uses the hall's own aged ivory Carrara (same albedo, veins and polish as the floor)
   vec3 carrara = marbleCol(p, vec3(0.6, 0.58, 0.53), vec3(0.3, 0.31, 0.33), 13.0, 1.4);
   vec3 brassC = vec3(0.86, 0.66, 0.34);
@@ -304,7 +302,7 @@ void surface(vec2 uv, inout Surface s) {
   float ringIn = 0.84;
   if (r > ringIn) {
     // band 1: brass thin
-    col = carrara;
+    col = carrara * 0.6;
     if (r < 0.845) { inl = 1.0; }
     else if (r < 0.925) {
       // rosso band with verde cartouches every 22.5deg
@@ -317,11 +315,11 @@ void surface(vec2 uv, inout Surface s) {
       joint = max(joint, 1.0 - smoothstep(0.0, 0.0025, abs(f) * 0.885 * TAU / 16.0));
     } else if (r < 0.932) { inl = 1.0; }
     else {
-      // carrara border with fine radial joints
+      // Nero border with fine radial joints: the medallion reads as inlaid in the checker, not a disc laid on it
       float k = (a / TAU + 0.5) * 48.0;
       float f = fract(k);
       joint = max(joint, 1.0 - smoothstep(0.0, 0.0018, min(f, 1.0 - f) * TAU / 48.0));
-      col = carrara;
+      col = marbleCol(p, vec3(0.03, 0.029, 0.032), vec3(0.4, 0.39, 0.37), 17.0, 1.8);
     }
   } else {
     // compass ticks just inside the rings
@@ -354,16 +352,17 @@ void surface(vec2 uv, inout Surface s) {
 
 /** Stair runner: crimson Wilton carpet with gold guilloche borders. u across (1.2 m), v along (period 0.6 m). */
 export function carpetTexture(forge) {
-  return forge.generate('foyer:carpet3', {
+  return forge.generate('foyer:carpet4', {
     size: 1024, aspect: 2, tile: true, normalStrength: 1.6,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   float u = uv.x;                    // 0..1 across
   float v = uv.y;                    // 0..1 along (one period)
-  vec3 crimson = vec3(0.2, 0.025, 0.03);     // oxblood Wilton
-  vec3 deep = vec3(0.08, 0.012, 0.018);
+  // navy Wilton field (reads against the mahogany treads), oxblood outer guard, gold borders
+  vec3 crimson = vec3(0.04, 0.055, 0.14);
+  vec3 deep = vec3(0.012, 0.016, 0.045);
   vec3 gold = vec3(0.46, 0.33, 0.13);
-  vec3 navy = vec3(0.03, 0.04, 0.1);
+  vec3 navy = vec3(0.16, 0.025, 0.03);
   float e = min(u, 1.0 - u);
   vec3 col;
   float pile = vnoise(uv * vec2(420.0, 210.0), vec2(420.0, 210.0));
@@ -490,14 +489,18 @@ export function clockDialTexture(forge) {
  *     craquelure and a yellowed varnish.
  */
 export function staufPortraitTexture(forge, aspect) {
-  const raw = forge.generate('foyer:stauf5raw', {
-    size: 1280, aspect, tile: false, uniforms: { uAsp: aspect, uV: 0, uCoat: [0.028, 0.026, 0.03] }, normalStrength: 0.0,
+  const raw = forge.generate('foyer:stauf6raw', {
+    size: 1400, aspect, tile: false, uniforms: { uAsp: aspect, uV: 0, uCoat: [0.04, 0.036, 0.04] }, normalStrength: 0.0,
     glsl: PORTRAIT_SDF + /* glsl */ `
 vec3 background(vec2 p, vec2 uv) {
   // warm umber ground glowing behind the head, falling to near-black at the edges (soft, painted, never a hard oval)
   vec3 col = mix(vec3(0.03, 0.022, 0.016), vec3(0.24, 0.15, 0.08), exp(-length((p - vec2(-0.14, 0.13)) * vec2(1.0, 0.72)) * 2.6));
   col *= 0.7 + 0.5 * fb2(uv * 3.0 + 2.0, 4);
   col = mix(col, col * vec3(0.7, 0.75, 0.9), smoothstep(0.1, 0.45, length(p)) * 0.5);
+  // Rembrandt's trick: the ground lightens behind the shadowed side of the figure, so the dark coat reads against it
+  col += vec3(0.13, 0.085, 0.045) * exp(-length((p - vec2(0.24, -0.08)) * vec2(1.6, 0.75)) * 3.2) * (0.7 + 0.6 * fb2(uv * 5.0 + 9.0, 3));
+  // a column base and a sliver of carved table at the lower left, lost in shadow
+  col = mix(col, vec3(0.05, 0.03, 0.018) * (0.7 + 0.6 * fb2(uv * vec2(4.0, 30.0), 3)), smoothstep(0.004, -0.004, sdBox(p - vec2(-0.3, -0.42), vec2(0.12, 0.06))) * 0.8);
   // storm window, upper right: moon, clouds, the house on its hill
   vec2 w = p - vec2(0.21, 0.25);
   float win = sdBox(w, vec2(0.08, 0.12));
@@ -530,7 +533,7 @@ void surface(vec2 uv, inout Surface s) {
   s.metal = gDetail;
 }`,
   });
-  return paintCanvas(forge, 'foyer:stauf5', raw, aspect, 1280, { varnish: 0.62 });
+  return paintCanvas(forge, 'foyer:stauf6', raw, aspect, 2048, { varnish: 0.55, coarse: 30, fine: 12 });
 }
 
 /**
@@ -587,7 +590,8 @@ vec4 dabs(vec2 uv, float cellPx, float lenK, float widK, float seed, float lod, 
       vec3 c = rawAt((cpx + t * a * 0.85) / uResolution, lod);
       float bristle = vnoise(vec2(a * 0.18, b * 1.9) + cid * 13.7, vec2(1e4));
       float dry = smoothstep(0.55, 1.0, abs(an)) * (0.5 + 0.5 * bristle);          // dry-brush tail breaks up
-      c *= 0.86 + 0.28 * bristle;
+      c *= 0.8 + 0.4 * bristle;
+      c += (hash12(cid * 5.3 + seed) - 0.5) * 0.035 * vec3(1.0, 0.9, 0.75);          // each loaded brush mixes a slightly different note
       bc = c; bh = cov * (0.55 + 0.45 * bristle) - dry * 0.3;
       best = pri * (1.0 - dry * 0.6);
     }
@@ -643,6 +647,7 @@ float sdEll(vec3 p, vec3 r) { float k0 = length(p / r); float k1 = length(p / (r
 float sdCap(vec3 p, vec3 a, vec3 b, float r) { vec3 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h) - r; }
 float smin3(float a, float b, float k) { float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0); return mix(b, a, h) - k * h * (1.0 - h); }
 float smax3(float a, float b, float k) { return -smin3(-a, -b, k); }
+float sdBox3(vec3 p, vec3 b) { vec3 q = abs(p) - b; return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0); }
 // materials: 0 skin, 1 eye, 2 coat, 3 linen, 4 silk
 const float YAW = 0.42;
 const vec3 HEAD = vec3(0.0, 0.115, 0.0);
@@ -682,6 +687,20 @@ float headSDF(vec3 q, out float mat) {
   d = smax3(d, -sdCap(q, vec3(-0.022, -0.061, 0.093), vec3(0.024, -0.056, 0.093), 0.0022), 0.003); // the mouth line, lifted at his left
   d = smin3(d, sdEll(q - vec3(0.0, -0.096, 0.06), vec3(0.02, 0.016, 0.017)), 0.016);  // pointed chin
   d = smin3(d, sdEll(m - vec3(0.077, 0.002, -0.006), vec3(0.011, 0.03, 0.019)), 0.008);// ears
+  if (uV < 0.5) {
+    // age: deep nasolabial folds, pouches under the eyes, a furrowed brow, crow's feet, a creased throat
+    d = smax3(d, -sdCap(m, vec3(0.017, -0.034, 0.097), vec3(0.031, -0.072, 0.083), 0.0022), 0.006);
+    d = smin3(d, sdEll(m - vec3(0.024, -0.047, 0.088), vec3(0.012, 0.014, 0.008)), 0.006);          // the cheek fat sagging over the fold
+    d = smin3(d, sdEll(m - vec3(0.031, -0.021, 0.076), vec3(0.014, 0.005, 0.006)), 0.006);           // eye bags
+    float fh = smoothstep(0.03, 0.05, q.y) * smoothstep(0.1, 0.08, q.y) * smoothstep(0.03, 0.075, q.z) * smoothstep(0.065, 0.02, abs(q.x));
+    d += 0.0006 * sin(q.y * (280.0 + 40.0 * sin(q.x * 31.0)) + sin(q.x * 55.0) * 2.2) * fh * (0.5 + 0.5 * sin(q.x * 70.0 + 1.3));   // broken forehead lines
+    d = smax3(d, -sdCap(m, vec3(0.006, 0.012, 0.094), vec3(0.008, 0.034, 0.092), 0.0012), 0.003);   // the "elevens" between the brows
+    float cf = smoothstep(0.024, 0.008, length(m.xy - vec2(0.05, -0.002))) * step(0.043, m.x);
+    d += 0.00025 * sin(atan(m.y + 0.002, m.x - 0.044) * 11.0) * cf;                                // faint crow's feet
+    d = smax3(d, -sdCap(m, vec3(0.03, -0.074, 0.075), vec3(0.036, -0.1, 0.055), 0.0016), 0.004);   // marionette lines
+    float th = smoothstep(-0.11, -0.13, q.y) * smoothstep(0.0, 0.03, q.z);
+    d += 0.0009 * sin(q.y * 240.0) * th;                                                            // throat creases
+  }
   d = smin3(d, sdCap(q, vec3(0.0, -0.08, -0.015), vec3(0.0, -0.22, -0.02), 0.036), 0.02); // neck
   mat = 0.0;
   // hair (material 5)
@@ -731,6 +750,42 @@ float bodySDF(vec3 p, out float mat) {
   float bow = min(sdEll(vec3(abs(cb.x) - 0.017, cb.y + abs(cb.x) * 0.0 , cb.z), vec3(0.017, 0.012 + abs(cb.x) * 0.25, 0.008)), length(cb) - 0.0075);
   float stock = uV > 1.5 ? length(c - vec3(0.0, -0.19, 0.04)) - 0.012 : bow;
   if (stock < coat) { coat = stock; mat = uV > 1.5 ? 6.0 : 4.0; }
+  if (uV < 0.5) {
+    // the toymaker's hands, folded on the brass knob of an ebony cane at the bottom of the canvas
+    float bb = sdBox3(p - vec3(0.0, -0.39, 0.12), vec3(0.27, 0.16, 0.14));
+    if (bb > 0.03) return min(coat, bb);
+    // sleeves from the shoulders, cuffs, wrists
+    float slL = sdCap(p, vec3(-0.19, -0.16, 0.0), vec3(-0.115, -0.345, 0.135), 0.052);
+    float slR = sdCap(p, vec3(0.2, -0.17, 0.0), vec3(0.13, -0.405, 0.13), 0.05);
+    float sl = smin3(slL, slR, 0.01);
+    if (sl < coat) { coat = smin3(coat, sl, 0.03); mat = 2.0; }
+    float cuff = min(sdCap(p, vec3(-0.11, -0.345, 0.15), vec3(-0.085, -0.348, 0.165), 0.03), sdCap(p, vec3(0.125, -0.41, 0.15), vec3(0.1, -0.413, 0.165), 0.028));
+    if (cuff < coat) { coat = cuff; mat = 3.0; }
+    // top hand (his right): back of the hand faces us, bony knuckles, fingers draped down over the knob
+    float hand = sdCap(p, vec3(-0.085, -0.35, 0.175), vec3(-0.045, -0.352, 0.19), 0.019);          // wrist
+    hand = smin3(hand, sdEll(p - vec3(-0.005, -0.36, 0.196), vec3(0.045, 0.03, 0.013)), 0.015);     // back of the hand
+    for (int i = 0; i < 4; i++) {
+      float fi = float(i);
+      vec3 k = vec3(0.036 + fi * 0.002, -0.334 - fi * 0.015, 0.198 - fi * 0.002);
+      vec3 m1 = k + vec3(0.03 - fi * 0.003, -0.012 - fi * 0.002, -0.006);
+      vec3 t1 = m1 + vec3(0.016, -0.022 + fi * 0.002, -0.014);
+      float r = 0.006 - fi * 0.0005;
+      hand = smin3(hand, length(p - k) - r * 1.2, 0.004);                                           // knuckle
+      hand = smin3(hand, sdCap(p, k, m1, r), 0.004);
+      hand = smin3(hand, sdCap(p, m1, t1, r * 0.88), 0.003);
+    }
+    hand = smin3(hand, sdCap(p, vec3(-0.03, -0.382, 0.195), vec3(0.012, -0.397, 0.206), 0.0085), 0.008);   // thumb
+    // under hand (his left), mostly hidden, fingers pointing back across
+    float h2 = sdCap(p, vec3(0.1, -0.41, 0.175), vec3(0.06, -0.41, 0.18), 0.018);
+    h2 = smin3(h2, sdEll(p - vec3(0.035, -0.408, 0.176), vec3(0.04, 0.026, 0.014)), 0.012);
+    for (int i = 0; i < 3; i++) { float fi = float(i); vec3 k = vec3(0.0, -0.392 - fi * 0.015, 0.18); hand = min(hand, smin3(h2, sdCap(p, k, k + vec3(-0.04, -0.012, -0.004), 0.0068), 0.004)); }
+    hand = min(hand, h2);
+    if (hand < coat) { coat = hand; mat = 9.0; }
+    float knob = sdEll(p - vec3(0.03, -0.425, 0.168), vec3(0.03, 0.022, 0.03));
+    if (knob < coat) { coat = knob; mat = 7.0; }
+    float cane = sdCap(p, vec3(0.03, -0.44, 0.168), vec3(0.036, -0.62, 0.18), 0.0095);
+    if (cane < coat) { coat = cane; mat = 8.0; }
+  }
   return coat;
 }
 float sceneSDF(vec3 p, out float mat) {
@@ -762,7 +817,7 @@ float occl(vec3 p, vec3 n) {
 }
 vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
   vec3 ro = vec3(p * 0.95, 0.4);
-  if (abs(ro.x) > 0.32 || ro.y > 0.26) return bg;
+  if (abs(ro.x) > 0.34 || ro.y > 0.26) return bg;
   vec3 rd = vec3(0.0, 0.0, -1.0);
   float t = 0.0, mat = -1.0;
   bool hit = false;
@@ -792,6 +847,14 @@ vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
     alb = uV > 1.5 ? vec3(0.74, 0.6, 0.52) : vec3(0.64, 0.5, 0.41);
     alb *= 0.9 + 0.2 * fb2(uv * 70.0, 3);                                     // mottled old skin
     alb = mix(alb, vec3(0.62, 0.32, 0.28), smoothstep(0.03, 0.0, length(hp.xy - vec2(0.0, -0.034))) * 0.35);   // reddened nose
+    if (uV < 0.5) {
+      // a portraitist's three zones: golden brow, ruddy middle third, cool grey-green jaw; age spots on the scalp
+      alb = mix(alb, alb * vec3(1.06, 1.0, 0.86), smoothstep(0.02, 0.08, hp.y));
+      alb = mix(alb, vec3(0.66, 0.36, 0.3), smoothstep(0.035, 0.0, length(vec2(abs(hp.x) - 0.042, hp.y + 0.03))) * 0.3);
+      alb = mix(alb, alb * vec3(0.84, 0.9, 0.92), smoothstep(-0.05, -0.09, hp.y) * 0.6);
+      alb = mix(alb, vec3(0.38, 0.26, 0.18), smoothstep(0.66, 0.8, fb2(hp.xz * 70.0 + 3.0, 3)) * smoothstep(0.04, 0.09, hp.y) * 0.55);
+      alb = mix(alb, vec3(0.6, 0.38, 0.4), smoothstep(0.016, 0.0, length(vec2(abs(hp.x) - 0.03, hp.y + 0.016))) * 0.25);   // raw lower lids
+    }
     alb = mix(alb, alb * vec3(0.8, 0.75, 0.85), smoothstep(0.0, 0.02, -hp.y - 0.06) * 0.3);  // stubble shadow
     // grey wisps of hair over the ears and the back of the skull
     float wisp = smoothstep(0.045, 0.075, abs(hp.x)) * smoothstep(0.06, -0.01, hp.y) * smoothstep(-0.05, 0.0, hp.y) * step(hp.z, 0.03);
@@ -804,21 +867,30 @@ vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
     alb = mix(vec3(0.6, 0.57, 0.5), vec3(0.06, 0.05, 0.04), smoothstep(0.0062, 0.0048, ir));
     sp = 1.4;
   } else if (mat < 2.5) {
-    alb = uCoat * (0.85 + 0.3 * fb2(uv * 30.0, 3));
-    sp = uV > 1.5 ? 0.5 : 0.08;
+    alb = uCoat * (0.75 + 0.5 * fb2(uv * 14.0, 3)) * (uV < 0.5 ? 1.8 : 1.0);
+    sp = uV > 1.5 ? 0.5 : 0.18;
   } else if (mat < 3.5) { alb = vec3(uV < 0.5 ? 0.3 : 0.42, uV < 0.5 ? 0.28 : 0.39, uV < 0.5 ? 0.24 : 0.33) * (uV > 1.5 ? 0.85 + 0.25 * sin(atan(hp.z, hp.x) * 40.0) : 1.0); sp = 0.1; }
   else if (mat < 4.5) { alb = vec3(0.03, 0.026, 0.032) * (0.8 + 0.4 * fb2(uv * 90.0, 2)); sp = 0.6; }
   else if (mat < 5.5) {
     float str = fb2(vec2(atan(hp.z, hp.x) * 30.0, hp.y * 60.0), 3);
     alb = (uV < 1.5 ? vec3(0.55, 0.53, 0.5) : vec3(0.1, 0.065, 0.04)) * (0.7 + 0.6 * str);
     sp = 0.35;
-  } else { alb = vec3(0.7, 0.55, 0.4); sp = 0.6; }   // cameo
+  } else if (mat < 6.5) { alb = vec3(0.7, 0.55, 0.4); sp = 0.6; }   // cameo
+  else if (mat < 7.5) { alb = vec3(0.62, 0.42, 0.16) * (0.8 + 0.4 * fb2(uv * 200.0, 2)); sp = 2.2; }   // brass knob
+  else if (mat < 8.5) { alb = vec3(0.02, 0.016, 0.014); sp = 0.9; }                                    // ebony cane
+  else {
+    // old hands: thin, blotched, blue-veined, reddened at the knuckles
+    alb = vec3(0.6, 0.46, 0.38) * (0.85 + 0.25 * fb2(uv * 90.0, 3));
+    alb = mix(alb, vec3(0.42, 0.27, 0.2), smoothstep(0.62, 0.78, fb2(uv * 40.0 + 7.0, 3)) * 0.6);     // liver spots
+    alb = mix(alb, vec3(0.42, 0.45, 0.55), smoothstep(0.012, 0.0, abs(fb2(vec2(pos.x * 30.0, pos.y * 120.0), 3) - 0.5)) * 0.35);   // veins
+    sp = 0.3; gDetail = 1.0;
+  }
   vec3 key = vec3(1.0, 0.86, 0.66) * 2.1;
   vec3 col = alb * (key * mix(wrap * 0.25, dif, 0.8) * mix(0.12, 1.0, sh) + vec3(0.1, 0.12, 0.16) * fill * 0.6 + vec3(0.05, 0.04, 0.035)) * ao;
   col += key * spec * sp * sh * 0.25;
   // a single hard catch-light in each eye
   if (mat > 0.5 && mat < 1.5) col += vec3(1.0, 0.92, 0.8) * pow(clamp(dot(n, H), 0.0, 1.0), 500.0) * 5.0 * max(sh, 0.5);
-  col += vec3(0.25, 0.3, 0.4) * rim * 0.25 * ao;
+  col += vec3(0.25, 0.3, 0.4) * rim * (uV < 0.5 ? 0.6 : 0.25) * ao;
   // a painter's flesh: cool greenish half-tones at the terminator, warm reflected light in the shadow side
   if (mat < 0.5) {
     float term = smoothstep(0.55, 0.2, dif) * smoothstep(0.0, 0.12, dif);
@@ -854,9 +926,18 @@ vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
  * grout is dark and grimy; the chamfered edges are slightly lifted; light scuffing.
  */
 export function floorTexture(forge, size = 1024) {
-  return forge.generate('foyer:floor', {
-    size, aspect: 1, tile: true, normalStrength: 0.9,
+  return forge.generate('foyer:floor2', {
+    size, aspect: 1, tile: true, normalStrength: 1.0,
     glsl: /* glsl */ `
+// domain-warped marble in tile-local space: soft cloudy drifts, a few wandering veins with a crisp core
+// and a blurred halo, fine crackle; each tile has its own rotation, offset, tint and polish
+float warpedVein(vec2 q, float k, out float halo) {
+  vec2 w1 = vec2(fbm(q * 1.1 + k, vec2(1e3), 5), fbm(q * 1.1 + k + 5.2, vec2(1e3), 5));
+  vec2 w2 = vec2(fbm(q * 2.3 + w1 * 1.6 + k * 1.7, vec2(1e3), 4), fbm(q * 2.3 + w1 * 1.6 + k * 2.3 + 1.3, vec2(1e3), 4));
+  float v = fbm(q * 0.9 + w2 * 0.9 + k * 0.3, vec2(1e3), 6);
+  halo = 1.0 - smoothstep(0.0, 0.16, abs(v));
+  return 1.0 - smoothstep(0.004, 0.028, abs(v));
+}
 void surface(vec2 uv, inout Surface s) {
   const float T = 4.0;
   vec2 p = rot2(PI * 0.25) * uv * 1.41421356;
@@ -864,44 +945,50 @@ void surface(vec2 uv, inout Surface s) {
   vec2 id = floor(g);
   vec2 f = fract(g);
   float which = mod(id.x + id.y, 2.0);
-  // tile ids must repeat with the texture period: the rotated grid repeats every (T, T) on the diagonal lattice
   vec2 tid = mod(id, vec2(T));
-  float h1 = hash12(tid + 11.3), h2 = hash12(tid * 1.7 + 3.1), h3 = hash12(tid * 2.3 + 7.9);
-  vec2 off = vec2(h1, h2) * 37.0;
-  vec2 w = vec2(fbm(uv * 1.0 + off * 0.013, vec2(1.0) * 2.0, 5), fbm(uv + 3.0 + off * 0.017, vec2(2.0), 5));
-  float v = fbm(uv * 1.0 + w * 0.22 + off * 0.004, vec2(8.0), 6);
-  float veins = 1.0 - smoothstep(0.0, 0.03 + 0.02 * h3, abs(v));
-  float v2 = fbm(uv * 2.0 + w * 0.35 + off * 0.007 + 4.0, vec2(16.0), 5);
-  float fine = 1.0 - smoothstep(0.0, 0.012, abs(v2));
-  float cloud = fbm(uv * 1.0 + w * 0.3 + off * 0.01, vec2(12.0), 4) * 0.5 + 0.5;
+  float h1 = hash12(tid + 11.3), h2 = hash12(tid * 1.7 + 3.1), h3 = hash12(tid * 2.3 + 7.9), h4 = hash12(tid * 3.1 + 1.7);
+  // tile-local frame: each slab was cut from a different part of the block
+  vec2 q = rot2(h1 * TAU) * (f - 0.5) * (1.6 + h2 * 0.8) + vec2(h3, h4) * 40.0;
+  float halo, halo2;
+  float vein = warpedVein(q, h2 * 13.0, halo);
+  float vein2 = warpedVein(q * 1.9 + 7.0, h3 * 9.0 + 3.0, halo2);
+  float cloud = fbm(q * 0.8 + 2.0, vec2(1e3), 5) * 0.5 + 0.5;
+  float crackle = 1.0 - smoothstep(0.0, 0.01, abs(fbm(q * 5.0 + 11.0, vec2(1e3), 4)));
   vec3 col;
+  float rough;
   if (which < 0.5) {
-    // aged Carrara: ivory, never paper white
-    vec3 base = vec3(0.6, 0.58, 0.53) * (0.9 + 0.16 * h1) * vec3(1.0 + (h2 - 0.5) * 0.06, 1.0, 1.0 - (h2 - 0.5) * 0.1);
-    col = base * (0.88 + 0.18 * cloud);
-    col = mix(col, vec3(0.3, 0.31, 0.33), veins * (0.45 + 0.3 * h3));
-    col = mix(col, vec3(0.42, 0.41, 0.4), fine * 0.35);
-    col = mix(col, col * vec3(0.95, 0.88, 0.74), smoothstep(0.55, 0.9, cloud) * 0.5);   // yellowed patches
+    // aged Carrara: ivory with grey drifts, the odd grey vein; never paper white
+    vec3 base = vec3(0.6, 0.58, 0.53) * (0.9 + 0.14 * h1) * vec3(1.0 + (h2 - 0.5) * 0.05, 1.0, 1.0 - (h2 - 0.5) * 0.09);
+    col = base * (0.86 + 0.2 * cloud);
+    col = mix(col, vec3(0.42, 0.42, 0.43), halo * 0.22);
+    col = mix(col, vec3(0.3, 0.31, 0.33), vein * (0.35 + 0.3 * h3));
+    col = mix(col, vec3(0.45, 0.45, 0.45), (halo2 * 0.12 + vein2 * 0.2) * step(0.4, h4));
+    col = mix(col, col * vec3(0.95, 0.88, 0.74), smoothstep(0.6, 0.95, cloud) * 0.45);
+    col = mix(col, vec3(0.5, 0.5, 0.5), crackle * 0.08);
+    rough = 0.25 + 0.06 * (h2 - 0.5);
   } else {
-    vec3 base = vec3(0.03, 0.029, 0.032) * (0.85 + 0.35 * h1);
+    // Nero Marquina: a deep black body, sparse white calcite veins with soft milky halos
+    vec3 base = vec3(0.028, 0.027, 0.03) * (0.85 + 0.3 * h1);
     col = base * (0.85 + 0.3 * cloud);
-    col = mix(col, vec3(0.62, 0.6, 0.56), veins * (0.35 + 0.35 * h3));
-    col = mix(col, vec3(0.22, 0.21, 0.2), fine * 0.3);
+    float strong = step(0.35, h4);
+    col = mix(col, vec3(0.2, 0.2, 0.2), halo * 0.12 * strong);
+    col = mix(col, vec3(0.55, 0.54, 0.51), vein * (0.25 + 0.35 * h3) * strong);
+    col = mix(col, vec3(0.3, 0.3, 0.29), vein2 * 0.18);
+    col = mix(col, vec3(0.12, 0.12, 0.12), crackle * 0.12);
+    rough = 0.15 + 0.05 * (h2 - 0.5);
   }
-  // grout + chamfer
-  float e = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)) / T;     // distance to tile edge in uv
-  float groutM = 1.0 - smoothstep(0.0009, 0.0018, e);
-  float chamfer = smoothstep(0.0009, 0.004, e);
-  col = mix(col, vec3(0.075, 0.068, 0.06), groutM);
-  col *= mix(0.86, 1.0, smoothstep(0.0, 0.008, e));                 // grime creeping in from the joints
-  // scuffs: short random arcs
-  float sc = fbm(uv * vec2(9.0, 40.0) + off * 0.02, vec2(9.0, 40.0), 3) * 0.5 + 0.5;
+  // grout + a bevelled arris on every slab
+  float e = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)) / T;
+  float groutM = 1.0 - smoothstep(0.0008, 0.0015, e);
+  float bevel = smoothstep(0.0008, 0.0045, e);
+  col = mix(col, vec3(0.07, 0.064, 0.056), groutM);
+  col *= mix(0.84, 1.0, smoothstep(0.0, 0.007, e));
+  float sc = fbm(uv * vec2(9.0, 40.0) + h1 * 3.0, vec2(9.0, 40.0), 3) * 0.5 + 0.5;
   float scuff = smoothstep(0.7, 0.85, sc) * (0.5 + 0.5 * hash12(floor(uv * 60.0)));
-  float pits = step(0.996, hash12(floor(uv * 1100.0)));
-  float polish = mix(0.07, 0.16, h2) + cloud * 0.04;
+  float pits = step(0.997, hash12(floor(uv * 1100.0)));
   s.albedo = col * (1.0 - scuff * 0.05);
-  s.height = mix(0.45 + 0.1 * chamfer + cloud * 0.02 - pits * 0.2, 0.2, groutM);
-  s.rough = mix(polish + veins * 0.03 + scuff * 0.22 + pits * 0.3, 0.85, groutM);
+  s.height = mix(0.42 + 0.12 * sqrt(bevel) + cloud * 0.015 - pits * 0.2 - crackle * 0.02, 0.18, groutM);
+  s.rough = mix(rough + vein * 0.04 + scuff * 0.2 + pits * 0.3 + crackle * 0.05, 0.85, groutM);
   s.metal = 0.0;
   s.ao = mix(1.0, 0.5, groutM) * (1.0 - pits * 0.3);
 }`,
@@ -913,15 +1000,31 @@ void surface(vec2 uv, inout Surface s) {
  * sitter + brushwork + varnish): o = { v: 1 bearded patriarch | 2 lady, ground:[r,g,b], coat:[r,g,b] }
  */
 export function ancestorPortraitTexture(forge, aspect, o = {}) {
-  const key = `foyer:ancestor3:${JSON.stringify(o)}:${aspect.toFixed(3)}`;
+  const key = `foyer:ancestor4:${JSON.stringify(o)}:${aspect.toFixed(3)}`;
   const raw = forge.generate(key + ':raw', {
     size: 1024, aspect, tile: false, normalStrength: 0.0,
-    uniforms: { uAsp: aspect, uV: o.v ?? 1, uCoat: o.coat || [0.03, 0.028, 0.032], uGround: o.ground || [0.16, 0.12, 0.07] },
+    uniforms: { uAsp: aspect, uV: o.v ?? 1, uCoat: o.coat || [0.03, 0.028, 0.032], uGround: o.ground || [0.16, 0.12, 0.07], uBg: o.bg ?? 0 },
     glsl: PORTRAIT_SDF + /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   vec2 p = (uv - 0.5) * vec2(uAsp, 1.0);
   vec3 bg = mix(uGround * 0.12, uGround, exp(-length((p - vec2(-0.12, 0.12)) * vec2(1.0, 0.8)) * 2.6));
   bg *= 0.7 + 0.5 * fb2(uv * 3.0 + uV, 4);
+  if (uBg > 0.5 && uBg < 1.5) {
+    // a Gainsborough park: low stormy evening sky, blue distance, a dark mass of trees framing the sitter
+    float hz = -0.12 + 0.03 * sin(p.x * 9.0 + 1.0);
+    vec3 sky = mix(vec3(0.62, 0.5, 0.32), vec3(0.16, 0.18, 0.22), smoothstep(hz, 0.45, p.y));
+    sky = mix(sky, vec3(0.2, 0.17, 0.14), smoothstep(0.45, 0.75, fb2(p * vec2(4.0, 9.0) + 2.0, 5)) * 0.8);
+    vec3 land = mix(vec3(0.16, 0.18, 0.2), vec3(0.05, 0.06, 0.035), smoothstep(hz, hz - 0.2, p.y));
+    land *= 0.7 + 0.6 * fb2(p * vec2(12.0, 30.0), 4);
+    bg = p.y > hz ? sky : land;
+    float trees = p.y - (0.55 - 0.6 * smoothstep(-0.45, -0.12, p.x)) + 0.12 * fb2(p * 9.0, 4);
+    bg = mix(bg, vec3(0.04, 0.045, 0.025) * (0.6 + 0.8 * fb2(p * 22.0, 4)), smoothstep(-0.03, 0.03, trees) * smoothstep(-0.08, -0.16, p.x));
+  } else if (uBg > 1.5) {
+    // a swagged oxblood drape across the upper half, a stone pier below
+    float fold = 0.45 + 0.75 * pow(0.5 + 0.5 * sin(p.x * 38.0 + 6.0 * fb2(vec2(p.y * 3.0, p.x), 2) + p.y * 8.0), 1.6);
+    vec3 dr = uGround * fold * (0.55 + 0.6 * smoothstep(-0.2, 0.4, p.y)) * (1.0 + 0.6 * exp(-length(p - vec2(-0.18, 0.2)) * 4.0));
+    bg = mix(bg * 0.6, dr, smoothstep(-0.25, -0.1, p.y + 0.15 * sin(p.x * 4.0)));
+  }
   vec3 col = renderSitter(p + vec2(0.0, -0.02), uv, bg, uV);
   s.albedo = col;
   s.height = 0.5; s.rough = 0.5; s.ao = 1.0;

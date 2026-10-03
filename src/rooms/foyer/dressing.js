@@ -209,6 +209,56 @@ export function hallBench(ctx, { wood, velvet, brass }) {
   return g;
 }
 
+// -------------------------------------------------------------------- drape
+/**
+ * A tied-back velvet drape. Local space: the OUTER (wall-side) edge hangs at x = 0, the leading edge
+ * runs out to +x; top at y = 0, hanging to -height; folds in +-z around z = 0. Folds compress and deepen
+ * where the fabric is gathered at the tie-back, then fan out below it and break on the floor.
+ */
+export function drapeGeometry({ width = 0.8, height = 3, folds = 7, depth = 0.07, tie = 0.55, gather = 0.28, flare = 0.55, pool = 0.06, seed = 1 } = {}) {
+  const r = rnd(seed);
+  const cols = 120, rows = 90;
+  const phases = Array.from({ length: 4 }, () => r() * Math.PI * 2);
+  const pos = [], uv = [], idx = [];
+  const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  for (let j = 0; j <= rows; j++) {
+    const v = j / rows;                       // 0 top .. 1 bottom
+    const g = v < tie ? 1 + (gather - 1) * sm(0, tie, v) ** 0.8 : gather + (flare - gather) * sm(tie, 1, v);
+    const amp = depth * Math.min(2.4, Math.pow(1 / g, 0.6));
+    for (let i = 0; i <= cols; i++) {
+      const u = i / cols;
+      // the leading edge sweeps in a curve towards the tie-back
+      const x = u * width * g + (v > tie ? 0 : 0) ;
+      const ph = u * folds * Math.PI * 2;
+      let z = amp * (0.62 * Math.sin(ph + phases[0]) + 0.25 * Math.sin(ph * 2.03 + phases[1]) + 0.13 * Math.sin(ph * 0.5 + phases[2] + v * 2.0));
+      // header pleats: crisp at the top
+      z *= 0.55 + 0.45 * sm(0.0, 0.06, v);
+      let y = -v * height;
+      // the hem breaks on the floor
+      if (v > 1 - pool / height * 3) { z += (v - (1 - pool / height * 3)) * 0.4 * Math.sin(ph * 1.5 + phases[3]); }
+      pos.push(x, y, z); uv.push(u * width * 2.0, v * height);
+    }
+  }
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const a = j * (cols + 1) + i, b = a + 1, c = a + cols + 1, d = c + 1;
+    idx.push(a, c, b, b, c, d);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** heavy silk-velvet: deep pile with a strong grazing sheen (the folds read by their bright ridges) */
+export function velvetDrapeMaterial(ctx, color = [0.16, 0.018, 0.03], sheen = [0.75, 0.22, 0.24]) {
+  const base = ctx.materials.create('velvet', { color, crush: 0.5, repeat: [1.5, 1.5], physical: true, side: THREE.DoubleSide });
+  base.sheen = 1; base.sheenRoughness = 0.42; base.sheenColor = new THREE.Color(...sheen);
+  base.roughness = 0.9; base.envMapIntensity = 0.35;
+  return base;
+}
+
 // -------------------------------------------------------------------- portières
 /** a pair of heavy velvet portières tied back either side of a doorway, on a brass pole (local x along the wall) */
 export function portieres(ctx, { width, height, velvet, brass, seed = 1, tassel }) {
@@ -223,11 +273,11 @@ export function portieres(ctx, { width, height, velvet, brass, seed = 1, tassel 
     fin.rotation.z = -sx * Math.PI / 2; fin.position.set(sx * (width / 2 + 0.25), poleY, 0.16); g.add(fin);
     const br = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.16, 8), brass); br.rotation.x = Math.PI / 2; br.position.set(sx * (width / 2 + 0.12), poleY, 0.08); g.add(br);
   }
-  const pw = width * 0.46;
+  const pw = width * 0.5;
   for (const sx of [-1, 1]) {
-    const c = new THREE.Mesh(fixNaNGeo(G.curtainGeometry({ width: pw, height: height - 0.02, folds: 8, depth: 0.08, tieback: 0.42, pool: 0.08, seed: seed * 5 + sx })), velvet);
-    c.position.set(sx * (width / 2 - pw / 2 + 0.2), poleY - 0.03, 0.16);
-    if (sx > 0) c.scale.x = -1;
+    const c = new THREE.Mesh(drapeGeometry({ width: pw, height: height + 0.03, folds: 6, depth: 0.06, tie: 0.58, gather: 0.36, flare: 0.62, seed: seed * 5 + sx + 2 }), velvet);
+    c.position.set(sx * (width / 2 + 0.22), poleY - 0.03, 0.17);
+    if (sx < 0) c.scale.x = 1; else c.scale.x = -1;
     g.add(c);
     if (tassel) {
       const t = new THREE.Group();
@@ -237,8 +287,8 @@ export function portieres(ctx, { width, height, velvet, brass, seed = 1, tassel 
     }
   }
   // pelmet / valance
-  const val = new THREE.Mesh(fixNaNGeo(G.curtainGeometry({ width: width + 0.45, height: 0.36, folds: 10, depth: 0.04, seed: seed + 11 })), velvet);
-  val.position.set(-(width + 0.45) / 2 + (width + 0.45) / 2, poleY + 0.06, 0.2);
+  const val = new THREE.Mesh(drapeGeometry({ width: width + 0.5, height: 0.34, folds: 11, depth: 0.03, tie: 0.99, gather: 1, flare: 1, pool: 0, seed: seed + 11 }), velvet);
+  val.position.set(-(width + 0.5) / 2, poleY + 0.1, 0.21);
   g.add(val);
   g.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
   return g;
