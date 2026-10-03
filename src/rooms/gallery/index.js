@@ -321,11 +321,11 @@ export default {
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
     const shaft = fx.shaft({
       center: winC, right: V3(WIN.w / 2, 0, 0), up: V3(0, (WIN.h - 0.4) * 0.5, 0), direction: beamDir, length: 7.5,
-      color: 0x9fb6ff, intensity: 0.6, softness: 0.3, falloff: 0.8, panes: [2, 4], mullion: 0.03, noise: 0.7,
+      color: 0x9fb6ff, intensity: 0.22, softness: 0.35, falloff: 1.1, panes: [2, 4], mullion: 0.03, noise: 0.7,
     });
     root.add(shaft);
     root.add(fx.dust({ box: new THREE.Box3(V3(X0 + 0.1, 0.05, Z0 + 0.1), V3(X1 - 0.1, 3.2, -2.5)), count: 2600, shafts: [shaft], size: 0.011, intensity: 2.2, ambient: 0.04 }));
-    root.add(fx.fog({ box: new THREE.Box3(V3(X0 + 0.05, 0, Z0 + 0.3), V3(X1 - 0.05, 0.6, Z1 - 0.2)), color: 0x080c18, litColor: 0x161f36, density: 0.22, heightFalloff: 4 }));
+    root.add(fx.fog({ box: new THREE.Box3(V3(X0 + 0.05, 0, Z0 + 0.3), V3(X1 - 0.05, 0.6, Z1 - 0.2)), color: 0x080c18, litColor: 0x121a2e, density: 0.18, heightFalloff: 4 }));
 
     // ================================================================ texture debug board (only when ?node=_texdbg)
     if (ctx.params.get('node') === '_texdbg') {
