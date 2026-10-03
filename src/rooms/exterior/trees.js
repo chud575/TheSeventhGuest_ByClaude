@@ -7,7 +7,7 @@ import { rng } from './lib.js';
  * roots, and fine twig tips that read as lace against the sky.
  * Returns one merged BufferGeometry (position/normal/uv) per tree.
  */
-export function gnarledTree({ seed = 1, height = 9, spread = 1, trunkR = 0.45, depth = 5, lean = 0, twigs = true, droop = 0.25, reach = null, reachW = 0.8, leanZ = 0, minR = 0.006 } = {}) {
+export function gnarledTree({ seed = 1, height = 9, spread = 1, trunkR = 0.45, depth = 5, lean = 0, twigs = true, droop = 0.25, reach = null, reachW = 0.8, leanZ = 0, minR = 0.006, gnarl = 1, roots = 5, rootScale = 1 } = {}) {
   const reachV = reach ? new THREE.Vector3(...reach).normalize() : null;
   const R = rng(seed);
   const pos = [], nor = [], uv = [], idx = [];
@@ -70,7 +70,7 @@ export function gnarledTree({ seed = 1, height = 9, spread = 1, trunkR = 0.45, d
     let d = dir.clone();
     let p = p0.clone();
     const rEnd = r0 * (level === 0 ? 0.55 : 0.4);
-    const kink = level === 0 ? 0.12 : 0.22 + level * 0.04;
+    const kink = (level === 0 ? 0.12 : 0.22 + level * 0.04) * (level <= 1 ? gnarl : 1);
     for (let i = 1; i <= segs; i++) {
       // gnarl: random bends, plus drooping for long horizontal limbs, plus reaching toward light
       d.addScaledVector(randomPerp(d), kink * (0.5 + R()));
@@ -113,16 +113,16 @@ export function gnarledTree({ seed = 1, height = 9, spread = 1, trunkR = 0.45, d
   };
 
   // roots: a few surface roots flowing into the ground
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2 + R() * 0.6;
+  for (let i = 0; i < roots; i++) {
+    const a = (i / roots) * Math.PI * 2 + R() * 0.6;
     const d = new THREE.Vector3(Math.cos(a), -0.35, Math.sin(a)).normalize();
     const pts = [], radii = [];
     let p = new THREE.Vector3(Math.cos(a) * trunkR * 0.4, 0.5, Math.sin(a) * trunkR * 0.4);
     for (let k = 0; k <= 5; k++) {
       pts.push(p.clone());
-      radii.push(trunkR * 0.55 * (1 - k / 6));
-      d.y -= 0.08; d.x += (R() - 0.5) * 0.3; d.z += (R() - 0.5) * 0.3; d.normalize();
-      p.addScaledVector(d, 0.35);
+      radii.push(trunkR * 0.55 * rootScale * (1 - k / 6));
+      d.y -= 0.08 / rootScale; d.x += (R() - 0.5) * 0.3; d.z += (R() - 0.5) * 0.3; d.normalize();
+      p.addScaledVector(d, 0.35 * rootScale);
     }
     tube(pts, radii, 6);
   }

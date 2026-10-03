@@ -148,7 +148,7 @@ export default {
     M.pierStone.userData.grime = { y0: -3.4, h: 1.3, moss: 0.85 };
     for (const k of ['siding', 'slate', 'ashlar', 'stoneDark']) applyMacroVariation(M[k], { amount: 0.3, scale: 0.18 });
     // backlit silhouettes: grazing moon rim on everything that should catch a silver edge
-    for (const [k, r] of [['siding', 0.45], ['trim', 0.65], ['stepStone', 0.5], ['doorWood', 0.4], ['slate', 1.3], ['slateDark', 1.3], ['iron', 0.5], ['gateIron', 1.3], ['brick', 0.9], ['ashlar', 0.7], ['stoneDark', 0.6], ['grave', 0.8], ['graveDark', 0.8], ['terracotta', 0.8]]) M[k].userData.rim = r;
+    for (const [k, r] of [['siding', 0.45], ['trim', 0.65], ['stepStone', 0.5], ['doorWood', 0.4], ['slate', 0.8], ['slateDark', 0.8], ['iron', 0.5], ['gateIron', 1.3], ['brick', 0.9], ['ashlar', 0.7], ['stoneDark', 0.6], ['grave', 0.8], ['graveDark', 0.8], ['terracotta', 0.8]]) M[k].userData.rim = r;
 
     // ------------------------------------------------------------ sky
     const sky = createSky({ timeUniform: ctx.time, moonDir: MOON_DIR });
@@ -158,6 +158,7 @@ export default {
     // ------------------------------------------------------------ terrain + path + grass
     const groundMat = pbr(TX.ground, { name: 'ground', color: 0x2c2924, normalScale: 0.6 });
     groundMat.userData.splat = true;
+    groundMat.userData.specScale = 0.3;   // dead turf: no grazing glitter toward the moon
     applyMacroVariation(groundMat, { amount: 0.8, scale: 0.09 });
     groundMat.userData.groundShade = true;
     groundMat.envMapIntensity = 0.3;
@@ -167,7 +168,10 @@ export default {
     const pathMat = pbr(TX.path, { name: 'path', alphaTest: 0.5, color: 0x2e2a26, envMapIntensity: 1.0 });
     pathMat.userData.groundShade = true;
     pathMat.envMapIntensity = 0.9;
-    pathMat.roughness = 0.45;   // wet: the drive catches the moon as a glossy ribbon up to the door
+    pathMat.roughness = 0.5;   // wet: the drive catches the moon as a soft glossy ribbon up to the door
+    pathMat.normalScale.set(0.45, 0.45);
+    pathMat.userData.specScale = 0.5;
+    if (P.get('pathdbg')) { const k = P.get('pathdbg'); if (k === 'rough') { pathMat.roughness = 1; pathMat.envMapIntensity = 0; } if (k === 'hide') pathMat.visible = false; if (k === 'black') { pathMat.color.setRGB(0, 0, 0); } }
     pathMat.polygonOffset = true; pathMat.polygonOffsetFactor = -2; pathMat.polygonOffsetUnits = -2;
     root.add(buildPath({ material: pathMat }));
     // far grass: crossed tuft cards (cheap), olive-grey
@@ -176,6 +180,7 @@ export default {
     grassMat.envMapIntensity = 0.3;
     grassMat.userData.rim = 0.9;
     grassMat.userData.flashRim = 0;
+    grassMat.userData.specScale = 0.25;
     grassMat.userData.rimTip = true;
     const avoid = [[0, 3, 9.8], [9, 6, 3.2]];
     root.add(buildGrass({
@@ -195,6 +200,7 @@ export default {
     bladeMat.envMapIntensity = 0.3;
     bladeMat.userData.rim = 0.5;
     bladeMat.userData.flashRim = 0;
+    bladeMat.userData.specScale = 0.25;
     bladeMat.userData.rimTip = true;
     const hiQ = ctx.quality.particles >= 1;
     root.add(buildBladeGrass({
@@ -256,10 +262,12 @@ export default {
 
     // ------------------------------------------------------------ trees
     const barkMat = pbr(TX.bark, { name: 'bark', color: 0xa09890 });
-    barkMat.userData.rim = 0.3;
+    barkMat.userData.rim = 0.45;
+    barkMat.userData.moss = 0.7;
+    barkMat.userData.flashRim = 0.12;
     barkMat.normalScale.set(0.7, 0.7);
     const trees = [
-      { seed: 11, x: 10.2, z: 34.4, ry: 2.6, s: 1.1, height: 11, trunkR: 0.62, spread: 1.15 },     // hero foreground, frames the right
+      { seed: 11, x: 10.2, z: 34.4, ry: 2.6, s: 1.1, height: 11, trunkR: 0.82, spread: 1.15, rootScale: 1.7 },     // hero foreground, frames the right
       { seed: 23, x: 11.5, z: 30.5, ry: 2.2, s: 1.05, height: 10, trunkR: 0.5 },
       { seed: 37, x: -16, z: -4, ry: 1.1, s: 1.2, height: 12, trunkR: 0.55 },
       { seed: 41, x: 17, z: -9, ry: 0.2, s: 1.15, height: 11, trunkR: 0.5 },
@@ -267,7 +275,7 @@ export default {
       { seed: 67, x: -3.4, z: 18.0, ry: 4.0, s: 0.85, height: 8, trunkR: 0.38 },   // frames the drive view on the left
       { seed: 71, x: -6.4, z: 30.8, ry: 1.0, s: 1.1, height: 10, trunkR: 0.5 },   // frames the left
       // the proscenium: two big black oaks right in front of the hero camera, limbs arching in
-      { seed: 83, x: -1.55, z: 36.9, ry: 0, s: 0.9, height: 16, trunkR: 0.72, spread: 1.15, lean: 0.12, reach: [-0.5, 1, 0.25], reachW: 1.2 },
+      { seed: 83, x: -1.55, z: 36.9, ry: 0, s: 0.9, height: 16, trunkR: 0.8, rootScale: 1.5, spread: 1.15, lean: 0.12, reach: [-0.5, 1, 0.25], reachW: 1.2 },
       // mid-ground oaks half-drowned in the mist between the gate and the house
       { seed: 101, x: -9.5, z: 14.5, ry: 2.0, s: 1.0, height: 10, trunkR: 0.45 },
       { seed: 113, x: 12.5, z: 18.5, ry: 0.7, s: 1.1, height: 11, trunkR: 0.5 },
@@ -277,8 +285,9 @@ export default {
     const barkNear = barkMat.clone(); barkNear.name = 'barkNear';
     barkNear.normalScale.set(0.3, 0.3); barkNear.color.set(0x6a645e);
     barkNear.userData.rim = 0.0;
+    barkNear.userData.moss = 0.5;
     for (const t of trees) {
-      const g = gnarledTree({ seed: t.seed, height: t.height, trunkR: t.trunkR, spread: t.spread ?? 1, depth: 5, lean: t.lean || 0, reach: t.reach || null, reachW: t.reachW ?? 0.8, minR: t.seed === 83 || t.seed === 11 ? 0.014 : 0.009 });
+      const g = gnarledTree({ seed: t.seed, height: t.height, trunkR: t.trunkR, spread: t.spread ?? 1, depth: 5, lean: t.lean || 0, reach: t.reach || null, reachW: t.reachW ?? 0.8, gnarl: t.gnarl ?? 1, roots: t.roots ?? 5, rootScale: t.rootScale ?? 1, minR: t.seed === 83 || t.seed === 11 ? 0.014 : 0.009 });
       root.add(placeTree(g, t.seed === 83 ? barkNear : barkMat, t));
     }
 
@@ -413,7 +422,7 @@ export default {
         }
       }
       for (let k = 0; k < 40; k++) pts.push({ x: (R() - 0.5) * 3.6, y: F + 0.0, z: TOWER.z1 + 0.6 + R() * 2.2, r: R() });
-      root.add(buildLeafLitter(ctx, { points: pts, seed: 91 }));
+      root.add(buildLeafLitter(ctx, { points: pts, seed: 91, scale: 1.5, bright: 1.7 }));
       const matTex = ctx.textures.canvas('ext:doormat1', 256, 128, (g, w, h) => {
         g.fillStyle = '#3b2a18'; g.fillRect(0, 0, w, h);
         for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) {
@@ -426,10 +435,14 @@ export default {
         g.fillStyle = wear; g.fillRect(0, 0, w, h);
       }, { tile: false });
       const doormat = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.025, 0.7), new THREE.MeshStandardMaterial({ map: matTex, roughness: 0.97, name: 'doormat' }));
-      doormat.position.set(0.05, F + 0.04, TOWER.z1 + 0.75); doormat.rotation.y = 0.04;
+      doormat.position.set(0.05, F + 0.03, TOWER.z1 + 0.75); doormat.rotation.y = 0.04;
       doormat.receiveShadow = true;
       root.add(doormat);
     }
+    // dim warm bounce off the porch ceiling and boards up onto the second-floor trim
+    const bounce = new THREE.PointLight(0xffa868, 1.8, 7.5, 1.6);
+    bounce.position.set(0.3, PORCH.roof + 1.4, PORCH.z1 + 1.6);
+    root.add(bounce);
     const doorSpill = new THREE.SpotLight(0xffa860, 0, 16, 0.75, 0.6, 2);
     doorSpill.position.set(0, F + 2.3, TOWER.z1 - 0.8);
     doorSpill.target.position.set(0, 0, TOWER.z1 + 6);
@@ -513,7 +526,7 @@ export default {
     const at = (x, z, dy = eye) => [x, height(x, z) + dy, z];
     const nodes = {
       main: { position: at(5.0, 47.0, 3.8), target: [-2.4, 5.4, 8], fov: 48, label: 'The foot of the hill', look: { yaw: [-45, 45], pitch: [-20, 30] } },
-      gate: { position: at(0.35, GATE_Z + 3.4), target: [0.0, gate.y0 + 4.3, 12], fov: 54, label: 'The gate', grade: { exposure: 3.4 }, look: { yaw: [-55, 55], pitch: [-30, 35] } },
+      gate: { position: at(0.35, GATE_Z + 3.4), target: [0.0, gate.y0 + 4.3, 12], fov: 54, label: 'The gate', grade: { exposure: 2.5 }, look: { yaw: [-55, 55], pitch: [-30, 35] } },
       drive: { position: at(5.6, 27.6, 1.3), target: [-0.6, 9.0, 5], fov: 56, label: 'The drive', grade: { godRayWeight: 0.0, exposure: 2.3 }, look: { yaw: [-60, 60], pitch: [-25, 35] } },
       graves: { position: at(-13.3, 26.0, 1.5), target: [-7.4, 1.4, 14.5], fov: 52, label: 'The family plot', look: { yaw: [-50, 50], pitch: [-30, 30] } },
       porch: { position: [0.25, height(0.2, 15.4) + eye, 15.4], target: [0, F + 2.0, TOWER.z1], fov: 54, label: 'The front steps', grade: { godRayWeight: 0.0 }, look: { yaw: [-60, 60], pitch: [-25, 40] } },
@@ -648,8 +661,8 @@ export default {
       const dip = forceFlash != null ? 0 : dipAt(t, strikeAt);
       bolt.intensity = f * 2.2;
       U.uFlashRim.value = f * 5.0;
-      U.uHFogFlash.value = f * 0.03;
-      mist.uniforms.uFlash.value = f * 0.12;
+      U.uHFogFlash.value = f * 0.01;
+      mist.uniforms.uFlash.value = f * 0.04;
       fill.intensity = fillBase * (1 - f * 0.9) * (1 - dip * 0.45);
       hemi.intensity = hemiBase * (1 - f * 0.8) * (1 - dip * 0.5);
       moon.intensity = moonBase * (1 - dip * 0.35);
@@ -684,10 +697,10 @@ export default {
       godRays: [moonRay],
       start: 'main',
       grade: {
-        exposure: Number(P.get('exposure') || 1.9), toneMapping: P.get('tm') || 'aces', contrast: Number(P.get('contrast') || 1.14), saturation: 1.0,
-        shadowTint: [0.84, 0.95, 1.14], highlightTint: [1.16, 1.0, 0.8], splitAmount: 0.6, splitBalance: 0.4,
-        lift: [-0.006, -0.005, -0.002], blackPoint: Number(P.get('bp') || 0.012),
-        vignette: 0.42, grain: 0.035, bloomStrength: Number(P.get('bs') || 0.28), bloomThreshold: Number(P.get('bt') || 1.6), bloomRadius: 0.5,
+        exposure: Number(P.get('exposure') || 1.9), toneMapping: P.get('tm') || 'aces', contrast: Number(P.get('contrast') || 1.12), saturation: Number(P.get('sat') || 0.92),
+        shadowTint: [0.9, 0.99, 1.06], highlightTint: [1.08, 1.0, 0.9], splitAmount: 0.55, splitBalance: 0.42,
+        lift: [0.006, 0.0068, 0.0085], blackPoint: Number(P.get('bp') || 0.0),
+        vignette: 0.46, vignetteSoftness: 0.7, grain: 0.032, bloomStrength: Number(P.get('bs') || 0.32), bloomThreshold: Number(P.get('bt') || 1.25), bloomRadius: 0.62,
         godRayWeight: Number(P.get('grw') || 0.45), godRayThreshold: Number(P.get('grt') || 0.55), godRayDecay: 0.972, godRayDensity: 0.95,
         aoIntensity: 0.55, aoRadius: 0.5, fogDensity: 0,
       },

@@ -260,7 +260,7 @@ export function buildVerge(ctx, M, { from = 0.25, to = 0.9, seed = 61 } = {}) {
 }
 
 /** Fallen oak leaves: curled little cards, instanced, darker wet ones on the drive. */
-export function buildLeafLitter(ctx, { regions, count = 2500, seed = 44, points = null }) {
+export function buildLeafLitter(ctx, { regions, count = 2500, seed = 44, points = null, scale = 1, bright = 1 }) {
   const shape = new THREE.Shape();
   shape.moveTo(0, -0.5);
   shape.bezierCurveTo(0.3, -0.35, 0.42, 0.05, 0.22, 0.25);
@@ -278,7 +278,7 @@ export function buildLeafLitter(ctx, { regions, count = 2500, seed = 44, points 
   const pts = points || scatter({ regions, count, seed });
   const R = rng(seed + 1);
   const ms = pts.map((q) => {
-    const s = 0.05 + R() * 0.05;
+    const s = (0.05 + R() * 0.05) * scale;
     return mat4(q.x, q.y + 0.012, q.z, (R() - 0.5) * 0.6, R() * 6.28, (R() - 0.5) * 0.6, s, s, s);
   });
   const m = instanced(geo, mat, ms, { name: 'leafLitter', cast: false });
@@ -286,7 +286,7 @@ export function buildLeafLitter(ctx, { regions, count = 2500, seed = 44, points 
   for (let i = 0; i < ms.length; i++) {
     const k = R();
     if (k < 0.5) c.setRGB(0.16, 0.08, 0.035); else if (k < 0.8) c.setRGB(0.24, 0.14, 0.06); else c.setRGB(0.09, 0.07, 0.05);
-    c.multiplyScalar((0.7 + R() * 0.6) * 0.5);
+    c.multiplyScalar((0.7 + R() * 0.6) * 0.5 * bright);
     m.setColorAt(i, c);
   }
   m.instanceColor.needsUpdate = true;

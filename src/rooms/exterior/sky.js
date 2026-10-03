@@ -148,7 +148,7 @@ void main() {
   // low dark scud bank along the horizon
   float scud = smoothstep(0.22, 0.02, el) * smoothstep(0.45, 0.7, fbm2(vec2(az * 4.0 + t * 0.01, el * 9.0), 5));
   dens = max(dens, scud * 0.9);
-  float phase = pow(mo, 60.0) * 1.3 + pow(mo, 12.0) * 0.32 + pow(mo, 3.0) * 0.08 + 0.025;
+  float phase = pow(mo, 60.0) * 1.3 + pow(mo, 12.0) * 0.32 + pow(mo, 3.0) * 0.12 + 0.05;
   vec3 cloudDark = vec3(0.014, 0.016, 0.021) + uHorizon * 0.35;
   vec3 silver = vec3(0.62, 0.66, 0.76);
   float thin = 1.0 - smoothstep(0.15, 1.0, dens);
@@ -158,8 +158,8 @@ void main() {
   float bang = acos(clamp(dot(d, uBoltDir), -1.0, 1.0));
   float fl = uFlash * (0.35 + 0.65 * exp(-bang * 2.2));
   vec3 flashC = vec3(0.82, 0.8, 1.0);
-  cloudCol += flashC * fl * (mix(3.2, 0.7, dens) * (0.6 + 0.4 * trans) + edge * 1.5);
-  sky += flashC * fl * 2.4 * (0.6 + 0.4 * smoothstep(0.0, 0.5, el));
+  cloudCol += flashC * fl * (mix(1.15, 0.22, dens) * (0.6 + 0.4 * trans) + edge * 0.6);
+  sky += flashC * fl * 0.9 * (0.6 + 0.4 * smoothstep(0.0, 0.5, el));
   vec3 col = sky + vec3(star) + glow;
   col += moon;
   // clouds occlude moon & stars partially (moon shows through thin veils)

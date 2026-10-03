@@ -293,6 +293,11 @@ function preLightChunk(m) {
   float mf = smoothstep(0.1, 0.8, wn.z) * smoothstep(0.42, 0.68, hfNoise(vHFogW * 2.5) * 0.7 + hfNoise(vHFogW * 9.0) * 0.3);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.045, 0.06, 0.03), mf * ${Number(u.stoneVar).toFixed(3)});
 }\n`;
+  if (u.moss) s += `{
+  vec3 wn2 = normalize((vec4(normal, 0.0) * viewMatrix).xyz);
+  float mm = smoothstep(0.05, 0.75, wn2.y * 0.55 + wn2.z * 0.6) * smoothstep(0.35, 0.65, hfNoise(vHFogW * 1.7) * 0.6 + hfNoise(vHFogW * 7.0) * 0.4);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.035, 0.05, 0.02), mm * ${Number(u.moss).toFixed(3)});
+}\n`;
   if (u.specAA !== false) s += `{
   vec3 dnx = dFdx(normal), dny = dFdy(normal);
   float va = 0.25 * (dot(dnx, dnx) + dot(dny, dny));
@@ -323,7 +328,7 @@ export function patchFog(material, U) {
       .replace('#include <common>', `#include <common>\nvarying vec3 vHFogW;\n${HFOG_PARS}`);
     if (std) {
       fs = fs.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\n${surfaceChunk(material)}`)
-        .replace('#include <lights_physical_fragment>', `${preLightChunk(material)}#include <lights_physical_fragment>`);
+        .replace('#include <lights_physical_fragment>', `${preLightChunk(material)}#include <lights_physical_fragment>${material.userData.specScale != null ? `\n  material.specularF90 *= ${Number(material.userData.specScale).toFixed(3)}; material.specularColor *= ${Number(material.userData.specScale).toFixed(3)};` : ''}`);
     }
     shader.fragmentShader = fs
       .replace('#include <fog_fragment>', `${rimChunk(material)}${grimeChunk(material)}${material.userData.groundShade ? `{ float gd = length(vHFogW - cameraPosition);
@@ -334,7 +339,7 @@ export function patchFog(material, U) {
   const key = material.customProgramCacheKey?.bind(material);
   const ud = material.userData;
   material.customProgramCacheKey = () => (key ? key() : '') + '|hfog2' + (ud.groundShade ? 'g' : '') + (ud.rim ? `r${ud.rim}${ud.rimTip ? 't' : ''}${ud.rimTops ? 'T' : ''}f${ud.flashRim}` : '') + (ud.grime ? `m${ud.grime.y0},${ud.grime.h},${ud.grime.moss ?? 1}` : '')
-    + (ud.splat ? 'S' : '') + (ud.wallGrime ? `W${ud.wallGrime.y0},${ud.wallGrime.h},${ud.wallGrime.streak}` : '') + (ud.paintWear ? `P${ud.paintWear}` : '') + (ud.stoneVar ? `V${ud.stoneVar}` : '') + `A${ud.specAA}`;
+    + (ud.splat ? 'S' : '') + (ud.wallGrime ? `W${ud.wallGrime.y0},${ud.wallGrime.h},${ud.wallGrime.streak}` : '') + (ud.paintWear ? `P${ud.paintWear}` : '') + (ud.stoneVar ? `V${ud.stoneVar}` : '') + (ud.moss ? `M${ud.moss}` : '') + `A${ud.specAA}s${ud.specScale}`;
   material.needsUpdate = true;
   return material;
 }

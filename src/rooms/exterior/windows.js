@@ -176,7 +176,7 @@ export class WindowKit {
         if (t >= 1.5) c.setRGB(1.0, 0.27, 0.1);          // deep red: lamp behind a crimson curtain
         else if (t >= 0.9) c.setRGB(1.0, 0.46, 0.15);     // candle
         else c.setRGB(1.0, 0.56 + t * 0.3, 0.26 + t * 0.35);
-        c.multiplyScalar(g.lit * 4.2);
+        c.multiplyScalar(g.lit * 5.6);
       } else c.setRGB(0, 0, 0);
       return c;
     };

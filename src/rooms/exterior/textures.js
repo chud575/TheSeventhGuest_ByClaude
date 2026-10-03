@@ -117,42 +117,55 @@ void surface(vec2 uv, inout Surface s) {
   s.ao = mix(0.35, 1.0, h);
 }` });
 
-  // Ground: matted dead grass, bare earth, leaf litter, pebbles. 1 tile = 6 m.
-  const ground = T.generate('ext:ground4', {
-    size: big, normalStrength: 2.2,
+  // Ground: matted dead turf combed flat by wind and rain (long strands in a slowly
+  // turning direction field, not a cross-hatch), damp bare soil in patches, domed
+  // pebbles, fallen twigs and leaf fragments. 1 tile = 6 m.
+  const ground = T.generate('ext:ground6', {
+    size: big, normalStrength: 1.8,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   float n1 = fbm(uv, vec2(4.0), 6) * 0.5 + 0.5;
   float n2 = fbm(uv + 3.0, vec2(16.0), 5) * 0.5 + 0.5;
-  // matted thatch: short anisotropic streaks in a few clump directions (voronoi cells)
-  vec4 cl = voronoi(uv * 24.0, vec2(24.0), 1.0);
-  float ca = hash12(cl.zw) * 6.2831;
-  vec2 dir = vec2(cos(ca), sin(ca));
-  vec2 q = uv * 24.0;
+  float n3 = fbm(uv + 7.0, vec2(48.0), 4) * 0.5 + 0.5;
+  // combed strands: direction drifts smoothly across the tile
+  float ang = fbm(uv + 1.3, vec2(3.0), 3) * 2.4;
+  vec2 dir = vec2(cos(ang), sin(ang));
+  vec2 q = uv * 160.0;
   float along = dot(q, dir), acr = dot(q, vec2(-dir.y, dir.x));
-  float thatch = vnoise(vec2(acr * 30.0, along * 3.0) + cl.zw * 17.0, vec2(1e4)) ;
-  thatch = smoothstep(0.2, 0.9, thatch) * 0.6 + 0.2;
-  float fine = fbm(uv * vec2(1.0), vec2(128.0), 3) * 0.5 + 0.5;
-  vec3 straw = mix(vec3(0.16, 0.15, 0.11), vec3(0.27, 0.25, 0.18), thatch) * (0.8 + 0.35 * n2);
-  straw = mix(straw, vec3(0.09, 0.105, 0.075), smoothstep(0.5, 0.75, n1) * 0.65);   // damp greener hollows
-  vec3 dirt = mix(vec3(0.07, 0.06, 0.05), vec3(0.13, 0.11, 0.09), fine);
-  float bare = smoothstep(0.6, 0.74, fbm(uv + 9.0, vec2(3.0), 6) * 0.5 + 0.5 + (fine - 0.5) * 0.15);
-  // leaves
-  vec4 v = voronoi(uv * 60.0, vec2(60.0), 1.0);
-  float leaf = smoothstep(0.3, 0.16, v.x) * step(0.88, hash12(v.zw));
-  vec3 leafC = mix(vec3(0.17, 0.09, 0.04), vec3(0.26, 0.17, 0.08), hash12(v.zw + 1.0));
-  // pebbles
-  vec4 pv = voronoi(uv * 90.0, vec2(90.0), 1.0);
-  float peb = smoothstep(0.25, 0.12, pv.x) * step(0.9, hash12(pv.zw + 5.0)) * bare;
-  vec3 col = mix(straw, dirt, bare);
-  col = mix(col, leafC, leaf * 0.8);
-  col = mix(col, vec3(0.24, 0.235, 0.22) * (0.7 + 0.4 * hash12(pv.zw)), peb);
-  col *= 0.85 + 0.25 * fine;
+  float str1 = vnoise(vec2(acr * 3.2, along * 0.22), vec2(1e4));
+  float str2 = vnoise(vec2(acr * 6.5 + 17.0, along * 0.45), vec2(1e4));
+  float strands = smoothstep(0.35, 0.9, str1 * 0.6 + str2 * 0.4);
+  vec3 straw = mix(vec3(0.13, 0.115, 0.08), vec3(0.25, 0.22, 0.15), strands) * (0.75 + 0.4 * n2);
+  straw = mix(straw, vec3(0.08, 0.09, 0.06), smoothstep(0.5, 0.78, n1) * 0.55);   // damp greener hollows
+  // bare soil patches with fine grit
+  float bare = smoothstep(0.58, 0.72, fbm(uv + 9.0, vec2(3.0), 6) * 0.5 + 0.5 + (n3 - 0.5) * 0.2);
+  vec3 soil = mix(vec3(0.055, 0.045, 0.035), vec3(0.11, 0.09, 0.07), n3);
+  // domed pebbles (smooth caps, no hard rims)
+  vec4 pv = voronoi(uv * 70.0, vec2(70.0), 1.0);
+  float pr = 0.18 + 0.2 * hash12(pv.zw + 1.0);
+  float pd = clamp(1.0 - pv.x / pr, 0.0, 1.0);
+  float peb = step(0.84, hash12(pv.zw + 5.0)) * (0.35 + 0.65 * bare);
+  float dome = sqrt(pd) * peb;
+  // twigs: thin dark segments
+  vec4 tv = voronoi(uv * 22.0, vec2(22.0), 1.0);
+  float ta = hash12(tv.zw) * 6.2831;
+  vec2 tl = (fract(uv * 22.0) - 0.5);
+  float tw = abs(dot(tl, vec2(-sin(ta), cos(ta)))) ;
+  float twig = (1.0 - smoothstep(0.006, 0.016, tw)) * step(abs(dot(tl, vec2(cos(ta), sin(ta)))), 0.32) * step(0.8, hash12(tv.zw + 3.0));
+  // leaf fragments (flat colour flecks)
+  vec4 lv = voronoi(uv * 55.0, vec2(55.0), 1.0);
+  float leaf = smoothstep(0.32, 0.22, lv.x + (n3 - 0.5) * 0.12) * step(0.86, hash12(lv.zw));
+  vec3 leafC = mix(vec3(0.14, 0.075, 0.035), vec3(0.22, 0.14, 0.07), hash12(lv.zw + 1.0));
+  vec3 col = mix(straw, soil, bare);
+  col = mix(col, leafC, leaf * 0.7);
+  col = mix(col, vec3(0.2, 0.195, 0.185) * (0.6 + 0.5 * hash12(pv.zw)), smoothstep(0.0, 0.25, dome));
+  col = mix(col, vec3(0.05, 0.04, 0.03), twig * 0.85);
+  col *= 0.86 + 0.2 * n3;
   s.albedo = col;
-  s.height = 0.4 + thatch * 0.03 * (1.0 - bare) + leaf * 0.12 + peb * 0.35 + n2 * 0.12 + fine * 0.06;
-  s.rough = 0.94 - leaf * 0.08 - peb * 0.2;
+  s.height = 0.4 + strands * 0.05 * (1.0 - bare) + dome * 0.18 + twig * 0.04 + n2 * 0.1 + n3 * 0.03;
+  s.rough = 0.95 - dome * 0.15;
   s.metal = 0.0;
-  s.ao = 0.7 + 0.3 * s.height;
+  s.ao = 0.75 + 0.25 * s.height;
 }` });
 
   // Carriage drive: packed gravel with two wheel ruts (puddled, mirror-wet), a mossy crown

@@ -450,7 +450,7 @@ export function buildMansion(ctx, M) {
       cg.rotateY(-Math.PI / 2);
       B.add(cg, M.stepRiser, mat4(s * 1.5 + (s > 0 ? 0.4 : 0), 0, P.z1 - 0.2), { uvScale: 0.5 });
       B.add(bevelBox(0.5, 0.95, 0.5, 0.03), M.stepStone, mat4(s * 1.7, 0.47, P.z1 + sd * nSteps + 0.05), { uvScale: 0.5 });
-      B.add(G.latheFromProfile([[0, 0], [0.3, 0], [0.3, 0.06], [0.24, 0.1], [0.12, 0.16], [0.16, 0.3], [0.22, 0.42], [0.18, 0.52], [0.0, 0.56]], 20), M.stepStone, mat4(s * 1.7, 0.95, P.z1 + sd * nSteps + 0.05), { uv: 'keep' });
+      B.add(G.latheFromProfile([[0, 0], [0.27, 0], [0.27, 0.05], [0.22, 0.07], [0.22, 0.1], [0.12, 0.13], [0.08, 0.17], [0.09, 0.2], [0.15, 0.24], [0.18, 0.31], [0.17, 0.38], [0.13, 0.44], [0.07, 0.48], [0.05, 0.5], [0.07, 0.52], [0.06, 0.55], [0.0, 0.57]], 28), M.stepStone, mat4(s * 1.7, 0.95, P.z1 + sd * nSteps + 0.05), { uv: 'keep' });
     }
     // wrought-iron handrails up the steps: scrolled newel terminals, twisted balusters
     for (const s2 of [-1, 1]) {
