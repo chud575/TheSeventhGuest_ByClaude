@@ -353,7 +353,7 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
       setTimeout(() => p.solve(), 1800);
     },
     async onSolved(p) { phase = 'solved'; await onSolved?.(p); },
-    teardown() { selected = -1; hover = -1; P = null; bannerEl?.remove(); bannerEl = null; },
+    teardown() { selected = -1; hover = -1; P = null; },
   };
 
   writeInstances(0); writeRings(0);

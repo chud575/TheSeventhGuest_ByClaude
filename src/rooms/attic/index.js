@@ -120,9 +120,9 @@ export default {
       }),
       brickDark: addGrime(pbr(brickDarkTex.withRepeat(1 / 1.8, 1 / 1.8), { name: 'brickDark', envMapIntensity: 0.2 }), { floor: 0.5, macro: 0.6, floorDark: 0.6 }),
       stone: M.create('stone', { rows: 2, cols: 3, moss: 0.1, damp: 0.6, repeat: [1.6, 1.6], color: [0.6, 0.58, 0.55] }),
-      benchTop: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 0, polish: 0.15, wear: 0.9, repeat: [1, 1], color: [0.75, 0.62, 0.5] }),
+      benchTop: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 0, polish: 0.15, wear: 0.9, repeat: [1.6, 1.6], macro: 0.6, color: [0.72, 0.6, 0.48] }),
       benchFrame: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 0, polish: 0.1, wear: 0.8, repeat: [1.5, 1.5], color: [0.45, 0.35, 0.27] }),
-      labTop: M.create('walnut', { repeat: [1.2, 1.2], color: [0.62, 0.5, 0.43], clearcoat: 0.0, roughness: 1.5 }),
+      labTop: M.create('walnut', { repeat: [1.8, 1.8], macro: 0.6, color: [0.62, 0.5, 0.43], clearcoat: 0.0, roughness: 1.5 }),
       labFrame: M.create('walnut', { repeat: [2, 2], color: [0.5, 0.4, 0.34] }),
       door: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 5, boardLength: 3, polish: 0.05, wear: 1.0, repeat: [1.1, 1.1], color: [0.32, 0.24, 0.18] }),
       slat: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 0, polish: 0.2, wear: 0.8, repeat: [3, 3], color: [0.42, 0.3, 0.2] }),
@@ -704,6 +704,8 @@ export default {
     const ridgeFill = new THREE.PointLight(0x5868a0, 11, 7, 2); ridgeFill.position.set(0.0, 3.3, -2.6); root.add(ridgeFill);
     const ridgeFill2 = new THREE.PointLight(0x6a5a50, 3.5, 6, 2); ridgeFill2.position.set(0.3, 3.2, 1.6); root.add(ridgeFill2);
     root.add(new THREE.HemisphereLight(0x34446e, 0x3e3c4c, 3.0));
+    // moon bounce washing up the near (west) slope by the stairs, so the rafters there are not a black void
+    const westFill = new THREE.PointLight(0x5a6aa8, 3.2, 3.8, 2); westFill.position.set(-1.7, 2.3, 0.4); root.add(westFill);
     root.add(fx.areaLight({ center: [OCULUS.x, OCULUS.y, Z0 - 0.05], normal: [0, -0.25, 1], width: 1.0, height: 1.0, color: 0x8ea6ff, intensity: 10 }));
     // the oil lamp over the microscope table: a shadowed downlight + soft omni
     const lampSpot = new THREE.SpotLight(0xffae5a, 20, 7, 1.15, 0.75, 2);
@@ -717,14 +719,14 @@ export default {
     const candleLight = new THREE.PointLight(0xff9a48, 1.8, 3.5, 2); candleLight.position.set(-1.9, BT + 0.3, BENCH.z + 0.25); root.add(candleLight);
     // the furnace light from the stair beyond the door: a shadowed spot through the gap + red fill
     const doorCX = (DOOR.x0 + DOOR.x1) / 2;
-    const hellSpot = new THREE.SpotLight(0xff5a24, 30, 12, 0.6, 0.6, 2);
-    hellSpot.position.set(doorCX + 0.15, 1.45, Z0 - WALL_T - 0.22); hellSpot.target.position.set(doorCX - 0.15, 0.0, Z0 + 1.7);
+    const hellSpot = new THREE.SpotLight(0xff5a24, 30, 12, 0.45, 0.7, 2);
+    hellSpot.position.set(doorCX + 0.15, 1.45, Z0 - WALL_T - 0.22); hellSpot.target.position.set(doorCX - 0.1, 0.0, Z0 + 0.9);
     hellSpot.castShadow = Q.shadows;
     hellSpot.shadow.mapSize.set(1024, 1024); hellSpot.shadow.bias = -0.002; hellSpot.shadow.normalBias = 0.06; hellSpot.shadow.radius = 4;
     hellSpot.shadow.camera.near = 0.3; hellSpot.shadow.camera.far = 12;
     root.add(hellSpot, hellSpot.target);
     const passage = new THREE.PointLight(0xff4a18, 14, 3.0, 2); passage.position.set(doorCX, 1.5, Z0 - WALL_T - 1.9); root.add(passage);
-    root.add(fx.areaLight({ center: [doorCX - 0.2, 0.95, Z0 + 0.02], normal: [0, 0, 1], width: 0.4, height: 1.8, color: 0xff5020, intensity: 3.0 }));
+    root.add(fx.areaLight({ center: [doorCX - 0.2, 0.95, Z0 + 0.02], normal: [0, 0, 1], width: 0.4, height: 1.8, color: 0xff5020, intensity: 0.9 }));
     // flicker
     const base = { lampSpot: lampSpot.intensity, lampGlow: lampGlow.intensity, candle: candleLight.intensity, hell: hellSpot.intensity, passage: passage.intensity };
     ctx.onUpdate((dt, t) => {

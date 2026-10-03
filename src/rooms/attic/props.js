@@ -186,8 +186,10 @@ export function buildLabTable(ctx, m, { w = 1.55, d = 0.82, h = 0.86 } = {}) {
   // turned legs
   const legG = lathe(G, [[0, 0], [0.028, 0], [0.032, 0.02], [0.026, 0.05], [0.022, 0.25], [0.034, 0.32], [0.036, 0.36], [0.026, 0.42], [0.03, 0.5], [0.036, 0.6], [0.038, h - 0.17], [0.04, h - 0.05], [0, h - 0.05]], 18);
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(at(mesh(legG, m.labFrame), sx * (w / 2 - 0.08), 0, sz * (d / 2 - 0.08)));
-  // stretcher shelf
-  g.add(at(mesh(bevelBox(G, w - 0.2, 0.02, d - 0.2, 0.004), m.labFrame), 0, 0.2, 0));
+  // H-stretcher: turned side rails and a centre rail (open, so light falls through to the rug)
+  const rail = lathe(G, [[0, 0], [0.014, 0], [0.016, 0.03], [0.012, 0.1], [0.016, 0.5], [0.012, 0.9], [0.016, 0.97], [0.014, 1], [0, 1]], 10);
+  for (const sx of [-1, 1]) { const r = mesh(rail, m.labFrame); r.scale.set(1, d - 0.16, 1); r.rotation.x = Math.PI / 2; at(r, sx * (w / 2 - 0.08), 0.18, -(d - 0.16) / 2); g.add(r); }
+  { const r = mesh(rail, m.labFrame); r.scale.set(1, w - 0.16, 1); r.rotation.z = -Math.PI / 2; at(r, -(w - 0.16) / 2, 0.18, 0); g.add(r); }
   return g;
 }
 
@@ -404,9 +406,9 @@ export function dustSheetGeometry({ hw, hd, topH, seg = 72, seed = 1, flare = 0.
     let y = top - e;
     const dirx = e > 0 ? ex / Math.hypot(ex, ez) : 0, dirz = e > 0 ? ez / Math.hypot(ex, ez) : 0;
     const per = Math.atan2(cz + dirz, cx + dirx);
-    const fold = Math.sin(per * 9 + seed) * 0.5 + Math.sin(per * 23 + seed * 2.1) * 0.3 + Math.sin(per * 5 + seed * 0.7) * 0.35;
+    const fold = Math.sin(per * 13 + seed) * 0.5 + Math.sin(per * 29 + seed * 2.1) * 0.3 + Math.sin(per * 5 + seed * 0.7) * 0.35;
     const hemK = Math.min(1, e / Math.max(top, 0.01));
-    let out = Math.min(e, 0.25) * 0.08 + flare * hemK * (1 + 1.1 * fold) + hemK * hemK * 0.03 * (1 + fold);
+    let out = Math.min(e, 0.25) * 0.08 + flare * hemK * (1 + 1.1 * fold) + hemK * hemK * 0.03 * (1 + fold) + 0.03 * fold * THREE.MathUtils.smoothstep(e, 0.0, 0.45);
     if (y < 0.004) { out += (0.004 - y) * 0.9; y = 0.004 + Math.abs(fold) * 0.014 * Math.min(1, (0.004 - y) * 6); }
     const nx = cx + dirx * out + (e > 0 ? -dirz : 0) * fold * 0.03 * hemK;
     const nz = cz + dirz * out + (e > 0 ? dirx : 0) * fold * 0.03 * hemK;

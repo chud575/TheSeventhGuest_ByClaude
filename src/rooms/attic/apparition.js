@@ -48,14 +48,14 @@ void main() {
   float smoke = fb(q);
   float smoke2 = fb(vL * vec3(18.0, 6.0, 18.0) + vec3(0.0, -uTime * 0.9, 0.0));
   // body: an opaque core of shadow; toward the silhouette it thins into smoke and the outline frays
-  float a = mix(1.0, 0.0, smoothstep(0.35, 0.98, edge + (smoke - 0.5) * 0.55));
+  float a = 1.0 - smoothstep(0.66, 1.02, edge + (smoke - 0.5) * 0.4);
   // holes drift through the lower coat
   a *= 1.0 - smoothstep(0.62, 0.8, smoke2) * smoothstep(1.0, 0.2, vL.y) * 0.8;
   // hem dissolves into smoke trailing over the boards
   float hem = smoothstep(0.0, 0.6, vL.y + (smoke2 - 0.5) * 0.45);
   a *= hem;
   // furnace light wraps the edges: a soft, broken, smouldering rim (not a clean outline)
-  float rim = smoothstep(0.25, 0.95, edge) * smoothstep(0.3, 0.75, smoke2) * uRimGain;
+  float rim = smoothstep(0.6, 0.97, edge) * smoothstep(0.3, 0.75, smoke2) * uRimGain;
   vec3 col = uCore * (0.5 + 0.7 * smoke) + uRim * rim * (0.6 + 0.6 * smoke);
   a = clamp((a + rim * 0.25) * uOpacity, 0.0, 1.0);
   gl_FragColor = vec4(col, a);
@@ -115,16 +115,16 @@ export function buildApparition(mat) {
   g.add(new THREE.Mesh(latheE([[0.07, 1.48], [0.095, 1.53], [0.085, 1.6], [0.06, 1.62]], 18, 0.8), mat));
   // head: long skull, gaunt jaw
   // head + neck baked in figure space (the shader's smoke and hem fade read local Y)
-  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.095, 20, 16).scale(0.8, 1.12, 0.92).translate(0, 1.685, 0.012), mat));
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.095, 20, 16).scale(0.78, 1.14, 0.92).rotateX(0.18).translate(0, 1.675, 0.03), mat));
   g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.12, 12).translate(0, 1.58, 0.0), mat));
   // stovepipe hat
   g.add(new THREE.Mesh(latheE([[0.0, 1.765], [0.125, 1.76], [0.13, 1.772], [0.085, 1.785], [0.078, 1.8], [0.084, 1.95], [0.086, 1.965], [0, 1.965]], 24, 0.9), mat));
   // left arm hanging onto a cane
-  g.add(new THREE.Mesh(limb([V(-0.19, 1.4, 0), V(-0.24, 1.2, 0.02), V(-0.25, 1.0, 0.06), V(-0.24, 0.86, 0.1)], [0.06, 0.05, 0.042, 0.035]), mat));
+  g.add(new THREE.Mesh(limb([V(-0.17, 1.4, 0), V(-0.22, 1.2, 0.02), V(-0.235, 1.0, 0.06), V(-0.24, 0.87, 0.1)], [0.058, 0.046, 0.046, 0.054]), mat));
   g.add(new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 10).scale(0.8, 1.2, 1).translate(-0.24, 0.82, 0.11), mat));
   g.add(new THREE.Mesh(limb([V(-0.24, 0.85, 0.11), V(-0.27, 0.4, 0.16), V(-0.29, 0.0, 0.2)], [0.012, 0.011, 0.01], 6), mat));
   // right arm raised, long fingers curling to beckon
-  g.add(new THREE.Mesh(limb([V(0.19, 1.4, 0), V(0.27, 1.22, 0.08), V(0.3, 1.24, 0.24), V(0.3, 1.36, 0.36)], [0.06, 0.05, 0.04, 0.032]), mat));
+  g.add(new THREE.Mesh(limb([V(0.17, 1.4, 0), V(0.25, 1.22, 0.08), V(0.29, 1.24, 0.24), V(0.3, 1.35, 0.35)], [0.058, 0.046, 0.044, 0.05]), mat));
   for (let k = 0; k < 4; k++) {
     const a = -0.3 + k * 0.2;
     g.add(new THREE.Mesh(limb([V(0.3, 1.38, 0.37), V(0.3 + Math.sin(a) * 0.04, 1.47, 0.4), V(0.3 + Math.sin(a) * 0.06, 1.52, 0.36), V(0.3 + Math.sin(a) * 0.06, 1.5, 0.32)], [0.011, 0.009, 0.007, 0.005], 5), mat));

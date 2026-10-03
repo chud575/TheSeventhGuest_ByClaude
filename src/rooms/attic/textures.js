@@ -182,9 +182,9 @@ void surface(vec2 uv, inout Surface s) {
   float slub = vnoise(vec2(uv.x * 20.0, uv.y * 360.0), vec2(20.0, 360.0));
   float slub2 = vnoise(vec2(uv.x * 360.0, uv.y * 20.0), vec2(360.0, 20.0));
   float weave = mix(wx * (0.7 + 0.3 * slub), wy * (0.7 + 0.3 * slub2), step(0.5, fract((floor(uv.x * 360.0) + floor(uv.y * 360.0)) * 0.5)));
-  float grime = fbm(uv + 2.0, vec2(4.0), 5);
+  float grime = fbm(uv + 0.2, vec2(1.0), 4);
   vec3 c = vec3(0.62, 0.6, 0.55) * (0.88 + 0.12 * weave);
-  c = mix(c, vec3(0.4, 0.37, 0.32), smoothstep(0.0, 0.5, grime) * 0.55);
+  c = mix(c, vec3(0.5, 0.47, 0.42), smoothstep(-0.2, 0.6, grime) * 0.22);
   s.albedo = c;
   s.height = 0.5 + 0.3 * weave;
   s.rough = 0.95; s.metal = 0.0; s.ao = 0.9 + 0.1 * weave;
@@ -370,7 +370,7 @@ void surface(vec2 uv, inout Surface s) {
  * chipped arrises, ragged mortar of varying width with dirt packed into it, the odd
  * missing or broken brick and fine surface pitting for close-ups.
  */
-export function brickTexture(forge, { key = 'brick', base = [0.46, 0.22, 0.15], mortar = [0.43, 0.4, 0.36], bloom = 0.55, missing = 0.012, size = 2048 } = {}) {
+export function brickTexture(forge, { key = 'brick', base = [0.42, 0.235, 0.175], mortar = [0.43, 0.4, 0.36], bloom = 0.7, missing = 0.012, size = 2048 } = {}) {
   return forge.generate(`attic:${key}`, {
     size, normalStrength: 3.2,
     uniforms: { uBase: base, uMortar: mortar, uBloom: bloom, uMissing: missing },
@@ -428,8 +428,11 @@ void surface(vec2 uv, inout Surface s) {
   vec3 col = mix(bc, mc, mortarM);
   col = mix(col, vec3(0.035, 0.03, 0.03), gone * (1.0 - mortarM));
   // large soot clouds
-  float soot = smoothstep(0.45, 0.95, fbmv(uv + 0.71, vec2(2.0), 5));
-  col *= 1.0 - soot * 0.45;
+  float soot = smoothstep(0.4, 0.9, fbmv(uv + 0.71, vec2(2.0), 5));
+  col *= 1.0 - soot * 0.55;
+  // fine vertical run-marks (old damp) dragging grime down the face of the wall
+  float runs = smoothstep(0.62, 0.9, vnoise(vec2(uv.x * 160.0, uv.y * 3.0), vec2(160.0, 3.0))) * smoothstep(0.3, 0.8, fbmv(uv + 0.13, vec2(3.0), 4));
+  col *= 1.0 - runs * 0.35;
   s.albedo = col;
   float proud = (h1 - 0.5) * 0.08;
   s.height = mix(0.7 + proud + mott * 0.08 - pit * 0.12 - (1.0 - arris) * 0.18, 0.18 + md * 0.06, mortarM) - gone * 0.55 * (1.0 - mortarM);
@@ -511,6 +514,7 @@ export function dollFaceTexture(forge, { key = 'doll', eye = '#2a3a5a', lip = '#
     gr.addColorStop(0, 'rgba(150,120,80,0.12)'); gr.addColorStop(0.25, 'rgba(0,0,0,0)'); gr.addColorStop(0.5, 'rgba(150,120,80,0.15)'); gr.addColorStop(0.75, 'rgba(150,120,80,0.22)'); gr.addColorStop(1, 'rgba(150,120,80,0.12)');
     g.fillStyle = gr; g.fillRect(0, 0, w, h);
     const cx = w * 0.25, cy = h * 0.52;
+    g.save(); g.translate(cx, cy); g.scale(1.5, 1.5); g.translate(-cx, -cy);
     // cheeks
     for (const sx of [-1, 1]) {
       const rg = g.createRadialGradient(cx + sx * 26, cy + 18, 0, cx + sx * 26, cy + 18, 24);
@@ -535,6 +539,7 @@ export function dollFaceTexture(forge, { key = 'doll', eye = '#2a3a5a', lip = '#
     g.fillStyle = lip;
     g.beginPath(); g.moveTo(cx - 7, cy + 24); g.quadraticCurveTo(cx - 3.5, cy + 20, cx, cy + 22.5); g.quadraticCurveTo(cx + 3.5, cy + 20, cx + 7, cy + 24); g.quadraticCurveTo(cx, cy + 29, cx - 7, cy + 24); g.fill();
     g.strokeStyle = 'rgba(60,10,10,0.7)'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(cx - 6, cy + 24); g.lineTo(cx + 6, cy + 24); g.stroke();
+    g.restore();
     // craquelure: hairline cracks, one bad crack across the cheek
     g.strokeStyle = 'rgba(70,55,45,0.35)'; g.lineWidth = 0.6;
     for (let i = 0; i < 40; i++) {
