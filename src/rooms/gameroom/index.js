@@ -114,7 +114,9 @@ export default {
       eye: new THREE.MeshPhysicalMaterial({ color: 0x080504, roughness: 0.05, clearcoat: 1, name: 'glassEye' }),
       antler: new THREE.MeshStandardMaterial({ color: 0x8a7458, roughness: 0.6, name: 'antler' }),
       globe: new THREE.MeshStandardMaterial({ color: 0x2a2018, emissive: new THREE.Color(1.0, 0.72, 0.42), emissiveIntensity: 0.9, roughness: 0.4, name: 'sconceGlobe' }),
-      shadeOuter: new THREE.MeshPhysicalMaterial({ color: 0x0a3618, roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.04, emissive: new THREE.Color(0.06, 0.42, 0.16), emissiveIntensity: 0.55, side: THREE.FrontSide, envMapIntensity: 1.4, name: 'shadeGreen' }),
+      shadeOuter: new THREE.MeshPhysicalMaterial({ color: 0x0a3618, roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.04, emissive: new THREE.Color(0.1, 0.62, 0.24), emissiveIntensity: 0.9, side: THREE.FrontSide, envMapIntensity: 1.4, name: 'shadeGreen',
+        // cased glass glows where it is thin and nearest the bulb: dark at the crown, bright toward the rim
+        emissiveMap: ctx.textures.canvas('gameroom:shadeGlow', 4, 128, (c) => { const g = c.createLinearGradient(0, 0, 0, 128); g.addColorStop(0, '#000'); g.addColorStop(0.35, '#151515'); g.addColorStop(0.8, '#7a7a7a'); g.addColorStop(0.93, '#d0d0d0'); g.addColorStop(1, '#ffffff'); c.fillStyle = g; c.fillRect(0, 0, 4, 128); }, { tile: false }) }),
       shadeInner: new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffe6b0).multiplyScalar(3.4), side: THREE.BackSide, toneMapped: false, name: 'shadeOpal' }),
       shadeRim: new THREE.MeshBasicMaterial({ color: new THREE.Color(0xfff0d0).multiplyScalar(2.2), toneMapped: false, name: 'shadeRim' }),
       bulb: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.85, 0.6).multiplyScalar(8), toneMapped: false, name: 'bulb' }),
@@ -702,7 +704,7 @@ export default {
     {
       const pz = queens.puzzle, setup0 = pz.setup, teardown0 = pz.teardown;
       const shaftI = shafts.map((sh) => sh.material.uniforms.uIntensity.value);
-      pz.setup = (p) => { dust.visible = false; shafts.forEach((sh, i) => { sh.material.uniforms.uIntensity.value = shaftI[i] * 0.12; }); ctx.post.set({ exposure: 1.0, godRayWeight: 0.04, bloomStrength: 0.18, bloomThreshold: 1.4 }, ctx.shot ? 0 : 0.8); return setup0(p); };
+      pz.setup = (p) => { dust.visible = false; shafts.forEach((sh, i) => { sh.material.uniforms.uIntensity.value = shaftI[i] * 0.12; }); ctx.post.set({ exposure: 0.92, godRayWeight: 0.04, bloomStrength: 0.18, bloomThreshold: 1.4 }, ctx.shot ? 0 : 0.8); return setup0(p); };
       pz.teardown = (p) => { dust.visible = true; shafts.forEach((sh, i) => { sh.material.uniforms.uIntensity.value = shaftI[i]; }); ctx.post.set({ exposure: ROOM_GRADE.exposure, godRayWeight: ROOM_GRADE.godRayWeight, bloomStrength: ROOM_GRADE.bloomStrength, bloomThreshold: ROOM_GRADE.bloomThreshold }, 0.8); return teardown0(p); };
     }
     if (ctx.params.get('queens') === 'mid') queens.arrange([[0, 0], [4, 1], [7, 2], [3, 3], [2, 4]]);

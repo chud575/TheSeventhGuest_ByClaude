@@ -71,7 +71,7 @@ void surface(vec2 uv, inout Surface s) {
     vec3 rh = hash32(id + 3.7);
     float seed = rh.x * 40.0;
     vec2 p = rh.y > 0.5 ? f : f.yx;          // grain turned 0 or 90 per square
-    if (light) col = straightGrain(p, vec3(0.86, 0.72, 0.5), vec3(0.7, 0.53, 0.32), seed, 70.0);
+    if (light) col = straightGrain(p, vec3(0.76, 0.6, 0.4), vec3(0.62, 0.46, 0.28), seed, 70.0);
     else col = straightGrain(p, vec3(0.25, 0.1, 0.055), vec3(0.11, 0.04, 0.02), seed, 55.0);
     col *= 0.93 + 0.14 * rh.z;              // per-square tint variance
     // bevelled edge (~1.5 mm) + a dark glue line
