@@ -120,7 +120,7 @@ export function buildDoorway(ctx, o) {
       const tymp = new THREE.Mesh(G.applyBoxUVs(new THREE.ExtrudeGeometry(new THREE.Shape(inner.getPoints(24)), { depth: 0.03, bevelEnabled: false }), 1), o.friezeMat || o.caseMat);
       tymp.position.set(0, top, 0.0); g.add(tymp);
       // gilt cartouche at the centre
-      const cart = new THREE.Mesh(new THREE.SphereGeometry(0.07, 20, 12), o.giltMat); cart.scale.set(1, 1.25, 0.35); cart.position.set(0, top + rise * 0.42, 0.045); g.add(cart);
+      if (!o.noCartouche) { const cart = new THREE.Mesh(new THREE.SphereGeometry(0.07, 20, 12), o.giltMat); cart.scale.set(1, 1.25, 0.35); cart.position.set(0, top + rise * 0.42, 0.045); g.add(cart); }
     }
   }
   g.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });

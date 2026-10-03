@@ -536,7 +536,7 @@ void surface(vec2 uv, inout Surface s) {
  * tapered dab whose colour is smeared along its axis and modulated by bristle streaks; soft value
  * quantisation; impasto height; canvas weave; craquelure; yellowed varnish; darkened edges.
  */
-export function paintCanvas(forge, key, raw, aspect, size, { varnish = 0.6, coarse = 15, fine = 6 } = {}) {
+export function paintCanvas(forge, key, raw, aspect, size, { varnish = 0.6, coarse = 19, fine = 9 } = {}) {
   return forge.generate(key, {
     size, aspect, tile: false, normalStrength: 0.07,
     uniforms: { tRaw: raw.map, tDet: raw.ormMap, uAsp: aspect, uVarn: varnish, uCoarse: coarse, uFine: fine },
@@ -584,7 +584,7 @@ vec4 dabs(vec2 uv, float cellPx, float lenK, float widK, float seed, float lod, 
       vec3 c = rawAt((cpx + t * a * 0.85) / uResolution, lod);
       float bristle = vnoise(vec2(a * 0.18, b * 1.9) + cid * 13.7, vec2(1e4));
       float dry = smoothstep(0.55, 1.0, abs(an)) * (0.5 + 0.5 * bristle);          // dry-brush tail breaks up
-      c *= 0.9 + 0.2 * bristle;
+      c *= 0.86 + 0.28 * bristle;
       bc = c; bh = cov * (0.55 + 0.45 * bristle) - dry * 0.3;
       best = pri * (1.0 - dry * 0.6);
     }
@@ -608,7 +608,7 @@ void surface(vec2 uv, inout Surface s) {
   // soft value quantisation (painters' value steps), hue preserved
   float lum = dot(col, vec3(0.3, 0.59, 0.11));
   float q = (floor(lum * 6.0) + smoothstep(0.3, 0.7, fract(lum * 6.0))) / 6.0;
-  col *= mix(1.0, q / max(lum, 1e-3), 0.4);
+  col *= mix(1.0, q / max(lum, 1e-3), 0.55);
   // canvas weave shows through the thin passages
   vec2 wv = uv * vec2(uAsp, 1.0) * 260.0;
   float weave = (sin(wv.x * TAU) * 0.5 + 0.5) * (sin(wv.y * TAU + step(0.5, fract(wv.x * 0.5)) * PI) * 0.5 + 0.5);
@@ -706,7 +706,7 @@ float headSDF(vec3 q, out float mat) {
   }
   // heavy hooded upper lids and a lower lid roll (skin), drawn over the eyeballs
   float nar = uV < 0.5 ? 1.0 : 0.0;     // Stauf narrows his eyes
-  d = smin3(d, sdEll(m - vec3(0.029, 0.007 - 0.0018 * nar, 0.075 + 0.0012 * nar), vec3(0.016, 0.0065 + 0.0008 * nar, 0.009)), 0.004);
+  d = smin3(d, sdEll(m - vec3(0.029, 0.007 - 0.0012 * nar, 0.075 + 0.0008 * nar), vec3(0.016, 0.0065 + 0.0005 * nar, 0.009)), 0.004);
   d = smin3(d, sdEll(m - vec3(0.029, -0.011 + 0.0012 * nar, 0.074), vec3(0.014, 0.004 + 0.0005 * nar, 0.007)), 0.004);
   float eye = length(m - vec3(0.029, -0.001, 0.0675)) - 0.0105;
   if (eye < d) { d = eye; mat = 1.0; }
@@ -722,7 +722,7 @@ float bodySDF(vec3 p, out float mat) {
   vec3 c = toHead(p);
   float ring = max(abs(length(c.xz - vec2(0.0, -0.012)) - (uV > 1.5 ? 0.038 : 0.041)) - 0.003, abs(c.y + 0.155) - (uV > 1.5 ? 0.03 : 0.022));
   float wings = sdEll(vec3(abs(c.x), c.y, c.z) - vec3(0.014, -0.168, 0.033), vec3(0.011, 0.006, 0.005));
-  float collar = min(ring, wings);
+  float collar = uV < 0.5 ? ring : min(ring, wings);
   if (collar < coat) { coat = collar; mat = 3.0; }
   vec3 cb = c - vec3(0.0, -0.184, 0.034);
   float bow = min(sdEll(vec3(abs(cb.x) - 0.017, cb.y + abs(cb.x) * 0.0 , cb.z), vec3(0.017, 0.012 + abs(cb.x) * 0.25, 0.008)), length(cb) - 0.0075);
@@ -803,8 +803,8 @@ vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
   } else if (mat < 2.5) {
     alb = uCoat * (0.85 + 0.3 * fb2(uv * 30.0, 3));
     sp = uV > 1.5 ? 0.5 : 0.08;
-  } else if (mat < 3.5) { alb = vec3(0.42, 0.39, 0.33) * (uV > 1.5 ? 0.85 + 0.25 * sin(atan(hp.z, hp.x) * 40.0) : 1.0); sp = 0.1; }
-  else if (mat < 4.5) { alb = vec3(0.012, 0.011, 0.014) * (0.8 + 0.4 * fb2(uv * 90.0, 2)); sp = 0.2; }
+  } else if (mat < 3.5) { alb = vec3(uV < 0.5 ? 0.3 : 0.42, uV < 0.5 ? 0.28 : 0.39, uV < 0.5 ? 0.24 : 0.33) * (uV > 1.5 ? 0.85 + 0.25 * sin(atan(hp.z, hp.x) * 40.0) : 1.0); sp = 0.1; }
+  else if (mat < 4.5) { alb = vec3(0.03, 0.026, 0.032) * (0.8 + 0.4 * fb2(uv * 90.0, 2)); sp = 0.6; }
   else if (mat < 5.5) {
     float str = fb2(vec2(atan(hp.z, hp.x) * 30.0, hp.y * 60.0), 3);
     alb = (uV < 1.5 ? vec3(0.55, 0.53, 0.5) : vec3(0.1, 0.065, 0.04)) * (0.7 + 0.6 * str);
@@ -814,14 +814,20 @@ vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
   vec3 col = alb * (key * mix(wrap * 0.25, dif, 0.8) * mix(0.12, 1.0, sh) + vec3(0.1, 0.12, 0.16) * fill * 0.6 + vec3(0.05, 0.04, 0.035)) * ao;
   col += key * spec * sp * sh * 0.25;
   // a single hard catch-light in each eye
-  if (mat > 0.5 && mat < 1.5) col += vec3(1.0, 0.92, 0.8) * pow(clamp(dot(n, H), 0.0, 1.0), 900.0) * 2.5 * sh;
+  if (mat > 0.5 && mat < 1.5) col += vec3(1.0, 0.92, 0.8) * pow(clamp(dot(n, H), 0.0, 1.0), 500.0) * 5.0 * max(sh, 0.5);
   col += vec3(0.25, 0.3, 0.4) * rim * 0.25 * ao;
+  // a painter's flesh: cool greenish half-tones at the terminator, warm reflected light in the shadow side
+  if (mat < 0.5) {
+    float term = smoothstep(0.55, 0.2, dif) * smoothstep(0.0, 0.12, dif);
+    col = mix(col, col * vec3(0.82, 0.95, 0.9), term * 0.6);
+    col += vec3(0.05, 0.02, 0.008) * (1.0 - dif) * ao * 0.6;
+  }
   // the shirt front V under the stock
   if (mat > 1.5 && mat < 2.5 && uV < 1.5) {
     vec3 b = pos;
     float vee = max(abs(b.x + 0.025) - (b.y + 0.27) * 0.32, b.y + 0.085);
     // a pleated, rumpled shirt-front: greyed linen, folds and creases, falling into shadow
-    float pleat = 0.9 + 0.1 * sin((b.x + 0.025) * 520.0 + fb2(b.xy * 40.0, 2) * 3.0);
+    float pleat = 0.95 + 0.05 * sin((b.x + 0.025) * 300.0 + fb2(b.xy * 40.0, 2) * 3.0);
     float crease = 0.8 + 0.35 * fb2(vec2(b.x * 60.0, b.y * 22.0), 3);
     vec3 shirt = vec3(0.36, 0.33, 0.28) * pleat * crease;
     float inV = smoothstep(0.004, -0.004, vee) * step(-0.36, b.y);
@@ -919,5 +925,5 @@ void surface(vec2 uv, inout Surface s) {
   s.metal = gDetail;
 }`,
   });
-  return paintCanvas(forge, key, raw, aspect, 1024, { varnish: 0.7, coarse: 13, fine: 5 });
+  return paintCanvas(forge, key, raw, aspect, 1024, { varnish: 0.7, coarse: 16, fine: 7 });
 }
