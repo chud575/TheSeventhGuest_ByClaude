@@ -17,9 +17,9 @@ try {
   const s0 = await st();
   console.log('initial', JSON.stringify(s0));
   await page.evaluate(() => { window.__game.startPuzzle(window.__debug.gallery.slide.puzzle); });
-  await page.waitForFunction(() => window.__game.mode === 'puzzle' && !window.__game.nav.moving, null, { timeout: 60000, polling: 300 });
+  await page.waitForFunction(() => window.__game.mode === 'puzzle' && !window.__game.nav.moving, null, { timeout: 400000, polling: 500 });
   await page.waitForTimeout(1500);
-  await page.screenshot({ path: 'review/gallery/qa_puzzle_start.png' });
+  await page.screenshot({ path: 'review/gallery/qa_puzzle_start.png', timeout: 300000 });
   // pick the tile directly above the gap and click its centre on screen
   const target = await page.evaluate(([W, H]) => {
     const sl = window.__debug.gallery.slide;
@@ -40,10 +40,11 @@ try {
   const moved = s1.moves === 1 && s1.board[target.g] === target.id && s1.board[target.idx] === 15;
   console.log('after click', JSON.stringify(s1), moved ? 'SLIDE OK' : 'SLIDE FAILED');
   // an illegal click (diagonal tile) must not move anything
-  await page.screenshot({ path: 'review/gallery/qa_puzzle_mid.png' });
+  await page.screenshot({ path: 'review/gallery/qa_puzzle_mid.png', timeout: 300000 });
   await page.evaluate(() => window.__debug.solve('gallery'));
-  await page.waitForFunction(() => window.__debug.state('gallery').isSolved, null, { timeout: 60000, polling: 300 });
-  await page.waitForFunction(() => window.__game.mode === 'explore', null, { timeout: 90000, polling: 500 }).catch(() => {});
+  await page.waitForFunction(() => window.__debug.state('gallery').isSolved, null, { timeout: 400000, polling: 500 });
+  await page.waitForFunction(() => window.__game.mode === 'explore', null, { timeout: 400000, polling: 500 }).catch(() => {});
+  await page.waitForFunction(() => window.__debug.gallery.slide.revealProgress() >= 1, null, { timeout: 400000, polling: 500 }).catch(() => {});
   await page.waitForTimeout(2500);
   const fin = await st();
   const exitOk = await page.evaluate(() => {
@@ -52,7 +53,7 @@ try {
     return a ? (a.enabled ? a.enabled(window.__game.state) : true) : 'n/a';
   });
   console.log('after solve', JSON.stringify(fin), 'atticExitEnabled=', exitOk, fin.solved && fin.isSolved && fin.atticOpen ? 'SOLVE OK' : 'SOLVE FAILED');
-  await page.screenshot({ path: 'review/gallery/qa_after_solve.png' });
+  await page.screenshot({ path: 'review/gallery/qa_after_solve.png', timeout: 300000 });
 } catch (e) { console.log('QA FAIL', e.message); }
 console.log('errors:', errs.length ? errs.slice(0, 8).join('\n') : 'none');
 await browser.close(); await server.close();

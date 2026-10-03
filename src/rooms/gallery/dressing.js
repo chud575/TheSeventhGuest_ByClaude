@@ -148,68 +148,6 @@ export function makeLightPool(ctx, { w = 1.1, h = 2.2, color = 0xffa25a, intensi
   return mesh;
 }
 
-// ============================================================================ ghost card
-/**
- * The grey lady: a soft painted card (no scan-lines) whose density is modulated by slow 3D
- * noise drifting upward, brightest at her silhouette (a fresnel stand-in taken from the alpha
- * gradient), dissolving at the hem. A second, larger, fainter card behind gives her volume.
- */
-export async function makeGhostCard(ctx) {
-  const tex = await new THREE.TextureLoader().loadAsync(ctx.assetUrl('ghost.png'));
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const mk = (seed, gain) => {
-    const uniforms = { tMap: { value: tex }, uTime: ctx.time, uFade: { value: 1 }, uTint: { value: new THREE.Color(0.66, 0.76, 1.0) }, uGain: { value: gain }, uSeed: { value: seed } };
-    const mat = new THREE.ShaderMaterial({
-      uniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-      vertexShader: /* glsl */ `varying vec2 vUv; varying vec3 vW; uniform float uTime; uniform float uSeed;
-        void main() {
-          vUv = uv; vec3 p = position;
-          // the hem stirs as if in a draught; the head stays still
-          float sway = (1.0 - smoothstep(0.35, 1.0, uv.y));
-          p.x += (sin(uv.y * 5.0 + uTime * 0.9 + uSeed) * 0.018 + sin(uv.y * 11.0 - uTime * 0.6) * 0.006) * sway;
-          vec4 w = modelMatrix * vec4(p, 1.0); vW = w.xyz;
-          gl_Position = projectionMatrix * viewMatrix * w;
-        }`,
-      fragmentShader: /* glsl */ `varying vec2 vUv; varying vec3 vW; uniform sampler2D tMap; uniform float uTime; uniform float uFade; uniform vec3 uTint; uniform float uGain; uniform float uSeed;
-        float h31(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
-        float vn(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
-          return mix(mix(mix(h31(i), h31(i + vec3(1,0,0)), f.x), mix(h31(i + vec3(0,1,0)), h31(i + vec3(1,1,0)), f.x), f.y),
-                     mix(mix(h31(i + vec3(0,0,1)), h31(i + vec3(1,0,1)), f.x), mix(h31(i + vec3(0,1,1)), h31(i + vec3(1,1,1)), f.x), f.y), f.z); }
-        float fbm3(vec3 p) { return vn(p) * 0.55 + vn(p * 2.03 + 7.1) * 0.3 + vn(p * 4.1 + 3.3) * 0.15; }
-        void main() {
-          vec2 uv = vUv;
-          // slow smoke drift upward through the figure
-          vec3 q = vec3(vW.x * 2.2, vW.y * 1.6 - uTime * 0.18, vW.z * 2.2 + uSeed);
-          vec2 wob = vec2(fbm3(q * 0.7) - 0.5, fbm3(q * 0.7 + 11.0) - 0.5) * 0.02;
-          vec4 t = texture2D(tMap, uv + wob * (1.0 - smoothstep(0.75, 0.9, uv.y)));
-          float n = fbm3(q);
-          float a = t.a;
-          // rim: the thin part of the silhouette glows, the dense core is see-through
-          float rim = smoothstep(0.03, 0.22, a) * (1.0 - 0.45 * smoothstep(0.35, 0.7, a));
-          float face = smoothstep(0.78, 0.86, uv.y);                 // keep her face legible
-          float dens = mix(rim * (0.45 + 0.75 * n), a * 1.15, face);
-          dens *= smoothstep(0.0, 0.25, uv.y + 0.15 * (n - 0.5));    // ragged mist at the hem
-          vec3 c = mix(vec3(dot(t.rgb, vec3(0.33))), t.rgb, 0.6) * uTint * dens * uFade * uGain;
-          gl_FragColor = vec4(c, 1.0);
-        }`,
-    });
-    mat.userData.noBake = true;
-    return { mat, uniforms };
-  };
-  const A = mk(0.0, 0.95), B = mk(5.3, 0.3);
-  const card = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 1.74), A.mat);
-  card.name = 'ghost';
-  card.renderOrder = 8;
-  card.userData.noShadow = true;
-  const halo = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 1.74), B.mat);
-  halo.scale.set(1.12, 1.04, 1); halo.position.set(0.015, 0.02, -0.07);
-  halo.renderOrder = 7; halo.userData.noShadow = true; halo.name = 'ghostHalo';
-  card.add(halo);
-  // both cards share uFade through a proxy
-  const uniforms = { uFade: { get value() { return A.uniforms.uFade.value; }, set value(v) { A.uniforms.uFade.value = v; B.uniforms.uFade.value = v; } } };
-  return { mesh: card, uniforms };
-}
-
 // ============================================================================ silhouettes (cut-paper profiles in small ovals)
 export function silhouetteTexture(ctx, seed, female) {
   return ctx.textures.canvas(`gallery:sil:${seed}`, 256, 320, (g, w, h) => {

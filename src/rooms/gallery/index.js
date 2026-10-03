@@ -378,8 +378,8 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
       return g;
     };
     const oBelle = await hangOval('belle', 1, 6.62, 2.28, 0.36, 0.46);
-    // two lesser cabinet pictures by the far doors (an unknown sitter, a dark seascape)
-    for (const [side, z, subject, seed] of [[1, -5.0, 1, 21], [-1, -6.25, 2, 33]]) {
+    // two lesser cabinet pictures by the far doors (dark landscapes)
+    for (const [side, z, subject, seed] of [[1, -5.0, 0, 21], [-1, -6.25, 0, 33]]) {
       const pm = M.create('painting', { subject, seed, aspect: 0.78, size: 512 });
       const f = makeGiltFrame(ctx, mat, pm, 0.4, 0.51, { fw: 0.075 });
       mount(f.group, side, z, 1.8, 0.03);
@@ -428,7 +428,7 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
         const e = c.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.25, w / 2, h / 2, Math.max(w, h) * 0.62);
         e.addColorStop(0, 'rgba(0,0,0,0)'); e.addColorStop(1, 'rgba(10,8,6,0.85)'); c.fillStyle = e; c.fillRect(0, 0, w, h);
       }, { tile: false });
-      const mirrorMat = new THREE.MeshStandardMaterial({ map: silver, color: 0xd0ccc2, metalness: 1.0, roughness: 0.08, envMapIntensity: 1.6, name: 'mirror' });
+      const mirrorMat = new THREE.MeshStandardMaterial({ map: silver, color: 0xd0ccc2, metalness: 0.82, roughness: 0.08, envMapIntensity: 1.6, name: 'mirror' });   // tired silvering: a little diffuse haze
       // the window's RectAreaLight would print a flat glowing card on the glass; the glass shows the
       // (baked) hall instead, so drop rect-light specular for this material only
       mirrorMat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <lights_physical_pars_fragment>', '#include <lights_physical_pars_fragment>\n#undef RE_Direct_RectArea'); };
