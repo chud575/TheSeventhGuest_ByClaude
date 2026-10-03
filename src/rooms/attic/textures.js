@@ -139,34 +139,58 @@ void surface(vec2 uv, inout Surface s) {
 
 /** Limewashed lath-and-plaster with blown patches showing the laths, damp and soot. 1 tile = 1.5 m. */
 export function lathPlasterTexture(forge) {
-  return forge.generate('attic:lath', {
-    size: 1024, normalStrength: 2.4,
+  // 1 tile = 3 m. Limewashed plaster on riven laths: broad tonal drift, hairline cracks, blistered
+  // limewash, and ragged patches where the plaster has fallen to show the laths, the plaster keys
+  // squeezed between them and the dark void behind.
+  return forge.generate('attic:lath3', {
+    size: 2048, normalStrength: 2.6,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
-  float n = fbm(uv + 1.3, vec2(3.0), 6);
-  float blown = smoothstep(0.32, 0.36, fbm(uv * 1.0 + 7.7, vec2(2.0), 5) + 0.12 * n);
-  // laths: horizontal strips with gaps
-  float ly = uv.y * 40.0;
-  float lf = fract(ly);
-  float lath = smoothstep(0.0, 0.08, lf) * smoothstep(0.72, 0.62, lf);
-  float lg = vnoise(vec2(uv.x * 30.0, floor(ly) * 3.1), vec2(30.0, 120.0));
-  vec3 lathC = mix(vec3(0.03, 0.025, 0.02), vec3(0.32, 0.22, 0.13) * (0.7 + 0.4 * lg), lath);
-  vec3 pl = vec3(0.47, 0.45, 0.41) * (0.8 + 0.2 * n);
-  float damp = smoothstep(0.1, 0.55, fbm(uv * vec2(1.0, 0.5) + 3.3, vec2(2.0, 1.0), 5) + (0.5 - uv.y) * 0.3);
-  pl = mix(pl, pl * vec3(0.62, 0.6, 0.5), damp * 0.6);
-  float soot = smoothstep(0.3, 0.9, uv.y) * 0.25;
-  pl *= 1.0 - soot;
-  float cr = voronoiEdge(uv * 6.0 + n * 0.3, vec2(6.0), 0.9);
-  float crack = smoothstep(0.012, 0.0, cr) * step(0.55, fbmv(uv, vec2(3.0), 3));
-  pl *= 1.0 - crack * 0.28;
-  float rim = smoothstep(0.30, 0.34, fbm(uv * 1.0 + 7.7, vec2(2.0), 5) + 0.12 * n) - blown;
-  vec3 c = mix(pl, lathC, blown);
-  c = mix(c, c * 0.6, clamp(rim, 0.0, 1.0));
+  float n = fbm(uv + 1.3, vec2(4.0), 6);
+  float big = fbm(uv * 1.0 + 7.7, vec2(3.0), 5);
+  float edgeN = fbm(uv * 1.0 + 2.1, vec2(24.0), 4);
+  // fallen patches: a few, various sizes, ragged edges
+  float hole = big + 0.18 * (edgeN - 0.5) + 0.1 * (n - 0.5);
+  float blown = smoothstep(0.69, 0.705, hole);
+  float rim = smoothstep(0.655, 0.69, hole) * (1.0 - blown);
+  // laths: 25 mm strips with 8 mm gaps, slightly wavy and of varying width; plaster keys in the gaps
+  float ly = uv.y * 3.0 / 0.033 + vnoise(vec2(uv.x * 12.0, 0.0), vec2(12.0, 1.0)) * 0.4;
+  float row = floor(ly), lf = fract(ly);
+  float lw = 0.68 + 0.12 * hash11(row);
+  float lath = smoothstep(0.0, 0.05, lf) * smoothstep(lw, lw - 0.05, lf);
+  float lg = vnoise(vec2(uv.x * 160.0, row * 3.1), vec2(160.0, 300.0));
+  float lgrain = vnoise(vec2(uv.x * 900.0, row * 7.3 + lf * 4.0), vec2(900.0, 900.0));
+  vec3 lathC = vec3(0.3, 0.2, 0.12) * (0.7 + 0.35 * lg) * (0.85 + 0.25 * lgrain);
+  float key = (1.0 - lath) * step(0.45, vnoise(vec2(uv.x * 60.0, row * 1.7), vec2(60.0, 300.0)));
+  vec3 holeC = mix(vec3(0.02, 0.018, 0.016), vec3(0.36, 0.34, 0.3), key);
+  holeC = mix(holeC, lathC, lath);
+  // plaster body: limewash over grey lime, drifting tone, damp tide marks, fine pores
+  vec3 pl = mix(vec3(0.5, 0.48, 0.44), vec3(0.6, 0.58, 0.53), smoothstep(0.3, 0.7, n));
+  pl *= 0.86 + 0.14 * fbm(uv * 3.0 + 4.0, vec2(12.0), 4);
+  float tide = smoothstep(0.015, 0.0, abs(fbm(uv * vec2(1.0, 2.0) + 3.3, vec2(3.0, 6.0), 5) - 0.52));
+  pl = mix(pl, pl * vec3(0.72, 0.66, 0.55), tide * 0.5);
+  float damp = smoothstep(0.45, 0.75, fbm(uv * vec2(2.0, 1.0) + 9.3, vec2(6.0, 3.0), 5));
+  pl = mix(pl, pl * vec3(0.66, 0.64, 0.56), damp * 0.45);
+  // blistered / flaking limewash: lighter flakes with dark edges
+  vec4 fv = voronoi(uv * 30.0, vec2(90.0), 0.9);
+  float flakeOn = step(0.62, fbm(uv * 2.0 + 5.0, vec2(6.0), 4)) * step(0.5, hash12(fv.zw));
+  float flake = flakeOn * smoothstep(0.04, 0.09, fv.y - fv.x);
+  pl = mix(pl, pl * 0.78, flakeOn * (1.0 - flake) * 0.6);
+  pl = mix(pl, vec3(0.66, 0.64, 0.6), flake * 0.35);
+  // hairline cracks
+  float cr = voronoiEdge(uv * 7.0 + n * 0.25, vec2(21.0), 0.9);
+  float crack = smoothstep(0.012, 0.0, cr) * step(0.55, fbmv(uv * 2.0, vec2(6.0), 3));
+  pl *= 1.0 - crack * 0.45;
+  float pores = vnoise(uv * 1400.0, vec2(1400.0));
+  pl *= 0.94 + 0.08 * pores;
+  vec3 c = mix(pl, holeC, blown);
+  c = mix(c, c * 0.62, rim);   // broken edge: exposed brown coat
+  c = mix(c, vec3(0.42, 0.36, 0.28), rim * 0.4);
   s.albedo = c;
-  s.height = mix(0.75 + 0.05 * n - crack * 0.1, 0.25 * lath, blown);
-  s.rough = mix(0.93, 0.85, blown);
+  s.height = mix(0.78 + 0.04 * n - crack * 0.12 + flake * 0.03 - rim * 0.08, 0.12 + 0.28 * lath + 0.15 * key, blown);
+  s.rough = mix(0.94, 0.86, blown);
   s.metal = 0.0;
-  s.ao = mix(1.0, 0.45 + 0.4 * lath, blown);
+  s.ao = mix(1.0 - rim * 0.3, 0.35 + 0.5 * max(lath, key), blown);
 }`,
   });
 }
@@ -202,12 +226,12 @@ void surface(vec2 uv, inout Surface s) {
   vec2 moon = vec2(0.5, 0.52);
   float md = length(p - moon);
   vec3 sky = mix(vec3(0.02, 0.035, 0.08), vec3(0.12, 0.17, 0.32), smoothstep(0.0, 1.0, p.y));
-  sky += vec3(0.5, 0.6, 0.85) * exp(-md * 5.0) * 0.8;
+  sky += vec3(0.5, 0.6, 0.85) * exp(-md * 4.0) * 0.55;
   float cl = fbm(p * vec2(1.0, 1.6) + vec2(0.2, 0.7), vec2(2.0, 3.0), 6);
   float cl2 = fbm(p + 0.3, vec2(5.0, 8.0), 4);
   float cloud = smoothstep(-0.02, 0.35, cl + cl2 * 0.3);
   // moon disc with maria
-  float disc = smoothstep(0.112, 0.104, md);
+  float disc = 0.0;   // the moon itself is a separate, crisp disc mesh behind the glazing
   float maria = fbmv((p - moon) * 7.0 + 3.0, vec2(4.0), 5);
   vec3 moonC = vec3(1.0, 0.97, 0.9) * (1.15 - 0.35 * smoothstep(0.45, 0.7, maria)) * (1.0 - 0.25 * smoothstep(0.06, 0.11, md));
   vec3 col = mix(sky, moonC * 1.6, disc);
@@ -619,5 +643,92 @@ export function cobwebTangleTexture(forge, seed = 4) {
       g.strokeStyle = `rgba(230,230,235,${0.25 + rnd() * 0.35})`; g.lineWidth = 0.8 + rnd();
       g.beginPath(); g.moveTo(x, y0); g.bezierCurveTo(x + 10, y0 + l * 0.3, x - 12, y0 + l * 0.7, x + (rnd() - 0.5) * 20, Math.min(h - 2, y0 + l)); g.stroke();
     }
+  }, { tile: false });
+}
+
+/** The full moon: limb darkening, maria, rayed craters, a torn wisp of cloud across the lower limb. Alpha = disc. */
+export function moonDiscTexture(forge) {
+  return forge.generate('attic:moondisc', {
+    size: 1024, tile: false, normalStrength: 0.0,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 p = (uv - 0.5) * 2.0;
+  float r = length(p);
+  float disc = smoothstep(0.985, 0.965, r);
+  float mu = sqrt(max(0.0, 1.0 - r * r));
+  // maria: broad smooth dark basins (fixed blobs + soft noise edges)
+  float m1 = fbm(p * 0.7 + vec2(3.1, 1.7), vec2(8.0), 4);
+  float basins = 0.55 * exp(-dot(p - vec2(-0.28, 0.32), p - vec2(-0.28, 0.32)) * 4.0) + 0.45 * exp(-dot(p - vec2(0.3, 0.12), p - vec2(0.3, 0.12)) * 6.0) + 0.35 * exp(-dot(p - vec2(-0.05, -0.12), p - vec2(-0.05, -0.12)) * 9.0) + 0.3 * exp(-dot(p - vec2(-0.55, -0.15), p - vec2(-0.55, -0.15)) * 10.0);
+  float maria = smoothstep(0.35, 0.6, basins + (m1 - 0.5) * 0.5);
+  vec3 c = mix(vec3(0.9, 0.9, 0.88), vec3(0.5, 0.52, 0.55), maria * 0.85);
+  // small craters: faint dark floors with a bright rim on the lit side
+  vec4 v = voronoi(p * 9.0 + 2.3, vec2(64.0), 0.9);
+  float on = step(0.82, hash12(v.zw));
+  float rr = 0.2 + 0.15 * hash12(v.zw * 1.7);
+  float dd = v.x / rr;
+  c *= 1.0 - smoothstep(1.0, 0.5, dd) * on * 0.12;
+  c += vec3(0.07) * smoothstep(0.8, 1.0, dd) * smoothstep(1.3, 1.0, dd) * on;
+  vec2 ty = p - vec2(-0.12, -0.55);
+  float tycho = exp(-dot(ty, ty) * 120.0);
+  float rays = pow(abs(sin(atan(ty.y, ty.x) * 9.0 + fbm(p * 3.0, vec2(4.0), 3) * 3.0)), 18.0) * exp(-length(ty) * 2.2);
+  c += vec3(0.5) * tycho + vec3(0.16) * rays;
+  float speck = vnoise(p * 140.0, vec2(140.0));
+  c *= 0.95 + 0.06 * speck;
+  // limb darkening + a cold rim tint
+  c *= 0.55 + 0.45 * pow(mu, 0.45);
+  c *= vec3(0.97, 0.98, 1.02);
+  // torn cloud wisp across the lower limb
+  float cl = fbm(vec2(p.x * 1.2, p.y * 3.0) + vec2(0.3, 1.9), vec2(4.0, 8.0), 5);
+  float band = smoothstep(0.2, 0.0, abs(p.y + 0.48 + (cl - 0.5) * 0.5)) * smoothstep(0.35, 0.65, cl);
+  c = mix(c, c * 0.35 + vec3(0.06, 0.07, 0.1), band * 0.8);
+  s.albedo = c;
+  s.alpha = disc;
+  s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+}
+
+/** Grimy oculus glazing: dirt thickening toward the frame, rain runs, fly specks, and one cracked pane. RGBA. */
+export function oculusGrimeTexture(forge) {
+  return forge.canvas('attic:oculusgrime', 1024, 1024, (g, w, h) => {
+    let sd = 41;
+    const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+    g.clearRect(0, 0, w, h);
+    const cx = w / 2, cy = h / 2, R = w / 2;
+    // radial dirt build-up against the outer frame and the inner ring
+    const rg = g.createRadialGradient(cx, cy, 0, cx, cy, R);
+    rg.addColorStop(0.0, 'rgba(46,44,40,0.12)'); rg.addColorStop(0.28, 'rgba(46,44,40,0.08)'); rg.addColorStop(0.34, 'rgba(46,44,40,0.35)'); rg.addColorStop(0.4, 'rgba(46,44,40,0.06)');
+    rg.addColorStop(0.6, 'rgba(46,44,40,0.05)'); rg.addColorStop(0.82, 'rgba(40,38,34,0.25)'); rg.addColorStop(0.95, 'rgba(30,28,25,0.8)'); rg.addColorStop(1, 'rgba(30,28,25,0.9)');
+    g.fillStyle = rg; g.fillRect(0, 0, w, h);
+    // blotchy grime
+    for (let i = 0; i < 260; i++) {
+      const a = rnd() * Math.PI * 2, r = R * Math.sqrt(rnd());
+      const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r, s = 10 + rnd() * 60;
+      const b = g.createRadialGradient(x, y, 0, x, y, s);
+      b.addColorStop(0, `rgba(40,38,32,${(0.03 + rnd() * 0.08) * (0.3 + 0.7 * r / R)})`); b.addColorStop(1, 'rgba(40,38,32,0)');
+      g.fillStyle = b; g.fillRect(x - s, y - s, s * 2, s * 2);
+    }
+    // rain runs: clean-ish channels with dirty edges dragging down
+    for (let i = 0; i < 60; i++) {
+      const x0 = rnd() * w, y0 = rnd() * h * 0.6, len = 60 + rnd() * 300;
+      g.strokeStyle = `rgba(30,28,24,${0.12 + rnd() * 0.2})`; g.lineWidth = 1 + rnd() * 3;
+      g.beginPath(); g.moveTo(x0, y0);
+      let x = x0; for (let y = y0; y < y0 + len; y += 8) { x += (rnd() - 0.5) * 3; g.lineTo(x, y); }
+      g.stroke();
+    }
+    // fly specks
+    for (let i = 0; i < 160; i++) { g.fillStyle = `rgba(15,12,10,${0.2 + rnd() * 0.4})`; g.beginPath(); g.arc(rnd() * w, rnd() * h, 0.6 + rnd() * 1.6, 0, Math.PI * 2); g.fill(); }
+    // cracked pane: a star of cracks in the lower-right pane, edges catching light
+    const ox = cx + R * 0.48, oy = cy + R * 0.38;
+    g.lineCap = 'round';
+    for (let k = 0; k < 9; k++) {
+      let a = k * 0.7 + rnd() * 0.4, x = ox, y = oy;
+      const L = 60 + rnd() * 200;
+      g.beginPath(); g.moveTo(x, y);
+      for (let d = 0; d < L; d += 12) { a += (rnd() - 0.5) * 0.35; x += Math.cos(a) * 12; y += Math.sin(a) * 12; g.lineTo(x, y); }
+      g.strokeStyle = 'rgba(210,220,240,0.85)'; g.lineWidth = 1.6; g.stroke();
+      g.strokeStyle = 'rgba(10,10,12,0.5)'; g.lineWidth = 3.5; g.globalCompositeOperation = 'destination-over'; g.stroke(); g.globalCompositeOperation = 'source-over';
+    }
+    for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(ox, oy, 18 + k * 26 + rnd() * 10, rnd() * 6, rnd() * 6 + 1.2); g.strokeStyle = 'rgba(200,210,235,0.5)'; g.lineWidth = 1.1; g.stroke(); }
   }, { tile: false });
 }

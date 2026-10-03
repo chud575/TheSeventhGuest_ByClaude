@@ -385,7 +385,7 @@ export function buildBirdCage(ctx, m) {
  * the skirt falling to the floor with folds and a little pooling.
  * topH(x, z) gives the top surface over the footprint [-hw,hw]x[-hd,hd].
  */
-export function dustSheetGeometry({ hw, hd, topH, seg = 72, seed = 1, flare = 0.06 }) {
+export function dustSheetGeometry({ hw, hd, topH, seg = 72, seed = 1, flare = 0.06, hem: hemY = 0 }) {
   const maxH = 2.2;
   const L = Math.max(hw, hd) + maxH;
   const g = new THREE.PlaneGeometry(2 * L, 2 * L, seg, seg).rotateX(-Math.PI / 2);
@@ -402,7 +402,8 @@ export function dustSheetGeometry({ hw, hd, topH, seg = 72, seed = 1, flare = 0.
     const cz = THREE.MathUtils.clamp(uz * (hd + 0.6), -hd, hd);
     const ex = ux * (hw + 0.6) - cx, ez = uz * (hd + 0.6) - cz;
     const top = topH(cx, cz);
-    let e = Math.min(Math.hypot(ex, ez) * (maxH / 0.6), top + 0.1 + 0.05 * Math.sin(Math.atan2(ez, ex) * 7 + seed));
+    const hemWave = 0.05 * Math.sin(Math.atan2(ez, ex) * 7 + seed) + 0.03 * Math.sin(Math.atan2(ez, ex) * 17 + seed * 3.1);
+    let e = Math.min(Math.hypot(ex, ez) * (maxH / 0.6), hemY > 0 ? Math.max(0.02, top - hemY + hemWave) : top + 0.1 + hemWave);
     let y = top - e;
     const dirx = e > 0 ? ex / Math.hypot(ex, ez) : 0, dirz = e > 0 ? ez / Math.hypot(ex, ez) : 0;
     const per = Math.atan2(cz + dirz, cx + dirx);
@@ -494,5 +495,28 @@ export function buildChair(ctx, m) {
   // spindle back + bow
   const bow = mesh(new THREE.TorusGeometry(0.19, 0.016, 8, 28, Math.PI), m.benchFrame); at(bow, 0, 0.62, -0.15); bow.rotation.x = -0.15; g.add(bow);
   for (let i = 0; i < 7; i++) { const a = (i / 6) * Math.PI; const sp = mesh(new THREE.CylinderGeometry(0.007, 0.009, 0.36, 6), m.benchFrame); at(sp, Math.cos(a) * 0.17, 0.62, -0.15 - 0.03); sp.rotation.x = -0.15; g.add(sp); sp.position.y = 0.46 + Math.sin(a) * 0.16; sp.scale.y = (Math.sin(a) * 0.16 + 0.17) / 0.36 * 1.0 + 0.1; sp.position.y = 0.46 + (Math.sin(a) * 0.19 + 0.17) / 2; sp.scale.y = (Math.sin(a) * 0.19 + 0.17) / 0.36; }
+  return g;
+}
+
+/** an old coat hung from a peg by its collar: shoulders tented over the peg, folds deepening toward the hem, back flattened to the wall. origin = peg tip, +z = away from wall */
+export function hangingCoatGeometry({ len = 1.1, width = 0.2, seed = 1, cape = false } = {}) {
+  const prof = cape
+    ? [[0.005, 0.0], [0.05, -0.02], [0.12, -0.08], [0.17, -0.2], [0.2, -0.45], [0.23, -len * 0.75], [0.25, -len]]
+    : [[0.005, 0.0], [0.06, -0.025], [0.13, -0.07], [width, -0.14], [width * 0.95, -0.3], [width * 0.88, -0.5], [width * 0.95, -0.75], [width * 1.08, -len]];
+  const g = new THREE.LatheGeometry(prof.map(([r, y]) => V2(Math.max(r, 1e-4), y)), 56, 0, Math.PI * 2);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const a = Math.atan2(z, x);
+    const k = THREE.MathUtils.clamp(-y / len, 0, 1);
+    const fold = Math.sin(a * 7 + seed) * 0.6 + Math.sin(a * 13 + seed * 1.7) * 0.4;
+    const f = 1 + fold * 0.12 * k * k;
+    x *= f; z *= f;
+    z = z > 0 ? z * 0.42 : z * 0.12;       // flattened, back against the wall
+    z += 0.035;
+    y += Math.sin(a * 5 + seed) * 0.015 * k;
+    p.setXYZ(i, x, y, z);
+  }
+  g.computeVertexNormals();
   return g;
 }
