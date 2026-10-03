@@ -78,7 +78,7 @@ export default {
     const ironSet = castIronTexture(forge, 1024);
     mat.iron = matFrom(ironSet, { repeat: [3, 3], name: 'iron' });
     mat.ironPolished = matFrom(ironSet, { repeat: [3, 3], name: 'ironPolished', roughness: 0.7, envMapIntensity: 1.3 });
-    mat.copper = matFrom(copperTexture(forge, 1024), { repeat: [4, 4], name: 'copper', envMapIntensity: 1.6, normalScale: new THREE.Vector2(0.3, 0.3), roughness: 0.8 });
+    mat.copper = matFrom(copperTexture(forge, 1024), { repeat: [4, 4], name: 'copper', envMapIntensity: 0.75, normalScale: new THREE.Vector2(0.3, 0.3), roughness: 0.9, color: new THREE.Color(0.62, 0.56, 0.52) });
     mat.butcher = matFrom(butcherBlockTexture(forge, { aspect: 1.5 / 0.78, size: 2048 }), { name: 'butcher' });
     mat.boarding = matFrom(boardingTexture(forge, { color: [0.1, 0.17, 0.2] }), { repeat: [1 / 0.6, 1 / 0.6], name: 'boarding' });
     mat.dresserPaint = matFrom(boardingTexture(forge, { color: [0.13, 0.22, 0.26] }), { repeat: [0.4, 1.5], name: 'dresserPaint' });
@@ -232,6 +232,48 @@ export default {
         add(mk(new THREE.TorusGeometry(0.016, 0.003, 6, 14, Math.PI * 1.3), mat.brass, px + r, railY + 0.012, railZ, 0, Math.PI / 2, 0));
         px += r * 2 + 0.05;
       });
+      // a framed needlework sampler above the pans
+      {
+        const tex = forge.canvas('kitchen:sampler', 512, 640, (g2, W2, H2) => {
+          // stitch the design on a coarse grid first, then enlarge it as cross-stitches
+          const gw = 64, gh = 80;
+          const sc = document.createElement('canvas'); sc.width = gw; sc.height = gh;
+          const s2 = sc.getContext('2d');
+          s2.fillStyle = '#000'; s2.fillRect(0, 0, gw, gh);
+          s2.textAlign = 'center'; s2.textBaseline = 'middle';
+          s2.fillStyle = '#7a1a16'; s2.font = 'bold 9px Georgia, serif';
+          s2.fillText('ABCDEFGHI', gw / 2, 8); s2.fillText('KLMNOPQRS', gw / 2, 17);
+          s2.fillStyle = '#1d3b6a'; s2.font = 'bold 10px Georgia, serif';
+          s2.fillText('WASTE', gw / 2, 31); s2.fillText('NOT', gw / 2, 41);
+          s2.fillStyle = '#2f4a22'; s2.font = 'bold 8px Georgia, serif';
+          s2.fillText('NOT EVEN', gw / 2, 52); s2.fillText('GUESTS', gw / 2, 60);
+          s2.fillStyle = '#5a2a14'; s2.fillRect(22, 66, 20, 9); s2.fillStyle = '#7a1a16'; s2.beginPath(); s2.moveTo(20, 66); s2.lineTo(32, 60); s2.lineTo(44, 66); s2.fill();
+          s2.strokeStyle = '#7a1a16'; s2.lineWidth = 1; s2.strokeRect(1.5, 1.5, gw - 3, gh - 3);
+          const px = s2.getImageData(0, 0, gw, gh).data;
+          g2.fillStyle = '#cdbf9c'; g2.fillRect(0, 0, W2, H2);
+          // linen weave
+          g2.globalAlpha = 0.18; g2.fillStyle = '#6a5a3a';
+          for (let y = 0; y < H2; y += 4) g2.fillRect(0, y, W2, 1);
+          for (let x = 0; x < W2; x += 4) g2.fillRect(x, 0, 1, H2);
+          g2.globalAlpha = 1;
+          const cw = W2 / gw, ch = H2 / gh;
+          for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+            const i = (y * gw + x) * 4;
+            if (px[i] + px[i + 1] + px[i + 2] < 90) continue;
+            g2.strokeStyle = `rgb(${px[i]},${px[i + 1]},${px[i + 2]})`; g2.lineWidth = 2.2;
+            g2.beginPath(); g2.moveTo(x * cw + 1, y * ch + 1); g2.lineTo((x + 1) * cw - 1, (y + 1) * ch - 1);
+            g2.moveTo((x + 1) * cw - 1, y * ch + 1); g2.lineTo(x * cw + 1, (y + 1) * ch - 1); g2.stroke();
+          }
+          // foxing
+          for (let k = 0; k < 30; k++) { g2.fillStyle = 'rgba(120,80,30,0.12)'; g2.beginPath(); g2.arc((k * 97) % W2, (k * 61) % H2, 6 + (k % 5) * 4, 0, Math.PI * 2); g2.fill(); }
+        }, { tile: false });
+        const sw = 0.4, sh = 0.5;
+        const smp = new THREE.Group();
+        smp.add(new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95, name: 'sampler' })));
+        smp.add(mk(G.frameGeometry(sw, sh, { width: 0.045, depth: 0.03, uvScale: 1 }), mat.mahogany));
+        smp.position.set((CH.x0 + CH.x1) / 2, 2.95, zf + 0.012);
+        add(smp);
+      }
       // mantel clutter: brass candlesticks, stoneware jars, a tea caddy, salt pig, a clock
       const mtop = my + 0.025;
       const stick = lathe(G, [[0, 0], [0.05, 0], [0.048, 0.01], [0.02, 0.025], [0.014, 0.06], [0.02, 0.07], [0.012, 0.16], [0.018, 0.2], [0.025, 0.21], [0.012, 0.22], [0, 0.22]], 24);
@@ -435,6 +477,25 @@ export default {
       add(mk(jar, jarGlass, -L / 2 + 0.13, ry1, 0.15), dg);
       add(mk(jar, jarGlass, L / 2 - 0.13, ry0, 0.15), dg);
       add(mk(jar, jarGlass, -L / 2 + 0.13, ry0, 0.15), dg);
+      // jugs and mugs hanging from cup hooks along the shelf fronts (between the can rows)
+      {
+        const mug = lathe(G, [[0, 0], [0.036, 0], [0.038, 0.01], [0.037, 0.075], [0.04, 0.085], [0.034, 0.085], [0.032, 0.012], [0, 0.01]], 24);
+        const jug = lathe(G, [[0, 0], [0.04, 0], [0.05, 0.03], [0.052, 0.07], [0.04, 0.1], [0.038, 0.115], [0.046, 0.125], [0.04, 0.127], [0.032, 0.11], [0, 0.1]], 24);
+        const enamel = new THREE.MeshPhysicalMaterial({ color: 0xe6e2d6, roughness: 0.25, clearcoat: 0.8, name: 'enamelMug' });
+        const blueRim = new THREE.MeshPhysicalMaterial({ color: 0x1c2f66, roughness: 0.25, clearcoat: 0.8, name: 'enamelBlue' });
+        const ys = [dresser.shelves[0].y, dresser.shelves[1].y];
+        ys.forEach((yy, r) => {
+          for (let k = 0; k < 5; k++) {
+            const x = -L / 2 + 0.2 + k * ((L - 0.4) / 4) + (r ? 0.1 : 0);
+            const hook = mk(new THREE.TorusGeometry(0.008, 0.0016, 6, 12, Math.PI * 1.4), mat.brass, x, yy - 0.035, dresser.SD - 0.012, 0, Math.PI / 2, 0);
+            add(hook, dg);
+            const isJug = (k + r) % 2 === 0;
+            const m = mk(isJug ? jug : mug, (k + r) % 3 === 0 ? blueRim : enamel, x, yy - 0.05 - (isJug ? 0.128 : 0.088), dresser.SD - 0.012 + 0.0, 0, k * 0.7, 0);
+            add(m, dg);
+            add(mk(new THREE.TorusGeometry(0.022, 0.005, 6, 12), (k + r) % 3 === 0 ? blueRim : enamel, x + 0.045, yy - 0.05 - (isJug ? 0.07 : 0.045), dresser.SD - 0.012), dg);
+          }
+        });
+      }
       // paraffin lamp at the near end of the worktop: warm raking light up the shelves
       const lamp = buildOilLamp(ctx, mat);
       lamp.group.position.set(0.7, dresser.BH, 0.3);
@@ -448,19 +509,19 @@ export default {
       add(mk(crock(G, 0.18, 0.065, 0.95), mat.stonewareBrown, -0.55, dresser.BH, 0.3), dg);
       for (let i = 0; i < 4; i++) {
         const sp = new THREE.Group();
-        sp.add(mk(new THREE.CylinderGeometry(0.007, 0.006, 0.32, 8), mat.pine, 0, 0.16, 0));
-        sp.add(mk(new THREE.SphereGeometry(0.025, 12, 8), mat.pine, 0, 0.33, 0)).scale.set(1, 1.4, 0.4);
+        sp.add(mk(new THREE.CylinderGeometry(0.007, 0.006, 0.22, 8), mat.pine, 0, 0.11, 0));
+        sp.add(mk(new THREE.SphereGeometry(0.022, 12, 8), mat.pine, 0, 0.23, 0)).scale.set(1, 1.4, 0.4);
         sp.position.set(-0.55 + (i - 1.5) * 0.015, dresser.BH + 0.05, 0.3);
         sp.rotation.set((i - 1.5) * 0.15, i, (i % 2 ? 0.15 : -0.12));
         add(sp, dg);
       }
     }
-    const camDist = 1.32;
+    const camDist = 1.42;
     const shelfMidY = (dresser.shelves[0].y + dresser.shelves[2].y) / 2 + 0.05;
     const cans = await createCansPuzzle(ctx, dresser.group, dresser.shelves, {
       tinMat: mat.tinPlate,
-      camera: { position: [X0 + camDist, shelfMidY + 0.02, DRESSER_Z], target: [X0, shelfMidY, DRESSER_Z], fov: 40 },
-      onSolved: async () => { await revealDumbwaiter(true); },
+      camera: { position: [X0 + camDist, shelfMidY + 0.02, DRESSER_Z], target: [X0, shelfMidY, DRESSER_Z], fov: 46 },
+      onSolved: async () => { revealDumbwaiter(true); await say('A pinch of salt, a splash of sherry... and a *guest*. Somewhere above you, the dumbwaiter begins to move.'); },
     });
 
     // ================================================================ butcher block + props
@@ -632,29 +693,39 @@ export default {
       g.add(cs);
       g.add(mk(rbox(G, 0.12, 0.04, w + 0.2, 0.008), mat.pineDark, X1 - 0.04, y0 - 0.02, zc));
       // jambs inside the wall thickness
-      for (const s of [-1, 1]) g.add(mk(new THREE.BoxGeometry(0.06, h, 0.02), mat.hatch, X1 + 0.03, y0 + h / 2, zc + s * (w / 2 + 0.01)));
+      for (const s of [-1, 1]) g.add(mk(new THREE.BoxGeometry(0.08, h, 0.02), mat.hatch, X1 + 0.04, y0 + h / 2, zc + s * (w / 2 + 0.01)));
       hatch = new THREE.Group();
       hatch.add(mk(G.raisedPanel(w - 0.02, h - 0.02, { border: 0.06, bevel: 0.02 }), mat.hatch, 0, 0, 0, 0, -Math.PI / 2, 0));
       hatch.add(mk(rbox(G, 0.02, 0.025, 0.16, 0.006), mat.brass, -0.02, -h / 2 + 0.08, 0));
-      hatch.position.set(X1 + 0.015, y0 + h / 2, zc);
+      hatch.position.set(X1 + 0.05, y0 + h / 2, zc);
       hatch.userData.dynamic = true;
       g.add(hatch);
-      // brass bell with a pull + speaking tube
+      // brass bell on a coiled spring bracket, and an enamel plate
       const bell = new THREE.Group();
-      bell.add(mk(lathe(G, [[0, 0], [0.05, 0], [0.048, 0.01], [0.035, 0.04], [0.025, 0.07], [0.0, 0.075]], 24), mat.brass, 0, 0, 0, Math.PI, 0, 0));
-      bell.add(mk(new THREE.TorusGeometry(0.06, 0.006, 8, 20, Math.PI), mat.brass, 0, 0.0, 0, 0, Math.PI / 2, 0));
-      bell.position.set(X1 - 0.08, y0 + h + 0.32, zc - w / 2 - 0.08);
+      bell.add(mk(lathe(G, [[0, 0], [0.065, 0], [0.062, 0.012], [0.045, 0.05], [0.032, 0.09], [0.0, 0.095]], 28), mat.brass, 0, -0.06, 0));
+      bell.add(mk(new THREE.SphereGeometry(0.012, 10, 8), mat.steel, 0, -0.012, 0));
+      bell.add(mk(tube(Array.from({ length: 30 }, (_, i) => [0.05 + i * 0.004, 0.02 + Math.sin(i * 0.9) * 0.014, Math.cos(i * 0.9) * 0.014]), 0.0022, 90, 4), mat.steel, 0, 0, 0, 0, Math.PI / 2, 0));
+      bell.add(mk(rbox(G, 0.012, 0.06, 0.05, 0.004), mat.brass, 0, 0.02, -0.18 + 0.0));
+      bell.position.set(X1 - 0.17, y0 + h + 0.36, zc);
       g.add(bell);
-      g.add(mk(tube([[X1 - 0.02, y0 + h + 0.6, zc + w / 2 + 0.15], [X1 - 0.05, y0 + h + 0.25, zc + w / 2 + 0.15], [X1 - 0.12, y0 + h + 0.05, zc + w / 2 + 0.15]], 0.016, 16, 10), mat.brass));
-      g.add(mk(lathe(G, [[0.016, 0], [0.03, 0.02], [0.035, 0.05], [0.03, 0.055], [0.014, 0.03]], 20), mat.brass, X1 - 0.13, y0 + h + 0.03, zc + w / 2 + 0.15, 0, 0, Math.PI / 2 + 0.6));
+      const plate = forge.canvas('kitchen:liftplate', 512, 128, (g2, W2, H2) => {
+        g2.fillStyle = '#e9e3d2'; g2.fillRect(0, 0, W2, H2);
+        g2.strokeStyle = '#1d2b55'; g2.lineWidth = 8; g2.strokeRect(10, 10, W2 - 20, H2 - 20);
+        g2.fillStyle = '#1d2b55'; g2.font = '600 44px Cinzel, Georgia, serif'; g2.textAlign = 'center'; g2.textBaseline = 'middle';
+        g2.fillText('SERVICE LIFT', W2 / 2, 52);
+        g2.font = '600 20px Cinzel, Georgia, serif'; g2.fillText('TO THE DINING ROOM', W2 / 2, 92);
+      }, { tile: false });
+      const pm = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.09), new THREE.MeshPhysicalMaterial({ map: plate, roughness: 0.2, clearcoat: 1, name: 'enamelPlate' }));
+      pm.position.set(X1 - 0.004, y0 + h + 0.13, zc); pm.rotation.y = -Math.PI / 2;
+      g.add(pm);
       add(g);
-      dumbLight = new THREE.PointLight(0x7f9cff, 0, 2.2, 2);
-      dumbLight.position.set(X1 + 0.2, y0 + 0.45, zc);
+      dumbLight = new THREE.PointLight(0x7f9cff, 0, 3.2, 2);
+      dumbLight.position.set(X1 - 0.06, y0 + 0.35, zc);
       add(dumbLight);
     }
     const setHatch = (t) => {
       hatch.position.y = DUMB.y + DUMB.h / 2 + t * (DUMB.h + 0.05);
-      dumbLight.intensity = 0.35 + t * 1.3;
+      dumbLight.intensity = 0.9 + t * 1.6;
     };
     setHatch(dumb.t);
     async function revealDumbwaiter(animate) {
@@ -687,7 +758,7 @@ export default {
       leaf.rotation.y = -Math.PI / 2 + 0.45;
       add(leaf);
       // dark passage beyond
-      const passage = new THREE.Mesh(G.planeUV(w + 0.4, h + 0.2, 1), mat.soot);
+      const passage = new THREE.Mesh(G.planeUV(w + 0.4, h + 0.2, 1), mat.plaster);
       passage.rotation.y = -Math.PI / 2; passage.position.set(X1 + 1.2, h / 2, zc); add(passage);
       for (const s of [-1, 1]) {
         const side = new THREE.Mesh(G.planeUV(1.2, h, 1), mat.plaster);
@@ -764,6 +835,51 @@ export default {
       add(broom);
     }
 
+    // ================================================================ right wall shelf: canisters, moulds, jugs
+    {
+      const z0 = -3.55, z1 = -1.75, y = 1.95, d = 0.26;
+      const sg = new THREE.Group();
+      sg.add(mk(rbox(G, d, 0.03, z1 - z0, 0.006), mat.dresserPaint, X1 - d / 2, y - 0.015, (z0 + z1) / 2));
+      sg.add(mk(rbox(G, 0.02, 0.05, z1 - z0, 0.006), mat.dresserPaint, X1 - d + 0.01, y - 0.01, (z0 + z1) / 2));
+      for (const z of [z0 + 0.12, (z0 + z1) / 2, z1 - 0.12]) {
+        const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(0.22, 0); sh.quadraticCurveTo(0.05, -0.04, 0, -0.2); sh.lineTo(0, 0);
+        sg.add(mk(G.applyBoxUVs(new THREE.ExtrudeGeometry(sh, { depth: 0.025, bevelEnabled: false }), 1), mat.dresserPaint, X1, y - 0.03, z - 0.0125, 0, Math.PI, 0));
+      }
+      // japanned canisters with gilt names
+      const words = ['TEA', 'SUGAR', 'FLOUR', 'RICE', 'SAGO'];
+      const atlas = forge.canvas('kitchen:canisters', 1024, 640, (g2, W2, H2) => {
+        const cols = ['#5a0f0c', '#14201a', '#5a0f0c', '#14201a', '#1a1a2a'];
+        words.forEach((wd, i) => {
+          const y0 = i * 128;
+          g2.fillStyle = cols[i]; g2.fillRect(0, y0, W2, 128);
+          g2.strokeStyle = '#c9a050'; g2.lineWidth = 3; g2.strokeRect(6, y0 + 10, W2 - 12, 108);
+          g2.lineWidth = 1; g2.strokeRect(14, y0 + 18, W2 - 28, 92);
+          g2.fillStyle = '#d8b25e'; g2.font = '600 54px Cinzel, Georgia, serif'; g2.textAlign = 'center'; g2.textBaseline = 'middle';
+          g2.fillText(wd, W2 / 2, y0 + 66);
+          for (const x of [W2 / 2 - 190, W2 / 2 + 190]) { g2.beginPath(); g2.arc(x, y0 + 64, 14, 0, Math.PI * 2); g2.stroke(); }
+        });
+      }, { tile: false });
+      atlas.flipY = true;
+      const canMat = new THREE.MeshPhysicalMaterial({ map: atlas, roughness: 0.35, metalness: 0.2, clearcoat: 0.8, clearcoatRoughness: 0.2, name: 'canister' });
+      words.forEach((wd, i) => {
+        const r = 0.07 - (i % 3) * 0.008, h = 0.2 - i * 0.015;
+        const geo = new THREE.CylinderGeometry(r, r, h, 32, 1, true);
+        geo.rotateY(Math.PI);
+        const uv = geo.attributes.uv;
+        for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k), 1 - (i + 1) / 5 + uv.getY(k) / 5);
+        const zc = z0 + 0.14 + i * 0.17;
+        const c = mk(geo, canMat, X1 - 0.12, y + h / 2, zc, 0, -Math.PI / 2, 0);
+        sg.add(c);
+        sg.add(mk(new THREE.CylinderGeometry(r + 0.003, r + 0.003, 0.02, 32), mat.iron, X1 - 0.12, y + h + 0.01, zc));
+        sg.add(mk(new THREE.SphereGeometry(0.012, 10, 8), mat.brass, X1 - 0.12, y + h + 0.026, zc));
+      });
+      // copper jelly moulds and a pewter charger standing at the end
+      sg.add(mk(lathe(G, [[0, 0], [0.08, 0], [0.09, 0.03], [0.07, 0.06], [0.085, 0.09], [0.05, 0.13], [0.03, 0.15], [0.0, 0.155]], 28), mat.copper, X1 - 0.13, y, z1 - 0.12));
+      const charger = mk(lathe(G, [[0, 0], [0.1, 0], [0.12, 0.01], [0.17, 0.02], [0.168, 0.026], [0.115, 0.016], [0, 0.012]], 40), M.basic('silver', { color: 0x8a8a8c, roughness: 0.45 }), X1 - 0.05, y + 0.17, z0 + 0.98, 0, 0, Math.PI / 2 - 0.15);
+      sg.add(charger);
+      add(sg);
+    }
+
     // ================================================================ front wall: meat safe + utensil rail
     {
       // meat safe: tall painted cupboard with perforated zinc panels (faces -z)
@@ -815,7 +931,7 @@ export default {
       const spots = [
         { p: V3(X0, 1.98, -0.3), ry: Math.PI / 2, i: 3.4 },          // left wall, beyond the dresser
         { p: V3(X1, 1.98, -0.05), ry: -Math.PI / 2, i: 3.2 },        // right wall, by the dumbwaiter
-        { p: V3(0.12, 2.02, Z0), ry: 0, i: 2.0 },                     // back wall between breast and plate rack
+        { p: V3(0.12, 2.02, Z0), ry: 0, i: 1.4 },                     // back wall between breast and plate rack
         { p: V3(2.7, 2.15, Z1), ry: Math.PI, i: 2.6 },                // front wall above the utensil rail
       ];
       for (const s of spots) {
@@ -949,6 +1065,10 @@ export default {
         onActivate: () => ctx.ui.caption('The kitchen garden, gone to seed under the moon. The glasshouse panes are fogged from the inside.', { title: 'The Window' }),
       },
       {
+        id: 'sampler', nodes: ['range', 'main'], box: { min: [(CH.x0 + CH.x1) / 2 - 0.25, 2.65, Z0 + CH.d - 0.02], max: [(CH.x0 + CH.x1) / 2 + 0.25, 3.25, Z0 + CH.d + 0.06] }, cursor: 'examine', label: 'A sampler',
+        onActivate: () => ctx.ui.caption('WASTE NOT — NOT EVEN GUESTS. Stitched by a child, in thread the colour of old gravy.', { title: 'The Sampler' }),
+      },
+      {
         id: 'clock', nodes: ['range'], sphere: { center: [(CH.x0 + CH.x1) / 2 + 0.05, 1.86, Z0 + CH.d + 0.15], radius: 0.18 }, cursor: 'examine', label: 'The clock',
         onActivate: () => ctx.ui.caption('Five to midnight. It has been five to midnight in this kitchen for a very long time.', { title: 'The Kitchen Clock' }),
       },
@@ -993,7 +1113,7 @@ export default {
       scene: root,
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
-      grade: { exposure: 1.75, contrast: 1.08, saturation: 0.98, bloomStrength: 0.38, bloomThreshold: 1.0, godRayWeight: 0.35, godRayThreshold: 2.5, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4 },
+      grade: { exposure: 1.9, contrast: 1.08, saturation: 0.98, bloomStrength: 0.38, bloomThreshold: 1.0, godRayWeight: 0.35, godRayThreshold: 2.5, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4 },
       environment: { position: [0.2, 1.7, 1.2], intensity: 0.8 },
       onEnter() {
         if (!ctx.state.has('kitchen.greeted')) {

@@ -109,8 +109,8 @@ export function buildRange(ctx, mat) {
       p.setZ(i, Math.sin(x * 40) * 0.006 * t + (t < 0.15 ? Math.cos(t / 0.15 * Math.PI) * 0.0 : 0));
     }
     cloth.computeVertexNormals();
-    const c1 = mk(cloth, mat.towel, 0.32, 0.6, 0.112);
-    const c2 = mk(cloth, mat.towel, 0.32, 0.6, 0.088, 0, Math.PI, 0);
+    const c1 = mk(cloth, mat.towel, 0.42, 0.6, 0.112);
+    const c2 = mk(cloth, mat.towel, 0.42, 0.6, 0.088, 0, Math.PI, 0);
     g.add(c1, c2);
   }
   // back plate + warming shelf + flue
@@ -146,7 +146,7 @@ export function buildRange(ctx, mat) {
     pot.position.set(0.3, HOB + 0.015, -0.27);
     g.add(pot);
   }
-  return { group: g, fireLightPos: V3(0, fbY, 0.25), emberMat, coals };
+  return { group: g, fireLightPos: V3(0, fbY + 0.05, 0.38), emberMat, coals };
 }
 
 // =====================================================================================
@@ -183,7 +183,7 @@ export function buildDresser(ctx, mat, { L = 1.9 } = {}) {
   // ---- upper rack
   const y0 = BH + TOP;
   // back boarding
-  g.add(mk(G.planeUV(L, SH - y0, 1), mat.boarding, 0, y0 + (SH - y0) / 2, 0.012));
+  g.add(mk(G.planeUV(L, SH - y0, 1), mat.boarding, 0, y0 + (SH - y0) / 2, 0.036));
   // shaped side boards (cyma curve at the bottom front)
   for (const s of [-1, 1]) {
     const sh = new THREE.Shape();
@@ -351,11 +351,11 @@ export function buildOilLamp(ctx, mat) {
   g.add(mk(lathe(G, [[0, 0], [0.07, 0], [0.072, 0.008], [0.06, 0.016], [0.025, 0.03], [0.02, 0.08], [0.03, 0.09], [0.065, 0.12], [0.072, 0.15], [0.06, 0.18], [0.025, 0.195], [0.03, 0.21], [0.0, 0.215]], 32), mat.brass));
   // burner gallery
   g.add(mk(lathe(G, [[0.02, 0.21], [0.036, 0.215], [0.04, 0.24], [0.035, 0.245], [0.02, 0.24]], 24), mat.brass));
-  const chimney = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.05, transparent: true, opacity: 0.22, emissive: new THREE.Color(1.0, 0.7, 0.4), emissiveIntensity: 0.25, clearcoat: 1, name: 'lampChimney' });
+  const chimney = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.05, transparent: true, opacity: 0.22, emissive: new THREE.Color(1.0, 0.7, 0.4), emissiveIntensity: 0.06, clearcoat: 1, name: 'lampChimney' });
   const ch = mk(lathe(G, [[0.03, 0.24], [0.034, 0.26], [0.045, 0.3], [0.042, 0.33], [0.022, 0.38], [0.02, 0.47]], 28), chimney);
   ch.userData.noBake = true;
   g.add(ch);
-  const flame = fx.flame({ height: 0.045, width: 0.018, intensity: 8 });
+  const flame = fx.flame({ height: 0.04, width: 0.014, intensity: 3.5 });
   flame.position.y = 0.255;
   g.add(flame);
   return { group: g, flameY: 0.3 };
