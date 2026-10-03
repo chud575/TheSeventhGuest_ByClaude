@@ -10,6 +10,8 @@ await page.waitForFunction(() => window.__game?.room?.mod?.id === 'gameroom' && 
 await page.waitForTimeout(3000);
 await page.evaluate(() => { const g = window.__game; const hs = g.hotspots.room.find((h) => h.id === 'queens'); g.startPuzzle(hs.puzzle); });
 await page.waitForFunction(() => window.__game.puzzle && !window.__game.nav.moving, null, { timeout: 120000, polling: 300 });
+// wait for the camera to actually arrive at the puzzle view (slow frames stretch the flight)
+await page.waitForFunction(() => { const g = window.__game; const c = g.puzzle?.def.camera?.position; if (!c) return false; const p = g.camera.position; return Math.hypot(p.x - c[0], p.y - c[1], p.z - c[2]) < 0.005; }, null, { timeout: 120000, polling: 300 });
 await page.waitForTimeout(1500);
 const sq = (c, r) => page.evaluate(([c, r]) => {
   const g = window.__game; const q = window.__debug.gameroom.queens; const grp = q.group;

@@ -673,7 +673,7 @@ export default {
     for (const wx of WIN.xs) {
       const winCenter = V3(wx, WIN.sill + WIN.h / 2, Z0 - 0.05);
       const dir = new THREE.Vector3().subVectors(winCenter, moonPos).normalize();
-      const sh = clippedShaft({ center: winCenter, right: V3(WIN.w / 2 - 0.02, 0, 0), up: V3(0, WIN.h / 2 - 0.02, 0), direction: dir, length: 4.4, color: 0x8faaff, intensity: wx < 0 ? 0.2 : 0.14, softness: 0.25, falloff: 1.5, panes: [2, 4], mullion: 0.03, noise: 0.75, roomMin, roomMax, occluders: wx < 0 ? [gtOcc] : [], time: ctx.time });
+      const sh = clippedShaft({ center: winCenter, right: V3(WIN.w / 2 - 0.02, 0, 0), up: V3(0, WIN.h / 2 - 0.02, 0), direction: dir, length: 4.4, color: 0x8faaff, intensity: wx < 0 ? 0.2 : 0.14, softness: 0.25, falloff: 1.5, panes: [2, 4], mullion: 0.03, noise: 0.75, roomMin, roomMax, occluders: wx < 0 ? [gtOcc] : [], time: ctx.time, steps: Math.round((Q.volumetricSteps || 16) * 1.25) });
       root.add(sh); shafts.push(sh);
     }
     lamp.userData.bulbs.forEach((b, i) => {

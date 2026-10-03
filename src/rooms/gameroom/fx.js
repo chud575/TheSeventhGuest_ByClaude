@@ -30,7 +30,7 @@ const SHAFT_FRAG = /* glsl */ `
 uniform float uTime; uniform vec3 uOrigin; uniform mat3 uInv; uniform vec3 uDir;
 uniform vec3 uColor; uniform float uIntensity; uniform float uSoftness; uniform float uFalloff;
 uniform vec2 uPanes; uniform float uMullion; uniform float uNoise;
-uniform vec3 uRoomMin; uniform vec3 uRoomMax;
+uniform vec3 uRoomMin; uniform vec3 uRoomMax; uniform float uSteps;
 uniform vec4 uOcc[2];       // xyz = box centre top (x, topY, z), w = unused
 uniform vec2 uOccHalf[2];   // half extents in x / z
 uniform int uOccCount;
@@ -77,19 +77,20 @@ void main() {
   float tn = max(max(tmin.x, tmin.y), max(tmin.z, 0.0));
   float tf = min(min(tmax.x, tmax.y), tmax.z);
   if (tf <= tn) discard;
-  const int STEPS = 20;
-  float dt = (tf - tn) / float(STEPS);
+  float STEPS = uSteps;
+  float dt = (tf - tn) / STEPS;
   float jitter = grHash12(gl_FragCoord.xy);
   float acc = 0.0;
-  for (int i = 0; i < STEPS; i++) {
+  for (int i = 0; i < 24; i++) {
+    if (float(i) >= STEPS) break;
     float t = tn + (float(i) + jitter) * dt;
     acc += density(ro + rd * t, cameraPosition + rdw * t);
   }
-  float v = acc / float(STEPS) * (tf - tn);
+  float v = acc / STEPS * (tf - tn);
   gl_FragColor = vec4(uColor * v * uIntensity, 1.0);
 }`;
 
-export function clippedShaft({ center, right, up, direction, length = 4, color = 0x9fb6ff, intensity = 0.3, softness = 0.3, falloff = 1.0, panes = [2, 4], mullion = 0.03, noise = 0.7, roomMin, roomMax, occluders = [], time }) {
+export function clippedShaft({ center, right, up, direction, length = 4, color = 0x9fb6ff, intensity = 0.3, softness = 0.3, falloff = 1.0, panes = [2, 4], mullion = 0.03, noise = 0.7, roomMin, roomMax, occluders = [], time, steps = 20 }) {
   const dir = direction.clone().normalize().multiplyScalar(length);
   const M = new THREE.Matrix3().set(right.x, up.x, dir.x, right.y, up.y, dir.y, right.z, up.z, dir.z);
   const inv = M.clone().invert();
@@ -104,7 +105,7 @@ export function clippedShaft({ center, right, up, direction, length = 4, color =
       uColor: { value: new THREE.Color(color) }, uIntensity: { value: intensity }, uSoftness: { value: softness }, uFalloff: { value: falloff },
       uPanes: { value: new THREE.Vector2(...panes) }, uMullion: { value: mullion }, uNoise: { value: noise },
       uRoomMin: { value: roomMin.clone() }, uRoomMax: { value: roomMax.clone() },
-      uOcc: { value: occ }, uOccHalf: { value: occH }, uOccCount: { value: Math.min(2, occluders.length) },
+      uOcc: { value: occ }, uOccHalf: { value: occH }, uOccCount: { value: Math.min(2, occluders.length) }, uSteps: { value: Math.max(4, Math.min(24, steps)) },
     },
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide, toneMapped: false,
   });
