@@ -103,7 +103,7 @@ export default {
       linen: fromSet(linenSet, { metalness: 0, name: 'linen' }),
       drapeA: drapeMat(drapeA), drapeB: drapeMat(drapeB),
       board: new THREE.MeshPhysicalMaterial({ map: boardSet.map, normalMap: boardSet.normalMap, roughnessMap: boardSet.ormMap, roughness: 1, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.25, name: 'board' }),
-      mirror: new THREE.MeshPhysicalMaterial({ map: mirrorSet.map, normalMap: mirrorSet.normalMap, normalScale: new THREE.Vector2(1, 1), roughnessMap: mirrorSet.ormMap, metalnessMap: mirrorSet.ormMap, roughness: 1, metalness: 1, envMapIntensity: 0.7, color: new THREE.Color(0.75, 0.75, 0.78), name: 'mirror' }),
+      mirror: new THREE.MeshPhysicalMaterial({ map: mirrorSet.map, normalMap: mirrorSet.normalMap, normalScale: new THREE.Vector2(1, 1), roughnessMap: mirrorSet.ormMap, metalnessMap: mirrorSet.ormMap, roughness: 1, metalness: 1, envMapIntensity: 1.0, color: new THREE.Color(0.75, 0.75, 0.78), name: 'mirror' }),
       lampGlobe: new THREE.MeshStandardMaterial({ color: 0x3a2a18, emissive: new THREE.Color(1.0, 0.62, 0.3), emissiveIntensity: 3.0, roughness: 0.4, transparent: true, opacity: 0.94, name: 'lampGlobe' }),
       velvetRose: M.create('velvet', { color: [0.3, 0.08, 0.1], crush: 0.5, repeat: [3, 3] }),
       velvetChair: M.create('velvet', { color: [0.06, 0.1, 0.22], crush: 0.6, repeat: [2.5, 2.5] }),
@@ -137,7 +137,10 @@ export default {
       const front = new THREE.Mesh(G.wallWithOpenings(W, H, [{ x: W / 2 - DOOR.x - DOOR.w / 2, y: -0.01, w: DOOR.w, h: DOOR.h + 0.01 }], { uvScale: 1 }), mats.wall);
       front.rotation.y = Math.PI; front.position.set(X1, 0, Z1); add(front);
       // dark landing beyond the door
-      const land = new THREE.Mesh(G.planeUV(DOOR.w + 0.4, DOOR.h + 0.3, 1), mats.soot); land.rotation.y = Math.PI; land.position.set(DOOR.x, DOOR.h / 2, Z1 + 0.9); add(land);
+      const land = new THREE.Mesh(G.planeUV(DOOR.w + 1.4, DOOR.h + 0.3, 1), mats.wall); land.rotation.y = Math.PI; land.position.set(DOOR.x, DOOR.h / 2, Z1 + 1.1); add(land);
+      // the gallery's gaslight beyond the half-open door
+      const hall = new THREE.PointLight(0xffa860, 8, 4, 2); hall.position.set(DOOR.x + 0.3, 2.0, Z1 + 0.75); add(hall);
+      const hfl = new THREE.Mesh(G.planeUV(DOOR.w + 1.4, 1.2, 1), mats.floor); hfl.rotation.x = -Math.PI / 2; hfl.position.set(DOOR.x, 0.001, Z1 + 0.55); add(hfl);
     }
 
     // window reveal, sill, sash, sky
@@ -241,7 +244,7 @@ export default {
     // ================================================================ door (front wall) + casing; the leaf stands ajar
     {
       const door = new THREE.Group();
-      const hinge = new THREE.Group(); hinge.position.set(-DOOR.w / 2, 0, 0); hinge.rotation.y = 0.32; door.add(hinge);
+      const hinge = new THREE.Group(); hinge.position.set(-DOOR.w / 2, 0, 0); hinge.rotation.y = -1.1; door.add(hinge);
       const leafG = new THREE.Group(); leafG.position.x = DOOR.w / 2; hinge.add(leafG);
       const leaf = new THREE.Mesh(G.boxUV(DOOR.w, DOOR.h, 0.05, 1), mats.panel); leaf.position.y = DOOR.h / 2; leafG.add(leaf);
       for (const [y, hgt] of [[0.6, 0.86], [1.7, 1.0]]) for (const x of [-0.24, 0.24]) {
@@ -288,7 +291,7 @@ export default {
     const chest = buildChest(ctx, mats, { w: 1.18, d: 0.58 });
     chest.position.set(CHEST.x, 0, CHEST.z); chest.rotation.y = Math.PI / 2; add(chest);
     const boardField = 0.82 * 0.61 * (5 / 6);     // field size in metres (matches the board texture)
-    const puzzleCam = { position: [CHEST.x + 0.62, 1.32, CHEST.z], target: [CHEST.x + 0.02, 0.5, CHEST.z], fov: 42 };
+    const puzzleCam = { position: [CHEST.x + 0.52, 1.4, CHEST.z], target: [CHEST.x + 0.03, 0.5, CHEST.z], fov: 42 };
     const wardrobe = buildWardrobe(ctx, mats);
     const knights = createKnightsPuzzle(ctx, {
       parent: chest, center: V3(0, chest.userData.boardTop, 0), size: boardField,
@@ -363,18 +366,10 @@ export default {
 
     // ================================================================ wardrobe (front wall, left) -> attic once the knights are solved
     wardrobe.position.set(WARD.x, 0, Z1); wardrobe.rotation.y = Math.PI; add(wardrobe);
-    const attic = new THREE.Group(); // stair glimpse inside, hidden until opened
-    {
-      const stair = new THREE.Group();
-      for (let i = 0; i < 6; i++) { const s = new THREE.Mesh(rbox(G, 1.1, 0.05, 0.28, 0.01), mats.walnut); s.position.set(0, 0.35 + i * 0.22, 0.25 + i * 0.25); stair.add(s); }
-      stair.position.set(WARD.x, 0, Z1 + 0.0); stair.rotation.y = Math.PI; attic.add(stair);
-      attic.visible = false; add(attic);
-    }
     let wardrobeOpen = false;
     function openWardrobe(instant) {
       wardrobeOpen = true;
-      attic.visible = true;
-      wardrobe.userData.inner.visible = false;
+      wardrobe.userData.inner.visible = true;
       const [l, r] = wardrobe.userData.doors;
       if (instant) { l.rotation.y = -1.6; r.rotation.y = 1.6; return; }
       const t0 = performance.now();
@@ -419,12 +414,10 @@ export default {
       const arm = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.008, 8, 24, Math.PI / 2), mats.brass); arm.position.set(0, -0.1, 0); arm.rotation.y = -Math.PI / 2; sc.add(arm);
       const cup = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.025, 0.0], [0.03, 0.02], [0, 0.02]], 16), mats.brass); cup.position.set(0, 0.0, 0.1); sc.add(cup);
       const shade = new THREE.Mesh(G.latheFromProfile([[0.025, 0], [0.055, 0.03], [0.065, 0.08], [0.05, 0.14], [0.03, 0.15]], 24), mats.lampGlobe); shade.position.set(0, 0.02, 0.1); shade.userData.noShadow = true; sc.add(shade);
-      sc.position.set(1.35, 1.95, Z0 + 0.01); add(sc);
-      const scl = new THREE.PointLight(0xffa860, 2.6, 6, 2); scl.position.set(1.35, 2.05, Z0 + 0.2); add(scl);
+      sc.position.set(2.15, 2.62, Z0 + 0.01); add(sc);
+      const scl = new THREE.PointLight(0xffa860, 2.6, 6, 2); scl.position.set(2.15, 2.72, Z0 + 0.2); add(scl);
       ctx.onUpdate((dt, t) => { scl.intensity = 2.6 * (0.95 + 0.05 * Math.sin(t * 7.7) * Math.sin(t * 2.9)); });
       // velvet slippers by the bed, a hatbox by the wardrobe, a side table and cold tea by the chair
-      const slip = new THREE.SphereGeometry(0.06, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2); slip.scale(0.75, 0.5, 1.7);
-      for (const [x, z, r] of [[X0 + 2.5, BED.z + 1.18, 0.4], [X0 + 2.62, BED.z + 1.05, 0.15]]) { const m = new THREE.Mesh(slip, mats.velvetRose); m.position.set(x, 0.0, z); m.rotation.y = r; add(m); }
       const hb = new THREE.Group();
       hb.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.22, 32), mats.dollCloth(0x6a5a48)), 0, 0.11, 0));
       hb.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.05, 32), mats.dollCloth(0x2a2a3a)), 0, 0.235, 0));
@@ -481,11 +474,11 @@ export default {
     const nodes = {
       main: { position: [0.45, 1.62, 2.95], target: [-0.15, 1.2, -3.0], fov: 60, label: 'The bedroom', look: { yaw: [-60, 60], pitch: [-30, 28] } },
       chest: { position: [CHEST.x + 1.55, 1.68, CHEST.z + 1.2], target: [CHEST.x - 0.55, 0.62, CHEST.z - 0.3], fov: 54, label: 'The chest at the foot of the bed' },
-      bed: { position: [0.2, 1.58, 0.75], target: [X0 + 0.4, 1.05, BED.z - 0.2], fov: 56, label: 'The bed' },
+      bed: { position: [-0.3, 1.65, 1.35], target: [X0 + 0.6, 0.95, BED.z + 0.1], fov: 56, label: 'The bed' },
       hearth: { position: [0.3, 1.6, 0.55], target: [X1, 1.15, FIRE.z - 0.35], fov: 56, label: 'The fireplace', look: { yaw: [-60, 60], pitch: [-25, 30] } },
       dolls: { position: [0.95, 1.6, -0.9], target: [2.25, 1.45, Z0], fov: 54, label: 'The doll shelf' },
       vanity: { position: [-0.85, 1.6, 0.95], target: [X0, 1.35, 1.95], fov: 54, label: 'The dressing table' },
-      door: { position: [0.1, 1.62, 0.7], target: [0.1, 1.35, Z1], fov: 64, label: 'The door' },
+      door: { position: [0.1, 1.62, 0.5], target: [0.1, 1.3, Z1], fov: 66, label: 'The door' },
     };
     const edges = [
       ['main', 'chest', [[1.4, 1.6, 0.9]]],
@@ -551,8 +544,12 @@ export default {
           game.startPuzzle(knights.puzzle);
           await new Promise((r) => setTimeout(r, 50));
         }
-        if (game?.puzzle?.def?.id === KNIGHTS_ID) { knights.puzzle.autoSolve(game.puzzle.pctx); return true; }
-        knights.applySolved(); ctx.state.markSolved?.(KNIGHTS_ID); openWardrobe(true);
+        if (game?.puzzle?.def?.id === KNIGHTS_ID) {
+          knights.puzzle.autoSolve(game.puzzle.pctx);
+          for (let i = 0; i < 50 && !ctx.state.isSolved(KNIGHTS_ID); i++) await new Promise((r) => setTimeout(r, 100));
+          return ctx.state.isSolved(KNIGHTS_ID);
+        }
+        knights.applySolved(); (ctx.state.markSolved ? ctx.state : game?.state)?.markSolved?.(KNIGHTS_ID); openWardrobe(true);
         return true;
       };
       dbg.states.bedroom = () => ({ ...knights.state(), isSolved: ctx.state.isSolved(KNIGHTS_ID), wardrobeOpen });

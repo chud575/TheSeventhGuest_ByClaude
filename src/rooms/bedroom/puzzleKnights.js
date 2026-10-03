@@ -161,7 +161,7 @@ export function createKnightsPuzzle(ctx, { parent, center, size, mats, camera, o
   }
 
   function status() {
-    if (solvedFlag) return 'The armies have changed sides. Somewhere below, a door unlatches.';
+    if (solvedFlag) return 'The armies have changed sides. Behind you, wood creaks and a latch gives.';
     const n = placedRight();
     return `Leaps: ${moves}   ·   ${n} of 24 knights on the far side`;
   }
@@ -179,6 +179,8 @@ export function createKnightsPuzzle(ctx, { parent, center, size, mats, camera, o
 
   function squareAt(ndc, p) {
     const hits = p.raycast([group], ndc);
+    // a tall knight in front may hide the one behind: prefer any knight along the ray that can leap
+    for (const h of hits) if (h.object.userData.piece !== undefined && canMove(pieces[h.object.userData.piece].sq)) return pieces[h.object.userData.piece].sq;
     for (const h of hits) {
       if (h.object.userData.piece !== undefined) return pieces[h.object.userData.piece].sq;
       if (h.object === pick) {

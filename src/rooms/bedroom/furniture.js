@@ -558,7 +558,7 @@ export function buildWardrobe(ctx, mats, { w = 1.42, h = 2.32, d = 0.62 } = {}) 
   mesh(rbox(G, w + 0.04, 0.14, d + 0.03, 0.01), mats.mahogany, 0, 0.07, d / 2, g);
   mesh(rbox(G, w, h - 0.14 - 0.12, d - 0.02, 0.01), mats.mahogany, 0, 0.14 + (h - 0.26) / 2, d / 2 - 0.01, g);
   // dark interior (seen when the doors swing)
-  const inner = mesh(G.planeUV(w - 0.06, h - 0.32, 1), mats.soot, 0, 0.14 + (h - 0.26) / 2, d - 0.03, g); inner.visible = false; inner.name = 'wardrobeInner';
+  const inner = mesh(G.planeUV(w - 0.06, h - 0.32, 1), mats.soot, 0, 0.14 + (h - 0.26) / 2, d + 0.004, g); inner.visible = false; inner.name = 'wardrobeInner'; inner.userData.keep = true;
   // cornice
   const cw = w / 2 + 0.03;
   const path = [V3(cw, h - 0.12, 0), V3(cw, h - 0.12, d + 0.02), V3(-cw, h - 0.12, d + 0.02), V3(-cw, h - 0.12, 0)];
