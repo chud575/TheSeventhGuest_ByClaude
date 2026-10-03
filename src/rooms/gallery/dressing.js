@@ -430,7 +430,7 @@ export function makeCoveredBust(ctx, mat) {
       const free = Math.max(0, si - contactS);
       const fa = Math.min(1, free / 0.35);
       const amp = 0.028 * fa + 0.012 * Math.min(1, free / 0.8) * corner;
-      rr += foldN(a + hash(j) * 0.02) * amp + free * 0.05 * (0.6 + corner);
+      rr += foldN(a + hash(j % NA) * 0.02) * amp + free * 0.05 * (0.6 + corner);
       // gentle pooling folds over the shoulders where it first drapes
       if (free <= 0) rr += 0.004 * Math.sin(a * 11 + si * 30) * Math.min(1, si / 0.2);
       // hem lifts slightly where a fold kicks out
