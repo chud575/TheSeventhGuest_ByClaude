@@ -237,7 +237,7 @@ export default {
       board: new THREE.MeshPhysicalMaterial({ map: boardSet.map, normalMap: boardSet.normalMap, roughnessMap: boardSet.ormMap, roughness: 1, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.3, envMapIntensity: 0.55, name: 'board' }),
       frostGlass: new THREE.MeshPhysicalMaterial({ color: 0xd8d4c8, roughness: 0.55, transmission: 0, transparent: true, opacity: 0.72, side: THREE.DoubleSide, name: 'frost' }),
       mirror: new THREE.MeshPhysicalMaterial({ map: mirrorSet.map, normalMap: mirrorSet.normalMap, normalScale: new THREE.Vector2(0.8, 0.8), roughnessMap: mirrorSet.ormMap, metalnessMap: mirrorSet.ormMap, roughness: 2.6, metalness: 1, envMapIntensity: 1.25, color: new THREE.Color(0.72, 0.72, 0.72), emissive: new THREE.Color(0.5, 0.48, 0.44), emissiveMap: mirrorGlint.map, emissiveIntensity: 0.1, side: THREE.DoubleSide, name: 'mirror' }),
-      lampGlobe: new THREE.MeshBasicMaterial({ map: etchedGlassTex(ctx), color: new THREE.Color(0.62, 0.34, 0.14), transparent: true, opacity: 0.96, name: 'lampGlobe' }),
+      lampGlobe: new THREE.MeshBasicMaterial({ map: etchedGlassTex(ctx), color: new THREE.Color(0.3, 0.14, 0.05), transparent: true, opacity: 0.96, name: 'lampGlobe' }),
       sconceGlass: new THREE.MeshStandardMaterial({ color: 0x5a4a38, emissive: new THREE.Color(1.0, 0.7, 0.42), emissiveMap: etchedGlassTex(ctx), emissiveIntensity: 1.1, roughness: 0.5, transparent: true, opacity: 0.88, side: THREE.DoubleSide, depthWrite: false, name: 'sconceGlass' }),
       velvetRose: M.create('velvet', { color: [0.24, 0.1, 0.11], crush: 0.6, repeat: [3, 3], sheen: 1.0, sheenRoughness: 0.4, sheenColor: [0.5, 0.24, 0.26], envMapIntensity: 0.2 }),
       velvetChair: M.create('leather', { color: [0.2, 0.07, 0.05], wear: 0.7, buttons: 1, repeat: [4, 4], clearcoat: 0.3, clearcoatRoughness: 0.45 }),
@@ -842,6 +842,8 @@ export default {
     const frontFill = new THREE.PointLight(0x8094d0, 2.4, 5.5, 2); frontFill.position.set(-0.3, 2.6, 1.6); root.add(frontFill);
     // low cold bounce off the boards in front of the wardrobe, so it stands in the room, not in black
     const floorFill = new THREE.PointLight(0x7a8cc4, 1.8, 3.6, 2); floorFill.position.set(WARD.x + 0.6, 0.45, Z1 - 1.4); root.add(floorFill);
+    // moonlight thrown back off the boards onto the bed hangings (so the velvet's sheen reads, not a black mass)
+    root.add(fx.areaLight({ center: [-0.5, 1.1, 0.2], normal: [-1, 0.1, -0.25], width: 1.6, height: 2.0, color: 0x6a7ab4, intensity: 1.0 }));
     root.add(fx.areaLight({ center: [WIN.x, WIN.sill + 1.2, Z0 + 0.04], normal: [0, -0.35, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 2.2 }));
 
     const winCenter = V3(WIN.x, WIN.sill + WIN.h * 0.47, Z0 - 0.02);
