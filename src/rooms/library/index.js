@@ -64,7 +64,7 @@ export default {
       giltCap: M.create('gold', { wear: 0.5, dirt: 0.7, repeat: [6, 6] }),
       frameGilt: M.create('gilded', { pattern: 1, repeats: 3, wear: 0.55, dirt: 0.7, repeat: [1 / 0.45, 1] }),
       mahogany: M.create('mahogany', { repeat: [1.5, 1.5], color: [0.4, 0.3, 0.26], roughness: 1.1 }),
-      doorWood: M.create('wood', { species: 'walnut', boards: 0, polish: 0.4, wear: 0.5, tint: [0.45, 0.38, 0.34], repeat: [1, 1], physical: true, clearcoat: 0.2, clearcoatRoughness: 0.4 }),
+      doorWood: M.create('wood', { species: 'walnut', boards: 0, polish: 0.5, wear: 0.5, tint: [0.7, 0.58, 0.5], repeat: [1, 1], physical: true, clearcoat: 0.2, clearcoatRoughness: 0.4 }),
       deskLeather: M.create('leather', { color: [0.05, 0.12, 0.07], wear: 0.55, repeat: [2, 2] }),
       tapestry: new THREE.MeshPhysicalMaterial({ map: tapRep.map, normalMap: tapRep.normalMap, normalScale: new THREE.Vector2(0.5, 0.5), roughnessMap: tapRep.roughnessMap, roughness: 1, metalness: 0, sheen: 0.35, sheenRoughness: 0.6, sheenColor: new THREE.Color(0.35, 0.18, 0.12), envMapIntensity: 0.25, name: 'tapestry' }),
       brass: M.create('brass', { tarnish: 0.45, polish: 0.6, repeat: [2, 2] }),
@@ -220,6 +220,10 @@ export default {
     const bayFill = new THREE.PointLight(0x8094c0, 0.9, 3.5, 2);
     bayFill.position.set(-3.4, 1.9, 1.0);
     root.add(bayFill);
+    // a low warm glow by the entrance doors (the foyer's lamps leak under them)
+    const entGlow = new THREE.PointLight(0xffa868, 1.6, 3.5, 2);
+    entGlow.position.set(-1.7, 1.2, Z1 - 0.9);
+    root.add(entGlow);
     const fillC = new THREE.PointLight(0xffa466, 1.4, 3.0, 2);
     fillC.position.set(0.85, 1.5, 0.3);
     root.add(fillC);
