@@ -16,7 +16,7 @@ export function buildChandelier(ctx, {
   brass, crystal, gilt = brass,
   tiers = [{ arms: 10, radius: 0.78, y: 0.0 }, { arms: 6, radius: 0.46, y: 0.42 }],
   chain = 1.4, bodyHeight = 1.25, candleHeight = 0.16, lit = 1, seed = 7,
-  festoons = true, drops = true,
+  festoons = true, drops = true, flameIntensity = null,
 } = {}) {
   const { geometry: G, fx } = ctx;
   const group = new THREE.Group();
@@ -74,6 +74,8 @@ export function buildChandelier(ctx, {
       add(brassGeos, G.latheFromProfile([[0.0, 0.0], [0.012, 0.0], [0.02, 0.02], [0.024, 0.045], [0.018, 0.05], [0.0, 0.05]], 16), M(tip.x, tip.y + 0.012, tip.z));
       const cdl = fx.candle({ height: candleHeight * (0.85 + 0.3 * rnd(i + ti * 31)), radius: 0.0105, light: false, lit: rnd(i * 7 + ti * 13 + 1) < lit, seed: seed * 10 + i + ti * 50, burn: rnd(i * 3 + ti) > 0.5 ? 0.55 : 0.8 });
       cdl.position.set(tip.x, tip.y + 0.055, tip.z);
+      // optional: dimmer, smaller flames so bloom halos each flame instead of the whole fixture
+      if (flameIntensity != null && cdl.userData.flame?.material?.uniforms?.uIntensity) cdl.userData.flame.material.uniforms.uIntensity.value = flameIntensity;
       group.add(cdl);
       candles.push(cdl);
       tierTips.push(tip);
@@ -94,10 +96,11 @@ export function buildChandelier(ctx, {
   // ---- crystals (instanced): festoons between arm tips + pendalogue drops
   const crystals = [];
   if (crystal) {
-    const bead = new THREE.OctahedronGeometry(0.011, 0);
-    bead.scale(1, 1.25, 1);
-    const drop = new THREE.OctahedronGeometry(0.02, 0);
-    drop.scale(0.75, 2.4, 0.4);
+    // faceted (non-indexed, flat normals) so every facet throws its own glint
+    const bead = new THREE.OctahedronGeometry(0.011, 0).toNonIndexed();
+    bead.scale(1, 1.25, 1); bead.computeVertexNormals();
+    const drop = new THREE.IcosahedronGeometry(0.02, 0).toNonIndexed();
+    drop.scale(0.7, 2.2, 0.45); drop.computeVertexNormals();
     const beadM = [], dropM = [];
     const q = new THREE.Quaternion();
     const one = new THREE.Vector3(1, 1, 1);

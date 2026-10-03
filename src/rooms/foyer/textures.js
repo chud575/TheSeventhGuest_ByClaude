@@ -6,29 +6,63 @@
  */
 
 // ------------------------------------------------------------------ shared GLSL
+// Every window texture is generated twice: uMode 0 = transmitted colour (what the
+// moon pushes through the glass: emissive map + light cookie), uMode 1 = the lit
+// interior surface (oxidised lead came, near-black glass) with a came relief normal.
 const GLASS_COMMON = /* glsl */ `
 // seedy, streaky antique glass: returns a brightness modulation around 1
 float antique(vec2 uv, float k) {
-  float s = fbm(uv * vec2(3.0, 9.0) + k, vec2(3.0, 9.0), 4) * 0.5 + 0.5;
-  float b = vnoise(uv * 140.0 + k * 7.0, vec2(140.0));
-  return 0.72 + 0.42 * s - 0.1 * smoothstep(0.82, 0.98, b);
+  float s = fbm(uv * vec2(2.0, 11.0) + k, vec2(2.0, 11.0), 4) * 0.5 + 0.5;      // vertical draw streaks
+  float w = fbm(uv * 5.0 + k * 3.1, vec2(5.0), 3) * 0.5 + 0.5;                  // broad thickness waves
+  float b = vnoise(uv * 160.0 + k * 7.0, vec2(160.0));                         // seeds (bubbles)
+  float b2 = vnoise(uv * 90.0 + k * 3.0, vec2(90.0));
+  return (0.7 + 0.38 * s) * (0.82 + 0.3 * w) - 0.22 * smoothstep(0.86, 0.97, b) + 0.12 * smoothstep(0.9, 0.99, b2);
+}
+// per-pane value + slight hue jitter (each piece of glass was cut from a different sheet)
+vec3 paneJitter(vec3 c, vec2 id) {
+  float h = hash12(id * 1.37 + 0.71);
+  float h2 = hash12(id * 2.91 + 5.3);
+  c *= 0.72 + 0.5 * h;
+  c *= vec3(1.0 + (h2 - 0.5) * 0.18, 1.0, 1.0 - (h2 - 0.5) * 0.18);
+  return c;
 }
 vec3 glassPal(float i) {
-  // 0 ruby, 1 cobalt, 2 amber, 3 emerald, 4 amethyst, 5 pale moon, 6 gold
-  if (i < 0.5) return vec3(0.62, 0.05, 0.08);
-  if (i < 1.5) return vec3(0.07, 0.16, 0.62);
-  if (i < 2.5) return vec3(0.85, 0.5, 0.1);
-  if (i < 3.5) return vec3(0.08, 0.42, 0.22);
-  if (i < 4.5) return vec3(0.36, 0.14, 0.5);
-  if (i < 5.5) return vec3(0.55, 0.62, 0.7);
-  return vec3(0.95, 0.72, 0.25);
+  // muted Victorian cathedral glass:
+  // 0 oxblood, 1 cobalt, 2 amber, 3 bottle green, 4 smoky violet, 5 pale seedy (greenish clear), 6 old gold, 7 opal cream
+  if (i < 0.5) return vec3(0.36, 0.045, 0.05);
+  if (i < 1.5) return vec3(0.06, 0.11, 0.38);
+  if (i < 2.5) return vec3(0.62, 0.36, 0.09);
+  if (i < 3.5) return vec3(0.07, 0.24, 0.13);
+  if (i < 4.5) return vec3(0.2, 0.11, 0.26);
+  if (i < 5.5) return vec3(0.46, 0.52, 0.5);
+  if (i < 6.5) return vec3(0.7, 0.52, 0.2);
+  return vec3(0.62, 0.58, 0.46);
+}
+float leadLine(float d, float w) { return 1.0 - smoothstep(w * 0.55, w, abs(d)); }
+void glassOut(inout Surface s, vec2 uv, vec3 col, float lead, float alpha) {
+  lead = clamp(lead, 0.0, 1.0);
+  if (uMode < 0.5) {
+    s.albedo = mix(col, vec3(0.0), lead);
+  } else {
+    float ox = fbm(uv * 23.0, vec2(23.0), 3) * 0.5 + 0.5;
+    vec3 came = mix(vec3(0.11, 0.105, 0.1), vec3(0.24, 0.23, 0.21), ox) * (0.75 + 0.25 * lead);
+    // a little white putty/cement squeezed out along the came
+    float putty = smoothstep(0.15, 0.3, lead) * (1.0 - smoothstep(0.3, 0.5, lead)) * step(0.7, ox);
+    came = mix(came, vec3(0.32, 0.31, 0.28), putty * 0.5);
+    s.albedo = mix(vec3(0.012, 0.013, 0.016), came, smoothstep(0.25, 0.6, lead));
+  }
+  s.alpha = alpha;
+  s.height = 0.25 + 0.65 * sqrt(lead);
+  s.rough = mix(0.06, 0.42, lead);
+  s.metal = lead * 0.7;
+  s.ao = 1.0;
 }
 `;
 
 /** Fanlight over the front door: a half sunburst. UV covers the bounding rect (aspect 2:1). */
-export function fanlightTexture(forge) {
-  return forge.generate('foyer:fanlight', {
-    size: 1024, aspect: 2, tile: false,
+export function fanlightTexture(forge, mode = 0) {
+  return forge.generate(`foyer:fanlight2:${mode}`, {
+    size: 1024, aspect: 2, tile: false, uniforms: { uMode: mode }, normalStrength: 2.5,
     glsl: GLASS_COMMON + /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   vec2 p = vec2(uv.x * 2.0 - 1.0, uv.y);          // semicircle radius 1, centre at bottom middle
@@ -36,50 +70,47 @@ void surface(vec2 uv, inout Surface s) {
   float a = atan(p.y, p.x);                       // 0..PI
   float lead = 0.0;
   vec3 col;
+  vec2 id;
   float n = antique(uv, 1.0);
-  // hub
   if (r < 0.24) {
-    col = glassPal(2.0);
-    float petals = abs(sin(a * 6.0)) * 0.08 + 0.1;
-    col = mix(col, glassPal(0.0), step(r, petals));
-    lead = max(lead, stroke(r - petals, 0.0, 0.008));
+    float petals = abs(sin(a * 6.0)) * 0.07 + 0.1;
+    col = r < petals ? glassPal(0.0) : glassPal(6.0);
+    id = vec2(r < petals ? 1.0 : 2.0, 0.0);
+    lead = max(lead, leadLine(r - petals, 0.012));
   } else if (r < 0.86) {
-    // 12 rays alternating cobalt / moon with ruby tips
     float k = a / PI * 12.0;
-    float id = floor(k);
+    float idr = floor(k);
     float f = fract(k);
-    float tip = smoothstep(0.7, 0.72, r);
-    col = mod(id, 2.0) < 0.5 ? glassPal(1.0) : glassPal(5.0);
-    col = mix(col, mod(id, 2.0) < 0.5 ? glassPal(0.0) : glassPal(6.0), tip);
-    lead = max(lead, 1.0 - smoothstep(0.0, 0.035, min(f, 1.0 - f) * r * 2.0));
-    lead = max(lead, stroke(r - 0.71, 0.0, 0.006));
+    float tip = step(0.71, r);
+    col = mod(idr, 2.0) < 0.5 ? glassPal(5.0) : glassPal(7.0);
+    col = mix(col, mod(idr, 2.0) < 0.5 ? glassPal(3.0) : glassPal(2.0), tip);
+    id = vec2(idr, tip + 3.0);
+    lead = max(lead, leadLine(min(f, 1.0 - f) * r * PI / 12.0, 0.011));
+    lead = max(lead, leadLine(r - 0.71, 0.01));
   } else {
-    // jewel border
     float k = a / PI * 22.0;
     float f = fract(k);
-    col = mod(floor(k), 2.0) < 0.5 ? glassPal(3.0) : glassPal(2.0);
+    col = mod(floor(k), 2.0) < 0.5 ? glassPal(1.0) : glassPal(0.0);
+    id = vec2(floor(k), 7.0);
     float jew = length(vec2((f - 0.5) * 0.14, r - 0.93));
-    col = mix(col, glassPal(0.0), smoothstep(0.035, 0.03, jew));
-    lead = max(lead, stroke(jew - 0.034, 0.0, 0.005));
-    lead = max(lead, 1.0 - smoothstep(0.0, 0.006, min(f, 1.0 - f) * 0.14));
+    col = mix(col, glassPal(6.0), smoothstep(0.03, 0.026, jew));
+    lead = max(lead, leadLine(jew - 0.03, 0.008));
+    lead = max(lead, leadLine(min(f, 1.0 - f) * 0.14, 0.009));
   }
-  lead = max(lead, stroke(r - 0.24, 0.0, 0.008));
-  lead = max(lead, stroke(r - 0.86, 0.0, 0.008));
-  lead = max(lead, stroke(r - 0.995, 0.0, 0.012));
-  lead = max(lead, 1.0 - smoothstep(0.0, 0.012, p.y));
-  col *= n;
-  col = mix(col, vec3(0.012, 0.01, 0.01), lead);
-  s.albedo = col;
-  s.alpha = step(r, 1.0);
-  s.height = 1.0 - lead; s.rough = mix(0.08, 0.6, lead); s.metal = 0.0; s.ao = 1.0;
+  lead = max(lead, leadLine(r - 0.24, 0.013));
+  lead = max(lead, leadLine(r - 0.86, 0.014));
+  lead = max(lead, leadLine(r - 0.985, 0.03));
+  lead = max(lead, 1.0 - smoothstep(0.0, 0.02, p.y));
+  col = paneJitter(col, id) * n;
+  glassOut(s, uv, col, lead, step(r, 1.0));
 }`,
   });
 }
 
 /** The great arched window over the door: leaded quarries, a jewel border and an eight-pointed star. aspect = w/h. */
-export function greatWindowTexture(forge, aspect) {
-  return forge.generate('foyer:greatwindow', {
-    size: 1536, aspect, tile: false, uniforms: { uAsp: aspect },
+export function greatWindowTexture(forge, aspect, mode = 0) {
+  return forge.generate(`foyer:greatwindow2:${mode}`, {
+    size: 1536, aspect, tile: false, uniforms: { uAsp: aspect, uMode: mode }, normalStrength: 2.5,
     glsl: GLASS_COMMON + /* glsl */ `
 float sdStarPoly(vec2 p, float r) { return sdStar(p, r, 8.0, 3.0); }
 void surface(vec2 uv, inout Surface s) {
@@ -88,82 +119,82 @@ void surface(vec2 uv, inout Surface s) {
   float H = 1.0 / uAsp;
   float R = 0.5;                                      // arch radius
   float springY = H - R;
-  // inside-shape distance (negative inside)
   float dRect = max(abs(m.x) - 0.5, -m.y);
   float dArch = length(m - vec2(0.0, springY)) - R;
   float inside = m.y < springY ? dRect : max(dArch, -m.y);
   float n = antique(uv * vec2(1.0, H), 3.0);
   float lead = 0.0;
   vec3 col;
-  // jewel border band 0.07 wide
+  vec2 id = vec2(0.0);
   float edge = -inside;
-  if (edge < 0.07) {
+  if (edge < 0.075) {
+    // jewel border: oxblood / cobalt oblongs with amber squares
     float along = m.y < springY ? m.y : springY + atan(m.y - springY, abs(m.x) + 1e-4) * R;
-    float k = along / 0.07;
+    float k = along / 0.075;
     float f = fract(k);
     col = mod(floor(k), 2.0) < 0.5 ? glassPal(0.0) : glassPal(1.0);
-    float sq = sdBox(vec2(f - 0.5, (edge - 0.035) / 0.07), vec2(0.22));
-    col = mix(col, glassPal(6.0), smoothstep(0.02, 0.0, sq));
-    lead = max(lead, stroke(sq, 0.0, 0.025));
-    lead = max(lead, 1.0 - smoothstep(0.0, 0.05, min(f, 1.0 - f)));
-    lead = max(lead, stroke(edge - 0.07, 0.0, 0.004));
+    id = vec2(floor(k), sign(m.x) + 9.0);
+    float sq = sdBox(vec2(f - 0.5, (edge - 0.0375) / 0.075), vec2(0.2));
+    if (sq < 0.0) { col = glassPal(2.0); id += 50.0; }
+    lead = max(lead, leadLine(sq, 0.03));
+    lead = max(lead, leadLine(min(f, 1.0 - f) * 0.075, 0.006));
+    lead = max(lead, leadLine(edge - 0.075, 0.007));
   } else {
-    // diamond quarries
-    vec2 q = rot2(PI * 0.25) * (m * vec2(1.0, 0.75)) * 9.0;
+    // diamond quarries of pale seedy glass, the odd smoky or green pane
+    vec2 q = rot2(PI * 0.25) * (m * vec2(1.0, 0.72)) * 8.0;
     vec2 qf = fract(q) - 0.5;
     vec2 qi = floor(q);
-    float h = hash12(qi);
-    col = mix(vec3(0.42, 0.5, 0.58), vec3(0.5, 0.52, 0.6), h);
-    col = mix(col, glassPal(4.0) * 1.2, step(0.86, h) * 0.6);
-    lead = max(lead, 1.0 - smoothstep(0.0, 0.05, 0.5 - max(abs(qf.x), abs(qf.y))));
-    // central medallion: the octagram, ruby on gold, in a cobalt roundel
-    vec2 c = m - vec2(0.0, H * 0.42);
+    float h = hash12(qi + 3.1);
+    col = glassPal(5.0);
+    if (h > 0.9) col = glassPal(4.0) * 1.4; else if (h > 0.82) col = glassPal(3.0) * 1.6; else if (h > 0.76) col = glassPal(7.0);
+    id = qi;
+    lead = max(lead, leadLine((0.5 - max(abs(qf.x), abs(qf.y))) / 8.0, 0.0055));
+    // central roundel: the octagram, amber on cobalt, oxblood eye
+    vec2 c = m - vec2(0.0, H * 0.4);
     float rc = length(c);
-    if (rc < 0.3) {
-      col = glassPal(1.0);
-      float st = sdStarPoly(c, 0.25);
-      col = mix(col, glassPal(6.0), step(st, 0.0));
-      col = mix(col, glassPal(0.0), step(rc, 0.07));
-      lead = max(lead, stroke(st, 0.0, 0.006));
-      lead = max(lead, stroke(rc - 0.07, 0.0, 0.006));
-      // star ray subdivisions
-      float aa = atan(c.y, c.x) / TAU * 16.0;
-      float fa = fract(aa);
-      lead = max(lead, (1.0 - smoothstep(0.0, 0.02, min(fa, 1.0 - fa) * rc * 6.0)) * step(st, 0.0) * step(0.07, rc));
+    float ang = atan(c.y, c.x);
+    if (rc < 0.315) {
+      float st = sdStarPoly(c, 0.255);
+      float seg = floor((ang / TAU + 0.5) * 16.0);
+      if (rc < 0.075) { col = glassPal(0.0); id = vec2(70.0, 0.0); }
+      else if (st < 0.0) { col = mod(seg, 2.0) < 0.5 ? glassPal(6.0) : glassPal(2.0); id = vec2(seg, 71.0); }
+      else if (rc < 0.3) { col = glassPal(1.0); id = vec2(seg, 72.0); }
+      else { col = glassPal(2.0) * 0.8; id = vec2(floor((ang / TAU + 0.5) * 24.0), 73.0); }
+      lead = max(lead, leadLine(st, 0.007) * step(0.075, rc));
+      lead = max(lead, leadLine(rc - 0.075, 0.008));
+      float fa = fract((ang / TAU + 0.5) * 16.0);
+      lead = max(lead, leadLine(min(fa, 1.0 - fa) * rc * TAU / 16.0, 0.005) * step(st, 0.0) * step(0.075, rc));
+      float fb2 = fract((ang / TAU + 0.5) * 24.0);
+      lead = max(lead, leadLine(min(fb2, 1.0 - fb2) * rc * TAU / 24.0, 0.005) * step(0.3, rc));
     }
-    lead = max(lead, stroke(rc - 0.3, 0.0, 0.008));
-    lead = max(lead, stroke(rc - 0.315, 0.0, 0.005));
-    col = mix(col, glassPal(2.0), smoothstep(0.31, 0.3, rc) * smoothstep(0.3, 0.31, rc + 0.012));
-    // arch rose: radiating panes in the semicircle
+    lead = max(lead, leadLine(rc - 0.3, 0.008));
+    lead = max(lead, leadLine(rc - 0.315, 0.009));
+    // arch head: radiating petals around an amber boss
     vec2 ar = m - vec2(0.0, springY);
     float ra = length(ar);
-    if (m.y > springY && ra < R - 0.07) {
+    if (m.y > springY && ra < R - 0.075) {
       float k = atan(ar.y, ar.x) / PI * 10.0;
       float f = fract(k);
-      col = mix(glassPal(5.0), mod(floor(k), 2.0) < 0.5 ? glassPal(3.0) : glassPal(4.0), smoothstep(0.18, 0.2, ra));
-      col = mix(col, glassPal(2.0), step(ra, 0.1));
-      lead = max(lead, (1.0 - smoothstep(0.0, 0.03, min(f, 1.0 - f) * ra * 3.0)) * step(0.1, ra));
-      lead = max(lead, stroke(ra - 0.1, 0.0, 0.005));
-      lead = max(lead, stroke(ra - 0.19, 0.0, 0.005));
+      float ring = step(0.19, ra);
+      col = ring > 0.5 ? (mod(floor(k), 2.0) < 0.5 ? glassPal(3.0) : glassPal(0.0) * 1.3) : glassPal(7.0);
+      if (ra < 0.1) col = glassPal(2.0);
+      id = vec2(floor(k), ring + (ra < 0.1 ? 5.0 : 0.0) + 80.0);
+      lead = max(lead, leadLine(min(f, 1.0 - f) * ra * PI / 10.0, 0.006) * step(0.1, ra));
+      lead = max(lead, leadLine(ra - 0.1, 0.007));
+      lead = max(lead, leadLine(ra - 0.19, 0.007));
     }
-    lead = max(lead, stroke(m.y - springY, 0.0, 0.006) * step(R - 0.07, ra) * 0.0);
-    // horizontal saddle bars
-    for (int i = 1; i < 5; i++) lead = max(lead, stroke(m.y - float(i) * springY / 5.0, 0.0, 0.006) * step(0.32, rc));
-    lead = max(lead, stroke(m.y - springY, 0.0, 0.007));
+    lead = max(lead, leadLine(m.y - springY, 0.009));
   }
-  col *= n;
-  col = mix(col, vec3(0.01), lead);
-  s.albedo = col;
-  s.alpha = step(inside, 0.0);
-  s.height = 1.0 - lead; s.rough = mix(0.1, 0.6, lead); s.metal = 0.0; s.ao = 1.0;
+  col = paneJitter(col, id) * n;
+  glassOut(s, uv, col, lead, step(inside, 0.0));
 }`,
   });
 }
 
 /** Sidelight panes: tall leaded diamonds with a roundel every metre. */
-export function sidelightTexture(forge, aspect) {
-  return forge.generate('foyer:sidelight', {
-    size: 1024, aspect, tile: false, uniforms: { uAsp: aspect },
+export function sidelightTexture(forge, aspect, mode = 0) {
+  return forge.generate(`foyer:sidelight2:${mode}`, {
+    size: 1024, aspect, tile: false, uniforms: { uAsp: aspect, uMode: mode }, normalStrength: 2.5,
     glsl: GLASS_COMMON + /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   vec2 m = vec2(uv.x - 0.5, uv.y / uAsp);
@@ -171,34 +202,33 @@ void surface(vec2 uv, inout Surface s) {
   float edge = min(0.5 - abs(m.x), min(m.y, H - m.y));
   float lead = 0.0;
   vec3 col;
+  vec2 id;
   float n = antique(uv * vec2(1.0, H), 5.0);
   if (edge < 0.12) {
-    col = glassPal(1.0);
     float k = m.y / 0.24; float f = fract(k);
-    col = mix(col, glassPal(0.0), step(0.5, fract(k * 0.5)) * 0.9);
-    lead = max(lead, 1.0 - smoothstep(0.0, 0.08, min(f, 1.0 - f)));
-    lead = max(lead, stroke(edge - 0.12, 0.0, 0.012));
+    col = step(0.5, fract(k * 0.5)) > 0.5 ? glassPal(0.0) : glassPal(3.0);
+    id = vec2(floor(k), sign(m.x));
+    lead = max(lead, leadLine(min(f, 1.0 - f) * 0.24, 0.016));
+    lead = max(lead, leadLine(edge - 0.12, 0.018));
   } else {
     vec2 q = rot2(PI * 0.25) * vec2(m.x * 1.4, m.y) * 3.2;
     vec2 qf = fract(q) - 0.5;
-    col = mix(vec3(0.45, 0.52, 0.6), vec3(0.52, 0.55, 0.62), hash12(floor(q)));
-    lead = max(lead, 1.0 - smoothstep(0.0, 0.05, 0.5 - max(abs(qf.x), abs(qf.y))));
+    col = glassPal(5.0);
+    id = floor(q);
+    lead = max(lead, leadLine((0.5 - max(abs(qf.x), abs(qf.y))) / 3.2, 0.014));
     float cy = (floor(m.y / 0.9) + 0.5) * 0.9;
     float rc = length(vec2(m.x, m.y - cy));
     if (rc < 0.22) {
-      col = glassPal(6.0);
-      col = mix(col, glassPal(0.0), step(rc, 0.1));
       float st = sdStar(vec2(m.x, m.y - cy), 0.19, 8.0, 3.0);
-      col = mix(col, glassPal(3.0), step(0.0, st) * step(0.1, rc));
-      lead = max(lead, stroke(st, 0.0, 0.01));
-      lead = max(lead, stroke(rc - 0.1, 0.0, 0.01));
+      col = rc < 0.1 ? glassPal(0.0) : (st < 0.0 ? glassPal(2.0) : glassPal(1.0));
+      id = vec2(cy, rc < 0.1 ? 1.0 : (st < 0.0 ? 2.0 : 3.0));
+      lead = max(lead, leadLine(st, 0.014) * step(0.1, rc));
+      lead = max(lead, leadLine(rc - 0.1, 0.014));
     }
-    lead = max(lead, stroke(rc - 0.22, 0.0, 0.012));
+    lead = max(lead, leadLine(rc - 0.22, 0.016));
   }
-  col *= n;
-  col = mix(col, vec3(0.01), lead);
-  s.albedo = col; s.alpha = 1.0;
-  s.height = 1.0 - lead; s.rough = mix(0.1, 0.6, lead); s.metal = 0.0; s.ao = 1.0;
+  col = paneJitter(col, id) * n;
+  glassOut(s, uv, col, lead, 1.0);
 }`,
   });
 }
@@ -310,15 +340,15 @@ void surface(vec2 uv, inout Surface s) {
 
 /** Stair runner: crimson Wilton carpet with gold guilloche borders. u across (1.2 m), v along (period 0.6 m). */
 export function carpetTexture(forge) {
-  return forge.generate('foyer:carpet', {
+  return forge.generate('foyer:carpet2', {
     size: 1024, aspect: 2, tile: true, normalStrength: 1.6,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   float u = uv.x;                    // 0..1 across
   float v = uv.y;                    // 0..1 along (one period)
-  vec3 crimson = vec3(0.36, 0.035, 0.045);
-  vec3 deep = vec3(0.16, 0.015, 0.03);
-  vec3 gold = vec3(0.72, 0.5, 0.18);
+  vec3 crimson = vec3(0.3, 0.03, 0.06);     // oxblood-plum Wilton
+  vec3 deep = vec3(0.12, 0.012, 0.035);
+  vec3 gold = vec3(0.62, 0.44, 0.16);
   vec3 navy = vec3(0.03, 0.04, 0.1);
   float e = min(u, 1.0 - u);
   vec3 col;
@@ -585,6 +615,66 @@ void surface(vec2 uv, inout Surface s) {
   s.height = 0.5 + strokes * 0.25 - crack * 0.3;
   s.rough = 0.35 + strokes * 0.2 + crack * 0.3;
   s.metal = 0.0; s.ao = 1.0 - crack * 0.3;
+}`,
+  });
+}
+
+/**
+ * Hall floor: diagonal checker of aged ivory Carrara and Nero Marquina (period 1 = 3.2 m,
+ * 0.57 m tiles). Each tile has its own vein field, value/hue jitter and polish; the
+ * grout is dark and grimy; the chamfered edges are slightly lifted; light scuffing.
+ */
+export function floorTexture(forge, size = 1024) {
+  return forge.generate('foyer:floor', {
+    size, aspect: 1, tile: true, normalStrength: 0.9,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  const float T = 4.0;
+  vec2 p = rot2(PI * 0.25) * uv * 1.41421356;
+  vec2 g = p * T;
+  vec2 id = floor(g);
+  vec2 f = fract(g);
+  float which = mod(id.x + id.y, 2.0);
+  // tile ids must repeat with the texture period: the rotated grid repeats every (T, T) on the diagonal lattice
+  vec2 tid = mod(id, vec2(T));
+  float h1 = hash12(tid + 11.3), h2 = hash12(tid * 1.7 + 3.1), h3 = hash12(tid * 2.3 + 7.9);
+  vec2 off = vec2(h1, h2) * 37.0;
+  vec2 w = vec2(fbm(uv * 1.0 + off * 0.013, vec2(1.0) * 2.0, 5), fbm(uv + 3.0 + off * 0.017, vec2(2.0), 5));
+  float v = fbm(uv * 1.0 + w * 0.22 + off * 0.004, vec2(8.0), 6);
+  float veins = 1.0 - smoothstep(0.0, 0.03 + 0.02 * h3, abs(v));
+  float v2 = fbm(uv * 2.0 + w * 0.35 + off * 0.007 + 4.0, vec2(16.0), 5);
+  float fine = 1.0 - smoothstep(0.0, 0.012, abs(v2));
+  float cloud = fbm(uv * 1.0 + w * 0.3 + off * 0.01, vec2(12.0), 4) * 0.5 + 0.5;
+  vec3 col;
+  if (which < 0.5) {
+    // aged Carrara: ivory, never paper white
+    vec3 base = vec3(0.6, 0.58, 0.53) * (0.9 + 0.16 * h1) * vec3(1.0 + (h2 - 0.5) * 0.06, 1.0, 1.0 - (h2 - 0.5) * 0.1);
+    col = base * (0.88 + 0.18 * cloud);
+    col = mix(col, vec3(0.3, 0.31, 0.33), veins * (0.45 + 0.3 * h3));
+    col = mix(col, vec3(0.42, 0.41, 0.4), fine * 0.35);
+    col = mix(col, col * vec3(0.95, 0.88, 0.74), smoothstep(0.55, 0.9, cloud) * 0.5);   // yellowed patches
+  } else {
+    vec3 base = vec3(0.03, 0.029, 0.032) * (0.85 + 0.35 * h1);
+    col = base * (0.85 + 0.3 * cloud);
+    col = mix(col, vec3(0.62, 0.6, 0.56), veins * (0.35 + 0.35 * h3));
+    col = mix(col, vec3(0.22, 0.21, 0.2), fine * 0.3);
+  }
+  // grout + chamfer
+  float e = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)) / T;     // distance to tile edge in uv
+  float groutM = 1.0 - smoothstep(0.0009, 0.0018, e);
+  float chamfer = smoothstep(0.0009, 0.004, e);
+  col = mix(col, vec3(0.075, 0.068, 0.06), groutM);
+  col *= mix(0.86, 1.0, smoothstep(0.0, 0.008, e));                 // grime creeping in from the joints
+  // scuffs: short random arcs
+  float sc = fbm(uv * vec2(9.0, 40.0) + off * 0.02, vec2(9.0, 40.0), 3) * 0.5 + 0.5;
+  float scuff = smoothstep(0.7, 0.85, sc) * (0.5 + 0.5 * hash12(floor(uv * 60.0)));
+  float pits = step(0.988, hash12(floor(uv * 1100.0)));
+  float polish = mix(0.07, 0.16, h2) + cloud * 0.04;
+  s.albedo = col * (1.0 - scuff * 0.05);
+  s.height = mix(0.45 + 0.1 * chamfer + cloud * 0.02 - pits * 0.2, 0.2, groutM);
+  s.rough = mix(polish + veins * 0.03 + scuff * 0.22 + pits * 0.3, 0.85, groutM);
+  s.metal = 0.0;
+  s.ao = mix(1.0, 0.5, groutM) * (1.0 - pits * 0.3);
 }`,
   });
 }

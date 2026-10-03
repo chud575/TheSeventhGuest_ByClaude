@@ -101,7 +101,7 @@ export function buildStaircase(ctx, mats) {
     const yTop = (k + 1) * S.h;
     const inArc = sB > S.straight;
     const samples = inArc ? 6 : 2;
-    let offIn = S.half + 0.06, offOut = -S.half - 0.06;
+    let offIn = S.half + 0.135, offOut = -S.half - 0.06;   // inner end oversails the cut string (return nosing)
     const flare = k === 0 ? 0.55 : k === 1 ? 0.3 : 0;
     const pts = [];
     // outer edge from sA-nose -> sB, then inner edge back
@@ -121,9 +121,9 @@ export function buildStaircase(ctx, mats) {
       for (let i = samples; i >= 0; i--) { const s = sA - S.nose + (sB - sA + S.nose) * (i / samples); pts.push(stairXZ(s, offIn)); }
     }
     const shape = new THREE.Shape(pts.map((p) => new THREE.Vector2(p.x, -p.y)));
-    const slab = new THREE.ExtrudeGeometry(shape, { depth: S.slab, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 2, curveSegments: 4 });
+    const slab = new THREE.ExtrudeGeometry(shape, { depth: S.slab - 0.02, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.012, bevelSegments: 4, curveSegments: 4 });   // rounded bullnose edge
     slab.rotateX(-Math.PI / 2);
-    slab.translate(0, yTop - S.slab, 0);
+    slab.translate(0, yTop - S.slab + 0.01, 0);
     treadGeos.push(G.applyBoxUVs(slab, 1));
     // riser (vertical) under the nosing at sA, from previous tread top to this tread underside
     const y0 = k * S.h, y1 = yTop - S.slab;
@@ -135,7 +135,8 @@ export function buildStaircase(ctx, mats) {
       // shrink slightly so the slab nosing overhangs
       riserGeos.push(G.applyBoxUVs(blk, 1));
     } else {
-      const a = V3(stairXZ(sA, offOut), y0), b = V3(stairXZ(sA, offIn), y0), c = V3(stairXZ(sA, offIn), y1), d = V3(stairXZ(sA, offOut), y1);
+      const rIn = S.half + 0.105;   // riser ends flush with the face of the cut string (mitred to the bracket)
+      const a = V3(stairXZ(sA, offOut), y0), b = V3(stairXZ(sA, rIn), y0), c = V3(stairXZ(sA, rIn), y1), d = V3(stairXZ(sA, offOut), y1);
       const w = S.half * 2 + 0.12;
       riserGeos.push(quads([{ p: [b, a, d, c], uv: [[0, y0], [w, y0], [w, y1], [0, y1]] }]));
     }
@@ -157,8 +158,9 @@ export function buildStaircase(ctx, mats) {
       const yT = (k + 1) * S.h + lift;
       const yPrev = k * S.h + lift;
       // profile for this step: riser up, nosing, tread
+      // runner: down the face of the riser (in front of it), tucked under the nosing, over the bullnose, along the tread
       const prof = [
-        [sA + 0.004, yPrev], [sA + 0.004, yT - S.slab - 0.004], [sA - S.nose - 0.006, yT - S.slab * 0.5], [sA - S.nose + 0.004, yT], [sB, yT],
+        [sA - 0.007, yPrev], [sA - 0.007, yT - S.slab - 0.006], [sA - S.nose - 0.01, yT - S.slab * 0.55], [sA - S.nose - 0.004, yT - 0.006], [sA - S.nose + 0.012, yT], [sB - 0.007, yT],
       ];
       const nSub = sB > S.straight ? 4 : 1;
       for (let i = 0; i < prof.length - 1; i++) {
@@ -189,25 +191,27 @@ export function buildStaircase(ctx, mats) {
 
   // -------------------------------------------------------------- stair rods (instanced)
   {
-    const rodGeo = new THREE.CylinderGeometry(0.0065, 0.0065, 1.34, 10);
+    const rodGeo = new THREE.CylinderGeometry(0.0085, 0.0085, 1.34, 12);
     rodGeo.rotateZ(Math.PI / 2);
-    const capGeo = new THREE.SphereGeometry(0.014, 12, 8);
+    // acorn finials on the rod eyes
+    const capGeo = G.latheFromProfile([[0, -0.018], [0.008, -0.016], [0.014, -0.008], [0.015, 0.0], [0.012, 0.008], [0.006, 0.014], [0.0, 0.022]], 12);
+    capGeo.rotateZ(Math.PI / 2);
     const n = S.N - 2;
     const rods = new THREE.InstancedMesh(rodGeo, mats.brass, n);
     const caps = new THREE.InstancedMesh(capGeo, mats.brass, n * 2);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion();
     for (let k = 1; k <= n; k++) {
-      const s = k * S.g + 0.012;
-      const y = k * S.h + 0.014;
+      const s = k * S.g - 0.017;
+      const y = k * S.h + 0.017;
       const f = stairFrame(s);
       const ang = Math.atan2(-f.n.y, f.n.x);
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), ang);
       const c = stairXZ(s, 0);
       m.compose(new THREE.Vector3(c.x, y, c.y), q, new THREE.Vector3(1, 1, 1));
       rods.setMatrixAt(k - 1, m);
-      for (const [i, off] of [[0, 0.67], [1, -0.67]]) {
+      for (const [i, off] of [[0, 0.68], [1, -0.68]]) {
         const e = stairXZ(s, off);
-        m.compose(new THREE.Vector3(e.x, y, e.y), q, new THREE.Vector3(1, 1, 1));
+        m.compose(new THREE.Vector3(e.x, y, e.y), q, new THREE.Vector3(off > 0 ? -1 : 1, 1, 1));
         caps.setMatrixAt((k - 1) * 2 + i, m);
       }
     }
@@ -230,11 +234,76 @@ export function buildStaircase(ctx, mats) {
     return quadStrip(rows, { flip: faceLeft });
   };
   const inner = S.half + 0.07, outer = -S.half - 0.07;
-  // inner (hall side) string: two faces + cap
-  const strInnerOut = new THREE.Mesh(stringRows(inner + 0.035, true, 0.34, 0.07), mats.string);
-  const strInnerIn = new THREE.Mesh(stringRows(inner - 0.035, false, 0.34, 0.07), mats.string);
+  // inner (hall side) CUT string: its top follows the step outline, so every tread end and riser shows
+  const cutRows = (off, depthBelow) => {
+    const rows = [];
+    const push = (s, yt) => {
+      const xz = stairXZ(s, off);
+      const yb = Math.max(0, pitchY(s) - depthBelow);
+      rows.push([{ p: V3(xz, yb), u: s, v: yb }, { p: V3(xz, Math.max(yb + 0.001, yt)), u: s, v: yt }]);
+    };
+    for (let k = 0; k < S.N - 1; k++) {
+      const sA = Math.max(sStart, k * S.g), sB = (k + 1) * S.g;
+      if (sB <= sStart) continue;
+      const yt = (k + 1) * S.h - S.slab;
+      const sub = sB > S.straight ? 4 : 1;
+      for (let i = 0; i <= sub; i++) push(sA + (sB - sA) * (i / sub) - (i === sub ? 0.0005 : 0), yt);
+    }
+    return quadStrip(rows, { flip: false });
+  };
+  const strInnerOut = new THREE.Mesh(cutRows(inner + 0.035, 0.36), mats.string);
+  strInnerOut.material = mats.string.clone(); strInnerOut.material.side = THREE.DoubleSide;
+  const strInnerIn = new THREE.Mesh(stringRows(inner - 0.035, false, 0.36, -0.06), mats.string);
   strInnerOut.name = 'string';
   group.add(strInnerOut, strInnerIn);
+  // carved scroll brackets on the face of the cut string, one under every tread end
+  {
+    const br = new THREE.Shape();
+    const L = S.g * 0.78, Hh = S.h * 0.92;
+    br.moveTo(0, 0); br.lineTo(L, 0);
+    br.bezierCurveTo(L * 0.92, -Hh * 0.28, L * 0.62, -Hh * 0.22, L * 0.55, -Hh * 0.42);
+    br.bezierCurveTo(L * 0.5, -Hh * 0.62, L * 0.66, -Hh * 0.72, L * 0.6, -Hh * 0.86);
+    br.bezierCurveTo(L * 0.5, -Hh * 1.02, L * 0.3, -Hh * 0.9, L * 0.26, -Hh * 0.74);
+    br.bezierCurveTo(L * 0.2, -Hh * 0.9, L * 0.06, -Hh * 1.0, 0, -Hh);
+    br.lineTo(0, 0);
+    const bgeo = new THREE.ExtrudeGeometry(br, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 2, curveSegments: 10 });
+    G.applyBoxUVs(bgeo, 1);
+    const curl = new THREE.TorusGeometry(Hh * 0.13, 0.008, 6, 14);
+    const geos = [];
+    const up = new THREE.Vector3(0, 1, 0);
+    for (let k = 1; k < S.N - 1; k++) {
+      const sA = k * S.g;
+      const f = stairFrame(sA + L * 0.5);
+      const xz = stairXZ(sA, inner + 0.035 + 0.003);
+      const tx = new THREE.Vector3(f.t.x, 0, f.t.y), nz = new THREE.Vector3(f.n.x, 0, f.n.y);
+      const basis = new THREE.Matrix4().makeBasis(tx, up, nz);
+      basis.setPosition(xz.x, (k + 1) * S.h - S.slab - 0.002, xz.y);
+      geos.push(bgeo.clone().applyMatrix4(basis));
+      const cm = new THREE.Matrix4().makeTranslation(L * 0.42, -Hh * 0.72, 0.016);
+      geos.push(curl.clone().applyMatrix4(basis.clone().multiply(cm)));
+    }
+    const brackets = new THREE.Mesh(G.mergeGeometries(geos.map((g) => (g.index ? g.toNonIndexed() : g))), mats.bracket || mats.rail);
+    brackets.name = 'stringBrackets';
+    group.add(brackets);
+  }
+  // cove moulding tucked under every nosing
+  {
+    const cove = [[0, 0], [0.0, -0.022], [0.006, -0.012], [0.014, -0.005], [0.022, 0]].map(([x, y]) => new THREE.Vector2(x, y));
+    const geos = [];
+    for (let k = 1; k < S.N - 1; k++) {
+      const sA = k * S.g;
+      const y = (k + 1) * S.h - S.slab + 0.001;
+      // only where the wood shows either side of the runner (profile x faces the climber)
+      for (const [o0, o1] of [[-S.half - 0.04, -0.63], [0.63, S.half + 0.105]]) {
+        const a = stairXZ(sA - 0.001, o0), b = stairXZ(sA - 0.001, o1);
+        const g = G.sweepProfile(cove, [V3(a, y), V3(b, y)], { uvScale: 1 });
+        geos.push(g.index ? g.toNonIndexed() : g);
+      }
+    }
+    const coves = new THREE.Mesh(G.mergeGeometries(geos), mats.rail);
+    coves.name = 'nosingCoves';
+    group.add(coves);
+  }
   // wall string
   group.add(new THREE.Mesh(stringRows(outer + 0.03, true, 0.34, 0.1), mats.string));
   // string mouldings: cap sweep along the inner string top, bead along the bottom
@@ -244,10 +313,10 @@ export function buildStaircase(ctx, mats) {
       const s = sStart + (S.L - sStart) * (i / 60);
       const xz = stairXZ(s, inner);
       capPath.push(V3(xz, pitchY(s) + 0.07));
-      botPath.push(V3(xz, Math.max(0.02, pitchY(s) - 0.34)));
+      botPath.push(V3(xz, Math.max(0.02, pitchY(s) - 0.36)));
     }
     const capProf = [[-0.045, 0], [0.045, 0], [0.045, 0.01], [0.03, 0.022], [0.0, 0.028], [-0.03, 0.022], [-0.045, 0.01], [-0.045, 0]].map(([x, y]) => new THREE.Vector2(x, y));
-    group.add(new THREE.Mesh(G.sweepProfile(capProf, capPath, { uvScale: 1 }), mats.rail));
+    void capProf; void capPath;
     const botProf = [[-0.05, 0.0], [0.05, 0.0], [0.05, 0.02], [0.03, 0.035], [-0.03, 0.035], [-0.05, 0.02], [-0.05, 0]].map(([x, y]) => new THREE.Vector2(x, -y));
     group.add(new THREE.Mesh(G.sweepProfile(botProf, botPath, { uvScale: 1 }), mats.gilt));
   }
@@ -272,35 +341,50 @@ export function buildStaircase(ctx, mats) {
   }
 
   // -------------------------------------------------------------- balusters + rails
-  const balusterH = 0.86;
-  const balGeo = G.latheFromProfile([
-    [0.026, 0], [0.026, 0.07], [0.02, 0.08], [0.022, 0.1], [0.016, 0.115], [0.016, 0.16], [0.024, 0.22], [0.031, 0.3], [0.029, 0.36],
-    [0.02, 0.43], [0.013, 0.5], [0.013, 0.6], [0.018, 0.62], [0.014, 0.64], [0.014, 0.74], [0.02, 0.76], [0.02, 0.86], [0.0, 0.86],
-  ], 14);
-  const spots = [];
+  // two alternating turned profiles; they stand on the tread ends (cut string), so the pair on each
+  // tread differs in length by half a riser: A = vase & ring (front), B = bobbin-turned (back)
+  const railGap = 0.93;
+  const LA = 0.25 * S.h + railGap, LB = 0.75 * S.h + railGap;
+  const lathe = (pts, len) => {
+    const sc = len / pts[pts.length - 1][1];
+    return G.latheFromProfile(pts.map(([r, y]) => [r, y * sc]), 16);
+  };
+  // square-ish blocks are approximated with low-segment turned collars
+  const profA = [
+    [0.024, 0], [0.024, 0.09], [0.019, 0.1], [0.021, 0.115], [0.015, 0.13], [0.014, 0.17], [0.02, 0.21], [0.029, 0.27], [0.033, 0.33], [0.031, 0.38],
+    [0.024, 0.43], [0.016, 0.48], [0.012, 0.53], [0.012, 0.6], [0.017, 0.615], [0.021, 0.63], [0.016, 0.645], [0.012, 0.66], [0.012, 0.74],
+    [0.018, 0.755], [0.013, 0.77], [0.019, 0.79], [0.019, 0.93], [0.0, 0.93],
+  ];
+  const profB = [[0.024, 0], [0.024, 0.09], [0.018, 0.1], [0.02, 0.112]];
+  for (let i = 0; i < 9; i++) { const y0 = 0.12 + i * 0.07; profB.push([0.013, y0], [0.021, y0 + 0.02], [0.023, y0 + 0.035], [0.021, y0 + 0.05], [0.013, y0 + 0.07]); }
+  profB.push([0.017, 0.78], [0.019, 0.79], [0.019, 0.93], [0.0, 0.93]);
+  const balGeo = lathe(profA, LA);
+  const balGeoB = lathe(profB, LB);
+  const spotsA = [], spotsB = [], spotsO = [];
   for (let k = 1; k < S.N - 1; k++) {
     for (const fr of [0.25, 0.75]) {
       const s = k * S.g + S.g * fr;
-      spots.push({ s, off: inner, y: pitchY(s) + 0.07 });
-      if (s > S.straight + 0.15) spots.push({ s, off: outer + 0.03, y: pitchY(s) + 0.1 });
+      (fr < 0.5 ? spotsA : spotsB).push({ s, off: S.half + 0.075, y: (k + 1) * S.h });
+      if (s > S.straight + 0.15) spotsO.push({ s, off: outer + 0.03, y: pitchY(s) + 0.1 });
     }
   }
-  const bal = new THREE.InstancedMesh(balGeo, mats.baluster, spots.length);
-  {
+  const instance = (geo, spots, sy = 1) => {
+    const im = new THREE.InstancedMesh(geo, mats.baluster, spots.length);
     const m = new THREE.Matrix4();
-    spots.forEach((sp, i) => {
-      const xz = stairXZ(sp.s, sp.off);
-      m.makeTranslation(xz.x, sp.y, xz.y);
-      bal.setMatrixAt(i, m);
-    });
-  }
-  bal.name = 'balusters';
-  group.add(bal);
+    spots.forEach((sp, i) => { const xz = stairXZ(sp.s, sp.off); m.makeScale(1, sy, 1).setPosition(xz.x, sp.y, xz.y); im.setMatrixAt(i, m); });
+    im.name = 'balusters';
+    group.add(im);
+    return im;
+  };
+  instance(balGeo, spotsA); instance(balGeoB, spotsB);
+  instance(balGeo, spotsO, 0.86 / LA);
+  const balusterH = LA;
 
   // handrails (mahogany, mushroom profile)
   const railProf = [];
   {
-    const pts = [[0, -0.05], [0.028, -0.05], [0.03, -0.04], [0.026, -0.03], [0.04, -0.018], [0.044, 0.0], [0.04, 0.016], [0.026, 0.028], [0.0, 0.032]];
+    // heavy moulded Victorian rail (~95 mm wide)
+    const pts = [[0, -0.06], [0.026, -0.06], [0.03, -0.052], [0.027, -0.042], [0.034, -0.034], [0.046, -0.022], [0.05, -0.004], [0.048, 0.012], [0.04, 0.026], [0.024, 0.036], [0.0, 0.04]];
     for (const [x, y] of pts) railProf.push(new THREE.Vector2(x, y));
     for (let i = pts.length - 2; i >= 0; i--) railProf.push(new THREE.Vector2(-pts[i][0], pts[i][1]));
   }
@@ -309,12 +393,12 @@ export function buildStaircase(ctx, mats) {
     for (let i = 0; i <= n; i++) { const s = from + (to - from) * (i / n); const xz = stairXZ(s, off); p.push(V3(xz, pitchY(s) + y0)); }
     return p;
   };
-  const innerRailPath = railPath(inner, 0.07 + balusterH + 0.05, S.g * 0.62, S.L, 90);
+  const innerRailPath = railPath(S.half + 0.075, railGap + 0.06, S.g * 0.62, S.L, 90);
   const rail = new THREE.Mesh(G.sweepProfile(railProf, innerRailPath, { uvScale: 1 }), mats.rail);
   rail.name = 'handrail';
   group.add(rail);
   // outer rail on the curve
-  group.add(new THREE.Mesh(G.sweepProfile(railProf, railPath(outer + 0.03, 0.1 + balusterH + 0.05, S.straight + 0.05, S.L, 50), { uvScale: 1 }), mats.rail));
+  group.add(new THREE.Mesh(G.sweepProfile(railProf, railPath(outer + 0.03, 0.1 + 0.86 + 0.06, S.straight + 0.05, S.L, 50), { uvScale: 1 }), mats.rail));
   // wall rail on brass brackets along the straight run
   {
     const wp = railPath(-S.half - 0.04, 0.92, 0.3, S.straight + 0.08, 12);
@@ -329,39 +413,55 @@ export function buildStaircase(ctx, mats) {
   }
 
   // -------------------------------------------------------------- newel posts
+  // carved starting newel: moulded plinth, square shaft with raised & gilt-lined panels, necking,
+  // capital block and a turned urn finial
   const newel = new THREE.Group();
+  const carvedNewel = (height, w = 0.2) => {
+    const g = new THREE.Group();
+    const RB = (bw, bh, bd, r = 0.006) => new G.RoundedBoxGeometry(bw, bh, bd, 2, r);
+    const box = (bw, bh, bd, y, m = mats.newel) => { const b = new THREE.Mesh(RB(bw, bh, bd), m); b.position.y = y; g.add(b); return b; };
+    box(w + 0.07, 0.06, w + 0.07, 0.03);
+    box(w + 0.04, 0.05, w + 0.04, 0.085);
+    box(w + 0.015, 0.03, w + 0.015, 0.125);
+    const shaftH = height - 0.38;
+    box(w, shaftH, w, 0.14 + shaftH / 2);
+    const pg = G.raisedPanel(w - 0.06, shaftH - 0.12, { border: 0.018, bevel: 0.016, fieldDepth: 0.006 });
+    for (let i = 0; i < 4; i++) {
+      const pnl = new THREE.Mesh(pg, mats.newel);
+      const a = i * Math.PI / 2;
+      pnl.position.set(Math.sin(a) * w / 2, 0.14 + shaftH / 2, Math.cos(a) * w / 2); pnl.rotation.y = a; g.add(pnl);
+      const line = new THREE.Mesh(G.frameGeometry(w - 0.05, shaftH - 0.11, { width: 0.006, depth: 0.004, uvScale: 1 }), mats.gilt);
+      line.position.copy(pnl.position); line.rotation.y = a; g.add(line);
+    }
+    const top = 0.14 + shaftH;
+    box(w + 0.02, 0.025, w + 0.02, top + 0.0125, mats.gilt);
+    box(w - 0.02, 0.06, w - 0.02, top + 0.055);
+    box(w + 0.05, 0.035, w + 0.05, top + 0.1);
+    box(w + 0.08, 0.03, w + 0.08, top + 0.13);
+    const urn = G.latheFromProfile([[0.0, 0], [0.06, 0], [0.06, 0.015], [0.04, 0.03], [0.035, 0.05], [0.06, 0.08], [0.075, 0.11], [0.07, 0.14], [0.05, 0.16], [0.03, 0.175], [0.035, 0.19], [0.022, 0.21], [0.03, 0.235], [0.012, 0.265], [0.0, 0.28]], 24);
+    const u = new THREE.Mesh(urn, mats.newel); u.position.y = top + 0.145; g.add(u);
+    g.userData.top = top + 0.145;
+    return g;
+  };
   {
     const f = stairFrame(S.g * 0.45);
-    const xz = stairXZ(S.g * 0.45, inner + 0.04);
+    const xz = stairXZ(S.g * 0.45, S.half + 0.12);
     const baseY = S.h;
-    const post = G.latheFromProfile([
-      [0.13, 0], [0.13, 0.05], [0.115, 0.07], [0.115, 0.1], [0.1, 0.12], [0.1, 0.5], [0.12, 0.55], [0.12, 0.6], [0.08, 0.66], [0.07, 0.75],
-      [0.09, 0.85], [0.11, 0.95], [0.11, 1.0], [0.13, 1.03], [0.13, 1.08], [0.09, 1.12], [0.0, 1.13],
-    ], 8);
-    post.rotateY(Math.PI / 8);
-    const pm = new THREE.Mesh(post, mats.newel);
-    newel.add(pm);
-    // carved field panels (gilt bands)
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.104, 0.104, 0.02, 8, 1, true), mats.gilt);
-    band.rotation.y = Math.PI / 8; band.position.y = 0.5; newel.add(band);
-    const band2 = band.clone(); band2.position.y = 0.13; newel.add(band2);
+    const post = carvedNewel(1.13, 0.21);
+    newel.add(post);
     newel.position.set(xz.x, baseY, xz.y);
     newel.rotation.y = Math.atan2(f.t.x, f.t.y);
-    newel.userData.top = new THREE.Vector3(xz.x, baseY + 1.13, xz.y);
+    newel.userData.top = new THREE.Vector3(xz.x, baseY + post.userData.top, xz.y);
     group.add(newel);
   }
   // top newel where the stair meets the gallery
   {
-    const xz = stairXZ(S.L, inner);
-    const post = new THREE.Mesh(G.boxUV(0.14, 1.2, 0.14, 1), mats.newel);
-    post.position.set(xz.x, S.rise + 0.6 - 0.1, xz.y);
+    const xz = stairXZ(S.L, S.half + 0.075);
+    const post = carvedNewel(1.12, 0.17);
+    post.position.set(xz.x, S.rise, xz.y);
     group.add(post);
-    const cap = new THREE.Mesh(G.latheFromProfile([[0.1, 0], [0.1, 0.03], [0.07, 0.05], [0.05, 0.09], [0.06, 0.12], [0.0, 0.16]], 4), mats.newel);
-    cap.rotation.y = Math.PI / 4;
-    cap.position.set(xz.x, S.rise + 1.1, xz.y);
-    group.add(cap);
   }
 
   group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  return { group, newel, innerRailPath, railProf, balGeo, balusterH };
+  return { group, newel, innerRailPath, railProf, balGeo, balusterH, carvedNewel };
 }

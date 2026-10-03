@@ -27,7 +27,7 @@ export const webMeta = {
 
 const SOLUTION = [[0, 3], [5, 0], [2, 5], [7, 2], [4, 7], [1, 4], [6, 1]];
 
-export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials, onSolved }) {
+export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials, onSolved, grade: roomGrade }) {
   const N = 8, SP = 7;
   const links = (i) => [(i + 3) % N, (i + 5) % N];
   // stud world positions (texture angle i*45+90 deg, texture y -> world -z)
@@ -60,9 +60,27 @@ export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials,
     const r = new THREE.Mesh(ringGeo, rm); r.position.copy(pts[i]); r.position.y += 0.006; r.renderOrder = 3; r.userData.noBake = true;
     group.add(r); rings.push(r);
   }
-  // spiders: black lacquer with a blood-red mark; they wait at the near rim
+  // raised half-round brass rods along the eight lines of the star (the inlay is the groove they sit in)
+  {
+    const rodGeos = [];
+    for (let i = 0; i < N; i++) {
+      const a = pts[i], b = pts[(i + 3) % N];
+      const len = a.distanceTo(b);
+      const c = new THREE.CylinderGeometry(0.0075, 0.0075, len, 12, 1, true, 0, Math.PI);
+      c.rotateZ(Math.PI / 2);                     // along x, half-round facing up
+      const ang = Math.atan2(-(b.z - a.z), b.x - a.x);
+      c.rotateY(ang);
+      c.translate((a.x + b.x) / 2, center.y + 0.0015, (a.z + b.z) / 2);
+      rodGeos.push(c);
+    }
+    const ringG = new THREE.TorusGeometry(pointsR, 0.006, 6, 160); ringG.rotateX(Math.PI / 2); ringG.translate(center.x, center.y + 0.001, center.z);
+    rodGeos.push(ringG.toNonIndexed());
+    const rods = new THREE.Mesh(ctx.geometry.mergeGeometries(rodGeos.map((g) => (g.index ? g.toNonIndexed() : g))), materials.brass);
+    rods.receiveShadow = true; rods.castShadow = false; rods.name = 'webRods';
+    group.add(rods);
+  }
+  // spiders: black widows (glossy chitin, red hourglass); they wait at the near rim
   const spiderGeo = materials.spiderGeo;
-  const mark = new THREE.SphereGeometry(0.009, 10, 6); mark.scale(1, 0.4, 1.6);
   const spiders = [];
   const home = [];
   for (let k = 0; k < SP; k++) {
@@ -70,8 +88,9 @@ export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials,
     const r = radius * 0.875;
     home.push(new THREE.Vector3(center.x + Math.cos(a) * r, center.y + 0.004, center.z - Math.sin(a) * r));
     const sp = new THREE.Group();
-    const body = new THREE.Mesh(spiderGeo, materials.spider); body.castShadow = true; sp.add(body);
-    const m = new THREE.Mesh(mark, materials.mark); m.position.set(0, 0.052, -0.035); sp.add(m);
+    const body = new THREE.Mesh(spiderGeo.body, materials.spider); body.castShadow = true; sp.add(body);
+    const legs = new THREE.Mesh(spiderGeo.legs, materials.spiderLeg || materials.spider); legs.castShadow = true; sp.add(legs);
+    const m = new THREE.Mesh(spiderGeo.hourglass, materials.mark); sp.add(m);
     sp.position.copy(home[k]);
     sp.rotation.y = Math.PI + (k - 3) * 0.12;   // face the board centre
     sp.scale.setScalar(2.1);
@@ -155,6 +174,8 @@ export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials,
     camera: { position: [center.x, 3.6, center.z + 1.2], target: [center.x, 0.0, center.z + 0.32], fov: 56 },
     cameraDuration: 1.5,
     setup(p) {
+      // clean, readable board: no AO speckle, no DOF, almost no grain, flames-only bloom
+      p.post?.set?.({ aoIntensity: 0, dof: null, grain: 0.01, bloomThreshold: 5, bloomStrength: 0.2, chromaticAberration: 0, vignette: 0.32 }, 0.6);
       if (solvedFlag) { p.status('The web is complete.'); return; }
       p.status(placed ? `${placed} of ${SP} spiders at rest.` : 'Choose an empty point for the first spider.');
       refreshRings();
@@ -215,7 +236,7 @@ export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials,
     reset(p) { if (solvedFlag) return; resetState(); p.status('The spiders scuttle back to the rim.'); },
     autoSolve(p) { anim = null; applySolved(); p.solve(); },
     async onSolved(p) { await onSolved?.(p); },
-    teardown() { hover = -1; selected = selected >= 0 ? -1 : selected; refreshRings(); for (const r of rings) r.material.opacity = 0; },
+    teardown(p) { if (roomGrade) p?.post?.set?.(roomGrade, 0.6); hover = -1; selected = selected >= 0 ? -1 : selected; refreshRings(); for (const r of rings) r.material.opacity = 0; },
   };
 
   return {
