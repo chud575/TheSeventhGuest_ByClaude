@@ -172,7 +172,7 @@ export default {
     bladeMat.userData.rimTip = true;
     const hiQ = ctx.quality.particles >= 1;
     root.add(buildBladeGrass({
-      material: bladeMat, count: hiQ ? 11000 : 6000,
+      material: bladeMat, count: hiQ ? 8000 : 4500,
       regions: [
         { x0: -14, x1: 18, z0: 33, z1: 56, weight: 6 },
         { x0: -5, x1: 10, z0: 36, z1: 52, weight: 3 },
@@ -343,18 +343,11 @@ export default {
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: halo, color: 0xffa860, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
       sp.scale.set(1.5, 1.5, 1); sp.position.y = 0.14; sp.renderOrder = 9; sp.userData.noBake = true; H.add(sp);
       root.add(H);
-      const hl = new THREE.PointLight(0xffa458, Number(P.get('plk') || 4.2), 7.5, 2);
+      const hl = new THREE.PointLight(0xffa458, Number(P.get('plk') || 4.6), 7.5, 2);
       hl.position.set(0, PORCH.roof - 0.8, TOWER.z1 + 1.55);
       root.add(hl);
       porchLights.push(hl);
     }
-    // warm bounce off the porch floor and the top steps (keeps treads out of pure black)
-    const bounce = new THREE.PointLight(0xff9a50, Number(P.get('bounce') || 1.3), 4.0, 2);
-    bounce.position.set(0, F + 0.35, TOWER.z1 + 1.6);
-    root.add(bounce);
-    const bounce2 = new THREE.PointLight(0xff9a50, 0.7, 3.5, 2);
-    bounce2.position.set(0, F - 0.2, PORCH.z1 + 1.2);
-    root.add(bounce2);
     const doorSpill = new THREE.SpotLight(0xffa860, 0, 16, 0.75, 0.6, 2);
     doorSpill.position.set(0, F + 2.3, TOWER.z1 - 0.8);
     doorSpill.target.position.set(0, 0, TOWER.z1 + 6);
@@ -364,7 +357,7 @@ export default {
     const spillCol = (t) => (t >= 0.9 ? 0xff8a3a : t > 0.3 ? 0xffb070 : 0xff9a50);
     const spills = house.glass.lit
       .filter((w) => w.normal.z > 0.3 || w.pos.x > 7)
-      .sort((a, b) => b.lit - a.lit).slice(0, 5);
+      .sort((a, b) => b.lit - a.lit).slice(0, 3);
     for (const w of spills) {
       const pl = new THREE.PointLight(spillCol(w.tint), 2.6 * w.lit, 4.5, 2);
       pl.position.copy(w.sill).addScaledVector(w.normal, 0.55).add(new THREE.Vector3(0, 0.6, 0));

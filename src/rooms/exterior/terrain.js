@@ -298,9 +298,9 @@ function bladeClump(seed, { blades = 18, segs = 3, height = 1, spread = 0.12 } =
  */
 export function buildBladeGrass({ material, regions, count = 6000, seed = 21, avoid = [], pathClear = 1.3 }) {
   const templates = [
-    bladeClump(seed + 1, { blades: 22, segs: 3, height: 1, spread: 0.1 }),
-    bladeClump(seed + 2, { blades: 14, segs: 3, height: 1, spread: 0.07 }),
-    bladeClump(seed + 3, { blades: 30, segs: 4, height: 1, spread: 0.16 }),
+    bladeClump(seed + 1, { blades: 18, segs: 3, height: 1, spread: 0.1 }),
+    bladeClump(seed + 2, { blades: 12, segs: 3, height: 1, spread: 0.07 }),
+    bladeClump(seed + 3, { blades: 24, segs: 3, height: 1, spread: 0.16 }),
   ];
   const R = rng(seed);
   const lists = templates.map(() => []);

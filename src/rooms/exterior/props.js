@@ -127,9 +127,9 @@ export function placeTree(geo, material, { x, z, ry = 0, s = 1 }) {
 }
 
 /** Lumpy field boulder: displaced icosphere (deterministic), flattened, with a buried base. */
-export function boulderGeometry(seed, r = 1) {
+export function boulderGeometry(seed, r = 1, detail = 4) {
   const R = rng(seed);
-  const g = new THREE.IcosahedronGeometry(r, 4);
+  const g = new THREE.IcosahedronGeometry(r, detail);
   const p = g.attributes.position;
   const ph = [R() * 10, R() * 10, R() * 10];
   const v = new THREE.Vector3();
@@ -172,7 +172,7 @@ export function buildDressing(ctx, M, { rocks = [], bushes = [] }) {
 /** Small field stones lining both verges of the carriage drive (instanced, a few templates). */
 export function buildVerge(ctx, M, { from = 0.25, to = 0.9, seed = 61 } = {}) {
   const R = rng(seed);
-  const temps = [boulderGeometry(101, 1), boulderGeometry(102, 1), boulderGeometry(103, 1)];
+  const temps = [boulderGeometry(101, 1, 2), boulderGeometry(102, 1, 2), boulderGeometry(103, 1, 2)];
   const lists = temps.map(() => []);
   const n = 260;
   for (let i = 0; i < n; i++) {
