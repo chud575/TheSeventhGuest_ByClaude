@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FX_NOISE } from '../../engine/fx/noise.glsl.js';
 
 /**
  * The ghost pianist, Herr Kessler: a seated maestro in a tailcoat, swept-back
@@ -25,43 +26,163 @@ async function loadParts(url) {
     g.setAttribute('normal', new THREE.BufferAttribute(n3, 3));
     g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(p.vertices * 2), 2));
     g.setIndex(new THREE.BufferAttribute(new Uint32Array(buf, base + p.idx, p.indices), 1));
+    const ao = new Float32Array(p.vertices).fill(1);
+    if (p.ao !== undefined) { const a8 = new Uint8Array(buf, base + p.ao, p.vertices); for (let i = 0; i < p.vertices; i++) ao[i] = a8[i] / 255; }
+    g.setAttribute('aOcc', new THREE.BufferAttribute(ao, 1));
+    const tint = new Float32Array(p.vertices).fill(0.3);
+    if (p.tint !== undefined) { const t8 = new Uint8Array(buf, base + p.tint, p.vertices); for (let i = 0; i < p.vertices; i++) tint[i] = t8[i] / 255; }
+    g.setAttribute('aTint', new THREE.BufferAttribute(tint, 1));
     g.computeBoundingSphere();
     parts[p.name] = g;
   }
   return { parts, header };
 }
 
+
+/*
+ * Ghost shader for Kessler: a pale, milky, softly *lit* apparition rather than an
+ * x-ray rim. A depth pre-pass means only the front-most surface is shaded, so the
+ * dense sculpt never stacks into line-art. Wrap lighting from a cool key (the
+ * windows) plus per-vertex cavity occlusion lets the face, folds and hands read;
+ * a low-power fresnel gives a soft halo, and the lower legs dissolve into wisps.
+ */
+const VERT = /* glsl */ `
+uniform float uTime;
+uniform float uWobble;
+attribute float aOcc;
+attribute float aTint;
+varying float vTint;
+varying vec3 vN;
+varying vec3 vW;
+varying vec3 vLocal;
+varying float vOcc;
+${FX_NOISE}
+void main() {
+  vec3 p = position;
+  float w = fxNoise(p * 3.0 + vec3(0.0, uTime * 0.5, 0.0)) - 0.5;
+  p += normal * w * uWobble;
+  vLocal = (uLocalMatrix * vec4(p, 1.0)).xyz;
+  vOcc = aOcc;
+  vTint = aTint;
+  vec4 wp = modelMatrix * vec4(p, 1.0);
+  vW = wp.xyz;
+  vN = normalize(mat3(modelMatrix) * normal);
+  gl_Position = projectionMatrix * viewMatrix * wp;
+}`;
+const FRAG = /* glsl */ `
+uniform float uTime;
+uniform vec3 uColor;
+uniform vec3 uShadow;
+uniform vec3 uRim;
+uniform vec3 uKey;
+uniform float uOpacity;
+uniform float uIntensity;
+uniform float uDissolveY;
+uniform float uDissolveSoft;
+varying vec3 vN;
+varying vec3 vW;
+varying vec3 vLocal;
+varying float vOcc;
+varying float vTint;
+${FX_NOISE}
+void main() {
+  vec3 n = normalize(vN);
+  vec3 v = normalize(cameraPosition - vW);
+  float ndv = clamp(dot(n, v), 0.0, 1.0);
+  float wrap = clamp(dot(n, uKey) * 0.6 + 0.4, 0.0, 1.0);
+  float occ = pow(vOcc, 1.4);
+  float fres = pow(1.0 - ndv, 1.2);
+  float flow = 0.65 * fxNoise(vLocal * 5.0 + vec3(0.0, -uTime * 0.35, uTime * 0.1)) + 0.35 * fxNoise(vLocal * 13.0 + vec3(0.0, -uTime * 0.6, 0.0));
+  float d0 = (vLocal.y - uDissolveY) / max(uDissolveSoft, 1e-3);
+  float mist = 0.5;
+  if (d0 < 2.0) mist = fxFbm(vLocal * vec3(9.0, 3.0, 9.0) + vec3(0.0, -uTime * 0.8, 0.0));
+  float val = mix(0.55, 1.2, vTint);
+  vec3 col = mix(uShadow, uColor * val, wrap * wrap * occ);
+  col += uRim * fres * 0.35;
+  col *= 0.88 + 0.24 * flow;
+  float a = (0.26 + 0.42 * wrap * occ * mix(0.8, 1.15, vTint) + 0.3 * fres) * (0.82 + 0.3 * flow);
+  // dissolve below uDissolveY into drifting wisps
+  float d = d0 + (mist - 0.5) * 1.8;
+  a *= smoothstep(0.0, 1.0, d);
+  a *= uOpacity;
+  gl_FragColor = vec4(col * uIntensity, a);
+}`;
+
+function ghostMaterials(ctx, { dissolveY = -10, dissolveSoft = 0.25, wobble = 0.003, localMatrix = new THREE.Matrix4() } = {}) {
+  const uniforms = {
+    uTime: ctx.time,
+    uWobble: { value: wobble },
+    uColor: { value: new THREE.Color(0xdfe8ff) },
+    uShadow: { value: new THREE.Color(0x222c52) },
+    uRim: { value: new THREE.Color(0xc8d8ff) },
+    uKey: { value: new THREE.Vector3(-0.35, 0.55, -0.75).normalize() },
+    uOpacity: { value: 0.8 },
+    uIntensity: { value: 1.0 },
+    uDissolveY: { value: dissolveY },
+    uDissolveSoft: { value: dissolveSoft },
+    uLocalMatrix: { value: localMatrix },
+  };
+  const defs = 'uniform mat4 uLocalMatrix;\n';
+  const color = new THREE.ShaderMaterial({
+    vertexShader: defs + VERT, fragmentShader: FRAG, uniforms,
+    transparent: true, depthWrite: false, depthFunc: THREE.LessEqualDepth, side: THREE.FrontSide, toneMapped: false,
+  });
+  const depth = new THREE.ShaderMaterial({
+    vertexShader: defs + VERT, fragmentShader: 'void main() { gl_FragColor = vec4(0.0); }', uniforms,
+    transparent: true, colorWrite: false, depthWrite: true, side: THREE.FrontSide,
+  });
+  color.userData.noBake = true; depth.userData.noBake = true;
+  return { color, depth, uniforms };
+}
+
 /** Sculpted ghost (public/assets/music/ghost.bin, made by tools/genGhost.mjs). */
 export async function buildGhostPianist(ctx) {
   const { parts, header } = await loadParts(ctx.assetUrl('ghost.bin'));
-  const opts = { color: 0x4f7fff, rimColor: 0xc4d8ff, opacity: 0.8, intensity: 1.05, rimPower: 2.4, dissolveY: 0.62, dissolveSoft: 0.22, wobble: 0.004, flicker: 0.2 };
-  const mat = ctx.fx.ghostMaterial(opts);
-  const headMat = ctx.fx.ghostMaterial({ ...opts, dissolveY: -10, wobble: 0.0015, intensity: 1.2, rimPower: 2.0 });
-  const armMat = ctx.fx.ghostMaterial({ ...opts, dissolveY: -10, wobble: 0.003 });
   const group = new THREE.Group();
   group.name = 'ghostPianist';
-  const mesh = new THREE.Mesh(parts.body, mat);
-  mesh.renderOrder = 8;
-  group.add(mesh);
-  const head = new THREE.Mesh(parts.head, headMat);
-  head.position.fromArray(header.head);
-  head.renderOrder = 9;
-  group.add(head);
-  const arms = [];
-  for (const k of ['L', 'R']) {
-    const arm = new THREE.Mesh(parts['arm' + k], armMat);
-    arm.position.fromArray(header.shoulders[k]);
-    arm.renderOrder = 8;
-    group.add(arm);
-    arms.push(arm);
-  }
+  const mats = [];
+  const addPart = (geo, opts, pos, order) => {
+    const holder = new THREE.Group();
+    if (pos) holder.position.fromArray(pos);
+    // local -> piano frame (for the dissolve height), constant for the static offset
+    const lm = new THREE.Matrix4().makeTranslation(...(pos || [0, 0, 0]));
+    const m = ghostMaterials(ctx, { ...opts, localMatrix: lm });
+    mats.push(m);
+    // all depth pre-passes first, then all colour passes: only the front-most skin of the whole figure is shaded
+    const pre = new THREE.Mesh(geo, m.depth); pre.renderOrder = 6;
+    const vis = new THREE.Mesh(geo, m.color); vis.renderOrder = 7 + order * 0;
+    holder.add(pre, vis);
+    group.add(holder);
+    return holder;
+  };
+  addPart(parts.body, { dissolveY: 0.4, dissolveSoft: 0.22, wobble: 0.003 }, null, 6);
+  const head = addPart(parts.head, { wobble: 0.0012 }, header.head, 8);
+  const arms = ['L', 'R'].map((k) => addPart(parts['arm' + k], { wobble: 0.002 }, header.shoulders[k], 10));
+  // a faint cold aura behind him, and a light that he casts on the keys and music desk
+  const glowTex = ctx.textures.canvas('music:ghostglow', 128, 128, (g, w, h) => {
+    const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  }, { tile: false });
+  const glowMat = new THREE.SpriteMaterial({ map: glowTex, color: new THREE.Color(0.32, 0.42, 0.75), transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+  const glow = new THREE.Sprite(glowMat);
+  glow.scale.set(1.1, 1.3, 1); glow.position.set(0, 1.0, 0.58); glow.renderOrder = 5;
+  group.add(glow);
+  const light = new THREE.PointLight(0xbfd0ff, 0.6, 2.2, 2);
+  light.position.set(0, 1.0, 0.25);
+  group.add(light);
   group.traverse((o) => { o.userData.noBake = true; o.castShadow = false; o.receiveShadow = false; });
 
   const target = [0, 0];
   const dip = [0, 0];
+  const LIGHT = 0.6;
   return {
-    group, mat, headMat, arms, head,
-    setOpacity(v) { mat.uniforms.uOpacity.value = v; armMat.uniforms.uOpacity.value = v; headMat.uniforms.uOpacity.value = Math.min(1, v * 1.1); },
+    group, arms, head, light,
+    setOpacity(v) {
+      for (const m of mats) m.uniforms.uOpacity.value = v;
+      glowMat.opacity = 0.5 * v;
+      light.intensity = LIGHT * v / 0.55;
+    },
     want: null,   // set by the room: (opacity) => void, eases toward it
     reachFor(x) {
       const side = x < 0.0 ? 0 : 1;
@@ -71,14 +192,14 @@ export async function buildGhostPianist(ctx) {
       for (let i = 0; i < 2; i++) {
         const s = i === 0 ? -1 : 1;
         const arm = arms[i];
-        const base = s * 0.16;
-        const want = idle ? Math.sin(t * 1.3 + i * 1.7) * 0.05 : THREE.MathUtils.clamp((target[i] - base) * 1.4, -0.45, 0.45);
+        const base = s * 0.17;
+        const want = idle ? Math.sin(t * 1.3 + i * 1.7) * 0.04 : THREE.MathUtils.clamp((target[i] - base) * 1.4, -0.45, 0.45);
         arm.rotation.y += (-want - arm.rotation.y) * Math.min(1, dt * 8);
         dip[i] = Math.max(0, dip[i] - dt * 5);
-        arm.rotation.x = -0.08 * dip[i] + (idle ? Math.sin(t * 2.1 + i) * 0.03 : 0);
+        arm.rotation.x = -0.06 * dip[i] + (idle ? Math.sin(t * 2.1 + i) * 0.015 : 0);
       }
       head.rotation.y = Math.sin(t * 0.5) * 0.08;
-      head.rotation.x = 0.12 + Math.sin(t * 0.7) * 0.03;
+      head.rotation.x = -0.22 + Math.sin(t * 0.7) * 0.03;   // bowed over the keys
     },
   };
 }

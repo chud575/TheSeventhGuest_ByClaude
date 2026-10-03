@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { createFireSheet } from './fire.js';
+import { logTextures, emberTexture, firebackTexture } from './textures.js';
 
 /**
  * Furniture for the music room: marble chimneypiece with a live coal fire,
@@ -38,60 +40,100 @@ export function buildFireplace(ctx, { marble, iron, brass, gilt }) {
   shelf.position.set(0, H + 0.03, (D + 0.1) / 2); g.add(shelf);
   const shelfEdge = new THREE.Mesh(G.sweepProfile(shelfProf, [new THREE.Vector3(-W / 2 - 0.1, H - 0.05, 0), new THREE.Vector3(-W / 2 - 0.1, H - 0.05, D + 0.1), new THREE.Vector3(W / 2 + 0.1, H - 0.05, D + 0.1), new THREE.Vector3(W / 2 + 0.1, H - 0.05, 0)], { uvScale: 1 }), marble);
   g.add(shelfEdge);
-  // frieze tablet with gilt lyre motif (simple: gilt plaque)
-  const tablet = new THREE.Mesh(new G.RoundedBoxGeometry(0.42, 0.16, 0.03, 2, 0.008), gilt);
+  // frieze tablet: a carved marble panel with a gilt bead frame and a small gilt lyre
+  const tablet = new THREE.Mesh(new G.RoundedBoxGeometry(0.42, 0.17, 0.03, 2, 0.008), marble);
   tablet.position.set(0, openH + 0.2, D * 0.55 + 0.012); g.add(tablet);
+  const tFrame = new THREE.Mesh(G.frameGeometry(0.36, 0.12, { width: 0.012, depth: 0.008, uvScale: 2 }), gilt);
+  tFrame.position.set(0, openH + 0.2, D * 0.55 + 0.028); g.add(tFrame);
+  {
+    const lyre = new THREE.Group();
+    for (const s of [-1, 1]) {
+      const arm = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.0045, 6, 18, Math.PI * 0.9), gilt);
+      arm.position.set(s * 0.022, 0.0, 0); arm.rotation.z = s > 0 ? -0.2 : Math.PI * 0.1 + 0.2;
+      lyre.add(arm);
+      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), gilt);
+      leaf.scale.set(2.4, 0.7, 0.5); leaf.position.set(s * 0.085, -0.01, 0); leaf.rotation.z = s * 0.4; lyre.add(leaf);
+    }
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.006, 0.006), gilt); bar.position.y = 0.03; lyre.add(bar);
+    const foot = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 8), gilt); foot.scale.set(1.4, 0.8, 0.6); foot.position.y = -0.03; lyre.add(foot);
+    for (let i = 0; i < 4; i++) { const st = new THREE.Mesh(new THREE.CylinderGeometry(0.0012, 0.0012, 0.058, 4), gilt); st.position.set(-0.012 + i * 0.008, 0.0, 0); lyre.add(st); }
+    lyre.position.set(0, openH + 0.2, D * 0.55 + 0.03); g.add(lyre);
+  }
   // hearth slab
   const hearth = new THREE.Mesh(new G.RoundedBoxGeometry(W + 0.3, 0.05, 0.62, 2, 0.01), marble);
   hearth.position.set(0, 0.025, 0.31); g.add(hearth);
-  // firebox (dark iron, sooty)
-  const back = new THREE.Mesh(new THREE.BoxGeometry(openW, openH, 0.02), iron);
-  back.position.set(0, openH / 2, -0.24); g.add(back);
+  // firebox: sooty cast-iron fireback with relief, splayed cheeks, a hearth of firebrick
+  const fb = firebackTexture(ctx.textures);
+  const ember = emberTexture(ctx.textures);
+  const backMat = new THREE.MeshStandardMaterial({ map: fb.map, normalMap: fb.normalMap, roughness: 0.9, metalness: 0.2, emissiveMap: ember.map, emissive: new THREE.Color(1.0, 0.45, 0.15), emissiveIntensity: 0.16 });
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(openW * 0.86, openH), backMat);
+  back.position.set(0, openH / 2, -0.26); g.add(back);
+  const cheekMat = new THREE.MeshStandardMaterial({ map: fb.map, normalMap: fb.normalMap, roughness: 0.92, metalness: 0.15, color: 0x8a8580 });
   for (const sx of [-1, 1]) {
-    const cheek = new THREE.Mesh(new THREE.BoxGeometry(0.02, openH, 0.3), iron);
-    cheek.position.set(sx * openW * 0.42, openH / 2, -0.1); cheek.rotation.y = sx * 0.35; g.add(cheek);
+    const cheek = new THREE.Mesh(new THREE.PlaneGeometry(0.3, openH), cheekMat);
+    cheek.position.set(sx * openW * 0.43, openH / 2, -0.12); cheek.rotation.y = -sx * (Math.PI / 2 - 0.42); g.add(cheek);
   }
   const top = new THREE.Mesh(new THREE.BoxGeometry(openW, 0.02, 0.4), iron);
   top.position.set(0, openH - 0.01, -0.05); g.add(top);
-  // cast-iron insert frame with an arched grate
+  const hearthIn = new THREE.Mesh(new THREE.PlaneGeometry(openW, 0.3), new THREE.MeshStandardMaterial({ color: 0x1a120e, roughness: 0.95 }));
+  hearthIn.rotation.x = -Math.PI / 2; hearthIn.position.set(0, 0.052, -0.11); g.add(hearthIn);
+  // basket grate: front bars with finials, side cheeks, bottom bars
   const grate = new THREE.Group();
-  for (let i = 0; i < 7; i++) {
-    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.18, 6), iron);
-    bar.position.set(-0.24 + i * 0.08, 0.15, 0.02); grate.add(bar);
+  for (let i = 0; i < 9; i++) {
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.16, 6), iron);
+    bar.position.set(-0.24 + i * 0.06, 0.13, 0.03); grate.add(bar);
   }
-  for (const y of [0.07, 0.24]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.015, 0.02), iron); rail.position.set(0, y, 0.02); grate.add(rail); }
-  const basket = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.012, 0.22), iron);
-  basket.position.set(0, 0.07, -0.08); grate.add(basket);
-  grate.position.set(0, 0.05, 0.0); g.add(grate);
-  // coals: little emissive lumps
-  const coalMat = new THREE.MeshStandardMaterial({ color: 0x120a06, roughness: 0.9, emissive: new THREE.Color(1.0, 0.32, 0.08), emissiveIntensity: 2.2 });
-  const coalGeo = new THREE.DodecahedronGeometry(0.035, 0);
-  const coals = new THREE.InstancedMesh(coalGeo, coalMat, 26);
+  for (const y of [0.06, 0.2]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.014, 0.018), iron); rail.position.set(0, y, 0.03); grate.add(rail); }
+  for (const sx of [-1, 1]) {
+    const fin = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.018, 0], [0.012, 0.03], [0.02, 0.05], [0.0, 0.08]], 10), brass);
+    fin.position.set(sx * 0.29, 0.2, 0.03); grate.add(fin);
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.08, 0.02), iron); leg.position.set(sx * 0.27, 0.02, 0.03); grate.add(leg);
+  }
+  for (let i = 0; i < 6; i++) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.01, 0.26), iron); b.position.set(-0.25 + i * 0.1, 0.06, -0.09); grate.add(b); }
+  grate.position.set(0, 0.0, 0.0); g.add(grate);
+  // ember bed: a glowing mat of coals under and behind the logs
+  const bedMat = new THREE.MeshStandardMaterial({ color: 0x0c0806, roughness: 1, emissiveMap: ember.map, emissive: new THREE.Color(1, 1, 1), emissiveIntensity: 1.6 });
+  const bed = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.3, 12, 8), bedMat);
+  { const p = bed.geometry.attributes.position; for (let i = 0; i < p.count; i++) p.setZ(i, 0.015 * Math.sin(p.getX(i) * 40) * Math.cos(p.getY(i) * 30)); bed.geometry.computeVertexNormals(); }
+  bed.rotation.x = -Math.PI / 2; bed.position.set(0, 0.075, -0.1); bed.userData.noBake = true; g.add(bed);
+  // coals: two populations — glowing and burnt-out — heaped under and behind the logs
   const rnd = ctx.random.fork('coals');
+  const coalGeo = new THREE.DodecahedronGeometry(0.03, 0);
+  const coalMat = new THREE.MeshStandardMaterial({ color: 0x140b06, roughness: 0.9, emissive: new THREE.Color(1.0, 0.36, 0.08), emissiveIntensity: 1.4 });
+  const ashMat = new THREE.MeshStandardMaterial({ color: 0x1c1816, roughness: 0.95, emissive: new THREE.Color(0.6, 0.12, 0.02), emissiveIntensity: 0.25 });
+  const NC = 70;
+  const coals = new THREE.InstancedMesh(coalGeo, coalMat, NC);
+  const ash = new THREE.InstancedMesh(coalGeo, ashMat, NC);
   const m4 = new THREE.Matrix4();
-  for (let i = 0; i < 26; i++) {
+  let ci = 0, ai = 0;
+  for (let i = 0; i < NC * 2; i++) {
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rnd.next() * 3, rnd.next() * 3, rnd.next() * 3));
-    const sc = 0.6 + rnd.next() * 0.7;
-    m4.compose(new THREE.Vector3(-0.24 + rnd.next() * 0.48, 0.15 + rnd.next() * 0.08, -0.17 + rnd.next() * 0.17), q, new THREE.Vector3(sc, sc * 0.8, sc));
-    coals.setMatrixAt(i, m4);
+    const sc = (0.45 + rnd.next() * 0.5) * 0.6 / 0.6;
+    const x = (rnd.next() - 0.5) * 0.5, z = -0.21 + rnd.next() * 0.2;
+    const heap = 1 - Math.abs(x) / 0.28;
+    const y = 0.07 + rnd.next() * 0.05 * heap + (z < -0.12 ? 0.03 : 0);
+    m4.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(sc, sc * 0.75, sc));
+    const hot = rnd.next() < 0.35 + 0.5 * heap * (z > -0.15 ? 1 : 0.6);
+    if (hot && ci < NC) coals.setMatrixAt(ci++, m4); else if (ai < NC) ash.setMatrixAt(ai++, m4);
   }
-  coals.userData.noBake = true;
-  g.add(coals);
-  // logs
-  const logMat = new THREE.MeshStandardMaterial({ color: 0x1a120c, roughness: 0.95, emissive: new THREE.Color(0.9, 0.25, 0.05), emissiveIntensity: 0.25 });
-  for (const [x, ry] of [[-0.08, 0.25], [0.1, -0.3]]) {
-    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.5, 10), logMat);
-    log.rotation.z = Math.PI / 2; log.rotation.y = ry; log.position.set(x, 0.24, -0.1); g.add(log);
+  coals.count = ci; ash.count = ai;
+  coals.userData.noBake = true; ash.userData.noBake = true;
+  g.add(coals, ash);
+  // logs: charred bark with glowing cracks, two crossed + one at the back
+  const lt = logTextures(ctx.textures);
+  const logMat = new THREE.MeshStandardMaterial({ map: lt.bark.map, normalMap: lt.bark.normalMap, roughness: 0.95, emissiveMap: lt.glow.map, emissive: new THREE.Color(1, 1, 1), emissiveIntensity: 1.8 });
+  const endMat = new THREE.MeshStandardMaterial({ color: 0x1a0d06, roughness: 0.9, emissive: new THREE.Color(1.0, 0.3, 0.05), emissiveIntensity: 0.6 });
+  for (const [x, y, z, ry, len, r] of [[-0.05, 0.16, -0.06, 0.28, 0.5, 0.055], [0.07, 0.17, -0.12, -0.32, 0.46, 0.06], [0.0, 0.22, -0.19, 0.04, 0.52, 0.05]]) {
+    const geo = new THREE.CylinderGeometry(r * 0.92, r, len, 14, 6);
+    { const p = geo.attributes.position; for (let i = 0; i < p.count; i++) { const a = Math.atan2(p.getZ(i), p.getX(i)); const k = 1 + 0.08 * Math.sin(a * 5 + p.getY(i) * 20) + 0.04 * Math.sin(a * 11); p.setX(i, p.getX(i) * k); p.setZ(i, p.getZ(i) * k); } geo.computeVertexNormals(); }
+    const log = new THREE.Mesh(geo, [logMat, endMat, endMat]);
+    log.rotation.z = Math.PI / 2; log.rotation.y = ry; log.position.set(x, y, z); log.userData.noBake = true; g.add(log);
   }
-  // flames
+  // flames: a few tongue sheets licking up between the logs (+ small licks), leaning back
   const flames = [];
-  for (let i = 0; i < 11; i++) {
-    const big = i % 3 === 1;
-    const f = fx.flame({
-      height: (big ? 0.22 : 0.1) + rnd.next() * 0.1, width: (big ? 0.05 : 0.035) + rnd.next() * 0.02, intensity: big ? 0.6 : 0.4, seed: 40 + i * 7,
-      core: [1.0, 0.75, 0.38], outer: [1.0, 0.3, 0.05], base: [0.6, 0.12, 0.02],
-    });
-    f.position.set(-0.24 + (i / 10) * 0.48 + (rnd.next() - 0.5) * 0.03, 0.2 + rnd.next() * 0.04, -0.15 + rnd.next() * 0.12);
+  for (const [x, z, w, h, sd, k] of [[-0.02, -0.07, 0.46, 0.4, 3, 1.6], [0.07, -0.17, 0.42, 0.46, 9, 1.2], [-0.13, -0.13, 0.24, 0.3, 17, 1.1], [0.15, -0.1, 0.2, 0.26, 23, 1.0]]) {
+    const f = createFireSheet(ctx, { width: w, height: h, seed: sd, intensity: k, tongues: 4 + (sd % 3) });
+    f.position.set(x, 0.1, z); f.rotation.x = -0.12;
     g.add(f); flames.push(f);
   }
   // brass fender + fire irons
@@ -102,7 +144,7 @@ export function buildFireplace(ctx, { marble, iron, brass, gilt }) {
     const tool = new THREE.Mesh(G.latheFromProfile([[0.006, 0], [0.006, 0.6], [0.014, 0.62], [0.01, 0.66], [0.016, 0.7], [0.0, 0.72]], 10), brass);
     tool.position.set(0.72 + i * 0.03, 0.05, 0.42); tool.rotation.z = 0.08 - i * 0.05; g.add(tool);
   }
-  g.userData = { flames, coals, coalMat, opening: { w: openW, h: openH } };
+  g.userData = { flames, coals, coalMat, bedMat, logMat, backMat, opening: { w: openW, h: openH } };
   return g;
 }
 
@@ -213,43 +255,71 @@ export function buildChair(ctx, { wood, velvet }) {
   return g;
 }
 
-/** Crystal gasolier with frosted globes. Origin at the ceiling. Returns { group, globes }. */
+/** Crystal gasolier: chain, turned brass column, two tiers of scrolled arms with etched
+ *  globes, festoons of cut-crystal drops. Origin at the ceiling. userData.lightY = light height. */
 export function buildGasolier(ctx, { brass, crystal }) {
   const { geometry: G } = ctx;
   const g = new THREE.Group();
   g.name = 'gasolier';
-  const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.7, 6), brass);
-  chain.position.y = -0.35; g.add(chain);
-  const rose = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.12, 0], [0.1, -0.03], [0.04, -0.06], [0.0, -0.07]], 24), brass);
+  const DROP = 1.0;           // chain length below the canopy
+  const rose = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.14, 0], [0.13, -0.02], [0.09, -0.04], [0.05, -0.07], [0.02, -0.1], [0.0, -0.11]], 28), brass);
   g.add(rose);
-  const body = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.04, -0.02], [0.08, -0.08], [0.06, -0.12], [0.12, -0.18], [0.1, -0.22], [0.03, -0.28], [0.05, -0.34], [0, -0.4]], 28), brass);
-  body.position.y = -0.7; g.add(body);
+  // chain of alternating links
+  const linkA = new THREE.TorusGeometry(0.018, 0.0045, 6, 14);
+  const NL = Math.round(DROP / 0.03);
+  const links = new THREE.InstancedMesh(linkA, brass, NL);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
+  for (let i = 0; i < NL; i++) {
+    q.setFromEuler(new THREE.Euler(0, (i % 2) * Math.PI / 2, Math.PI / 2));
+    m4.compose(new THREE.Vector3(0, -0.11 - i * 0.03, 0), q, new THREE.Vector3(1, 1.4, 1));
+    links.setMatrixAt(i, m4);
+  }
+  links.castShadow = false;
+  g.add(links);
+  const y0 = -0.11 - DROP;
+  const body = new THREE.Mesh(G.latheFromProfile([
+    [0, 0], [0.03, -0.01], [0.05, -0.04], [0.035, -0.08], [0.06, -0.12], [0.1, -0.17], [0.13, -0.2], [0.1, -0.23], [0.05, -0.25], [0.07, -0.3],
+    [0.04, -0.34], [0.05, -0.38], [0.02, -0.44], [0.035, -0.5], [0, -0.56]], 32), brass);
+  body.position.y = y0; g.add(body);
   const globes = [];
-  const globeMat = new THREE.MeshStandardMaterial({ color: 0x2a2018, emissive: new THREE.Color(1.0, 0.72, 0.42), emissiveIntensity: 0.6, roughness: 0.3, transparent: true, opacity: 0.95 });
-  const arms = 6;
-  for (let i = 0; i < arms; i++) {
-    const a = (i / arms) * Math.PI * 2;
-    const c = Math.cos(a), s = Math.sin(a);
-    const curve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(c * 0.06, -0.86, s * 0.06), new THREE.Vector3(c * 0.25, -0.95, s * 0.25), new THREE.Vector3(c * 0.42, -0.9, s * 0.42), new THREE.Vector3(c * 0.46, -0.8, s * 0.46),
-    ]);
-    g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.01, 8), brass));
-    const cup = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.025, 0], [0.04, 0.03], [0.03, 0.04], [0, 0.04]], 16), brass);
-    cup.position.set(c * 0.46, -0.8, s * 0.46); g.add(cup);
-    const globe = new THREE.Mesh(G.latheFromProfile([[0.022, 0], [0.05, 0.03], [0.065, 0.08], [0.055, 0.13], [0.03, 0.16], [0.035, 0.17]], 20), globeMat);
-    globe.position.set(c * 0.46, -0.76, s * 0.46); g.add(globe); globes.push(globe);
+  const globeMat = new THREE.MeshPhysicalMaterial({ color: 0xfff2dc, emissive: new THREE.Color(1.0, 0.74, 0.45), emissiveIntensity: 1.3, roughness: 0.55, transmission: 0, transparent: true, opacity: 0.96 });
+  const cupProf = [[0, 0], [0.022, 0], [0.04, 0.025], [0.045, 0.035], [0.03, 0.04], [0, 0.04]];
+  const globeProf = [[0.024, 0], [0.05, 0.025], [0.066, 0.07], [0.06, 0.12], [0.038, 0.155], [0.04, 0.165], [0.036, 0.17]];
+  const tier = (n, r, yArm, yTip, rot, scale) => {
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + rot;
+      const c = Math.cos(a), s2 = Math.sin(a);
+      const P = (rr, yy) => new THREE.Vector3(c * rr, y0 + yy, s2 * rr);
+      const curve = new THREE.CatmullRomCurve3([P(0.05, yArm), P(r * 0.35, yArm - 0.1), P(r * 0.75, yArm - 0.07), P(r, yTip - 0.04), P(r, yTip)]);
+      g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 28, 0.009 * scale, 8), brass));
+      // C-scroll under each arm
+      const sc = new THREE.Mesh(new THREE.TorusGeometry(0.035 * scale, 0.005, 6, 16, Math.PI * 1.5), brass);
+      sc.position.copy(P(r * 0.45, yArm - 0.13)); sc.rotation.y = -a; g.add(sc);
+      const cup = new THREE.Mesh(G.latheFromProfile(cupProf, 16), brass);
+      cup.position.copy(P(r, yTip)); cup.scale.setScalar(scale); g.add(cup);
+      const globe = new THREE.Mesh(G.latheFromProfile(globeProf, 24), globeMat);
+      globe.position.copy(P(r, yTip + 0.035 * scale)); globe.scale.setScalar(scale); g.add(globe); globes.push(globe);
+    }
+  };
+  tier(6, 0.5, -0.3, -0.22, 0, 1.0);
+  tier(6, 0.27, -0.13, -0.02, Math.PI / 6, 0.75);
+  // festoons of crystal drops between the lower arms + a pendant drop under the bowl
+  const drops = [];
+  for (let i = 0; i < 6; i++) {
+    const a0 = (i / 6) * Math.PI * 2, a1 = ((i + 1) / 6) * Math.PI * 2;
+    for (let k = 1; k < 10; k++) {
+      const t = k / 10; const a = a0 + (a1 - a0) * t;
+      const sag = Math.sin(t * Math.PI) * 0.09;
+      drops.push(new THREE.Vector3(Math.cos(a) * 0.46, y0 - 0.25 - sag, Math.sin(a) * 0.46));
+    }
+    for (let k = 0; k < 4; k++) drops.push(new THREE.Vector3(Math.cos(a0) * 0.5, y0 - 0.27 - k * 0.035, Math.sin(a0) * 0.5));
   }
-  // crystal drops
-  const drop = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.018, 0), crystal, 30);
-  const m4 = new THREE.Matrix4();
-  for (let i = 0; i < 30; i++) {
-    const a = (i / 30) * Math.PI * 2;
-    m4.compose(new THREE.Vector3(Math.cos(a) * 0.3, -0.98 - (i % 2) * 0.03, Math.sin(a) * 0.3), new THREE.Quaternion(), new THREE.Vector3(1, 1.8, 1));
-    drop.setMatrixAt(i, m4);
-  }
+  for (let k = 0; k < 6; k++) drops.push(new THREE.Vector3(0, y0 - 0.58 - k * 0.04, 0));
+  const drop = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.014, 0), crystal, drops.length);
+  drops.forEach((p, i) => { m4.compose(p, new THREE.Quaternion().setFromEuler(new THREE.Euler(0, i * 0.7, 0)), new THREE.Vector3(1, 1.7, 1)); drop.setMatrixAt(i, m4); });
   drop.castShadow = false;
   g.add(drop);
-  g.userData = { globes, globeMat };
+  g.userData = { globes, globeMat, lightY: y0 - 0.12 };
   return g;
 }
 

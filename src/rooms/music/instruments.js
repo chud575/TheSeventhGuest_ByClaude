@@ -1,116 +1,210 @@
 import * as THREE from 'three';
-import { sheetMusicTexture } from './textures.js';
+import { sheetMusicTexture, harpSoundboardTexture } from './textures.js';
 
 /**
  * Harp, cello (on its stand), music stand and piano bench for the music room.
  * Every builder returns a Group with its origin on the floor.
  */
 
-/** Pedal harp, ~1.75 m: fluted gilt column, carved crown, swan-neck, flared soundbox, 40 strings. */
+/** Pedal harp, ~1.8 m: fluted gilt column with a carved acanthus crown, double-curved
+ *  neck, a flared loft soundbox with a painted soundboard, 44 strings, 7 pedals. */
 export function buildHarp(ctx, { gilt, giltPlain, wood, box = wood }) {
   const { geometry: G } = ctx;
   const g = new THREE.Group();
   g.name = 'harp';
-  // frame plane = XY; the column stands at x=+0.32 (front), soundbox leans from the base at x=0 up to the neck end at x=-0.42
-  const base = new THREE.Mesh(new G.RoundedBoxGeometry(0.46, 0.09, 0.3, 3, 0.02), box);
-  base.position.set(0.05, 0.075, 0); g.add(base);
-  const plinth = new THREE.Mesh(new G.RoundedBoxGeometry(0.5, 0.03, 0.34, 2, 0.01), giltPlain);
-  plinth.position.set(0.05, 0.13, 0); g.add(plinth);
-  for (const [x, z] of [[-0.17, -0.12], [0.27, -0.12], [-0.17, 0.12], [0.27, 0.12]]) {
-    const foot = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.035, 0.0], [0.04, 0.015], [0.025, 0.035], [0, 0.04]], 16), giltPlain);
+  // frame plane = XY (z = side to side). Column at x = +0.25 (front), soundbox leans back from the base.
+  // ---- base: moulded plinth on gilt paw feet, pedal slots, seven pedals
+  const base = new THREE.Mesh(new G.RoundedBoxGeometry(0.5, 0.1, 0.32, 3, 0.025), box);
+  base.position.set(0.06, 0.08, 0); g.add(base);
+  const plinth = new THREE.Mesh(G.sweepProfile(G.PROFILES.chairRail(0.035, 0.02), [new THREE.Vector3(-0.19, 0.13, -0.16), new THREE.Vector3(0.31, 0.13, -0.16), new THREE.Vector3(0.31, 0.13, 0.16), new THREE.Vector3(-0.19, 0.13, 0.16)], { closed: true, uvScale: 2 }), giltPlain);
+  g.add(plinth);
+  const top = new THREE.Mesh(new G.RoundedBoxGeometry(0.44, 0.03, 0.27, 2, 0.01), box);
+  top.position.set(0.06, 0.145, 0); g.add(top);
+  for (const [x, z] of [[-0.16, -0.13], [0.28, -0.13], [-0.16, 0.13], [0.28, 0.13]]) {
+    const foot = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.032, 0.0], [0.04, 0.012], [0.03, 0.03], [0.036, 0.04], [0, 0.045]], 16), giltPlain);
     foot.position.set(x, 0, z); g.add(foot);
   }
-  // pedals
   for (let i = 0; i < 7; i++) {
-    const p = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.01, 0.07), giltPlain);
-    p.position.set(-0.13 + i * 0.045, 0.045, 0.17); g.add(p);
+    const zz = -0.12 + i * 0.04;
+    const ped = new THREE.Mesh(new G.RoundedBoxGeometry(0.11, 0.012, 0.022, 2, 0.005), giltPlain);
+    const side = i < 3 ? -1 : 1;
+    ped.position.set(i === 3 ? 0.34 : 0.33, 0.05 + (i % 2) * 0.012, zz); ped.rotation.z = -0.15; g.add(ped);
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.009, 10, 8), giltPlain);
+    tip.position.set(0.385, 0.045 + (i % 2) * 0.012, zz); g.add(tip);
+    void side;
   }
-  // column (fluted shaft via lathe + gilt capital)
-  const colH = 1.42;
-  const colPts = [[0.035, 0], [0.042, 0.02], [0.03, 0.05], [0.028, colH * 0.5], [0.026, colH - 0.1], [0.032, colH - 0.08], [0.028, colH - 0.06]];
-  const column = new THREE.Mesh(G.latheFromProfile(colPts, 24), gilt);
-  column.position.set(0.24, 0.145, 0); g.add(column);
-  // capital: stack of lathe rings + a crown of leaves (cones)
-  const cap = new THREE.Mesh(G.latheFromProfile([[0.03, 0], [0.05, 0.02], [0.06, 0.06], [0.075, 0.1], [0.07, 0.13], [0.04, 0.15], [0.05, 0.17], [0.0, 0.18]], 24), gilt);
-  cap.position.set(0.24, 0.145 + colH - 0.06, 0); g.add(cap);
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.08, 6), gilt);
-    leaf.position.set(0.24 + Math.cos(a) * 0.055, 0.145 + colH + 0.04, Math.sin(a) * 0.055);
-    leaf.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5);
+  // ---- column: fluted gilt shaft on a turned base, carved crown capital
+  const colX = 0.25, colY0 = 0.16, colH = 1.36;
+  const shaftGeo = G.latheFromProfile([[0.045, 0], [0.05, 0.02], [0.038, 0.05], [0.042, 0.07], [0.032, 0.1], [0.03, colH * 0.5], [0.028, colH - 0.04], [0.034, colH - 0.02], [0.03, colH]], 40);
+  {
+    // flutes: shallow grooves in the shaft section (between turnings)
+    const p = shaftGeo.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const y = p.getY(i); if (y < 0.12 || y > colH - 0.05) continue;
+      const a = Math.atan2(p.getZ(i), p.getX(i));
+      const k = 1 - 0.09 * Math.pow(Math.max(0, Math.cos(a * 12)), 4);
+      p.setX(i, p.getX(i) * k); p.setZ(i, p.getZ(i) * k);
+    }
+    shaftGeo.computeVertexNormals();
+  }
+  const column = new THREE.Mesh(shaftGeo, gilt);
+  column.position.set(colX, colY0, 0); g.add(column);
+  // spiral garland twined about the shaft
+  {
+    const pts = [];
+    for (let i = 0; i <= 160; i++) { const t = i / 160; const a = t * Math.PI * 9; pts.push(new THREE.Vector3(colX + Math.cos(a) * 0.033, colY0 + 0.15 + t * (colH - 0.25), Math.sin(a) * 0.033)); }
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 400, 0.0045, 5), giltPlain));
+  }
+  // capital: bell of acanthus leaves (lathe with angular ridges), abacus, and a crown of anthemion
+  const capGeo = G.latheFromProfile([[0.03, 0], [0.034, 0.015], [0.05, 0.05], [0.07, 0.1], [0.085, 0.14], [0.08, 0.16], [0.06, 0.165]], 64, );
+  {
+    const p = capGeo.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const y = p.getY(i), a = Math.atan2(p.getZ(i), p.getX(i));
+      const leaf = Math.pow(Math.abs(Math.cos(a * 4)), 3) * Math.min(1, y / 0.06);
+      const curl = 1 + 0.18 * leaf * Math.sin(Math.min(1, y / 0.16) * Math.PI) + 0.04 * Math.sin(a * 24) * Math.min(1, y / 0.1);
+      p.setX(i, p.getX(i) * curl); p.setZ(i, p.getZ(i) * curl);
+    }
+    capGeo.computeVertexNormals();
+  }
+  const cap = new THREE.Mesh(capGeo, gilt);
+  cap.position.set(colX, colY0 + colH, 0); g.add(cap);
+  const abacus = new THREE.Mesh(new G.RoundedBoxGeometry(0.16, 0.025, 0.12, 2, 0.008), giltPlain);
+  abacus.position.set(colX, colY0 + colH + 0.175, 0); g.add(abacus);
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), gilt);
+    leaf.scale.set(0.5, 1.6, 0.25);
+    leaf.position.set(colX + Math.cos(a) * 0.065, colY0 + colH + 0.215, Math.sin(a) * 0.05);
+    leaf.rotation.set(Math.sin(a) * 0.35, -a, -Math.cos(a) * 0.35);
     g.add(leaf);
   }
-  // swan neck: tube along an S-curve from the column top down to the soundbox head
-  const neckCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0.24, 1.7, 0),
-    new THREE.Vector3(0.12, 1.74, 0),
-    new THREE.Vector3(-0.05, 1.62, 0),
-    new THREE.Vector3(-0.2, 1.52, 0),
-    new THREE.Vector3(-0.33, 1.6, 0),
-    new THREE.Vector3(-0.42, 1.68, 0),
-    new THREE.Vector3(-0.48, 1.62, 0),
-  ], false, 'centripetal');
-  const neckGeo = new THREE.TubeGeometry(neckCurve, 80, 0.032, 12, false);
-  // flatten the tube into a deep board (harp necks are thin side-to-side)
-  { const p = neckGeo.attributes.position; for (let i = 0; i < p.count; i++) p.setZ(i, p.getZ(i) * 0.55); neckGeo.computeVertexNormals(); }
-  g.add(new THREE.Mesh(neckGeo, wood));
-  // gilt edge strip along the neck
-  const neckEdge = new THREE.Mesh(new THREE.TubeGeometry(neckCurve, 80, 0.008, 6, false), giltPlain);
-  neckEdge.position.z = 0.02; g.add(neckEdge);
-  const neckEdge2 = neckEdge.clone(); neckEdge2.position.z = -0.02; g.add(neckEdge2);
-  // scroll at the neck end
-  const scroll = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.012, 8, 20, Math.PI * 1.6), gilt);
-  scroll.position.set(-0.47, 1.6, 0); g.add(scroll);
-  // soundbox: tapered half-round, from base (0.0, 0.16) up to (-0.44, 1.57)
-  const sbA = new THREE.Vector3(0.0, 0.17, 0), sbB = new THREE.Vector3(-0.44, 1.56, 0);
-  const sbLen = sbA.distanceTo(sbB);
-  const sbShape = [];
-  for (let i = 0; i <= 12; i++) { const t = i / 12; sbShape.push([0.17 - t * 0.12, t * sbLen]); }
-  const sbGeo = new THREE.CylinderGeometry(0.05, 0.16, sbLen, 24, 8, false, 0, Math.PI);
-  sbGeo.rotateY(Math.PI);   // half-cylinder bulging toward -X (the back)
-  { const p = sbGeo.attributes.position; for (let i = 0; i < p.count; i++) p.setZ(i, p.getZ(i) * 0.9); sbGeo.computeVertexNormals(); }
-  const soundbox = new THREE.Mesh(sbGeo, box);
-  soundbox.position.copy(sbA).lerp(sbB, 0.5);
-  soundbox.rotation.z = Math.atan2(sbB.x - sbA.x, -(sbB.y - sbA.y)) + Math.PI;
-  g.add(soundbox);
-  // soundboard face (flat, lighter spruce strip with gilt painted motif)
-  const faceGeo = new THREE.PlaneGeometry(1, sbLen, 1, 8);
-  { const p = faceGeo.attributes.position; for (let i = 0; i < p.count; i++) { const v = p.getY(i) / sbLen + 0.5; p.setX(i, p.getX(i) * (0.3 - v * 0.2) * 0.98); } }
-  const face = new THREE.Mesh(faceGeo, new THREE.MeshStandardMaterial({ color: 0x8a6a40, roughness: 0.45 }));
-  face.rotation.y = Math.PI / 2;
-  const holder = new THREE.Group(); holder.add(face);
-  holder.position.copy(soundbox.position); holder.rotation.z = soundbox.rotation.z;
-  face.position.x = 0.001;
-  g.add(holder);
-  // strings: from points along the neck underside to the soundboard centreline
-  const n = 38;
-  const sGeo = new THREE.CylinderGeometry(0.0009, 0.0009, 1, 4, 1, true);
-  const strMat = new THREE.MeshStandardMaterial({ color: 0xd8cdb0, roughness: 0.35, metalness: 0.3 });
-  const redMat = new THREE.MeshStandardMaterial({ color: 0x8a1a14, roughness: 0.4, metalness: 0.1 });
-  const strings = new THREE.InstancedMesh(sGeo, strMat, n);
-  const reds = new THREE.InstancedMesh(sGeo, redMat, n);
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion();
-  let si = 0, ri = 0;
-  for (let i = 0; i < n; i++) {
-    const t = (i + 0.5) / n;
-    const bottom = sbA.clone().lerp(sbB, 0.06 + t * 0.9);
-    const top = neckCurve.getPoint(0.05 + (1 - t) * 0.85);
-    top.y -= 0.03;
-    // the string runs vertically on a real harp; keep it near-vertical by taking the neck point above the bottom
-    const topV = new THREE.Vector3(bottom.x, 0, 0);
-    // find neck y at this x by sampling
-    let best = top, bd = 1e9;
-    for (let k = 0; k <= 60; k++) { const pt = neckCurve.getPoint(k / 60); const d = Math.abs(pt.x - bottom.x); if (d < bd && pt.x < 0.2) { bd = d; best = pt; } }
-    topV.set(bottom.x + 0.015, best.y - 0.035, 0);
-    const len = topV.distanceTo(bottom);
-    if (len < 0.05) continue;
-    q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), topV.clone().sub(bottom).normalize());
-    m.compose(bottom.clone().lerp(topV, 0.5), q, new THREE.Vector3(1, len, 1));
-    if (i % 7 === 2) reds.setMatrixAt(ri++, m); else strings.setMatrixAt(si++, m);
+  const finial = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.03, 0], [0.04, 0.03], [0.022, 0.06], [0.03, 0.08], [0.0, 0.11]], 20), gilt);
+  finial.position.set(colX, colY0 + colH + 0.19, 0); g.add(finial);
+  // ---- soundbox: loft along the axis, flared at the base, half-round back, flat soundboard in front
+  const A = new THREE.Vector2(0.0, 0.16), B = new THREE.Vector2(-0.45, 1.55);
+  const u = B.clone().sub(A); const L = u.length(); u.normalize();
+  const nb = new THREE.Vector2(-u.y, u.x);    // points to -x (behind); soundboard faces -nb
+  if (nb.x > 0) nb.negate();
+  const NS = 40, NA = 24;
+  const halfW = (t) => 0.045 + 0.13 * Math.pow(1 - t, 1.3) + 0.03 * Math.pow(1 - t, 8);
+  const bulge = (t) => 0.04 + 0.13 * Math.pow(1 - t, 1.1);
+  {
+    const pos = [], idx = [], uv = [];
+    for (let i = 0; i <= NS; i++) {
+      const t = i / NS;
+      const c = A.clone().addScaledVector(u, L * t);
+      for (let j = 0; j <= NA; j++) {
+        const ph = (j / NA) * Math.PI;
+        const bx = Math.sin(ph) * bulge(t), z = Math.cos(ph) * halfW(t);
+        pos.push(c.x + nb.x * bx, c.y + nb.y * bx, z);
+        uv.push(j / NA * 0.6, t * L);
+      }
+    }
+    for (let i = 0; i < NS; i++) for (let j = 0; j < NA; j++) { const a0 = i * (NA + 1) + j, a1 = a0 + NA + 1; idx.push(a0, a0 + 1, a1, a0 + 1, a1 + 1, a1); }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx); geo.computeVertexNormals();
+    // make sure normals face outward (away from the axis)
+    const sb = new THREE.Mesh(geo, box);
+    const n0 = geo.attributes.normal; const p0 = geo.attributes.position;
+    const k = Math.floor(NA / 2);
+    const test = new THREE.Vector3(n0.getX(k), n0.getY(k), n0.getZ(k));
+    if (test.x * nb.x + test.y * nb.y < 0) { geo.setIndex(idx.map((_, i2, arr) => arr[i2 - (i2 % 3) + [0, 2, 1][i2 % 3]])); geo.computeVertexNormals(); }
+    void p0;
+    g.add(sb);
+    // painted spruce soundboard (flat face) with a gilt border
+    const sbPos = [], sbUv = [], sbIdx = [];
+    for (let i = 0; i <= NS; i++) {
+      const t = i / NS; const c = A.clone().addScaledVector(u, L * t); const w = halfW(t);
+      sbPos.push(c.x - nb.x * 0.002, c.y - nb.y * 0.002, -w, c.x - nb.x * 0.002, c.y - nb.y * 0.002, w);
+      sbUv.push(0, t, 1, t);
+    }
+    for (let i = 0; i < NS; i++) { const a0 = i * 2; sbIdx.push(a0, a0 + 1, a0 + 2, a0 + 1, a0 + 3, a0 + 2); }
+    const fg = new THREE.BufferGeometry();
+    fg.setAttribute('position', new THREE.Float32BufferAttribute(sbPos, 3));
+    fg.setAttribute('uv', new THREE.Float32BufferAttribute(sbUv, 2));
+    fg.setIndex(sbIdx); fg.computeVertexNormals();
+    const face = new THREE.Mesh(fg, new THREE.MeshPhysicalMaterial({ map: harpSoundboardTexture(ctx.textures), roughness: 0.4, clearcoat: 0.6, clearcoatRoughness: 0.2, side: THREE.DoubleSide }));
+    g.add(face);
+    // gilt edge beads along both sides of the soundboard
+    for (const sgn of [-1, 1]) {
+      const pts = [];
+      for (let i = 0; i <= NS; i += 2) { const t = i / NS; const c = A.clone().addScaledVector(u, L * t); pts.push(new THREE.Vector3(c.x - nb.x * 0.004, c.y - nb.y * 0.004, sgn * halfW(t))); }
+      g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 60, 0.007, 6), giltPlain));
+    }
+    // centre strip (string rib) down the soundboard
+    const rib = new THREE.Mesh(new G.RoundedBoxGeometry(0.022, L * 0.9, 0.012, 2, 0.004), box);
+    const mid = A.clone().addScaledVector(u, L * 0.5);
+    rib.position.set(mid.x - nb.x * 0.006, mid.y - nb.y * 0.006, 0);
+    rib.rotation.z = Math.atan2(u.y, u.x) - Math.PI / 2; rib.rotation.y = 0;
+    g.add(rib);
   }
-  strings.count = si; reds.count = ri;
-  strings.castShadow = false; reds.castShadow = false;
-  g.add(strings, reds);
+  // ---- neck: double S-curve from the column crown to the soundbox head, gilt-edged, scroll end
+  const neckCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(colX, colY0 + colH + 0.2, 0),
+    new THREE.Vector3(0.14, 1.79, 0),
+    new THREE.Vector3(0.0, 1.73, 0),
+    new THREE.Vector3(-0.13, 1.6, 0),
+    new THREE.Vector3(-0.27, 1.56, 0),
+    new THREE.Vector3(-0.4, 1.63, 0),
+    new THREE.Vector3(-0.49, 1.66, 0),
+    new THREE.Vector3(-0.53, 1.6, 0),
+  ], false, 'centripetal');
+  const neckGeo = new THREE.TubeGeometry(neckCurve, 120, 0.04, 14, false);
+  { const p = neckGeo.attributes.position; for (let i = 0; i < p.count; i++) p.setZ(i, p.getZ(i) * 0.5); neckGeo.computeVertexNormals(); }
+  g.add(new THREE.Mesh(neckGeo, box));
+  for (const zz of [-0.02, 0.02]) {
+    const e = new THREE.Mesh(new THREE.TubeGeometry(neckCurve, 120, 0.009, 6, false), giltPlain);
+    e.position.z = zz; g.add(e);
+  }
+  // carved gilt leaf run along the top of the neck
+  for (let i = 0; i < 26; i++) {
+    const t = 0.06 + (i / 25) * 0.86;
+    const pt = neckCurve.getPoint(t), tg = neckCurve.getTangent(t);
+    const nrm = new THREE.Vector3(-tg.y, tg.x, 0);
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 6), giltPlain);
+    leaf.scale.set(1.8, 0.6, 0.8);
+    leaf.position.copy(pt).addScaledVector(nrm, 0.036);
+    leaf.rotation.z = Math.atan2(tg.y, tg.x) + 0.4;
+    g.add(leaf);
+  }
+  const scroll = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.014, 8, 24, Math.PI * 1.6), gilt);
+  scroll.position.set(-0.52, 1.63, 0); scroll.rotation.z = 2.2; g.add(scroll);
+  // ---- strings: soundboard eyelets up to tuning pins under the neck
+  const n = 44;
+  const strMat = new THREE.MeshPhysicalMaterial({ color: 0xe6dcc4, roughness: 0.3, metalness: 0.1, clearcoat: 1.0, clearcoatRoughness: 0.15 });
+  const redMat = new THREE.MeshPhysicalMaterial({ color: 0x9a1e16, roughness: 0.35, clearcoat: 1.0, clearcoatRoughness: 0.15 });
+  const blueMat = new THREE.MeshPhysicalMaterial({ color: 0x1a2440, roughness: 0.35, clearcoat: 1.0, clearcoatRoughness: 0.15 });
+  const sGeo = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
+  const mk = (mat) => { const im = new THREE.InstancedMesh(sGeo, mat, n); im.count = 0; im.castShadow = false; return im; };
+  const sets = { w: mk(strMat), r: mk(redMat), b: mk(blueMat) };
+  const pinGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 0.07, 6); pinGeo.rotateX(Math.PI / 2);
+  const pins = new THREE.InstancedMesh(pinGeo, new THREE.MeshStandardMaterial({ color: 0xc8c0b0, metalness: 1, roughness: 0.3 }), n);
+  const eyelets = new THREE.InstancedMesh(new THREE.SphereGeometry(0.005, 8, 6), giltPlain, n);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+  const neckSamples = []; for (let k = 0; k <= 400; k++) neckSamples.push(neckCurve.getPoint(k / 400));
+  for (let i = 0; i < n; i++) {
+    const t = 0.05 + (i / (n - 1)) * 0.88;
+    const c = A.clone().addScaledVector(u, L * t);
+    const bottom = new THREE.Vector3(c.x - nb.x * 0.008, c.y - nb.y * 0.008, 0);
+    // neck underside straight above
+    let best = neckSamples[0], bd = 1e9;
+    for (const ns of neckSamples) { if (ns.x > colX - 0.06) continue; const d = Math.abs(ns.x - bottom.x); if (d < bd) { bd = d; best = ns; } }
+    const topP = new THREE.Vector3(bottom.x + 0.004, best.y - 0.036, 0);
+    const len = topP.distanceTo(bottom);
+    if (len < 0.06) continue;
+    const r = 0.0007 + 0.0013 * (1 - i / n);
+    q.setFromUnitVectors(up, topP.clone().sub(bottom).normalize());
+    m.compose(bottom.clone().lerp(topP, 0.5), q, new THREE.Vector3(r, len, r));
+    const note = i % 7;
+    const set = note === 0 ? sets.r : note === 4 ? sets.b : sets.w;
+    set.setMatrixAt(set.count++, m);
+    m.compose(new THREE.Vector3(topP.x, best.y - 0.01, 0), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1)); pins.setMatrixAt(i, m);
+    m.compose(bottom, new THREE.Quaternion(), new THREE.Vector3(1, 1, 1)); eyelets.setMatrixAt(i, m);
+  }
+  g.add(sets.w, sets.r, sets.b, pins, eyelets);
   return g;
 }
 
@@ -220,8 +314,21 @@ export function buildMusicStand(ctx, { brass, seed = 7 }) {
   }
   const ledge = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.008, 0.04), brass);
   ledge.position.set(0, -0.165, 0.018); desk.add(ledge);
-  const page = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.31), new THREE.MeshStandardMaterial({ map: sheetMusicTexture(ctx.textures, { seed, title: 'Danse des Ombres', w: 640, h: 432 }), roughness: 0.85, side: THREE.DoubleSide }));
-  page.position.set(0, 0.0, 0.012); desk.add(page);
+  // an open folio: two pages bowing away from the spine, outer corners lifting
+  for (const sx of [-1, 1]) {
+    const pg = new THREE.PlaneGeometry(0.225, 0.31, 12, 6);
+    const p = pg.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const u = (p.getX(i) / 0.225 + 0.5);         // 0 at spine side (after mirroring) -> 1 outer
+      const uu = sx < 0 ? 1 - u : u;
+      const v = p.getY(i) / 0.31 + 0.5;
+      p.setZ(i, 0.018 * Math.sin(uu * Math.PI * 0.85) + 0.012 * uu * uu * (v > 0.75 ? (v - 0.75) * 4 : 0));
+    }
+    pg.computeVertexNormals();
+    const page = new THREE.Mesh(pg, new THREE.MeshStandardMaterial({ map: sheetMusicTexture(ctx.textures, { seed: seed + (sx > 0 ? 1 : 0), title: sx < 0 ? 'Danse des Ombres' : '' }), roughness: 0.85, side: THREE.DoubleSide }));
+    page.position.set(sx * 0.1135, 0.0, 0.01);
+    desk.add(page);
+  }
   desk.position.set(0, 1.18, 0.03); desk.rotation.x = -0.35;
   g.add(desk);
   return g;

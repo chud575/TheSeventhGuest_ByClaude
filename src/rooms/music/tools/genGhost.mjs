@@ -36,86 +36,145 @@ const sph = (px, py, pz, c, r) => len3(px - c[0], py - c[1], pz - c[2]) - r;
 export const HEAD = [0, 1.31, 0.43];
 export const SHOULDER = { L: [-0.205, 1.045, 0.5], R: [0.205, 1.045, 0.5] };
 
-// ------------------------------------------------------------------ body (torso, coat, legs)
+// ------------------------------------------------------------------ body (torso, tailcoat, legs)
+// flattened round cone: squash the z axis so the shape becomes a hanging cloth panel
+function panel(x, y, z, a, b, r1, r2, squash) {
+  const zc = (a[2] + b[2]) / 2;
+  return rcone(x, y, zc + (z - zc) * squash, a, b, r1, r2) / Math.sqrt(squash);
+}
 function body(x, y, z) {
-  let d = ell(x, y, z, [0, 0.63, 0.6], [0.165, 0.1, 0.14]);                       // pelvis
-  d = smin(d, rcone(x, y, z, [0, 0.66, 0.6], [0, 0.94, 0.51], 0.15, 0.165), 0.06); // torso, hunched forward
-  d = smin(d, ell(x, y, z, [0, 1.0, 0.5], [0.215, 0.075, 0.115]), 0.07);          // shoulders
-  for (const s of [-1, 1]) d = smin(d, sph(x, y, z, [s * 0.19, 1.02, 0.5], 0.07), 0.05);
-  d = smin(d, rcone(x, y, z, [0, 1.03, 0.49], [0, 1.2, 0.45], 0.055, 0.045), 0.03); // neck
-  // stand collar + cravat knot
-  d = smin(d, rcone(x, y, z, [0, 1.05, 0.48], [0, 1.13, 0.46], 0.068, 0.062), 0.015);
-  d = smin(d, ell(x, y, z, [0, 1.03, 0.405], [0.045, 0.06, 0.03]), 0.02);
-  // lapels: shallow ridges down the chest
-  for (const s of [-1, 1]) d = smin(d, rcone(x, y, z, [s * 0.08, 1.02, 0.43], [s * 0.02, 0.8, 0.43], 0.018, 0.012), 0.02);
-  // coat tails falling behind the bench, split in two
-  for (const s of [-1, 1]) d = smin(d, rcone(x, y, z, [s * 0.07, 0.66, 0.72], [s * 0.09, 0.3, 0.8], 0.06, 0.035), 0.05);
+  let d = ell(x, y, z, [0, 0.63, 0.6], [0.175, 0.1, 0.15]);                        // pelvis / seat
+  d = smin(d, rcone(x, y, z, [0, 0.66, 0.6], [0, 0.95, 0.51], 0.15, 0.17), 0.06);  // torso, leaning to the keys
+  d = smin(d, ell(x, y, z, [0, 1.0, 0.5], [0.235, 0.075, 0.12]), 0.07);           // broad shoulders (padded coat)
+  for (const s of [-1, 1]) d = smin(d, sph(x, y, z, [s * 0.2, 1.01, 0.5], 0.06), 0.06);
+  d = smin(d, rcone(x, y, z, [0, 1.03, 0.49], [0, 1.2, 0.45], 0.056, 0.046), 0.03); // neck
+  // high stand collar with points, white stock and a full cravat bow
+  d = smin(d, rcone(x, y, z, [0, 1.05, 0.48], [0, 1.15, 0.455], 0.07, 0.064), 0.012);
+  d = smin(d, ell(x, y, z, [0, 1.06, 0.405], [0.05, 0.05, 0.03]), 0.015);
+  for (const s of [-1, 1]) d = smin(d, ell(x, y, z, [s * 0.035, 1.075, 0.4], [0.035, 0.02, 0.016]), 0.01);
+  // rolled coat collar standing behind the neck
+  d = smin(d, rcone(x, y, z, [-0.075, 1.09, 0.52], [0.075, 1.09, 0.52], 0.032, 0.032), 0.03);
+  d = smin(d, rcone(x, y, z, [0, 1.06, 0.55], [0, 1.13, 0.53], 0.05, 0.03), 0.03);
+  // shirt front / waistcoat: a raised V between the lapels
+  d = smin(d, ell(x, y, z, [0, 0.93, 0.425], [0.06, 0.1, 0.02]), 0.03);
+  // lapels: broad rolled ridges from collar to waist
+  for (const s of [-1, 1]) {
+    d = smin(d, rcone(x, y, z, [s * 0.1, 1.03, 0.44], [s * 0.035, 0.8, 0.44], 0.022, 0.012), 0.015);
+    d = smin(d, rcone(x, y, z, [s * 0.13, 1.0, 0.45], [s * 0.1, 0.92, 0.43], 0.014, 0.01), 0.012);
+  }
+  // waist seam of the tailcoat + cut-away fronts
+  d += 0.004 * Math.exp(-((y - 0.77) ** 2) / 0.0002) * (z < 0.55 ? 1 : 0.3);
+  // vent between the tails
+  if (z > 0.68 && y < 0.72) d = Math.max(d, 0.006 + (0.72 - y) * 0.03 - Math.abs(x));
+  // coat tails: two long flat panels from the waist back, over the bench edge, falling behind
+  for (const s of [-1, 1]) {
+    d = smin(d, panel(x, y, z, [s * 0.075, 0.74, 0.71], [s * 0.085, 0.58, 0.79], 0.075, 0.07, 2.4), 0.04);
+    d = smin(d, panel(x, y, z, [s * 0.085, 0.58, 0.79], [s * 0.1, 0.2, 0.81], 0.07, 0.062, 2.8), 0.03);
+  }
   // thighs + shins (the shader dissolves the legs away)
   for (const s of [-1, 1]) {
-    d = smin(d, rcone(x, y, z, [s * 0.09, 0.6, 0.6], [s * 0.115, 0.585, 0.2], 0.08, 0.062), 0.04);
+    d = smin(d, rcone(x, y, z, [s * 0.095, 0.6, 0.6], [s * 0.115, 0.585, 0.2], 0.08, 0.062), 0.04);
     d = smin(d, rcone(x, y, z, [s * 0.115, 0.585, 0.2], [s * 0.125, 0.09, 0.27], 0.056, 0.045), 0.03);
   }
-  // cloth folds (wrinkles across the back and belly)
-  d += 0.003 * Math.sin(y * 70 + Math.sin(x * 20) * 2) * Math.max(0, 1 - Math.abs(y - 0.8) * 3);
+  // cloth folds: creases across the back, belly and the bend of the knees
+  d += 0.0035 * Math.sin(y * 70 + Math.sin(x * 20) * 2) * Math.max(0, 1 - Math.abs(y - 0.8) * 3);
+  d += 0.003 * Math.sin(z * 60 + x * 8) * Math.max(0, 1 - Math.abs(y - 0.6) * 8) * (z < 0.5 ? 1 : 0);
   return d;
+}
+
+// value regions (0 = dark cloth, 1 = linen / skin): lets the coat, shirt and cravat read apart
+function bodyTint(x, y, z) {
+  let d = ell(x, y, z, [0, 1.06, 0.405], [0.06, 0.06, 0.04]);
+  for (const s of [-1, 1]) d = Math.min(d, ell(x, y, z, [s * 0.035, 1.075, 0.4], [0.045, 0.03, 0.03]));
+  d = Math.min(d, ell(x, y, z, [0, 0.93, 0.425], [0.05, 0.11, 0.035]));
+  d = Math.min(d, rcone(x, y, z, [0, 1.05, 0.48], [0, 1.16, 0.455], 0.075, 0.07));
+  return d < 0.004 ? 1 : 0;
+}
+function headTint(x, y, z) {
+  // hair darker than the face
+  const face = z < 0.0 - Math.max(0, y - 0.035) * 0.75 + 0.02 && y > -0.12;
+  return face ? 1 : 0.35;
 }
 
 // ------------------------------------------------------------------ head (relative to HEAD), faces -Z
 function head(x, y, z) {
-  let d = ell(x, y, z, [0, 0.018, 0.008], [0.075, 0.098, 0.093]);                 // cranium
-  d = smin(d, ell(x, y, z, [0, -0.05, -0.02], [0.058, 0.05, 0.072]), 0.03);      // jaw
-  d = smin(d, ell(x, y, z, [0, -0.088, -0.052], [0.026, 0.022, 0.026]), 0.02);   // chin
-  d = smin(d, ell(x, y, z, [0, 0.036, -0.074], [0.064, 0.017, 0.026]), 0.015);   // brow ridge
+  let d = ell(x, y, z, [0, 0.02, 0.01], [0.074, 0.097, 0.092]);                   // cranium
+  d = smin(d, ell(x, y, z, [0, -0.05, -0.02], [0.058, 0.052, 0.072]), 0.03);      // jaw
+  d = smin(d, ell(x, y, z, [0, -0.09, -0.052], [0.027, 0.023, 0.026]), 0.02);     // chin
+  d = smin(d, ell(x, y, z, [0, 0.036, -0.074], [0.066, 0.019, 0.028]), 0.014);    // heavy brow ridge
+  d = smin(d, ell(x, y, z, [0, 0.05, -0.083], [0.012, 0.012, 0.01]), 0.01);       // frown knot between the brows
   for (const s of [-1, 1]) {
-    d = smin(d, ell(x, y, z, [s * 0.048, -0.012, -0.06], [0.022, 0.014, 0.022]), 0.015); // cheekbones
-    d = smax(d, -sph(x, y, z, [s * 0.031, 0.012, -0.093], 0.021), 0.01);                  // sockets
-    d = smin(d, sph(x, y, z, [s * 0.031, 0.011, -0.079], 0.0135), 0.004);                 // eyes
-    d = smax(d, -ell(x, y, z, [s * 0.05, -0.052, -0.07], [0.018, 0.024, 0.012]), 0.012);  // hollow cheeks
-    d = smin(d, ell(x, y, z, [s * 0.078, 0.0, 0.006], [0.012, 0.03, 0.02]), 0.01);       // ears
+    d = smin(d, ell(x, y, z, [s * 0.049, -0.012, -0.061], [0.022, 0.015, 0.022]), 0.014); // high cheekbones
+    d = smax(d, -sph(x, y, z, [s * 0.031, 0.012, -0.095], 0.022), 0.009);                 // deep sockets
+    d = smin(d, sph(x, y, z, [s * 0.031, 0.011, -0.081], 0.0135), 0.004);                 // eyes
+    d = smin(d, ell(x, y, z, [s * 0.031, 0.022, -0.088], [0.016, 0.004, 0.006]), 0.004);  // heavy lids
+    d = smax(d, -ell(x, y, z, [s * 0.052, -0.054, -0.07], [0.019, 0.026, 0.013]), 0.012); // hollow cheeks
+    d = smax(d, -rcone(x, y, z, [s * 0.022, -0.04, -0.1], [s * 0.035, -0.07, -0.09], 0.004, 0.003), 0.004); // nasolabial folds
+    d = smin(d, ell(x, y, z, [s * 0.078, 0.0, 0.006], [0.012, 0.031, 0.02]), 0.01);       // ears
   }
-  // nose: bridge to tip, with nostril wings
-  d = smin(d, rcone(x, y, z, [0, 0.018, -0.086], [0, -0.03, -0.108], 0.009, 0.014), 0.008);
-  for (const s of [-1, 1]) d = smin(d, sph(x, y, z, [s * 0.012, -0.034, -0.097], 0.009), 0.006);
-  // mouth: a thin, downturned slit, and lips
-  d = smin(d, ell(x, y, z, [0, -0.058, -0.088], [0.026, 0.01, 0.014]), 0.008);
-  d = smax(d, -ell(x, y, z, [0, -0.059 - 0.004 * x * x * 400, -0.1], [0.024, 0.0025, 0.012]), 0.004);
-  // hair: swept-back mane with grooves, kept off the face
-  let hr = ell(x, y, z, [0, 0.04, 0.03], [0.085, 0.09, 0.1]);
-  hr = smin(hr, ell(x, y, z, [0, 0.0, 0.09], [0.08, 0.1, 0.06]), 0.04);
-  for (const s of [-1, 1]) hr = smin(hr, ell(x, y, z, [s * 0.075, 0.0, 0.05], [0.03, 0.07, 0.06]), 0.03);
+  // aquiline nose: bridge, hump, tip, nostril wings
+  d = smin(d, rcone(x, y, z, [0, 0.026, -0.088], [0, -0.03, -0.114], 0.009, 0.013), 0.008);
+  d = smin(d, sph(x, y, z, [0, 0.0, -0.104], 0.009), 0.006);
+  for (const s of [-1, 1]) d = smin(d, sph(x, y, z, [s * 0.012, -0.034, -0.099], 0.009), 0.006);
+  // mouth: thin lips pressed in a downturned line, and a drooping moustache
+  d = smin(d, ell(x, y, z, [0, -0.059, -0.089], [0.026, 0.01, 0.014]), 0.008);
+  d = smax(d, -ell(x, y, z, [0, -0.061 - 0.004 * x * x * 400, -0.101], [0.025, 0.0025, 0.012]), 0.004);
+  for (const s of [-1, 1]) d = smin(d, rcone(x, y, z, [s * 0.004, -0.047, -0.104], [s * 0.03, -0.066, -0.093], 0.006, 0.003), 0.005);
+  // hair: a swept-back mane falling to the collar, wild at the sides; receding temples; side-whiskers
+  let hr = ell(x, y, z, [0, 0.036, 0.016], [0.079, 0.084, 0.094]);
+  // a few broad swept-back locks (large-scale, so they read without aliasing)
+  for (const [lx, ly, lz, a] of [[0.0, 0.1, -0.02, 0], [0.035, 0.09, -0.01, 0.25], [-0.035, 0.09, -0.01, -0.25], [0.06, 0.06, 0.02, 0.5], [-0.06, 0.06, 0.02, -0.5]]) {
+    hr = smin(hr, rcone(x, y, z, [lx, ly, lz], [lx * 1.25, ly - 0.03, lz + 0.11], 0.016, 0.022), 0.012);
+    void a;
+  }
+  hr = smin(hr, ell(x, y, z, [0, -0.03, 0.05], [0.066, 0.065, 0.04]), 0.03);          // nape, falls to the collar
+  for (const s of [-1, 1]) {
+    hr = smin(hr, ell(x, y, z, [s * 0.074, 0.005, 0.035], [0.026, 0.07, 0.065]), 0.025); // full sides
+    hr = smin(hr, ell(x, y, z, [s * 0.072, -0.045, -0.015], [0.012, 0.04, 0.02]), 0.012); // side-whiskers
+  }
   const ang = Math.atan2(x, z + 0.05);
-  hr += 0.0035 * Math.sin(ang * 26 + y * 40);
-  hr = smax(hr, -(z + 0.035 - Math.max(0, y - 0.04) * 0.6), 0.02);  // hairline (no hair over the face)
-  hr = smax(hr, -(y + 0.035 - Math.max(0, z) * 0.6), 0.02);          // nothing under the jaw
-  return smin(d, hr, 0.008);
+  hr = smax(hr, -(z + 0.03 - Math.max(0, y - 0.035) * 0.75 + 0.02 * Math.abs(x) / 0.06), 0.018); // receding hairline
+  hr = smax(hr, -(y + 0.08 - Math.max(0, z) * 0.9), 0.02);                         // nothing under the jaw
+  return smin(d, hr, 0.006);
 }
 
 // ------------------------------------------------------------------ arm (relative to shoulder), s = -1 left / +1 right
+// hands rest on the keys: fingertips just behind the white-key fronts (z = 0.17), key tops at y = 0.735
 function makeArm(s) {
   const sh = SHOULDER[s < 0 ? 'L' : 'R'];
   const rel = (p) => [p[0] - sh[0], p[1] - sh[1], p[2] - sh[2]];
-  const el = rel([s * 0.255, 0.85, 0.34]);
-  const wr = rel([s * 0.18, 0.785, 0.14]);
-  const hand = rel([s * 0.158, 0.77, 0.072]);
+  const hx = s * 0.17;
+  const el = rel([s * 0.27, 0.83, 0.42]);
+  const wr = rel([hx + s * 0.005, 0.776, 0.215]);
+  const hand = rel([hx, 0.772, 0.17]);
   const fingers = [0, 1, 2, 3].map((k) => {
-    const off = (k - 1.5) * 0.019 * -s;
-    return [rel([s * 0.158 + off, 0.772, 0.05]), rel([s * 0.158 + off * 1.1, 0.758, 0.012]), rel([s * 0.158 + off * 1.15, 0.738, -0.008])];
+    const off = (k - 1.5) * 0.02 * -s;
+    const reach = k === 0 || k === 3 ? 0.008 : 0;
+    return [rel([hx + off, 0.772, 0.145]), rel([hx + off * 1.1, 0.762, 0.115 + reach]), rel([hx + off * 1.15, 0.744, 0.098 + reach])];
   });
-  const thumb = [rel([s * 0.158 - s * 0.035, 0.77, 0.075]), rel([s * 0.158 - s * 0.05, 0.752, 0.035])];
+  const thumb = [rel([hx - s * 0.036, 0.766, 0.17]), rel([hx - s * 0.05, 0.75, 0.13])];
   return (x, y, z) => {
-    let d = sph(x, y, z, [0, 0, 0], 0.062);
-    d = smin(d, rcone(x, y, z, [0, 0, 0], el, 0.056, 0.045), 0.03);
-    d = smin(d, rcone(x, y, z, el, wr, 0.044, 0.031), 0.02);
-    d = smin(d, rcone(x, y, z, wr, [wr[0], wr[1], wr[2] + 0.025], 0.04, 0.038), 0.008);   // cuff
-    d = smin(d, ell(x, y, z, hand, [0.04, 0.014, 0.04]), 0.015);
-    for (const [a, b, c] of fingers) { d = smin(d, rcone(x, y, z, a, b, 0.0085, 0.0075), 0.006); d = smin(d, rcone(x, y, z, b, c, 0.0075, 0.0062), 0.004); }
-    d = smin(d, rcone(x, y, z, thumb[0], thumb[1], 0.01, 0.008), 0.008);
+    let d = rcone(x, y, z, [0, -0.01, 0], el, 0.054, 0.046);
+    d = smin(d, rcone(x, y, z, el, wr, 0.046, 0.033), 0.02);
+    // sleeve creases at the elbow
+    d += 0.003 * Math.sin((y - el[1]) * 120) * Math.exp(-(((x - el[0]) ** 2) + ((y - el[1]) ** 2) + ((z - el[2]) ** 2)) / 0.004);
+    d = smin(d, rcone(x, y, z, [wr[0], wr[1], wr[2] + 0.03], [wr[0], wr[1], wr[2] - 0.005], 0.041, 0.039), 0.006);   // lace shirt cuff
+    d = smin(d, rcone(x, y, z, wr, hand, 0.025, 0.03), 0.015);
+    d = smin(d, ell(x, y, z, hand, [0.042, 0.014, 0.034]), 0.012);
+    for (const [a, b, c] of fingers) { d = smin(d, rcone(x, y, z, a, b, 0.0085, 0.0075), 0.006); d = smin(d, rcone(x, y, z, b, c, 0.0075, 0.006), 0.004); }
+    d = smin(d, rcone(x, y, z, thumb[0], thumb[1], 0.0105, 0.008), 0.008);
     return d;
   };
 }
 
+// hands + lace cuffs bright, sleeves dark
+function armTint(s) {
+  const sh = SHOULDER[s < 0 ? 'L' : 'R'];
+  return (x, y, z) => (z + sh[2] < 0.235 ? 1 : 0.15);
+}
+
 // ------------------------------------------------------------------ Surface Nets
-function surfaceNets(f, min, max, h) {
+function surfaceNets(f, min, max, h, tf) {
   const nx = Math.ceil((max[0] - min[0]) / h) + 1, ny = Math.ceil((max[1] - min[1]) / h) + 1, nz = Math.ceil((max[2] - min[2]) / h) + 1;
   const N = nx * ny * nz;
   const field = new Float32Array(N);
@@ -164,28 +223,43 @@ function surfaceNets(f, min, max, h) {
     pos[n] = x; pos[n + 1] = y; pos[n + 2] = z;
     nrm[n] = gx / gl; nrm[n + 1] = gy / gl; nrm[n + 2] = gz / gl;
   }
-  return { pos: new Float32Array(pos), nrm, idx: new Uint32Array(idx) };
+  const ao = new Uint8Array(pos.length / 3);
+  for (let n = 0, v = 0; n < pos.length; n += 3, v++) {
+    let occ = 0;
+    for (const [dist, w] of [[0.004, 0.5], [0.009, 0.3], [0.018, 0.2]]) {
+      const dd = f(pos[n] + nrm[n] * dist, pos[n + 1] + nrm[n + 1] * dist, pos[n + 2] + nrm[n + 2] * dist);
+      occ += w * Math.max(0, Math.min(1, dd / dist));
+    }
+    ao[v] = Math.round(Math.max(0, Math.min(1, occ)) * 255);
+  }
+  const tint = new Uint8Array(pos.length / 3).fill(255 * 0.3);
+  if (tf) for (let n = 0, v = 0; n < pos.length; n += 3, v++) tint[v] = Math.round(255 * tf(pos[n], pos[n + 1], pos[n + 2]));
+  return { pos: new Float32Array(pos), nrm, ao, tint, idx: new Uint32Array(idx) };
 }
 
 // ------------------------------------------------------------------ build + write
 const parts = [
-  { name: 'body', f: body, min: [-0.3, 0.0, 0.2 - 0.1], max: [0.3, 1.24, 0.9], h: 0.0095 },
-  { name: 'head', f: head, min: [-0.11, -0.13, -0.13], max: [0.11, 0.14, 0.15], h: 0.0032 },
-  { name: 'armL', f: makeArm(-1), min: [-0.12, -0.36, -0.56], max: [0.12, 0.08, 0.08], h: 0.005 },
-  { name: 'armR', f: makeArm(1), min: [-0.12, -0.36, -0.56], max: [0.12, 0.08, 0.08], h: 0.005 },
+  { name: 'body', f: body, tint: bodyTint, min: [-0.3, 0.0, 0.2 - 0.1], max: [0.3, 1.24, 0.9], h: 0.0075 },
+  { name: 'head', f: head, tint: headTint, min: [-0.11, -0.13, -0.13], max: [0.11, 0.14, 0.15], h: 0.0032 },
+  { name: 'armL', f: makeArm(-1), tint: armTint(-1), min: [-0.12, -0.36, -0.56], max: [0.12, 0.08, 0.08], h: 0.005 },
+  { name: 'armR', f: makeArm(1), tint: armTint(1), min: [-0.12, -0.36, -0.56], max: [0.12, 0.08, 0.08], h: 0.005 },
 ];
 const chunks = [];
 const header = { parts: [], head: HEAD, shoulders: SHOULDER };
 let offset = 0;
 for (const p of parts) {
   const t0 = Date.now();
-  const m = surfaceNets(p.f, p.min, p.max, p.h);
+  const m = surfaceNets(p.f, p.min, p.max, p.h, p.tint);
   const n8 = new Int8Array((m.pos.length / 3) * 4);
   for (let i = 0; i < m.pos.length / 3; i++) { n8[i * 4] = Math.round(m.nrm[i * 3] * 127); n8[i * 4 + 1] = Math.round(m.nrm[i * 3 + 1] * 127); n8[i * 4 + 2] = Math.round(m.nrm[i * 3 + 2] * 127); }
   const entry = { name: p.name, vertices: m.pos.length / 3, indices: m.idx.length, pos: offset };
   chunks.push(Buffer.from(m.pos.buffer)); offset += m.pos.byteLength;
   entry.nrm = offset; chunks.push(Buffer.from(n8.buffer)); offset += n8.byteLength;
   entry.idx = offset; chunks.push(Buffer.from(m.idx.buffer)); offset += m.idx.byteLength;
+  const aoPad = new Uint8Array(Math.ceil(m.ao.length / 4) * 4); aoPad.set(m.ao);
+  entry.ao = offset; chunks.push(Buffer.from(aoPad.buffer)); offset += aoPad.byteLength;
+  const tPad = new Uint8Array(Math.ceil(m.tint.length / 4) * 4); tPad.set(m.tint);
+  entry.tint = offset; chunks.push(Buffer.from(tPad.buffer)); offset += tPad.byteLength;
   header.parts.push(entry);
   console.log(`${p.name}: ${entry.vertices} verts, ${entry.indices / 3} tris, ${Date.now() - t0} ms`);
 }

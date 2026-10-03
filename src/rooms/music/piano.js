@@ -110,7 +110,7 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
   const rimShape = shapeOf(pts);
   rimShape.holes.push(pathOf(inner));
   const rimH = CASE.rimTop - CASE.rimBottom;
-  const rim = add(new THREE.Mesh(flatExtrude(rimShape, rimH - 0.012, CASE.rimBottom + 0.006, 0.006), ebony));
+  const rim = add(new THREE.Mesh(flatExtrude(rimShape, rimH - 0.024, CASE.rimBottom + 0.012, 0.012), ebony));
   rim.name = 'piano-rim';
   // moulded bottom edge (slightly proud band)
   const band = add(new THREE.Mesh(flatExtrude(shapeOf(offsetPoly(pts, -0.008)), 0.035, CASE.rimBottom - 0.02, 0.004), ebony));
@@ -133,8 +133,8 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
     const plateOuter = clipBelow(offsetPoly(pts, 0.06), 0.06);
     const s = shapeOf(plateOuter);
     const holes = [
-      [-0.42, 0.62, 0.11, 0.2], [-0.12, 0.62, 0.1, 0.18], [0.2, 0.58, 0.09, 0.15], [0.48, 0.5, 0.06, 0.1],
-      [-0.42, 1.18, 0.12, 0.25], [-0.12, 1.1, 0.09, 0.2], [-0.45, 1.65, 0.1, 0.16],
+      [-0.42, 0.66, 0.07, 0.14], [-0.12, 0.64, 0.065, 0.12], [0.2, 0.58, 0.06, 0.1], [0.46, 0.5, 0.04, 0.07],
+      [-0.42, 1.2, 0.08, 0.17], [-0.12, 1.1, 0.06, 0.13], [-0.45, 1.66, 0.06, 0.1],
     ];
     for (const [x, y, rx, ry] of holes) {
       const h = new THREE.Path();
@@ -155,57 +155,98 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
     }
   }
 
-  // strings: one InstancedMesh, from the tuning pins (front) to the bridge along the bentside
+  // strings: drawn into one mip-mapped texture on a plane above the plate, so the
+  // ~230 wires filter down to a soft sheen at a distance instead of shimmering into
+  // moiré. Treble/tenor run straight back to the bridge; the copper-wound bass is
+  // overstrung diagonally across them toward the tail, as in a real concert grand.
   {
-    const n = 150;
-    const sGeo = new THREE.CylinderGeometry(0.0007, 0.0007, 1, 4, 1, true);
-    sGeo.rotateX(Math.PI / 2);
-    const steel = new THREE.MeshStandardMaterial({ color: 0xc9c4b8, roughness: 0.25, metalness: 1.0 });
-    const copper = new THREE.MeshStandardMaterial({ color: 0xb87333, roughness: 0.35, metalness: 1.0 });
-    const strings = new THREE.InstancedMesh(sGeo, steel, n);
-    const bass = new THREE.InstancedMesh(sGeo, copper, 30);
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
-    let bi = 0, si = 0;
-    for (let i = 0; i < n + 30; i++) {
-      const t = i / (n + 30 - 1);
-      const x = -0.66 + t * 1.36;
-      const yb = backAt(inner, x) - 0.07;
-      const y0 = 0.2;
-      const len = Math.max(0.1, yb - y0);
-      const isBass = i < 30;
-      // bass strings cross over diagonally, higher above the plate
-      const ang = isBass ? 0.18 : 0;
-      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), ang);
-      sc.set(isBass ? 2.2 : 1, isBass ? 2.2 : 1, len / Math.cos(ang));
-      const cx = x + (isBass ? Math.tan(ang) * len * -0.5 + 0.12 : 0);
-      m.compose(new THREE.Vector3(cx, isBass ? 0.915 : 0.9, -(y0 + len / 2)), q, sc);
-      if (isBass) bass.setMatrixAt(bi++, m); else strings.setMatrixAt(si++, m);
+    const X0 = -0.76, X1 = 0.76, Y0 = 0.08, Y1 = 2.0;
+    const CW = 2048, CH = 2560;
+    const toC = (x, y) => [((x - X0) / (X1 - X0)) * CW, ((y - Y0) / (Y1 - Y0)) * CH];
+    const treble = [], bass = [];
+    const NT = 168;
+    for (let i = 0; i < NT; i++) {
+      const t = i / (NT - 1);
+      const x = -0.64 + t * 1.33;
+      treble.push([x, 0.175, x + 0.01 * (1 - t), backAt(inner, x) - 0.075, i < 60 ? 2 : 3]);
     }
-    strings.count = si; bass.count = bi;
-    strings.castShadow = false; bass.castShadow = false;
-    add(strings); add(bass);
-    // tuning pins: tiny cylinders in rows across the pin block
-    const pin = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.0025, 0.0025, 0.03, 6), steel, 220);
-    for (let i = 0; i < 220; i++) {
-      const x = -0.64 + (i / 219) * 1.3;
+    for (let i = 0; i < 24; i++) {
+      const xf = -0.47 + i * 0.0115, xb = -0.685 + i * 0.0098;
+      bass.push([xf, 0.215, xb, backAt(inner, xb) - 0.07, i < 8 ? 1 : 2]);
+    }
+    const tex = ctx.textures.canvas('music:pianostrings', CW, CH, (g) => {
+      g.clearRect(0, 0, CW, CH);
+      g.lineCap = 'round';
+      const line = (x0, y0, x1, y1, w, color) => { const [a0, b0] = toC(x0, y0), [a1, b1] = toC(x1, y1); g.strokeStyle = color; g.lineWidth = w; g.beginPath(); g.moveTo(a0, b0); g.lineTo(a1, b1); g.stroke(); };
+      // treble / tenor (steel), unisons drawn as tight groups
+      for (const [x0, y0, x1, y1, n] of treble) {
+        for (let k = 0; k < n; k++) {
+          const o = (k - (n - 1) / 2) * 0.0017;
+          line(x0 + o, y0, x1 + o, y1, 3.4, 'rgba(10,8,6,0.4)');
+          line(x0 + o, y0, x1 + o, y1, 2.1, 'rgba(232,229,220,1)');
+        }
+      }
+      // bass (copper wound), over the top
+      for (const [x0, y0, x1, y1, n] of bass) {
+        for (let k = 0; k < n; k++) {
+          const o = (k - (n - 1) / 2) * 0.0042;
+          line(x0 + o, y0, x1 + o, y1, 6.5, 'rgba(10,6,3,0.6)');
+          line(x0 + o, y0, x1 + o, y1, 4.2, 'rgba(176,104,52,1)');
+          line(x0 + o, y0, x1 + o, y1, 1.4, 'rgba(240,180,120,0.9)');
+        }
+      }
+      // hitch-pin ends and agraffes: tiny bright studs
+      g.fillStyle = 'rgba(230,226,215,1)';
+      for (const [x0, y0, x1, y1] of [...treble, ...bass]) {
+        for (const [x, y] of [[x0, y0], [x1, y1 + 0.03]]) { const [cx, cy] = toC(x, y); g.beginPath(); g.arc(cx, cy, 2.4, 0, Math.PI * 2); g.fill(); }
+      }
+    }, { tile: false });
+    tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.anisotropy = 16;
+    const strMat = new THREE.MeshStandardMaterial({ map: tex, transparent: true, metalness: 0.6, roughness: 0.32, depthWrite: false, side: THREE.DoubleSide });
+    const sp = new THREE.Mesh(new THREE.PlaneGeometry(X1 - X0, Y1 - Y0), strMat);
+    sp.rotation.x = -Math.PI / 2;
+    // plane: u -> x, v -> y(back). PlaneGeometry v=1 at +y(local) -> after rotation -z = back... flip so v=0 is front
+    sp.geometry.attributes.uv.array.forEach((v, i, arr) => { if (i % 2 === 1) arr[i] = 1 - v; });
+    sp.position.set((X0 + X1) / 2, 0.903, -(Y0 + Y1) / 2);
+    sp.renderOrder = 2; sp.userData.noShadow = true; sp.castShadow = false;
+    add(sp);
+    // bridges: a long curved maple bridge for the treble/tenor, a short one for the bass
+    const maple = new THREE.MeshStandardMaterial({ color: 0x8a5a2c, roughness: 0.55 });
+    const bridgePts = treble.filter((_, i) => i % 6 === 0).map(([, , x1, y1]) => new THREE.Vector3(x1, 0.889, -y1 - 0.004));
+    add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(bridgePts), 80, 0.009, 6), maple));
+    const bb = bass.map(([, , x1, y1]) => new THREE.Vector3(x1, 0.902, -y1 - 0.004));
+    add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([bb[0], bb[Math.floor(bb.length / 2)], bb[bb.length - 1]]), 20, 0.011, 6), maple));
+    // tuning pins: two staggered rows of steel pins across the pin block
+    const steel = new THREE.MeshStandardMaterial({ color: 0xd0ccc2, roughness: 0.22, metalness: 1.0 });
+    const m = new THREE.Matrix4();
+    const NP = 230;
+    const pin = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.0028, 0.0028, 0.03, 8), steel, NP);
+    for (let i = 0; i < NP; i++) {
+      const x = -0.66 + (i / (NP - 1)) * 1.36;
       const row = i % 2;
-      m.compose(new THREE.Vector3(x, 0.89, -(0.11 + row * 0.03)), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
+      m.compose(new THREE.Vector3(x, 0.892, -(0.115 + row * 0.028)), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
       pin.setMatrixAt(i, m);
     }
     pin.castShadow = false;
     add(pin);
-    // dampers: felt-topped wooden blocks over the treble half
-    const damperMat = new THREE.MeshStandardMaterial({ color: 0x1a1512, roughness: 0.7 });
-    const dampers = new THREE.InstancedMesh(new THREE.BoxGeometry(0.012, 0.03, 0.035), damperMat, 66);
-    for (let i = 0; i < 66; i++) {
-      const x = -0.5 + (i / 65) * 1.12;
-      m.compose(new THREE.Vector3(x, 0.935, -0.33), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
-      dampers.setMatrixAt(i, m);
+    // red understring felt along the pin block and the hitch-pin rim
+    const felt = new THREE.MeshStandardMaterial({ color: 0x5c1216, roughness: 0.98 });
+    const feltFront = add(new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.006, 0.02), felt));
+    feltFront.position.set(0.02, 0.896, -0.165);
+    // dampers: ebonised heads on red felt, over the treble half, behind the strike line
+    const damperMat = new THREE.MeshStandardMaterial({ color: 0x16100c, roughness: 0.55 });
+    const NDm = 64;
+    const dampers = new THREE.InstancedMesh(new THREE.BoxGeometry(0.0145, 0.026, 0.04), damperMat, NDm);
+    const dfelt = new THREE.InstancedMesh(new THREE.BoxGeometry(0.0145, 0.006, 0.04), felt, NDm);
+    for (let i = 0; i < NDm; i++) {
+      const x = -0.42 + (i / (NDm - 1)) * 1.08;
+      m.compose(new THREE.Vector3(x, 0.922, -0.34), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1)); dampers.setMatrixAt(i, m);
+      m.compose(new THREE.Vector3(x, 0.907, -0.34), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1)); dfelt.setMatrixAt(i, m);
     }
-    add(dampers);
-    // damper rail
-    const rail = add(new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.02, 0.025), ebony));
-    rail.position.set(0.06, 0.955, -0.33);
+    add(dampers); add(dfelt);
+    // damper rail (ebonised, red felt lining)
+    const rail = add(new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.016, 0.022), ebony));
+    rail.position.set(0.12, 0.944, -0.34);
   }
 
   // ---------------------------------------------------------------- lid (raised on the long stick)
@@ -270,7 +311,8 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
   }
   // fallboard folded open: a bevelled board just behind the keys with the gilt name
   {
-    const fb = add(new THREE.Mesh(new G.RoundedBoxGeometry(1.33, 0.11, 0.03, 2, 0.008), ebony));
+    const lacquer = new THREE.MeshPhysicalMaterial({ color: 0x060505, roughness: 0.38, clearcoat: 0.6, clearcoatRoughness: 0.32 });
+    const fb = add(new THREE.Mesh(new G.RoundedBoxGeometry(1.33, 0.11, 0.03, 2, 0.008), lacquer));
     fb.position.set(0, KEY.top + 0.06, -0.005);
     fb.rotation.x = -0.12;
     const name = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.052), new THREE.MeshStandardMaterial({ map: nameboardTexture(ctx.textures), transparent: true, metalness: 0.9, roughness: 0.3, color: 0xffffff, depthWrite: false }));
@@ -374,11 +416,18 @@ function buildKeys(ctx, piano) {
     for (let i = 0; i < p.count; i++) { const y = p.getY(i); if (y > 0.004) p.setX(i, p.getX(i) * 0.8); }
     bgeo.computeVertexNormals();
   }
-  const ivory = new THREE.MeshPhysicalMaterial({ color: 0xe9e0c8, roughness: 0.32, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.2, sheen: 0.2, emissive: new THREE.Color(0x000000) });
+  const ivory = new THREE.MeshPhysicalMaterial({ color: 0xf2e8d2, roughness: 0.35, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.25, sheen: 0.15, sheenColor: new THREE.Color(1, 0.95, 0.85), emissive: new THREE.Color(0x000000) });
   const jet = new THREE.MeshPhysicalMaterial({ color: 0x0b0a0a, roughness: 0.28, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.12 });
   const white = new THREE.InstancedMesh(wg, ivory, whiteMidi.length);
   const black = new THREE.InstancedMesh(bgeo, jet, blackMidi.length);
   white.name = 'keys-white'; black.name = 'keys-black';
+  // old ivory: each key yellowed a little differently
+  {
+    let sd = 17; const rnd = () => { sd = (sd * 9301 + 49297) % 233280; return sd / 233280; };
+    const c = new THREE.Color();
+    for (let i = 0; i < whiteMidi.length; i++) { const y = rnd(); c.setRGB(1.0, 0.985 - y * 0.03, 0.95 - y * 0.09); white.setColorAt(i, c); }
+    white.instanceColor.needsUpdate = true;
+  }
   white.userData.dynamic = true; black.userData.dynamic = true;
   const backZ = KEY.front - KEY.whiteL - 0.25;  // pivot line z for white keys
   const press = new Map();
