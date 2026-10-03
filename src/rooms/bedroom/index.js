@@ -107,7 +107,7 @@ export default {
       // mahogany pulled ~30% toward brown-black (the stock species reads saturated red)
       mahogany: M.create('mahogany', { tint: [0.66, 0.54, 0.5], wear: 0.5, repeat: [1.6, 1.6], clearcoatRoughness: 0.3 }),
       canopyWood: M.create('mahogany', { tint: [0.6, 0.5, 0.47], wear: 0.6, repeat: [1.6, 1.6], clearcoat: 0.15, clearcoatRoughness: 0.5, envMapIntensity: 0.3 }),
-      vanityWood: M.create('wood', { species: 'rosewood', boards: 0, polish: 0.75, wear: 0.55, tint: [0.62, 0.52, 0.5], repeat: [1.8, 1.8], clearcoat: 0.5, clearcoatRoughness: 0.25 }),
+      vanityWood: M.create('wood', { species: 'rosewood', boards: 0, polish: 0.6, wear: 0.55, tint: [0.42, 0.34, 0.33], repeat: [1.8, 1.8], clearcoat: 0.3, clearcoatRoughness: 0.35, envMapIntensity: 0.3 }),
       walnut: M.create('walnut', { tint: [0.8, 0.72, 0.66], wear: 0.5, repeat: [1.6, 1.6] }),
       panel: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.6, wear: 0.45, tint: [0.66, 0.55, 0.5], repeat: [1.3, 1.3], clearcoat: 0.4, clearcoatRoughness: 0.32 }),
       ebonyWood: M.create('ebony', { repeat: [2, 2] }),
@@ -142,7 +142,7 @@ export default {
       frostGlass: new THREE.MeshPhysicalMaterial({ color: 0xd8d4c8, roughness: 0.55, transmission: 0, transparent: true, opacity: 0.72, side: THREE.DoubleSide, name: 'frost' }),
       mirror: new THREE.MeshPhysicalMaterial({ map: mirrorSet.map, normalMap: mirrorSet.normalMap, normalScale: new THREE.Vector2(1.8, 1.8), roughnessMap: mirrorSet.ormMap, metalnessMap: mirrorSet.ormMap, roughness: 1, metalness: 1, envMapIntensity: 1.0, color: new THREE.Color(0.75, 0.75, 0.78), name: 'mirror' }),
       lampGlobe: new THREE.MeshStandardMaterial({ color: 0x3a2a18, emissive: new THREE.Color(1.0, 0.62, 0.3), emissiveIntensity: 3.0, roughness: 0.4, transparent: true, opacity: 0.94, name: 'lampGlobe' }),
-      velvetRose: M.create('velvet', { color: [0.3, 0.08, 0.1], crush: 0.5, repeat: [3, 3] }),
+      velvetRose: M.create('velvet', { color: [0.3, 0.08, 0.1], crush: 0.5, repeat: [3, 3], sheen: 0.4, envMapIntensity: 0.25 }),
       velvetChair: M.create('leather', { color: [0.2, 0.07, 0.05], wear: 0.7, buttons: 1, repeat: [4, 4], clearcoat: 0.3, clearcoatRoughness: 0.45 }),
       curtain: M.create('velvet', { color: [0.055, 0.08, 0.21], crush: 0.85, repeat: [1.4, 1.4], side: THREE.DoubleSide, sheen: 0.45, sheenRoughness: 0.4, sheenColor: [0.3, 0.36, 0.6], envMapIntensity: 0.25 }),
       buttons: M.basic('black', { color: 0x0a0a12, roughness: 0.4 }),

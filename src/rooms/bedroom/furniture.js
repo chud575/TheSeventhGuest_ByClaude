@@ -602,7 +602,7 @@ export function fireMaterial(timeUniform) {
         col += vec3(1.0, 0.95, 0.8) * smoothstep(0.45, 0.8, e) * (1.0 - p.y) * 0.6;
         // blue-ish roots right at the coals
         col = mix(col, vec3(0.35, 0.3, 0.6), smoothstep(0.08, 0.0, p.y) * 0.5 * a);
-        float alpha = a * smoothstep(0.0, 0.05, p.y) * smoothstep(0.08, 0.45, vFace);
+        float alpha = a * smoothstep(0.0, 0.05, p.y) * smoothstep(0.2, 0.65, vFace);
         gl_FragColor = vec4(col * uIntensity * alpha, alpha);
       }`,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide,
