@@ -37,7 +37,7 @@ const RAFTER = { w: 0.075, d: 0.17, step: 0.6 };
 const COLLAR_Y = 2.55;
 const TRUSS_Z = [-1.4, 1.75];
 const OCULUS = { x: -0.3, y: 2.85, r: 0.62, depth: 0.36 };
-const DOOR = { x0: 1.44, x1: 2.26, h: 1.9, open: 0.85 };
+const DOOR = { x0: 1.44, x1: 2.26, h: 1.9, open: 1.12 };
 const WALL_T = 0.3;
 const STAIR = { x0: -2.7, x1: -1.7, z0: 1.6, z1: 4.3, rise: 0.205, run: 0.245 };
 const CHIM = { x0: 1.75, x1: 2.4, z0: 1.15, z1: 1.8 };
@@ -47,9 +47,9 @@ const PLATE = new THREE.Vector3(0.6, TABLE_H + 0.06, -1.38);
 const PLATE_R = 0.25;
 const BENCH = new THREE.Vector3(-1.35, 0, Z0 + 0.42);
 const ROOM_GRADE = {
-  exposure: 2.3, contrast: 1.1, saturation: 0.96, toneMapping: 'aces',
+  exposure: 2.5, contrast: 1.1, saturation: 0.96, toneMapping: 'aces',
   shadowTint: [0.78, 0.92, 1.22], highlightTint: [1.14, 1.0, 0.82], splitAmount: 0.6,
-  vignette: 0.5, grain: 0.04, bloomStrength: 0.32, bloomThreshold: 2.0,
+  vignette: 0.5, grain: 0.04, bloomStrength: 0.26, bloomThreshold: 2.0,
   godRayWeight: 0.45, godRayThreshold: 2.0, aoIntensity: 1.15, aoRadius: 0.4,
 };
 
@@ -109,13 +109,13 @@ export default {
       brick: M.create('brick', { rows: 12, cols: 4, soot: 0.9, repeat: [1 / 0.9, 1 / 0.9], color: [0.62, 0.5, 0.45] }),
       brickDark: M.create('brick', { rows: 12, cols: 4, soot: 1.0, repeat: [1 / 0.9, 1 / 0.9], color: [0.3, 0.22, 0.2] }),
       stone: M.create('stone', { rows: 2, cols: 3, moss: 0.1, damp: 0.6, repeat: [1.6, 1.6], color: [0.6, 0.58, 0.55] }),
-      benchTop: M.create('wood', { species: 'oak', boards: 0, polish: 0.15, wear: 0.9, repeat: [1, 1], color: [0.75, 0.62, 0.5] }),
-      benchFrame: M.create('wood', { species: 'oak', boards: 0, polish: 0.1, wear: 0.8, repeat: [1.5, 1.5], color: [0.45, 0.35, 0.27] }),
-      labTop: M.create('walnut', { repeat: [1.2, 1.2], color: [0.65, 0.52, 0.45] }),
+      benchTop: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 0, polish: 0.15, wear: 0.9, repeat: [1, 1], color: [0.75, 0.62, 0.5] }),
+      benchFrame: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 0, polish: 0.1, wear: 0.8, repeat: [1.5, 1.5], color: [0.45, 0.35, 0.27] }),
+      labTop: M.create('walnut', { repeat: [1.2, 1.2], color: [0.62, 0.5, 0.43], clearcoat: 0.0, roughness: 1.5 }),
       labFrame: M.create('walnut', { repeat: [2, 2], color: [0.5, 0.4, 0.34] }),
-      door: M.create('wood', { species: 'oak', boards: 5, boardLength: 3, polish: 0.05, wear: 1.0, repeat: [1.1, 1.1], color: [0.32, 0.24, 0.18] }),
-      slat: M.create('wood', { species: 'oak', boards: 0, polish: 0.2, wear: 0.8, repeat: [3, 3], color: [0.42, 0.3, 0.2] }),
-      crate: M.create('wood', { species: 'pine', boards: 0, polish: 0.0, wear: 1.0, repeat: [2, 2], color: [0.72, 0.6, 0.45] }),
+      door: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 5, boardLength: 3, polish: 0.05, wear: 1.0, repeat: [1.1, 1.1], color: [0.32, 0.24, 0.18] }),
+      slat: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 0, polish: 0.2, wear: 0.8, repeat: [3, 3], color: [0.42, 0.3, 0.2] }),
+      crate: M.create('wood', { clearcoat: 0.0, species: 'pine', boards: 0, polish: 0.0, wear: 1.0, repeat: [2, 2], color: [0.72, 0.6, 0.45] }),
       brass: M.create('brass', { tarnish: 0.45, polish: 0.6, repeat: [3, 3] }),
       trunk: M.create('leather', { color: [0.16, 0.08, 0.045], wear: 0.8, repeat: [2.5, 2.5] }),
       leatherStrap: M.create('leather', { color: [0.1, 0.05, 0.03], wear: 0.5, repeat: [6, 6] }),
@@ -125,13 +125,13 @@ export default {
       black: M.basic('black'),
       bone: M.basic('bone'),
       porcelain: M.basic('porcelain'),
-      glass: new THREE.MeshPhysicalMaterial({ color: 0xdfe8ee, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.22, depthWrite: false, clearcoat: 1, envMapIntensity: 1.6, side: THREE.DoubleSide, name: 'glassware' }),
+      glass: new THREE.MeshPhysicalMaterial({ color: 0xdfe8ee, roughness: 0.16, metalness: 0, transparent: true, opacity: 0.2, depthWrite: false, clearcoat: 0, envMapIntensity: 1.0, side: THREE.DoubleSide, name: 'glassware' }),
       steel: new THREE.MeshStandardMaterial({ color: 0x8a8c90, roughness: 0.35, metalness: 1, name: 'steel' }),
-      tin: new THREE.MeshStandardMaterial({ color: 0x5a564e, roughness: 0.5, metalness: 0.9, side: THREE.DoubleSide, name: 'tin' }),
+      tin: new THREE.MeshStandardMaterial({ color: 0x3a3630, roughness: 0.6, metalness: 0.85, side: THREE.DoubleSide, name: 'tin' }),
       handle: paint(0x5a3a1e, { clearcoat: 0.3, roughness: 0.6, name: 'handle' }),
       toyRed: paint(0x8a1410, { name: 'toyRed' }), toyBlue: paint(0x16306e, { name: 'toyBlue' }), toyGold: paint(0xb08a30, { metalness: 0.6, name: 'toyGold' }),
       toyWhite: paint(0xd8d0c0, { name: 'toyWhite' }), toyBlack: paint(0x0c0a0a, { name: 'toyBlack' }), toyGreen: paint(0x1f4a24, { name: 'toyGreen' }),
-      vellum: new THREE.MeshStandardMaterial({ color: 0x8a7e66, roughness: 0.7, name: 'vellum' }),
+      vellum: new THREE.MeshStandardMaterial({ color: 0x5e5546, roughness: 0.7, name: 'vellum' }),
       hair: new THREE.MeshStandardMaterial({ color: 0x2a170c, roughness: 0.8, name: 'hair' }),
       glassEye: new THREE.MeshPhysicalMaterial({ color: 0x0a0806, roughness: 0.05, clearcoat: 1, name: 'glassEye' }),
       horse: paint(0x7c766c, { name: 'horse' }),
@@ -298,7 +298,7 @@ export default {
       const back = gable(Z0 - WALL_T, [oc.clone()], mat.brickDark, false);
       void back;
       // black mask ring behind the walls: hides hairline triangulation cracks against the bright sky card
-      const mask = add(new THREE.Mesh(new THREE.RingGeometry(OCULUS.r - 0.01, 3.2, 96, 1), new THREE.MeshBasicMaterial({ color: 0x000000, name: 'skyMask' })));
+      const mask = add(new THREE.Mesh(new THREE.RingGeometry(OCULUS.r - 0.01, 1.85, 96, 1), new THREE.MeshBasicMaterial({ color: 0x000000, name: 'skyMask' })));
       mask.position.set(OCULUS.x, OCULUS.y, Z0 - WALL_T - 0.02); mask.userData.noShadow = true;
       // stone surround of the oculus: moulded ring + keystones
       const ringProf = [V2(OCULUS.r - 0.0, 0), V2(OCULUS.r + 0.02, 0.0), V2(OCULUS.r + 0.03, 0.04), V2(OCULUS.r + 0.09, 0.05), V2(OCULUS.r + 0.12, 0.03), V2(OCULUS.r + 0.16, 0.03), V2(OCULUS.r + 0.17, 0.0)];
@@ -371,13 +371,25 @@ export default {
       const pw = W + 0.1, cx = (DOOR.x0 + DOOR.x1) / 2;
       add(new THREE.Mesh(quad(V3(cx - pw / 2, 0, PZ), V3(cx - pw / 2, 0, PZ - PL), V3(cx - pw / 2, 3, PZ - PL), V3(cx - pw / 2, 3, PZ)), mat.brickDark));
       add(new THREE.Mesh(quad(V3(cx + pw / 2, 0, PZ - PL), V3(cx + pw / 2, 0, PZ), V3(cx + pw / 2, 3, PZ), V3(cx + pw / 2, 3, PZ - PL)), mat.brickDark));
-      add(new THREE.Mesh(quad(V3(cx - pw / 2, DOOR.h + 0.6, PZ), V3(cx - pw / 2, DOOR.h + 0.6, PZ - PL), V3(cx + pw / 2, DOOR.h + 0.6, PZ - PL), V3(cx + pw / 2, DOOR.h + 0.6, PZ)).rotateX(0), mat.brickDark));
+      add(new THREE.Mesh(quad(V3(cx - pw / 2, 3.0, PZ), V3(cx - pw / 2, 3.0, PZ - PL), V3(cx + pw / 2, 3.0, PZ - PL), V3(cx + pw / 2, 3.0, PZ)), mat.brickDark));
       for (let i = 0; i < 8; i++) {
         add(at(new THREE.Mesh(bevelBox(G, pw, 0.03, 0.3, 0.005), mat.benchFrame), cx, 0.18 * (i + 1), PZ - 0.25 - i * 0.26));
         add(at(new THREE.Mesh(new THREE.BoxGeometry(pw, 0.18, 0.02), mat.timberDark), cx, 0.18 * i + 0.09, PZ - 0.1 - i * 0.26));
       }
       const hell = new THREE.MeshBasicMaterial({ map: hellGlowTexture(ctx.textures).map, color: new THREE.Color(1, 1, 1).multiplyScalar(5.0), toneMapped: false, name: 'hellglow' });
       const hg = add(new THREE.Mesh(new THREE.PlaneGeometry(pw, 3.2), hell)); hg.position.set(cx, 1.5, PZ - PL + 0.02); hg.userData.noShadow = true;
+      // someone waits on the stair: a tall, thin silhouette against the glow
+      const fig = new THREE.Group(); fig.name = 'staufSilhouette';
+      const shade = fx.ghostMaterial({ color: 0xffb27a, rimColor: 0xffe6c8, opacity: 0.55, intensity: 1.4 });
+      fig.add(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.24, 0.0], [0.2, 0.4], [0.17, 0.9], [0.2, 1.3], [0.22, 1.42], [0.09, 1.5], [0.06, 1.55], [0, 1.56]], 16), shade));
+      fig.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 10), shade), 0, 1.66, 0));
+      fig.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.08, 0.17, 12), shade), 0, 1.82, 0));
+      fig.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.012, 16), shade), 0, 1.74, 0));
+      for (const sx of [-1, 1]) { const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.62, 4, 8), shade); arm.position.set(sx * 0.21, 1.08, 0.02); arm.rotation.z = sx * 0.08; fig.add(arm); }
+      const cane = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.9, 6), shade); cane.position.set(0.3, 0.45, 0.08); cane.rotation.z = -0.12; fig.add(cane);
+      fig.traverse((o) => { if (o.isMesh) { o.userData.noBake = true; o.userData.noShadow = true; o.renderOrder = 7; } });
+      fig.position.set(cx - 0.1, 0.18 * 3, PZ - 0.25 - 2 * 0.26 - 0.02); fig.rotation.y = -0.2; fig.scale.setScalar(0.95);
+      add(fig);
     }
 
     // ================================================================ front gable (stair end), chimney stack
@@ -476,7 +488,7 @@ export default {
       stool.add(at(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.17, 0], [0.18, 0.015], [0.17, 0.035], [0, 0.04]], 28), mat.labFrame), 0, 0.6, 0));
       for (let k = 0; k < 3; k++) { const a = (k / 3) * Math.PI * 2; const l = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, 0.62, 8), mat.labFrame); l.position.set(Math.cos(a) * 0.12, 0.3, Math.sin(a) * 0.12); l.rotation.set(Math.sin(a) * 0.15, 0, -Math.cos(a) * 0.15); stool.add(l); }
       stool.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.008, 6, 24).rotateX(Math.PI / 2), mat.labFrame), 0, 0.22, 0));
-      stool.position.set(TABLE.x - 0.25, 0, TABLE.z + 0.75); add(stool);
+      stool.position.set(-0.45, 0, -0.85); add(stool);
     }
     // hanging lamp over the table (from the collar of the rear truss)
     const LAMP_X = PLATE.x + 0.05, LAMP_Z = TRUSS_Z[0] + 0.11;
@@ -530,7 +542,7 @@ export default {
     // ================================================================ cobwebs
     {
       const webTex = [cobwebTexture(ctx.textures, 1), cobwebTexture(ctx.textures, 2), cobwebTexture(ctx.textures, 3)];
-      const webMats = webTex.map((t) => new THREE.MeshStandardMaterial({ map: t, color: 0xcfd2d8, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide, roughness: 1, emissive: new THREE.Color(0.08, 0.09, 0.12), emissiveMap: t, name: 'cobweb' }));
+      const webMats = webTex.map((t) => new THREE.MeshStandardMaterial({ map: t, color: 0xcfd2d8, transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide, roughness: 1, emissive: new THREE.Color(0.2, 0.22, 0.28), emissiveMap: t, name: 'cobweb' }));
       const web = (size, pos, rot, k = 0, sx = 1) => {
         const g = new THREE.PlaneGeometry(size, size); g.translate(size / 2, -size / 2, 0);
         const w = add(new THREE.Mesh(g, webMats[k % 3]));
@@ -585,8 +597,8 @@ export default {
     moon.shadow.camera.near = 6; moon.shadow.camera.far = 22;
     root.add(moon, moon.target);
     { const b = new THREE.PointLight(0x8094d0, 7, 9, 2); b.position.set(PLATE.x - 0.1, 0.35, -0.6); root.add(b); }
-    root.add(new THREE.HemisphereLight(0x3a4c86, 0x1a120c, 2.2));
-    root.add(fx.areaLight({ center: [OCULUS.x, OCULUS.y, Z0 - 0.05], normal: [0, -0.25, 1], width: 1.0, height: 1.0, color: 0x8ea6ff, intensity: 5 }));
+    root.add(new THREE.HemisphereLight(0x3a4c86, 0x1a120c, 2.6));
+    root.add(fx.areaLight({ center: [OCULUS.x, OCULUS.y, Z0 - 0.05], normal: [0, -0.25, 1], width: 1.0, height: 1.0, color: 0x8ea6ff, intensity: 10 }));
     // the oil lamp over the microscope table: a shadowed downlight + soft omni
     const lampSpot = new THREE.SpotLight(0xffae5a, 20, 7, 1.15, 0.75, 2);
     lampSpot.position.set(LAMP_X, LAMP_Y, LAMP_Z); lampSpot.target.position.set(LAMP_X, 0, LAMP_Z + 0.05);
@@ -599,13 +611,13 @@ export default {
     const candleLight = new THREE.PointLight(0xff9a48, 1.8, 3.5, 2); candleLight.position.set(-1.9, BT + 0.3, BENCH.z + 0.25); root.add(candleLight);
     // the furnace light from the stair beyond the door: a shadowed spot through the gap + red fill
     const doorCX = (DOOR.x0 + DOOR.x1) / 2;
-    const hellSpot = new THREE.SpotLight(0xff5a24, 60, 12, 0.75, 0.5, 2);
-    hellSpot.position.set(doorCX + 0.15, 1.45, Z0 - WALL_T - 1.0); hellSpot.target.position.set(doorCX - 1.0, 0.0, Z0 + 3.0);
+    const hellSpot = new THREE.SpotLight(0xff5a24, 34, 12, 0.85, 0.5, 2);
+    hellSpot.position.set(doorCX + 0.15, 1.45, Z0 - WALL_T - 0.22); hellSpot.target.position.set(doorCX - 1.0, 0.0, Z0 + 3.0);
     hellSpot.castShadow = Q.shadows;
     hellSpot.shadow.mapSize.set(1024, 1024); hellSpot.shadow.bias = -0.002; hellSpot.shadow.normalBias = 0.06; hellSpot.shadow.radius = 4;
     hellSpot.shadow.camera.near = 0.3; hellSpot.shadow.camera.far = 12;
     root.add(hellSpot, hellSpot.target);
-    const passage = new THREE.PointLight(0xff4a18, 6, 2.6, 2); passage.position.set(doorCX, 1.2, Z0 - WALL_T - 1.2); root.add(passage);
+    const passage = new THREE.PointLight(0xff4a18, 14, 3.0, 2); passage.position.set(doorCX, 1.5, Z0 - WALL_T - 1.9); root.add(passage);
     root.add(fx.areaLight({ center: [doorCX - 0.2, 0.95, Z0 + 0.02], normal: [0, 0, 1], width: 0.4, height: 1.8, color: 0xff5020, intensity: 3.0 }));
     // flicker
     const base = { lampSpot: lampSpot.intensity, lampGlow: lampGlow.intensity, candle: candleLight.intensity, hell: hellSpot.intensity, passage: passage.intensity };
@@ -681,8 +693,8 @@ export default {
       sh.material.needsUpdate = true;
       add(sh); shafts.push(sh);
       // the furnace wedge through the door gap
-      const dw = 0.2;
-      const dsh = fx.shaft({ center: V3(DOOR.x0 + dw + 0.02, 0.98, Z0 + 0.05), right: V3(dw, 0, 0), up: V3(0, 0.93, 0), direction: V3(-0.35, -0.22, 1).normalize(), length: 3.6, color: 0xff6a30, intensity: 0.5, softness: 0.4, falloff: 1.3, panes: [0, 0], noise: 0.8 });
+      const dw = 0.24;
+      const dsh = fx.shaft({ center: V3(DOOR.x0 + dw + 0.01, 0.98, Z0 + 0.05), right: V3(dw, 0, 0), up: V3(0, 0.93, 0), direction: V3(-0.35, -0.22, 1).normalize(), length: 3.6, color: 0xff6a30, intensity: 0.5, softness: 0.4, falloff: 1.3, panes: [0, 0], noise: 0.8 });
       add(dsh); shafts.push(dsh);
       for (const hs of holeShafts) { const sh2 = fx.shaft({ ...hs, direction: moonDir, length: 5.5, color: 0x9fb6ff, intensity: 0.3, softness: 0.75, falloff: 0.7, panes: [0, 0], noise: 0.8 }); add(sh2); shafts.push(sh2); }
       // soft-saturate the in-scattering so a beam seen end-on does not white out the frame
@@ -749,13 +761,13 @@ export default {
 
     // ================================================================ nodes, edges, exits
     const nodes = {
-      main: { position: [0.55, 1.62, 3.85], target: [-0.25, 1.62, -5.2], fov: 60, label: 'The attic', look: { yaw: [-55, 55], pitch: [-30, 30] } },
+      main: { position: [0.4, 1.6, 2.9], target: [-0.15, 1.62, -5.2], fov: 58, label: 'The attic', look: { yaw: [-55, 55], pitch: [-30, 30] } },
       stairs: { position: [-2.2, 1.62, 1.15], target: [-0.4, 1.4, -5.0], fov: 60, label: 'Top of the stairs', look: { yaw: [-60, 60], pitch: [-35, 25] } },
       stairs_down: { position: [-2.2, 1.62, 1.15], target: [-2.2, -0.6, 4.2], fov: 60, label: 'The stairs down' },
       table: { position: [1.6, 1.55, -0.2], target: [0.55, 0.82, -1.5], fov: 55, label: 'The microscope table', look: { yaw: [-60, 60], pitch: [-40, 25] } },
       bench: { position: [-1.25, 1.52, -2.85], target: [-1.35, 1.12, -5.2], fov: 56, label: 'Stauf\'s workbench', look: { yaw: [-60, 60], pitch: [-35, 35] } },
       window: { position: [-1.3, 1.5, -3.15], target: [-0.3, 2.7, -5.2], fov: 55, label: 'The round window', look: { yaw: [-50, 50], pitch: [-30, 40] } },
-      door: { position: [1.05, 1.6, -2.75], target: [1.85, 1.05, -5.2], fov: 58, label: 'The glowing door', look: { yaw: [-50, 50], pitch: [-30, 25] } },
+      door: { position: [1.05, 1.6, -2.75], target: [1.85, 1.22, -5.2], fov: 58, label: 'The glowing door', look: { yaw: [-50, 50], pitch: [-30, 25] } },
       back: { position: [1.1, 1.62, -3.3], target: [-0.9, 1.2, 4.6], fov: 60, label: 'Looking back', look: { yaw: [-60, 60], pitch: [-30, 30] } },
     };
     const edges = [
@@ -763,7 +775,7 @@ export default {
       ['stairs', 'main', [[-1.0, 1.62, 2.6]]],
       ['stairs', 'table', [[-1.2, 1.62, 0.2]]],
       ['stairs', 'bench', [[-1.5, 1.6, -1.0]]],
-      ['main', 'table', [[0.3, 1.62, 1.8]]],
+      ['main', 'table', [[0.9, 1.6, 1.2]]],
       ['main', 'bench', [[-0.4, 1.62, 1.0], [-1.0, 1.6, -1.2]]],
       ['table', 'bench', [[-0.6, 1.58, -1.6]]],
       ['table', 'door', [[0.2, 1.6, -2.2]]],
@@ -774,7 +786,7 @@ export default {
       ['door', 'back'],
       ['bench', 'back'],
       ['window', 'back'],
-      ['back', 'main', [[0.3, 1.62, 0.6]], { hotspot: { main: { position: [0.4, 1.4, 2.8], radius: 0.6 } } }],
+      ['back', 'main', [[0.6, 1.62, 0.4]], { hotspot: { main: { position: [0.4, 1.4, 2.4], radius: 0.6 } } }],
       ['back', 'stairs', [[-1.2, 1.62, -0.6]], { hotspot: { stairs: { position: [-2.0, 1.4, 1.0], radius: 0.5 } } }],
     ];
     const wellBox = { min: [STAIR.x0, -1.2, STAIR.z0 + 0.2], max: [STAIR.x1, 0.3, STAIR.z1] };
