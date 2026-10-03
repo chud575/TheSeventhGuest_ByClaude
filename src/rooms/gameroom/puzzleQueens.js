@@ -25,29 +25,76 @@ export const queensMeta = {
 export const SOLUTION = [0, 4, 7, 5, 2, 6, 1, 3];          // file for each rank (rank 0 = nearest the player)
 const N = 8;
 
-/** Carved queen: turned body, collar, flared coronet with eight points and a finial. Height ~ 0.085 * s. */
+/**
+ * Carved Staunton-style queen: moulded plinth with two beads, a fluted waist, a
+ * beaded collar, and a flared coronet notched into eight real points around a
+ * domed cap and ball finial. ~0.097 * s tall, base radius 0.0215 * s.
+ */
 export function queenGeometry(G, s = 1) {
   const prof = [
-    [0, 0], [0.0215, 0], [0.0215, 0.0035], [0.0195, 0.0055], [0.0205, 0.0085], [0.0178, 0.0115], [0.0148, 0.0135], [0.0158, 0.0165], [0.0126, 0.0195],
-    [0.0108, 0.024], [0.0094, 0.031], [0.0082, 0.039], [0.0072, 0.047], [0.0066, 0.052], [0.0112, 0.0535], [0.0116, 0.0555], [0.0078, 0.0575],
-    [0.0086, 0.0605], [0.0108, 0.0655], [0.0128, 0.0705], [0.014, 0.0745], [0.0124, 0.0765], [0.0096, 0.0762], [0.0, 0.0752],
-  ].map(([r, y]) => [r * s, y * s]);
-  const parts = [G.latheFromProfile(prof, 36)];
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    const p = new THREE.SphereGeometry(0.0028 * s, 8, 6);
-    p.translate(Math.cos(a) * 0.0128 * s, 0.0778 * s, Math.sin(a) * 0.0128 * s);
-    parts.push(p);
+    [0, 0], [0.0215, 0], [0.0219, 0.0025], [0.0212, 0.005], [0.0203, 0.006], [0.0211, 0.0078], [0.0203, 0.0098], [0.0185, 0.011],
+    [0.0166, 0.0128], [0.0174, 0.0148], [0.0166, 0.0166], [0.0146, 0.0182], [0.0128, 0.0215], [0.0114, 0.028], [0.0101, 0.037],
+    [0.0091, 0.046], [0.0084, 0.054], [0.0083, 0.0585], [0.0118, 0.0598], [0.0131, 0.0618], [0.0131, 0.0636], [0.0118, 0.0652],
+    [0.0088, 0.066], [0.0084, 0.0685], [0.0094, 0.0712], [0.0, 0.0712],
+  ];
+  const RAD = 48;
+  const body = G.latheFromProfile(prof.map(([r, y]) => [r * s, y * s]), RAD);
+  // flutes on the waist
+  {
+    const p = body.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i) / s, z = p.getZ(i);
+      if (y < 0.022 || y > 0.0565) continue;
+      const a = Math.atan2(z, x);
+      const w = Math.sin(((y - 0.022) / 0.0345) * Math.PI);
+      const k = 1 - 0.07 * w * Math.pow(0.5 + 0.5 * Math.cos(a * 12), 2);
+      p.setX(i, x * k); p.setZ(i, z * k);
+    }
+    body.computeVertexNormals();
   }
-  const dome = new THREE.SphereGeometry(0.0085 * s, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2); dome.scale(1, 0.7, 1); dome.translate(0, 0.0752 * s, 0); parts.push(dome);
-  const stem = new THREE.CylinderGeometry(0.0016 * s, 0.0022 * s, 0.006 * s, 8); stem.translate(0, 0.084 * s, 0); parts.push(stem);
-  const ball = new THREE.SphereGeometry(0.0038 * s, 12, 8); ball.translate(0, 0.0895 * s, 0); parts.push(ball);
-  const g = G.mergeGeometries(parts.map((p) => { const q = p.index ? p.toNonIndexed() : p; if (!q.attributes.uv) q.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(q.attributes.position.count * 2), 2)); return q; }));
-  g.computeVertexNormals();
+  const parts = [body];
+  // beaded collar
+  for (let i = 0; i < 20; i++) {
+    const a = (i / 20) * Math.PI * 2;
+    const b = new THREE.SphereGeometry(0.0021 * s, 8, 6);
+    b.translate(Math.cos(a) * 0.0133 * s, 0.0627 * s, Math.sin(a) * 0.0133 * s);
+    parts.push(b);
+  }
+  // coronet: per-angle profile (outer wall up to a point/notch, rim, inner wall)
+  {
+    const N = 96, pos = [], idx = [];
+    const y0 = 0.0705, r0 = 0.0093, r1 = 0.0168, th = 0.0014;
+    const topY = (a) => { const c = Math.abs(Math.cos(a * 4)); return 0.0855 + 0.0075 * Math.pow(c, 4) - 0.0025 * Math.pow(1 - c, 2); };
+    const cols = 6;
+    for (let i = 0; i <= N; i++) {
+      const a = (i / N) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+      const yt = topY(a);
+      const pts = [[r0, y0], [r0 + (r1 - r0) * 0.45, y0 + (yt - y0) * 0.55], [r1, yt], [r1 - th, yt], [r0 + (r1 - r0) * 0.45 - th, y0 + (yt - y0) * 0.55 + 0.0005], [r0 - th, y0 + 0.003]];
+      for (const [r, y] of pts) pos.push(ca * r * s, y * s, sa * r * s);
+    }
+    for (let i = 0; i < N; i++) for (let j = 0; j < cols - 1; j++) {
+      const a = i * cols + j, b = (i + 1) * cols + j;
+      idx.push(a, a + 1, b, b, a + 1, b + 1);
+    }
+    const cg = new THREE.BufferGeometry();
+    cg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    cg.setIndex(idx); cg.computeVertexNormals();
+    parts.push(cg);
+  }
+  const dome = new THREE.SphereGeometry(0.0118 * s, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2); dome.scale(1, 0.62, 1); dome.translate(0, 0.0815 * s, 0); parts.push(dome);
+  const stem = G.latheFromProfile([[0, 0.088], [0.0024, 0.088], [0.0034, 0.0895], [0.0018, 0.0915], [0, 0.0915]].map(([r, y]) => [r * s, y * s]), 16); parts.push(stem);
+  const ball = new THREE.SphereGeometry(0.0043 * s, 16, 12); ball.translate(0, 0.0955 * s, 0); parts.push(ball);
+  const g = G.mergeGeometries(parts.map((p) => {
+    const q = p.index ? p.toNonIndexed() : p;
+    for (const k of Object.keys(q.attributes)) if (!['position', 'normal', 'uv'].includes(k)) q.deleteAttribute(k);
+    if (!q.attributes.uv) q.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(q.attributes.position.count * 2), 2));
+    if (!q.attributes.normal) q.computeVertexNormals();
+    return q;
+  }));
   return g;
 }
 
-export function createQueensPuzzle(ctx, { parent, center, size, homeZ, mats, camera, onSolved, onChange }) {
+export function createQueensPuzzle(ctx, { parent, center, size, homeZ, mats, camera, onSolved, onChange, borderOuter }) {
   const { geometry: G } = ctx;
   const sq = size / N;
   const group = new THREE.Group(); group.name = 'queensPuzzle';
@@ -59,7 +106,7 @@ export function createQueensPuzzle(ctx, { parent, center, size, homeZ, mats, cam
   const homePos = (i) => new THREE.Vector3((i - 3.5) * sq, 0, homeZ);
 
   // ---------------------------------------------------------------- pieces
-  const qg = queenGeometry(G, sq / 0.057);
+  const qg = queenGeometry(G, (sq / 0.057) * 1.12);
   const queens = [];
   for (let i = 0; i < N; i++) {
     const m = new THREE.Mesh(qg, mats.ivory.clone());
@@ -86,6 +133,27 @@ export function createQueensPuzzle(ctx, { parent, center, size, homeZ, mats, cam
     group.add(o); overlays.push(o);
   }
   const ov = (c, r) => overlays[r * N + c];
+  // solved: the stringing/dentil border warms to a gilt glow, and a warm rim light sweeps the queens
+  const glowShape = new THREE.Shape();
+  const go = size / 2 + (borderOuter ?? size * 0.12), gi = size / 2 + 0.002;
+  glowShape.moveTo(-go, -go); glowShape.lineTo(go, -go); glowShape.lineTo(go, go); glowShape.lineTo(-go, go); glowShape.lineTo(-go, -go);
+  const gh = new THREE.Path(); gh.moveTo(-gi, -gi); gh.lineTo(-gi, gi); gh.lineTo(gi, gi); gh.lineTo(gi, -gi); gh.lineTo(-gi, -gi); glowShape.holes.push(gh);
+  const glowMat = new THREE.ShaderMaterial({
+    uniforms: { uAmt: { value: 0 }, uTime: ctx.time, uIn: { value: gi }, uOut: { value: go } },
+    vertexShader: 'varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform float uAmt; uniform float uTime; uniform float uIn; uniform float uOut; varying vec2 vP;
+      void main(){ float e = max(abs(vP.x), abs(vP.y)); float t = (e - uIn) / (uOut - uIn);
+        float band = smoothstep(0.0, 0.05, t) * (1.0 - smoothstep(0.35, 0.6, t));
+        float a = atan(vP.y, vP.x); float run = 0.6 + 0.4 * sin(a * 2.0 - uTime * 1.5);
+        gl_FragColor = vec4(vec3(1.0, 0.68, 0.28) * band * run * uAmt * 0.55, 1.0); }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+  });
+  const glow = new THREE.Mesh(new THREE.ShapeGeometry(glowShape).rotateX(-Math.PI / 2), glowMat);
+  glow.position.y = 0.0012; glow.renderOrder = 5; glow.visible = false; glow.userData.noBake = true; glow.userData.noShadow = true;
+  group.add(glow);
+  const sweep = new THREE.PointLight(0xffb060, 0, size * 1.2, 2);
+  sweep.position.set(0, 0.07, 0); group.add(sweep);
+  let solvedT = 0;
 
   // ---------------------------------------------------------------- state
   let hoverSq = null, hoverQueen = -1, solvedFlag = false;
@@ -111,13 +179,23 @@ export function createQueensPuzzle(ctx, { parent, center, size, homeZ, mats, cam
     const bad = conflicts();
     for (const q of queens) {
       const e = q.mesh.material.emissive;
-      if (solvedFlag) e.setRGB(0.32, 0.2, 0.05).multiplyScalar(0.6 + 0.4 * Math.sin(t * 2.0 + q.i));
+      if (solvedFlag) { const sx = Math.sin(t * 0.45) * size * 0.65; e.setRGB(0.3, 0.17, 0.04).multiplyScalar(0.18 + 0.6 * Math.exp(-(((q.mesh.position.x - sx) / (size * 0.22)) ** 2))); }
       else if (bad.has(q.i)) e.setRGB(0.55, 0.03, 0.01).multiplyScalar(0.65 + 0.35 * Math.sin(t * 6));
       else if (q.i === hoverQueen) e.setRGB(0.12, 0.08, 0.02);
       else e.setRGB(0, 0, 0);
     }
     for (const o of overlays) { o.visible = false; o.material.opacity = 0; }
-    if (solvedFlag) return;
+    glow.visible = solvedFlag;
+    if (solvedFlag) {
+      const amt = Math.min(1, 0.35 + solvedT * 0.4);
+      glowMat.uniforms.uAmt.value = amt;
+      // the rim light sweeps slowly from one side of the board to the other and back, low and warm
+      const u = Math.sin(t * 0.45);
+      sweep.position.set(u * size * 0.65, 0.06, -size * 0.62);
+      sweep.intensity = 0.55 * amt;
+      return;
+    }
+    sweep.intensity = 0;
     const hq = hoverQueen >= 0 ? queens[hoverQueen] : null;
     if (hq?.sq) {
       for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
@@ -184,8 +262,8 @@ export function createQueensPuzzle(ctx, { parent, center, size, homeZ, mats, cam
   }
   function applySolved() {
     for (const q of queens) { q.sq = [SOLUTION[q.i], q.i]; moveTo(q, squarePos(SOLUTION[q.i], q.i), true); }
-    solvedFlag = true;
-    refresh(1);
+    solvedFlag = true; solvedT = 2;
+    refresh(2);
   }
   function state() {
     return { solved: solvedFlag, placed: board().map((q) => q.sq.slice()), conflicts: [...conflicts()], animating: anims.length > 0 };
@@ -206,6 +284,7 @@ export function createQueensPuzzle(ctx, { parent, center, size, homeZ, mats, cam
         a.q.mesh.position.y += Math.sin(u * Math.PI) * a.lift;
         if (u >= 1) { a.q.mesh.position.copy(a.to); anims.splice(k, 1); }
       }
+      if (solvedFlag) solvedT += dt;
       refresh(t);
     },
     cursorAt(ndc, p) {

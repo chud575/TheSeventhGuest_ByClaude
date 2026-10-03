@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { fireFlames, sparks } from './fx.js';
 
 /**
  * Game-room furniture and props, all modelled here: the billiard table and its
@@ -129,29 +130,61 @@ export function buildBilliardTable(ctx, mats, { seed = 7 } = {}) {
   }
   // mother-of-pearl sights
   {
-    const dg = new THREE.CylinderGeometry(0.008, 0.008, 0.003, 4); dg.scale(1, 1, 1.8);
+    const dg = new THREE.CylinderGeometry(0.006, 0.006, 0.0012, 4); dg.scale(1, 1, 1.9);
     const railMid = CUSH + RAIL / 2 + 0.005;
     for (let i = 1; i < 8; i++) {
       if (i === 4) continue;
       const z = -PL / 2 + (PL / 8) * i;
-      for (const sx of [-1, 1]) { const d = new THREE.Mesh(dg, mats.pearl); d.position.set(sx * (PW / 2 + railMid), BH + 0.046, z); g.add(d); }
+      for (const sx of [-1, 1]) { const d = new THREE.Mesh(dg, mats.pearl); d.position.set(sx * (PW / 2 + railMid), BH + 0.0451, z); g.add(d); }
     }
     for (let i = 1; i < 4; i++) {
       const x = -PW / 2 + (PW / 4) * i;
-      for (const sz of [-1, 1]) { const d = new THREE.Mesh(dg, mats.pearl); d.rotation.y = Math.PI / 2; d.position.set(x, BH + 0.046, sz * (PL / 2 + railMid)); g.add(d); }
+      for (const sz of [-1, 1]) { const d = new THREE.Mesh(dg, mats.pearl); d.rotation.y = Math.PI / 2; d.position.set(x, BH + 0.0451, sz * (PL / 2 + railMid)); g.add(d); }
     }
   }
-  // pocket irons (brass-capped leather) on the rail around each pocket
-  for (const p of pockets) {
-    const corner = Math.abs(p.z) > 0.1;
-    const arc = corner ? Math.PI * 1.5 : Math.PI;
-    const tg = new THREE.TorusGeometry(0.066, 0.013, 8, 20, arc);
-    tg.rotateX(Math.PI / 2);
-    const m = new THREE.Mesh(tg, mats.brass);
-    const outward = Math.atan2(p.z, p.x);
-    m.rotation.y = -(outward - arc / 2) ;
-    m.position.set(p.x, BH + 0.04, p.z);
-    g.add(m);
+  // pockets: leather-lined mouths cut through the rail, brass-capped irons, woven drop nets
+  {
+    const arcShape = (r0, r1, a0, a1) => {
+      const sh = new THREE.Shape();
+      sh.absarc(0, 0, r1, a0, a1, false);
+      sh.lineTo(Math.cos(a1) * r0, Math.sin(a1) * r0);
+      sh.absarc(0, 0, r0, a1, a0, true);
+      sh.closePath();
+      return sh;
+    };
+    const ext = (shape, h, bev) => { const e = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: !!bev, bevelThickness: bev || 0, bevelSize: bev || 0, bevelSegments: 2, curveSegments: 24 }); e.rotateX(-Math.PI / 2); return G.applyBoxUVs(e, 4); };
+    const netTex = ctx.textures.canvas('gameroom:net', 256, 256, (c) => {
+      c.clearRect(0, 0, 256, 256);
+      c.strokeStyle = 'rgba(214,200,170,1)'; c.lineWidth = 7; c.lineCap = 'round';
+      for (let i = -8; i <= 8; i++) {
+        c.beginPath(); c.moveTo(i * 32, 0); c.lineTo(i * 32 + 256, 256); c.stroke();
+        c.beginPath(); c.moveTo(i * 32 + 256, 0); c.lineTo(i * 32, 256); c.stroke();
+      }
+      c.fillStyle = 'rgba(160,140,110,1)';
+      for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) { c.beginPath(); c.arc(i * 32 + 16, j * 32, 5, 0, 7); c.fill(); }
+    }, { tile: true });
+    netTex.wrapS = netTex.wrapT = THREE.RepeatWrapping; netTex.repeat.set(4, 2);
+    const netMat = new THREE.MeshStandardMaterial({ map: netTex, alphaMap: null, alphaTest: 0.5, transparent: false, side: THREE.DoubleSide, roughness: 0.95, color: 0x6a5a48, name: 'pocketNet' });
+    const bagG = G.latheFromProfile([[0.05, 0], [0.056, -0.03], [0.06, -0.07], [0.052, -0.11], [0.035, -0.14], [0.012, -0.155], [0, -0.158]].reverse(), 18);
+    const ringG = new THREE.TorusGeometry(0.052, 0.006, 8, 28).rotateX(Math.PI / 2);
+    const leather = mats.leather || mats.hole;
+    for (const p of pockets) {
+      const corner = Math.abs(p.z) > 0.1;
+      const outward = Math.atan2(p.z, p.x);
+      const span = corner ? Math.PI * 1.25 : Math.PI * 1.0;
+      // leather lip: a horseshoe lying on the rail around the mouth
+      const lip = new THREE.Mesh(ext(arcShape(0.058, 0.083, -span / 2, span / 2), 0.006, 0.003), leather);
+      lip.rotation.y = -outward; lip.position.set(p.x, BH + 0.043, p.z); g.add(lip);
+      // brass cap over the iron, standing proud of the leather
+      const cap = new THREE.Mesh(ext(arcShape(0.083, 0.097, -span / 2 - 0.05, span / 2 + 0.05), 0.008, 0.002), mats.brass);
+      cap.rotation.y = -outward; cap.position.set(p.x, BH + 0.043, p.z); g.add(cap);
+      // throat: dark leather cup dropping through the rail
+      g.add(at(new THREE.Mesh(G.latheFromProfile([[0.06, 0.05], [0.058, 0.0], [0.055, -0.05], [0.05, -0.09]].reverse(), 20), leather), p.x, BH - 0.0, p.z));
+      // net bag hanging under the rail, outside the frieze at the corners and sides
+      const nx = p.x + Math.sign(p.x) * (corner ? 0.115 : 0.135), nz = corner ? p.z + Math.sign(p.z) * 0.115 : 0;
+      const bag = new THREE.Mesh(bagG, netMat); bag.position.set(nx, BH - 0.04, nz); bag.userData.noShadow = true; g.add(bag);
+      g.add(at(new THREE.Mesh(ringG, mats.brass), nx, BH - 0.04, nz));
+    }
   }
   // apron / frieze with raised panels and a gilt bead
   const apronH = 0.27, apronY = BH - 0.055 - apronH;
@@ -229,11 +262,12 @@ export function ballGeometry(n, r = TABLE.BALL_R) {
 /** A cue: tapered maple shaft, ebony butt with ivory points, leather tip. Lies along +Y from y=0 (butt) to y=len. */
 export function cueGeometry(G, len = 1.45) {
   const parts = {};
-  parts.shaft = G.latheFromProfile([[0.0, len * 0.42], [0.0128, len * 0.42], [0.0105, len * 0.7], [0.0072, len * 0.985], [0.0, len * 0.985]], 14);
-  parts.butt = G.latheFromProfile([[0, 0], [0.0145, 0], [0.0158, 0.006], [0.0158, 0.02], [0.0152, len * 0.25], [0.0136, len * 0.42], [0, len * 0.42]], 14);
-  parts.ferrule = G.latheFromProfile([[0, len * 0.985], [0.0074, len * 0.985], [0.0072, len * 0.997], [0, len * 0.997]], 12);
-  parts.tip = G.latheFromProfile([[0, len * 0.997], [0.007, len * 0.997], [0.0066, len], [0, len + 0.002]], 12);
-  parts.wrap = G.latheFromProfile([[0.0, len * 0.06], [0.0162, len * 0.06], [0.016, len * 0.2], [0.0, len * 0.2]], 14);
+  const f0 = len - 0.03, t0 = len - 0.008;
+  parts.shaft = G.latheFromProfile([[0.0, len * 0.42], [0.0118, len * 0.42], [0.0094, len * 0.7], [0.0066, f0], [0.0, f0]], 16);
+  parts.butt = G.latheFromProfile([[0, 0], [0.0135, 0], [0.0145, 0.006], [0.0145, 0.02], [0.0139, len * 0.25], [0.0124, len * 0.42], [0, len * 0.42]], 16);
+  parts.ferrule = G.latheFromProfile([[0, f0], [0.0067, f0], [0.0066, t0], [0, t0]], 14);
+  parts.tip = G.latheFromProfile([[0, t0], [0.0064, t0], [0.0063, len - 0.002], [0.004, len], [0, len + 0.0005]], 14);
+  parts.wrap = G.latheFromProfile([[0.0, len * 0.05], [0.0148, len * 0.05], [0.0149, len * 0.06], [0.0147, len * 0.2], [0.0146, len * 0.21], [0.0, len * 0.21]], 16);
   return parts;
 }
 
@@ -276,6 +310,7 @@ export function buildBilliardLamp(ctx, mats, { length = 1.7, drop = 1.95, shades
     const o = new THREE.Mesh(outerG, mats.shadeOuter); sg.add(o);
     const n = new THREE.Mesh(innerG, mats.shadeInner); n.userData.noShadow = true; sg.add(n);
     sg.add(at(new THREE.Mesh(ringG, mats.brass), 0, -0.19, 0));
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.176, 0.003, 6, 40).rotateX(Math.PI / 2), mats.shadeRim || mats.shadeInner); rim.position.y = -0.192; rim.userData.noShadow = true; sg.add(rim);
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.032, 16, 12), mats.bulb); bulb.scale.set(1, 1.25, 1); bulb.position.y = -0.07; bulb.userData.noShadow = true; sg.add(bulb);
     g.add(sg);
     bulbs.push(V3(0, -drop - 0.07 - 0.07, z));
@@ -305,18 +340,34 @@ export function buildCueRack(ctx, mats, { cues = 7 } = {}) {
   const beadG = new THREE.SphereGeometry(0.014, 10, 8); beadG.scale(1, 1, 1);
   const sbY = [1.38, 1.5];
   for (const [k, y] of sbY.entries()) {
-    const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, W - 0.12, 6), mats.brass);
+    const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, W - 0.1, 8), mats.brass);
+    for (const sx of [-1, 1]) g.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.03, 10).rotateX(Math.PI / 2), mats.brass), sx * (W / 2 - 0.05), y, 0.025));
     wire.rotation.z = Math.PI / 2; wire.position.set(0, y, 0.04); g.add(wire);
     for (let i = 0; i < 20; i++) {
       const left = i < (k ? 13 : 7);
       const x = left ? -W / 2 + 0.08 + i * 0.024 : W / 2 - 0.08 - (19 - i) * 0.024;
-      const b = new THREE.Mesh(beadG, i % 5 === 4 ? mats.ivory : mats.dark);
+      const b = new THREE.Mesh(beadG, i % 5 === 4 ? mats.ebony : mats.ivory);
       b.scale.set(0.7, 1, 1);
       b.position.set(x, y, 0.04); g.add(b);
     }
   }
-  // crest roundel
-  g.add(at(new THREE.Mesh(G.latheFromProfile([[0, 0.02], [0.04, 0.016], [0.055, 0.006], [0.06, 0]], 24).rotateX(Math.PI / 2), mats.gilt), 0, 1.66, 0.02));
+  // carved crest: a broken scroll pediment with a gilt cartouche
+  {
+    const cs = new THREE.Shape();
+    cs.moveTo(-W / 2 + 0.02, 0); cs.lineTo(W / 2 - 0.02, 0);
+    cs.bezierCurveTo(W / 2 + 0.01, 0.05, W / 2 - 0.04, 0.12, W / 2 - 0.1, 0.1);
+    cs.bezierCurveTo(W / 2 - 0.16, 0.08, W / 2 - 0.14, 0.03, W / 2 - 0.19, 0.06);
+    cs.bezierCurveTo(0.14, 0.12, 0.08, 0.22, 0.0, 0.24);
+    cs.bezierCurveTo(-0.08, 0.22, -0.14, 0.12, -W / 2 + 0.19, 0.06);
+    cs.bezierCurveTo(-W / 2 + 0.14, 0.03, -W / 2 + 0.16, 0.08, -W / 2 + 0.1, 0.1);
+    cs.bezierCurveTo(-W / 2 + 0.04, 0.12, -W / 2 - 0.01, 0.05, -W / 2 + 0.02, 0);
+    for (const sx of [-1, 1]) { const h = new THREE.Path(); h.absarc(sx * (W / 2 - 0.1), 0.055, 0.022, 0, Math.PI * 2, sx > 0); cs.holes.push(h); }
+    const e = new THREE.ExtrudeGeometry(cs, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 3, curveSegments: 16 });
+    g.add(at(new THREE.Mesh(G.applyBoxUVs(e, 1.5), mats.wood), 0, 1.6, 0.012));
+    const cart = new THREE.Mesh(new THREE.SphereGeometry(0.05, 20, 12), mats.gilt); cart.scale.set(0.8, 1, 0.3); cart.position.set(0, 1.71, 0.05); g.add(cart);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.007, 8, 28), mats.gilt); ring.scale.set(0.8, 1, 1); ring.position.set(0, 1.71, 0.045); g.add(ring);
+    for (const sx of [-1, 1]) { const f = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.02, 0], [0.025, 0.02], [0.012, 0.05], [0.016, 0.07], [0, 0.09]], 12), mats.gilt); f.position.set(sx * (W / 2 - 0.025), 1.62, 0.04); g.add(f); }
+  }
   // cues
   const parts = cueGeometry(G, 1.48);
   const cueGroup = new THREE.Group();
@@ -337,20 +388,54 @@ export function buildSideChair(ctx, mats) {
   const { geometry: G } = ctx;
   const g = new THREE.Group();
   const seatH = 0.46;
-  const legG = G.latheFromProfile([[0, 0], [0.016, 0], [0.019, 0.04], [0.014, 0.12], [0.02, 0.2], [0.022, 0.26], [0.016, 0.3], [0.02, 0.38], [0.02, 0.42], [0, 0.42]], 12);
-  for (const [x, z] of [[-0.2, 0.2], [0.2, 0.2]]) g.add(at(new THREE.Mesh(legG, mats.wood), x, 0, z));
-  // back legs splay and continue into the balloon back
+  // turned front legs: vase, ring, tapered foot on a little toupie
+  const legG = G.latheFromProfile([[0, 0], [0.014, 0], [0.017, 0.012], [0.014, 0.025], [0.013, 0.06], [0.016, 0.1], [0.021, 0.16], [0.024, 0.2], [0.02, 0.24], [0.015, 0.27], [0.02, 0.29], [0.022, 0.31], [0.017, 0.33], [0.019, 0.36], [0.025, 0.37], [0.025, 0.42], [0, 0.42]], 16);
+  for (const x of [-0.2, 0.2]) g.add(at(new THREE.Mesh(legG, mats.wood), x, 0, 0.19));
+  // back legs: square-section sabre curve rising into the back uprights
   for (const sx of [-1, 1]) {
-    const curve = new THREE.CatmullRomCurve3([V3(sx * 0.19, 0, -0.24), V3(sx * 0.185, 0.25, -0.2), V3(sx * 0.18, seatH, -0.19), V3(sx * 0.2, 0.68, -0.23), V3(sx * 0.18, 0.86, -0.26)]);
-    g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.017, 8), mats.wood));
+    const curve = new THREE.CatmullRomCurve3([V3(sx * 0.19, 0, -0.27), V3(sx * 0.19, 0.22, -0.21), V3(sx * 0.185, seatH, -0.19), V3(sx * 0.18, 0.66, -0.22), V3(sx * 0.17, 0.88, -0.26)]);
+    g.add(new THREE.Mesh(taperedTube(curve, 20, 0.018, 0.015, 6), mats.wood));
   }
-  // balloon hoop
-  const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.016, 8, 32, Math.PI * 1.15), mats.wood);
-  hoop.rotation.z = -Math.PI * 0.075; hoop.position.set(0, 0.8, -0.255); hoop.rotation.x = -0.12; hoop.scale.set(1, 0.65, 1); g.add(hoop);
-  const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.36, 8), mats.wood); rail.rotation.z = Math.PI / 2; rail.position.set(0, 0.64, -0.22); g.add(rail);
-  // seat frame + stuffed leather seat
-  g.add(at(new THREE.Mesh(new G.RoundedBoxGeometry(0.46, 0.06, 0.46, 2, 0.015), mats.wood), 0, seatH - 0.03, 0));
-  g.add(at(new THREE.Mesh(new G.RoundedBoxGeometry(0.44, 0.06, 0.43, 4, 0.03), mats.seat), 0, seatH + 0.02, 0.005));
+  // carved crest rail with a scrolled top
+  {
+    const cs = new THREE.Shape();
+    cs.moveTo(-0.2, 0); cs.lineTo(0.2, 0); cs.bezierCurveTo(0.21, 0.04, 0.17, 0.08, 0.12, 0.075); cs.bezierCurveTo(0.06, 0.07, 0.04, 0.11, 0, 0.115);
+    cs.bezierCurveTo(-0.04, 0.11, -0.06, 0.07, -0.12, 0.075); cs.bezierCurveTo(-0.17, 0.08, -0.21, 0.04, -0.2, 0);
+    const h1 = new THREE.Path(); h1.absellipse(0, 0.06, 0.025, 0.02, 0, Math.PI * 2, true); cs.holes.push(h1);
+    const e = new THREE.ExtrudeGeometry(cs, { depth: 0.025, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 2, curveSegments: 12 });
+    e.translate(0, 0, -0.0125);
+    const crest = new THREE.Mesh(G.applyBoxUVs(e, 2), mats.wood); crest.position.set(0, 0.8, -0.252); crest.rotation.x = -0.18; g.add(crest);
+  }
+  // pierced vase-shaped splat
+  {
+    const sp = new THREE.Shape();
+    sp.moveTo(-0.04, 0); sp.bezierCurveTo(-0.04, 0.05, -0.1, 0.08, -0.09, 0.16); sp.bezierCurveTo(-0.08, 0.24, -0.03, 0.24, -0.05, 0.3);
+    sp.lineTo(0.05, 0.3); sp.bezierCurveTo(0.03, 0.24, 0.08, 0.24, 0.09, 0.16); sp.bezierCurveTo(0.1, 0.08, 0.04, 0.05, 0.04, 0);
+    sp.lineTo(-0.04, 0);
+    const h1 = new THREE.Path(); h1.moveTo(0, 0.06); h1.bezierCurveTo(0.05, 0.1, 0.05, 0.16, 0, 0.2); h1.bezierCurveTo(-0.05, 0.16, -0.05, 0.1, 0, 0.06); sp.holes.push(h1);
+    const h2 = new THREE.Path(); h2.absarc(0, 0.25, 0.015, 0, Math.PI * 2, true); sp.holes.push(h2);
+    const e = new THREE.ExtrudeGeometry(sp, { depth: 0.014, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 2, curveSegments: 12 });
+    e.translate(0, 0, -0.007);
+    const splat = new THREE.Mesh(G.applyBoxUVs(e, 2), mats.wood); splat.position.set(0, seatH + 0.05, -0.215); splat.rotation.x = -0.14; g.add(splat);
+  }
+  // seat rails (apron) with a shaped front
+  g.add(at(new THREE.Mesh(new G.RoundedBoxGeometry(0.46, 0.07, 0.44, 2, 0.012), mats.wood), 0, seatH - 0.04, 0));
+  // buttoned, piped, stuffed seat
+  const cushG = new G.RoundedBoxGeometry(0.45, 0.075, 0.43, 5, 0.035);
+  {
+    const p = cushG.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      if (y > 0.02) { const dome = (1 - (x / 0.225) ** 2) * (1 - (z / 0.215) ** 2); p.setY(i, y + Math.max(0, dome) * 0.022); }
+    }
+    cushG.computeVertexNormals();
+  }
+  g.add(at(new THREE.Mesh(cushG, mats.seat), 0, seatH + 0.025, 0.005));
+  const btn = new THREE.SphereGeometry(0.008, 8, 6); btn.scale(1, 0.5, 1);
+  for (const [x, z] of [[-0.1, -0.09], [0.1, -0.09], [0, 0], [-0.1, 0.09], [0.1, 0.09]]) g.add(at(new THREE.Mesh(btn, mats.seat), x, seatH + 0.083 - Math.abs(x) * 0.05 - Math.abs(z) * 0.05, z + 0.005));
+  // brass nailhead trim along the front
+  const nail = new THREE.SphereGeometry(0.005, 6, 4);
+  for (let i = 0; i < 14; i++) g.add(at(new THREE.Mesh(nail, mats.brass || mats.wood), -0.21 + i * (0.42 / 13), seatH - 0.012, 0.222));
   return g;
 }
 
@@ -463,8 +548,8 @@ export function buildFireplace(ctx, mats, { seed = 3 } = {}) {
   // firebox: sooty brick back + cheeks, cast-iron arched insert
   const inner = new THREE.Group(); inner.position.z = 0.17; g.add(inner);
   const box = new THREE.Group();
-  const back = new THREE.Mesh(G.planeUV(openW, openH, 1), mats.brick); back.position.set(0, openH / 2, -0.16); box.add(back);
-  for (const sx of [-1, 1]) { const c = new THREE.Mesh(G.planeUV(0.3, openH, 1), mats.brick); c.rotation.y = -sx * Math.PI / 2 + sx * 0.25; c.position.set(sx * (openW / 2 - 0.06), openH / 2, -0.02); box.add(c); }
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(openW, openH), mats.soot || mats.brick); back.position.set(0, openH / 2, -0.16); box.add(back);
+  for (const sx of [-1, 1]) { const c = new THREE.Mesh(new THREE.PlaneGeometry(0.3, openH), mats.soot || mats.brick); c.rotation.y = -sx * Math.PI / 2 + sx * 0.25; c.position.set(sx * (openW / 2 - 0.06), openH / 2, -0.02); box.add(c); }
   const roofP = new THREE.Mesh(G.planeUV(openW, 0.42, 1), mats.iron); roofP.rotation.x = Math.PI / 2 + 0.3; roofP.position.set(0, openH - 0.01, 0.02); box.add(roofP);
   inner.add(box);
   const ins = new THREE.Shape(); ins.moveTo(-openW / 2 - 0.02, 0); ins.lineTo(openW / 2 + 0.02, 0); ins.lineTo(openW / 2 + 0.02, openH + 0.02); ins.lineTo(-openW / 2 - 0.02, openH + 0.02); ins.lineTo(-openW / 2 - 0.02, 0);
@@ -491,18 +576,18 @@ export function buildFireplace(ctx, mats, { seed = 3 } = {}) {
   }
   coals.userData.noBake = true; coals.userData.keep = true;
   inner.add(coals);
-  const logMat = new THREE.MeshStandardMaterial({ color: 0x1a120c, roughness: 0.95, emissive: new THREE.Color(0.9, 0.22, 0.04), emissiveIntensity: 0.3, name: 'log' });
-  for (const [x, ry, y] of [[-0.06, 0.3, 0.2], [0.09, -0.35, 0.21], [0.0, 0.05, 0.28]]) {
-    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.052, 0.5, 10), logMat);
-    log.rotation.z = Math.PI / 2; log.rotation.y = ry; log.position.set(x, y, -0.06); inner.add(log);
+  const logMat = mats.log || new THREE.MeshStandardMaterial({ color: 0x1a120c, roughness: 0.95, emissive: new THREE.Color(0.9, 0.22, 0.04), emissiveIntensity: 0.3, name: 'log' });
+  const endMat = new THREE.MeshStandardMaterial({ color: 0x140c08, roughness: 0.9, emissive: new THREE.Color(1.0, 0.3, 0.06), emissiveIntensity: 0.6, name: 'logEnd' });
+  for (const [x, ry, y, r, l] of [[-0.05, 0.28, 0.17, 0.05, 0.56], [0.08, -0.32, 0.18, 0.046, 0.52], [0.01, 0.06, 0.255, 0.042, 0.5]]) {
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.94, r, l, 16, 1, true), logMat);
+    log.rotation.z = Math.PI / 2; log.rotation.y = ry; log.position.set(x, y, -0.06); log.userData.keep = true; inner.add(log);
+    for (const e of [-1, 1]) { const cap = new THREE.Mesh(new THREE.CircleGeometry(r * (e > 0 ? 0.94 : 1), 16), endMat); cap.position.y = e * l / 2; cap.rotation.x = -Math.PI / 2 * e; log.add(cap); }
   }
-  const flames = [];
-  for (let i = 0; i < 12; i++) {
-    const big = i % 3 === 1;
-    const f = fx.flame({ height: (big ? 0.26 : 0.12) + rnd.next() * 0.1, width: (big ? 0.06 : 0.04) + rnd.next() * 0.02, intensity: big ? 2.6 : 1.8, seed: seed * 10 + i * 7, core: [1.0, 0.75, 0.38], outer: [1.0, 0.3, 0.05], base: [0.6, 0.12, 0.02] });
-    f.position.set(-0.24 + (i / 11) * 0.48 + (rnd.next() - 0.5) * 0.03, 0.2 + rnd.next() * 0.05, -0.1 + rnd.next() * 0.1);
-    inner.add(f); flames.push(f);
-  }
+  const flames = fireFlames({ width: 0.48, height: 0.46, count: 6, rnd, intensity: 2.6, time: ctx.time });
+  flames.position.set(0, 0.17, -0.05); inner.add(flames);
+  const back2 = fireFlames({ width: 0.4, height: 0.3, count: 4, rnd, intensity: 1.6, time: ctx.time });
+  back2.position.set(0.02, 0.2, -0.12); inner.add(back2);
+  const sp = sparks({ count: 22, width: 0.4, depth: 0.12, height: 0.65, rnd, time: ctx.time }); sp.position.set(0, 0.25, -0.05); inner.add(sp);
   // brass fender + fire irons
   const fprof = [V2(0, 0), V2(0.01, 0), V2(0.012, 0.04), V2(0.006, 0.07), V2(0.012, 0.08), V2(0, 0.085)];
   g.add(new THREE.Mesh(G.sweepProfile(fprof, [V3(-0.68, 0.05, 0.3), V3(-0.68, 0.05, 0.62), V3(0.68, 0.05, 0.62), V3(0.68, 0.05, 0.3)], { uvScale: 2 }), mats.brass));
@@ -510,7 +595,7 @@ export function buildFireplace(ctx, mats, { seed = 3 } = {}) {
     const tool = new THREE.Mesh(G.latheFromProfile([[0.006, 0], [0.006, 0.62], [0.014, 0.64], [0.01, 0.68], [0.016, 0.72], [0.0, 0.74]], 10), mats.brass);
     tool.position.set(-0.78 - i * 0.03, 0.05, 0.55); tool.rotation.z = -0.1 + i * 0.05; g.add(tool);
   }
-  g.userData = { flames, coals, coalMat, Hm, openW, openH, W, D };
+  g.userData = { flames, coals, coalMat, logMat, endMat, Hm, openW, openH, W, D };
   return g;
 }
 
