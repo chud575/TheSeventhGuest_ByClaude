@@ -30,9 +30,9 @@ function foldField(n, seed) {
     const x = u * total;
     let k = 0; while (k < n - 1 && x > cuts[k + 1]) k++;
     const f = (x - cuts[k]) / (cuts[k + 1] - cuts[k]);
-    // asymmetric fold: rounded crest (velvet doesn't crease to a knife-edge), softer trough
-    const c = Math.cos(f * Math.PI * 2);
-    const shaped = Math.sign(c) * Math.pow(Math.abs(c), 0.7 + sharp * 0.3);
+    // rounded, slightly asymmetric fold (velvet never creases to a knife-edge, nor flattens into a ribbon)
+    const th = f * Math.PI * 2;
+    const shaped = Math.cos(th) * (1 - 0.18 * sharp) + 0.18 * sharp * Math.cos(2 * th + phases[k] * 6.28);
     return { z: shaped * amps[k], k, amp: amps[k], ph: phases[k] };
   };
 }
@@ -49,9 +49,10 @@ export function drapeGeometry({ width = 0.62, height = 3.0, folds = 7, depth = 0
     const yHang = -v * H;
     // horizontal gather: 1 at the tieback, easing off above (long sweep) and below (quick flare)
     const vt = tieback;
-    const above = v < vt ? smooth(0, vt, v) : 0;
-    const below = v >= vt ? 1 - smooth(vt, vt + 0.22, v) * 0.7 : 0;
-    const gather = v < vt ? Math.pow(above, 1.6) : below;
+    // the leading edge runs in a near-straight diagonal down to the cord, then falls almost plumb, flaring gently to the floor
+    const above = v < vt ? Math.pow(v / vt, 1.15) : 0;
+    const below = v >= vt ? 1 - smooth(vt, 1.0, v) * 0.5 : 0;
+    const gather = v < vt ? above : below;
     // width at this height: full at the header, tieW at the tieback, ~45% of full at the floor
     const wHere = width + (tieW - width) * gather;
     for (let i = 0; i <= segX; i++) {
@@ -62,7 +63,9 @@ export function drapeGeometry({ width = 0.62, height = 3.0, folds = 7, depth = 0
       const f = field(u + lean * v, 0.4);
       const comp = Math.sqrt(width / Math.max(wHere, 0.05));
       let amp = depth * f.amp * Math.min(2.6, comp);
-      let z = f.z * depth * Math.min(2.6, comp) * (0.85 + 0.15 * Math.sin(v * 9 + f.ph * 6));
+      let z = f.z * depth * Math.min(2.6, comp) * (0.8 + 0.2 * Math.sin(v * 7 + f.ph * 6));
+      // secondary ripples: small folds that come and go down the drop
+      z += depth * 0.22 * Math.sin(u * folds * 2.0 * Math.PI * 2.0 + f.ph * 9.0 + v * 2.5) * (0.5 + 0.5 * Math.sin(v * 4.0 + f.ph * 3.0));
       if (v < 0.07) {
         const hp = header(u, 0.9);
         const tH = smooth(0.0, 0.07, v);

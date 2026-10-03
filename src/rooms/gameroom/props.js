@@ -795,7 +795,7 @@ export function buildFireplace(ctx, mats, { seed = 3 } = {}) {
   for (const sx of [-1, 1]) {
     const fd = new THREE.Group();
     fd.add(at(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.02, 0], [0.026, 0.03], [0.016, 0.06], [0.013, 0.15], [0.02, 0.17], [0.012, 0.19], [0, 0.19]], 14), mats.iron), 0, 0.05, 0));
-    fd.add(at(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.018, 0], [0.03, 0.03], [0.034, 0.05], [0.02, 0.075], [0.026, 0.085], [0.008, 0.11], [0, 0.12]], 18), mats.brass), 0, 0.24, 0));
+    fd.add(at(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.018, 0], [0.03, 0.03], [0.034, 0.05], [0.02, 0.075], [0.026, 0.085], [0.008, 0.11], [0, 0.12]], 18), mats.iron), 0, 0.24, 0));
     for (const lx of [-1, 1]) { const leg = new THREE.Mesh(taperedTube(new THREE.CatmullRomCurve3([V3(0, 0.1, 0), V3(lx * 0.05, 0.06, 0), V3(lx * 0.08, 0.005, 0.01)]), 10, 0.009, 0.007, 6), mats.iron); leg.position.y = 0.05; fd.add(leg); }
     const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.32, 8).rotateX(Math.PI / 2), mats.iron); bar.position.set(0, 0.1, -0.16); fd.add(bar);
     fd.position.set(sx * 0.2, 0, 0.33); g.add(fd);

@@ -118,7 +118,7 @@ export default {
       eye: new THREE.MeshPhysicalMaterial({ color: 0x080504, roughness: 0.05, clearcoat: 1, name: 'glassEye' }),
       antler: new THREE.MeshStandardMaterial({ color: 0x8a7458, roughness: 0.6, name: 'antler' }),
       // acid-etched tulip shade: frosted, glowing hottest round the mantle low in the bowl, falling off to a cool rim
-      globe: new THREE.MeshPhysicalMaterial({ color: 0x4a4036, emissive: new THREE.Color(1.0, 0.7, 0.42), emissiveIntensity: 0.55, roughness: 0.55, clearcoat: 0.6, clearcoatRoughness: 0.35, name: 'sconceGlobe',
+      globe: new THREE.MeshPhysicalMaterial({ color: 0x3a3028, emissive: new THREE.Color(1.0, 0.64, 0.34), emissiveIntensity: 0.95, roughness: 0.55, clearcoat: 0.6, clearcoatRoughness: 0.35, name: 'sconceGlobe',
         emissiveMap: ctx.textures.canvas('gameroom:tulipGlow', 4, 128, (c) => { const g = c.createLinearGradient(0, 0, 0, 128); g.addColorStop(0, '#2a2a2a'); g.addColorStop(0.25, '#9a9a9a'); g.addColorStop(0.45, '#c8c8c8'); g.addColorStop(0.7, '#6a6a6a'); g.addColorStop(0.9, '#2e2e2e'); g.addColorStop(1, '#1a1a1a'); c.fillStyle = g; c.fillRect(0, 0, 4, 128); }, { tile: false }) }),
       shadeOuter: new THREE.MeshPhysicalMaterial({ color: 0x0a3618, roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.04, emissive: new THREE.Color(0.1, 0.62, 0.24), emissiveIntensity: 0.9, side: THREE.FrontSide, envMapIntensity: 1.4, name: 'shadeGreen',
         // cased glass glows where it is thin and nearest the bulb: dark at the crown, bright toward the rim
@@ -473,7 +473,7 @@ export default {
       // overmantel: a dark varnished landscape in a heavy carved gilt frame
       const og = new THREE.Group();
       const mw = 1.12, mh = 0.84;
-      og.add(new THREE.Mesh(new THREE.PlaneGeometry(mw, mh), M.create('painting', { subject: 0, seed: 23, aspect: mw / mh, size: 1024, varnish: 0.8, cracks: 0.5, color: [0.78, 0.74, 0.7] })));
+      og.add(new THREE.Mesh(new THREE.PlaneGeometry(mw, mh), M.create('painting', { subject: 0, seed: 23, aspect: mw / mh, size: 1024, varnish: 0.3, cracks: 0.3, color: [0.95, 0.9, 0.84], normalScale: 0.35 })));
       og.add(new THREE.Mesh(G.frameGeometry(mw, mh, { width: 0.12, depth: 0.07, uvScale: 1 }), mat.frame));
       const ocrest = new THREE.Mesh(new THREE.SphereGeometry(0.08, 18, 10), mat.gilt); ocrest.scale.set(1.8, 0.7, 0.3); ocrest.position.set(0, mh / 2 + 0.13, 0.04); og.add(ocrest);
       og.position.set(lx.right(FIRE_Z), fire.userData.Hm + 0.2 + mh / 2, 0.035);
@@ -639,7 +639,7 @@ export default {
     // ================================================================ front (door) wall + floor dressing
     {
       const sb = buildScoreboard(ctx, { wood: mat.wood, brass: mat.brass, gilt: mat.gilt, chalk: mat.tip });
-      sb.position.set(lx.front(0.95), 1.7, 0.0); S.front.grp.add(sb);
+      sb.position.set(lx.left(2.45), 1.72, 0.0); S.left.grp.add(sb);
       const pm = { mount: new THREE.MeshStandardMaterial({ color: 0xb8a888, roughness: 0.9, name: 'mount' }), ebony: mat.ebony, gilt: mat.gilt, glass: mat.glass };
       for (const [x, seed, subj] of [[2.0, 31, 0], [2.85, 47, 2]]) { const pr = buildPrint(ctx, pm, { w: 0.44, h: 0.56, seed, subject: subj }); pr.position.set(lx.front(x), 1.88, 0.02); S.front.grp.add(pr); }
       const pr3 = buildPrint(ctx, pm, { w: 0.6, h: 0.42, seed: 53, subject: 0 }); pr3.position.set(lx.front(2.42), 2.52, 0.02); S.front.grp.add(pr3);
@@ -865,6 +865,7 @@ export default {
       { id: 'fire', nodes: ['hearth', 'main'], box: { min: [X1 - 0.6, 0.0, FIRE_Z - 0.7], max: [X1, 1.3, FIRE_Z + 0.7] }, cursor: 'examine', label: 'The fireplace', onActivate: cap('The Fireplace', 'The fire is burning, and has been burning, and nobody has fed it. The logs never grow smaller.') },
       { id: 'cuerack', nodes: ['main', 'chess', 'billiards', 'back'], box: { min: [X0, 0.3, 0.4], max: [X0 + 0.2, 2.15, 1.3] }, cursor: 'examine', label: 'The cue rack', onActivate: cap('The Cue Rack', 'Seven cues and an empty clip. The beads on the scoreboard have been pushed to thirteen.') },
       { id: 'boar', nodes: ['main', 'chess', 'billiards'], sphere: { center: [X0 + 0.25, 2.72, 0.85], radius: 0.3 }, cursor: 'examine', label: 'A boar\'s head', onActivate: cap('The Boar', 'Its tusks are yellowed and one is chipped. The glass eyes have been turned, very slightly, to watch the door.') },
+      { id: 'scoreboard', nodes: ['back', 'main'], box: { min: [X0, 1.3, 1.95], max: [X0 + 0.15, 2.3, 2.95] }, cursor: 'examine', label: 'The scoreboard', onActivate: cap('The Scoreboard', 'Sixty-five to forty, and the pointers rusted where they stand. The second player never came back from the cellar.') },
       { id: 'cards', nodes: ['back', 'main', 'hearth'], box: { min: [CARD.x - 0.5, 0.6, CARD.z - 0.5], max: [CARD.x + 0.5, 0.95, CARD.z + 0.5] }, cursor: 'examine', label: 'A hand of cards', onActivate: cap('The Card Table', 'A seven of hearts, a queen of spades, an ace. Three hands dealt, and a fourth place laid for a player who never sat down.') },
       { id: 'painting', nodes: ['main', 'chess', 'back'], box: { min: [X0, 1.55, -2.3], max: [X0 + 0.15, 2.65, -0.8] }, cursor: 'examine', label: 'A hunting scene', onActivate: cap('The Painting', 'A moonlit hunt. The hounds are painted with great care. The quarry has been scraped out of the canvas.') },
       {
