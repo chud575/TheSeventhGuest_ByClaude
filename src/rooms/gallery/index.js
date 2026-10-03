@@ -4,7 +4,7 @@ import { flicker } from '../../engine/fx/index.js';
 import { X0, X1, Z0, Z1, H, DADO, BAYS, BAY_CENTERS, DOORS, ARCH, WIN, PUZZLE, PIL } from './layout.js';
 import { buildShell, buildWindow, buildLanding, makeDoor, mount } from './architecture.js';
 import { makeFramed, makeClock, makeConsole, makeBench, makePlaque, makeLantern } from './props.js';
-import { runnerTexture, nightSky, treeLine, branchCard, moonCookie } from './textures.js';
+import { runnerTexture, nightSky, treeLine, branchCard, moonCookie, lincrustaTexture } from './textures.js';
 import { makePortraitMaterial, createGaze } from './portraits.js';
 import { patchWallpaper, makeReflectiveFloor, giltMaterial, mahoganyTexture } from './look.js';
 import { makeGasBracket, makeGlobeMaterial, makeLightPool, silhouetteTexture, makeOvalFrame, makeGiltFrame, makePictureLight, makeSideChair, makeCoveredBust, makeJardiniere, makeBirdcage, transomTexture, linenTexture } from './dressing.js';
@@ -85,7 +85,7 @@ export default {
       mat.doorWood = new THREE.MeshPhysicalMaterial({ map: mt.map, normalMap: mt.normalMap, roughnessMap: mt.roughnessMap, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 1, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.3, color: new THREE.Color(1.1, 1.0, 1.0), name: 'doorMahogany' });
       // the long-case clock: same figured mahogany under a deeper French-polish lacquer
       mat.clockWood = mat.doorWood.clone();
-      mat.clockWood.clearcoat = 0.6; mat.clockWood.clearcoatRoughness = 0.2; mat.clockWood.name = 'clockMahogany';
+      mat.clockWood.clearcoat = 0.6; mat.clockWood.clearcoatRoughness = 0.2; mat.clockWood.color.setRGB(1.5, 1.3, 1.25); mat.clockWood.name = 'clockMahogany';
       const lt = mahoganyTexture(ctx).withRepeat(4, 4);
       mat.tileLacquer = new THREE.MeshPhysicalMaterial({ map: lt.map, normalMap: lt.normalMap, normalScale: new THREE.Vector2(0.2, 0.2), roughness: 0.55, metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.35, color: new THREE.Color(0.55, 0.42, 0.36), envMapIntensity: 0.5, name: 'tileLacquer' });
     }
@@ -111,7 +111,7 @@ export default {
     {
       // aged linen: warm grey-ivory, weave normal at full strength, a faint sheen only (no satin)
       const ln = linenTexture(ctx).withRepeat(9, 9);
-      mat.sheet = new THREE.MeshPhysicalMaterial({ map: ln.map, normalMap: ln.normalMap, roughnessMap: ln.roughnessMap, normalScale: new THREE.Vector2(1.0, 1.0), color: new THREE.Color(0.82, 0.8, 0.74).multiplyScalar(1.25), vertexColors: true, roughness: 1, metalness: 0, sheen: 0.25, sheenRoughness: 0.85, sheenColor: new THREE.Color(0.8, 0.78, 0.72), side: THREE.DoubleSide, envMapIntensity: 0.35, name: 'dustSheet' });
+      mat.sheet = new THREE.MeshPhysicalMaterial({ map: ln.map, normalMap: ln.normalMap, roughnessMap: ln.roughnessMap, normalScale: new THREE.Vector2(1.0, 1.0), color: new THREE.Color(0.8, 0.8, 0.78).multiplyScalar(1.45), vertexColors: true, roughness: 1, metalness: 0, sheen: 0.25, sheenRoughness: 0.85, sheenColor: new THREE.Color(0.8, 0.78, 0.72), side: THREE.DoubleSide, envMapIntensity: 0.35, name: 'dustSheet' });
       mat.pedestal = M.create('ebony', { repeat: [3, 3], roughness: 3.0, clearcoat: 0.25, clearcoatRoughness: 0.45 });
     }
     const skyTex = nightSky(ctx);
@@ -123,6 +123,36 @@ export default {
 
     // ================================================================ architecture
     buildShell(ctx, root, mat);
+    // embossed Lincrusta in every ceiling coffer, smoked dark above the lanterns and sconces
+    {
+      const lt = lincrustaTexture(ctx);
+      const lm = new THREE.MeshStandardMaterial({ map: lt.map, normalMap: lt.normalMap, roughnessMap: lt.ormMap, metalnessMap: lt.ormMap, aoMap: lt.ormMap, roughness: 1, metalness: 1, normalScale: new THREE.Vector2(1.2, 1.2), name: 'lincrusta' });
+      const soot = [V3(0, H, BAY_CENTERS[1]), V3(0, H, BAY_CENTERS[3]), V3(0, H, Z1 + 1.5)];
+      lm.onBeforeCompile = (sh) => {
+        sh.uniforms.uSoot = { value: soot };
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vLW;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvLW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vLW; uniform vec3 uSoot[3];').replace('#include <map_fragment>', `#include <map_fragment>
+{
+  float sm = 0.0;
+  for (int i = 0; i < 3; i++) { vec2 d = vLW.xz - uSoot[i].xz; sm += exp(-dot(d, d) / 0.35); }
+  // smoke also creeps along the side edges above the wall brackets
+  sm += 0.5 * smoothstep(0.55, 0.95, abs(vLW.x));
+  diffuseColor.rgb *= 1.0 - 0.6 * clamp(sm, 0.0, 1.0);
+}`);
+      };
+      lm.customProgramCacheKey = () => 'gallery-lincrusta';
+      const edges = [Z1, ...BAYS, Z0];
+      for (let i = 0; i < edges.length - 1; i++) {
+        const za = edges[i] - (i === 0 ? 0.25 : 0.17 + 0.25), zb = edges[i + 1] + (i === edges.length - 2 ? 0.25 : 0.17 + 0.25);
+        const w = (X1 - X0) - 0.84 - 0.04, l = za - zb - 0.04;
+        const g = new THREE.PlaneGeometry(w, l);
+        const uv = g.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) * w / 0.6, uv.getY(k) * l / 0.6);
+        const m = new THREE.Mesh(g, lm);
+        m.rotation.x = Math.PI / 2; m.position.set(0, H - 0.003, (za + zb) / 2);
+        m.receiveShadow = true;
+        root.add(m);
+      }
+    }
     const winInfo = buildWindow(ctx, root, mat);
     buildLanding(ctx, root, mat);
 
@@ -398,17 +428,36 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
         const e = c.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.25, w / 2, h / 2, Math.max(w, h) * 0.62);
         e.addColorStop(0, 'rgba(0,0,0,0)'); e.addColorStop(1, 'rgba(10,8,6,0.85)'); c.fillStyle = e; c.fillRect(0, 0, w, h);
       }, { tile: false });
-      const mirrorMat = new THREE.MeshStandardMaterial({ map: silver, color: 0xa8a49c, metalness: 1.0, roughness: 0.08, envMapIntensity: 1.6, name: 'mirror' });
+      const mirrorMat = new THREE.MeshStandardMaterial({ map: silver, color: 0xd0ccc2, metalness: 1.0, roughness: 0.08, envMapIntensity: 1.6, name: 'mirror' });
       // the window's RectAreaLight would print a flat glowing card on the glass; the glass shows the
       // (baked) hall instead, so drop rect-light specular for this material only
       mirrorMat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <lights_physical_pars_fragment>', '#include <lights_physical_pars_fragment>\n#undef RE_Direct_RectArea'); };
       mirrorMat.customProgramCacheKey = () => 'gallery-mirror-norect';
       const foxing = M.textures('plaster', { color: [0.5, 0.5, 0.5], cracks: 0.0, stains: 0.9 });
-      mirrorMat.roughnessMap = foxing.withRepeat(1.4, 1.4).map;
-      mirrorMat.roughness = 0.1;
+      mirrorMat.roughnessMap = null; void foxing;
+      mirrorMat.roughness = 0.04;
       const mf = makeGiltFrame(ctx, mat, mirrorMat, 0.72, 1.12, { fw: 0.1 });
       mount(mf.group, -1, BAY_CENTERS[3], 1.82, 0.03);
+      mf.group.userData.dynamic = true;
       root.add(mf.group);
+      // its own reflection probe: a cube capture taken from just in front of the glass once the room
+      // is lit (the hall-centre environment bake reads almost black from this wall)
+      {
+        const crt = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType });
+        const cam = new THREE.CubeCamera(0.05, 30, crt);
+        cam.position.set(X0 + 0.35, 1.75, BAY_CENTERS[3]);
+        root.add(cam);
+        mirrorMat.envMap = crt.texture; mirrorMat.envMapIntensity = 1.5;
+        let frames = 0;
+        ctx.onUpdate(() => {
+          if (frames > 2) return;
+          if (++frames !== 2) return;
+          const scene = root.parent || root;
+          mf.canvas.visible = false;
+          cam.update(ctx.renderer, scene);
+          mf.canvas.visible = true;
+        });
+      }
     }
     const consoleLight = new THREE.PointLight(0xffa04a, 1.4, 4.0, 2);
     {
@@ -572,6 +621,14 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
     root.add(fx.areaLight({ center: [0, 0.03, -6.9], normal: [0, 1, 0.15], width: 1.6, height: 2.2, color: 0x6c88b0, intensity: 1.2 }));
     // the window itself: a broad cold panel that models the curtains, jambs and window seat
     root.add(fx.areaLight({ center: [0, WIN.sill + 1.2, Z0 + 0.05], normal: [0, -0.5, 1], width: WIN.w, height: WIN.h, color: 0x88b2f2, intensity: 2.6 }));
+    // moonlight bouncing off the window reveal lands on the long-case clock (the case picks up the
+    // cold specular on its lacquer instead of sinking into the dark)
+    {
+      const spill = new THREE.SpotLight(0x9cc0ff, 70, 7, 0.45, 0.8, 2);
+      spill.position.set(-1.1, 2.4, BAY_CENTERS[4] - 0.3);
+      spill.target.position.set(X1 - 0.35, 1.1, BAY_CENTERS[4] + 0.2);
+      root.add(spill, spill.target);
+    }
     // warm/cold split on the end walls: the last pair of gas brackets throws a dim 2700K bounce
     for (const sx of [-1, 1]) {
       const b = new THREE.PointLight(0xffa457, 0.3, 4.5, 2);

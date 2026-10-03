@@ -124,10 +124,10 @@ export function lightPoolTexture(ctx) {
       if (dy > 0) {
         const ang = Math.atan2(Math.abs(dx) * 0.55, dy);          // 0 = straight up
         const edge = 0.95 + 0.06 * Math.cos(ang * 18);           // scalloped rim from the gallery claws
-        v = THREE.MathUtils.smoothstep(edge, edge - 0.25, ang) * Math.exp(-r * 3.2) * 1.0;
+        v = THREE.MathUtils.smoothstep(edge, edge - 0.75, ang) * Math.exp(-r * 3.4) * 1.0;   // soft-edged: no cookie lines
       } else {
         const ang = Math.atan2(Math.abs(dx) * 0.55, -dy);
-        v = THREE.MathUtils.smoothstep(0.75, 0.45, ang) * Math.exp(-r * 5.0) * 0.5;
+        v = THREE.MathUtils.smoothstep(0.95, 0.2, ang) * Math.exp(-r * 5.0) * 0.5;
       }
       const c = Math.min(255, Math.round(v * 255));
       const i = (y * w + x) * 4;
@@ -311,16 +311,11 @@ export function makePictureLight(ctx, mat, width = 0.42) {
     g.add(new THREE.Mesh(new THREE.TubeGeometry(c, 16, 0.005, 8), brass));
     const knuckle = new THREE.Mesh(new THREE.SphereGeometry(0.009, 10, 8), brass); knuckle.position.set(x, lift + 0.01, reach - 0.012); g.add(knuckle);
   }
-  // trough: an open-bottomed rolled sheet (profile swept along x), bead along the front lip
-  const sh = new THREE.Shape();
-  const prof = [];
-  for (let i = 0; i <= 14; i++) { const t = i / 14, a = -0.35 + t * (Math.PI + 0.55); prof.push([Math.cos(a) * 0.034, Math.sin(a) * 0.03]); }
-  sh.moveTo(prof[0][0], prof[0][1]); for (const [px, py] of prof.slice(1)) sh.lineTo(px, py);
-  for (const [px, py] of prof.slice().reverse()) sh.lineTo(px * 0.9, py * 0.88);
-  const tg = new THREE.ExtrudeGeometry(sh, { depth: width, bevelEnabled: false, curveSegments: 4 });
-  tg.translate(0, 0, -width / 2); tg.rotateY(Math.PI / 2); tg.rotateZ(0);
-  const trough = new THREE.Mesh(G.applyBoxUVs ? G.applyBoxUVs(tg, 0.2) : tg, brass);
-  trough.position.set(0, lift, reach); trough.rotation.x = -0.35; g.add(trough);
+  // trough: a rolled brass reflector open toward the picture (and underneath), double-sided
+  const troughMat = brass.clone(); troughMat.side = THREE.DoubleSide;
+  const trough = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, width, 28, 1, true, Math.PI * 0.05, Math.PI * 1.25), troughMat);
+  trough.rotation.z = Math.PI / 2; trough.rotation.x = 0.5;
+  trough.position.set(0, lift, reach); g.add(trough);
   const bead = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, width + 0.01, 10), brass);
   bead.rotation.z = Math.PI / 2; bead.position.set(0, lift - 0.018, reach + 0.03); g.add(bead);
   for (const s of [-1, 1]) {
@@ -330,7 +325,7 @@ export function makePictureLight(ctx, mat, width = 0.42) {
     fin.rotation.z = -s * Math.PI / 2; fin.position.set(s * (width / 2 + 0.012), lift, reach); g.add(fin);
   }
   // the lamp strip tucked inside the trough, glowing warm on the underside only
-  const strip = new THREE.Mesh(new THREE.PlaneGeometry(width - 0.03, 0.012), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.72, 0.42).multiplyScalar(1.6), name: 'picLamp' }));
+  const strip = new THREE.Mesh(new THREE.PlaneGeometry(width - 0.03, 0.012), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.72, 0.42).multiplyScalar(0.95), name: 'picLamp' }));
   strip.rotation.x = Math.PI / 2 + 0.35; strip.position.set(0, lift - 0.012, reach + 0.006); g.add(strip);
   return g;
 }
@@ -401,7 +396,7 @@ export async function makeCoveredBust(ctx, mat) {
     const f = new THREE.Mesh(reed, mat.pedestal);
     f.position.set(Math.cos(a) * 0.09, 0.53, Math.sin(a) * 0.09); f.scale.set(1, 1, 0.5); f.rotation.y = -a; g.add(f);
   }
-  const abacus = new THREE.Mesh(G.applyBoxUVs(new G.RoundedBoxGeometry(0.32, 0.04, 0.32, 2, 0.005), 1), mat.pedestal); abacus.position.y = 0.98; g.add(abacus);
+  const abacus = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.128, 0], [0.134, 0.006], [0.134, 0.03], [0.126, 0.04], [0, 0.04]], 40), mat.pedestal); abacus.position.y = 0.96; g.add(abacus);
 
   // ---- the simulated sheet
   const buf = await (await fetch(ctx.assetUrl('dustsheet.bin'))).arrayBuffer();
@@ -440,9 +435,9 @@ export async function makeCoveredBust(ctx, mat) {
         ax = ax / 4 - pos[a * 3]; ay = ay / 4 - pos[a * 3 + 1]; az = az / 4 - pos[a * 3 + 2];
         cav = ax * n.getX(a) + ay * n.getY(a) + az * n.getZ(a);    // > 0 = concave valley
       }
-      const occ = THREE.MathUtils.clamp(1 - cav * 60, 0.45, 1.08);
+      const occ = THREE.MathUtils.clamp(1 - cav * 45, 0.55, 1.06);
       const up = Math.max(0, n.getY(a));
-      const dust = up * up * 0.32;
+      const dust = up * up * 0.2;
       // dust is a dull grey-brown film: darker and less saturated than the clean linen
       colr[a * 3] = occ * (1 - dust * 0.85);
       colr[a * 3 + 1] = occ * (1 - dust * 0.88);

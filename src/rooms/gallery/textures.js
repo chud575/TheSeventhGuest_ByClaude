@@ -401,3 +401,36 @@ export function moonCookie(ctx) {
     g.globalCompositeOperation = 'source-over';
   }, { tile: false });
 }
+
+// ---------------------------------------------------------------------------- lincrusta ceiling
+/** embossed Lincrusta ceiling paper: quatrefoil trellis with rosettes, painted pale and smoked. */
+export function lincrustaTexture(ctx) {
+  return ctx.textures.generate('gallery:lincrusta', {
+    size: 1024, aspect: 1.0, tile: true, normalStrength: 2.2,
+    glsl: /* glsl */ `
+    void surface(vec2 uv, inout Surface s) {
+      vec2 g = uv * 4.0;                       // 4 x 4 repeats per tile
+      vec2 f = fract(g) - 0.5;
+      // quatrefoil: four overlapping circles
+      float q = 1e5;
+      for (int k = 0; k < 4; k++) { float a = float(k) * 1.5708; q = min(q, length(f - vec2(cos(a), sin(a)) * 0.16) - 0.16); }
+      float ring = abs(q) - 0.018;
+      // diagonal trellis bands linking the quatrefoils
+      float tr = min(abs(abs(f.x) - abs(f.y)) * 0.7071 - 0.0, 1.0);
+      float band = smoothstep(0.03, 0.01, abs(abs(f.x + f.y) - 0.5) * 0.7071) + smoothstep(0.03, 0.01, abs(abs(f.x - f.y) - 0.5) * 0.7071);
+      float ros = length(polarRep(f, 8.0) - vec2(0.06, 0.0)) - 0.03;
+      float boss = smoothstep(0.035, 0.0, length(f) - 0.02);
+      float hgt = 0.35 + 0.35 * domeh(ring, 0.03) + 0.25 * clamp(band, 0.0, 1.0) + 0.3 * domeh(ros, 0.02) + 0.35 * boss;
+      vec3 ground = vec3(0.26, 0.29, 0.36);
+      vec3 raised = vec3(0.4, 0.42, 0.47);
+      vec3 col = mix(ground, raised, smoothstep(0.4, 0.7, hgt));
+      col = mix(col, vec3(0.55, 0.42, 0.2), boss * 0.8);            // gilt boss
+      col *= 0.9 + 0.12 * fbm(uv * 6.0, vec2(6.0), 4);
+      s.albedo = col;
+      s.height = hgt;
+      s.rough = mix(0.8, 0.55, boss);
+      s.metal = boss * 0.7;
+      s.ao = 0.75 + 0.25 * smoothstep(0.3, 0.6, hgt);
+    }`,
+  });
+}

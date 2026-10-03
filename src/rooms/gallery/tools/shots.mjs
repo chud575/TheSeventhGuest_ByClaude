@@ -14,6 +14,7 @@ const VIEWS = {
   lady: { pos: '0.9,1.65,6.1', target: '-1.6,1.86,6.3', fov: 52 },
   puzzle: { pos: '0.3,1.72,-0.5', target: '-1.6,1.72,-0.5', fov: 48 },
   wallR: { pos: '-1.0,1.62,4.0', target: '1.6,1.75,5.8', fov: 56 },
+  mirror: { pos: '0.6,1.7,-2.6', target: '-1.6,1.8,-3.9', fov: 50 },
   solved: { pos: '0.3,1.72,-0.5', target: '-1.6,1.72,-0.5', fov: 48, extra: 'gsolved=1' },
 };
 const args = parseArgs(process.argv.slice(2));

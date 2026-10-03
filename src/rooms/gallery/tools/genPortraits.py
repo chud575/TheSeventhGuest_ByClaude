@@ -347,7 +347,7 @@ def toymaker_extra(img, W, H, u, v):
     r = np.sqrt(((xx / W - 0.5) / 0.56) ** 2 + ((yy / band_y - 0.47) / 0.6) ** 2)
     vig = 1 - 0.3 * smoothstep(0.8, 1.2, r + 0.08 * (noise(H, W, 60, 71) - 0.5))
     # lift the umber ground so every piece of the scrambled board carries readable paint
-    out = np.clip(img * vig[..., None] * 1.12 + np.array([0.035, 0.026, 0.016]), 0, 1)
+    out = np.clip(img * vig[..., None] * 1.25 + np.array([0.05, 0.036, 0.022]), 0, 1)
     pil = to_img(out); d = ImageDraw.Draw(pil, 'RGBA')
     # inscription band: dark brown bole with two worn gilt fillets and faded letters
     d.rectangle([0, band_y, W, H], fill=(28, 18, 11, 255))
@@ -379,7 +379,7 @@ SPECS = {
     'belle':   dict(face='m4', H=1314, seed=71, faceW=0.58, faceY=0.1, coat=(28, 58, 44), sheen=0.6, skin=(220, 190, 170), lace=True, oval=(20, 16, 12), shoulderW=0.5, cropFade=0.94),
     'poet':    dict(face='s3', H=1306, seed=83, faceW=0.6, faceY=0.09, coat=(58, 40, 26), sheen=0.3, collar=0.16, collarCol=(36, 26, 18), shoulderW=0.54),
     'doctor':  dict(face='v1_2', H=1306, seed=97, faceW=0.6, faceY=0.08, coat=(18, 18, 22), sheen=0.4, collar=0.15, collarCol=(26, 24, 22), buttons=3, shoulderW=0.56, shoulder=0.95),
-    'toymaker': dict(face='v8_4', W=1024, H=1024, seed=67, faceW=0.8, faceY=0.1, coat=(22, 20, 18), shirt=True, shirtW=0.12, shirtDepth=0.12, cravat=(46, 24, 30), shoulderW=0.56, shoulder=0.92, extra=toymaker_extra, bgMul=0.55, maskInset=(0.13, 0.1), maskBlur=0.075),
+    'toymaker': dict(face='v8_4', W=1024, H=1024, seed=67, faceW=0.8, faceY=0.1, coat=(22, 20, 18), shirt=True, shirtW=0.12, shirtDepth=0.12, cravat=(46, 24, 30), shoulderW=0.56, shoulder=0.92, extra=toymaker_extra, bgMul=0.78, maskInset=(0.13, 0.1), maskBlur=0.075),
 }
 
 

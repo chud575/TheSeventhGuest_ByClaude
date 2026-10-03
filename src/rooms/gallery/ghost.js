@@ -54,7 +54,8 @@ function bodyMaterial(ctx, { tint, rimPow = 3.0, core = 0.06, rim = 1.25, face =
       void main() {
         vec3 N = normalize(vN), V = normalize(vV);
         float ndv = abs(dot(N, V));
-        float rim = pow(1.0 - ndv, uRimPow);
+        // the brightest band sits just inside the silhouette, which itself fades out: no drawn outline
+        float rim = pow(1.0 - ndv, uRimPow) * smoothstep(0.02, 0.32, ndv);
         vec3 q = vec3(vW.x * 3.0, vW.y * 2.2 - uTime * 0.22, vW.z * 3.0 + uSeed);
         float n = gfbm(q);
         float n2 = gfbm(q * 2.7 + 5.0);
@@ -77,7 +78,7 @@ function bodyMaterial(ctx, { tint, rimPow = 3.0, core = 0.06, rim = 1.25, face =
           float lum = dot(f.rgb, vec3(0.33));
           // lighter paint = denser ectoplasm; the darks (eyes, brows, mouth) stay see-through
           vec3 face = vec3(0.72, 0.8, 1.0) * pow(lum, 1.6) * mask * (0.55 + 0.6 * n);
-          col = uTint * (0.03 + 0.7 * rim * smoothstep(0.25, 0.7, n + 0.15)) * (0.6 + 0.6 * n) + face * 0.75;
+          col = uTint * (0.02 + uRim * rim * smoothstep(0.25, 0.7, n + 0.15)) * (0.6 + 0.6 * n) + face * 0.8;
         }
         gl_FragColor = vec4(col * uFade, 1.0);
       }`,
@@ -126,8 +127,8 @@ export async function makeGhost(ctx) {
   // ---- gown: bodice to flared, folded hem (y metres; floor at 0, she hovers a little)
   const gown = ellLathe([
     [0.02, 0.33, 0.27], [0.18, 0.31, 0.25], [0.42, 0.27, 0.21], [0.66, 0.22, 0.17], [0.86, 0.17, 0.13],
-    [0.98, 0.145, 0.11], [1.1, 0.16, 0.115], [1.2, 0.175, 0.12], [1.28, 0.19, 0.115], [1.33, 0.18, 0.1],
-    [1.37, 0.12, 0.08], [1.4, 0.055, 0.05], [1.44, 0.05, 0.048],
+    [0.98, 0.145, 0.11], [1.1, 0.16, 0.115], [1.2, 0.175, 0.12], [1.28, 0.185, 0.112], [1.33, 0.165, 0.095],
+    [1.37, 0.1, 0.07], [1.39, 0.02, 0.02],
   ], 48, { fold: (a, y) => (0.06 * Math.sin(a * 9 + 0.7) + 0.03 * Math.sin(a * 17 + 2.1)) * (1 - THREE.MathUtils.smoothstep(y, 0.2, 0.95)) });
   group.add(new THREE.Mesh(gown, mk({ tint, rimPow: 2.2, core: 0.075, rim: 0.85, seed: 1.3 })));
 
@@ -166,7 +167,7 @@ export async function makeGhost(ctx) {
       fuv[i * 2 + 1] = 0.873 + (p.getY(i) / 0.108) * 0.068;
     }
     g.setAttribute('faceUv', new THREE.BufferAttribute(fuv, 2));
-    const head = new THREE.Mesh(g, mk({ tint, rimPow: 2.2, core: 0.05, rim: 1.0, face: tex, seed: 2.2 }));
+    const head = new THREE.Mesh(g, mk({ tint, rimPow: 1.6, core: 0.03, rim: 0.45, face: tex, seed: 2.2 }));
     head.position.set(0, 1.55, 0.01);
     head.rotation.x = 0.12;     // she looks a little down
     group.add(head);

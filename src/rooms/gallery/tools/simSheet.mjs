@@ -54,10 +54,9 @@ export function formSDF(x, y, z) {
   d = smin(d, sdCap(x, y, z, 0.0, T + 0.2, -0.005, 0.0, T + 0.31, 0.01, 0.056), 0.03);              // neck
   d = smin(d, sdCap(x, y, z, -0.17, T + 0.205, -0.01, 0.17, T + 0.205, -0.01, 0.062), 0.08);         // shoulder line
   d = smin(d, sdEll(x, y, z, 0.0, T + 0.13, 0.0, 0.215, 0.11, 0.115), 0.05);                          // chest
-  d = smin(d, sdEll(x, y, z, 0.0, T + 0.155, 0.055, 0.15, 0.06, 0.07), 0.04);                         // breastplate fold
   d = smin(d, sdCyl(x, y, z, T + 0.03, 0.03, 0.1), 0.02);                                              // socle
   // pedestal: abacus, capital, shaft, plinth, floor
-  d = Math.min(d, sdBox(x, y, z, 0, T - 0.02, 0, 0.16, 0.02, 0.16, 0.004));
+  d = Math.min(d, sdCyl(x, y, z, T - 0.02, 0.022, 0.138));   // round turned top: no corners to tent the cloth
   d = Math.min(d, sdCyl(x, y, z, T - 0.06, 0.03, 0.145));
   d = Math.min(d, sdCyl(x, y, z, 0.5, 0.42, 0.1));
   d = Math.min(d, sdBox(x, y, z, 0, 0.06, 0, 0.18, 0.06, 0.18));
