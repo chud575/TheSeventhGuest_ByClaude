@@ -400,6 +400,11 @@ export default {
     harp.position.set(2.65, 0, -3.2); harp.rotation.y = -0.75;
     harp.userData.dynamic = true;
     add(harp);
+    // the right-wall sconce's warm spill finding the gilt of the harp (no shadows: cheap)
+    const harpKey = new THREE.SpotLight(0xffb070, 3.2, 6, 0.42, 0.85, 2);
+    harpKey.position.set(3.55, 2.3, -1.7);
+    harpKey.target.position.set(2.6, 1.0, -3.2);
+    add(harpKey); add(harpKey.target);
     const chair = buildChair(ctx, { wood: mahogany, velvet: seatVelvet });
     chair.position.set(2.55, 0, -1.45); chair.rotation.y = -1.9;
     add(chair);
@@ -427,7 +432,9 @@ export default {
     const portrait = new THREE.Group();
     {
       const pw = 0.95, ph = 1.25;
-      portrait.add(new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshPhysicalMaterial({ map: portraitTexture(ctx.textures), roughness: 0.55, clearcoat: 0.7, clearcoatRoughness: 0.22 })));
+      let ptex;
+      try { ptex = await new THREE.TextureLoader().loadAsync(ctx.assetUrl('portrait.jpg')); ptex.colorSpace = THREE.SRGBColorSpace; ptex.anisotropy = 8; } catch (e) { ptex = portraitTexture(ctx.textures); }
+      portrait.add(new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshPhysicalMaterial({ map: ptex, roughness: 0.55, clearcoat: 0.7, clearcoatRoughness: 0.22 })));
       portrait.add(new THREE.Mesh(G.frameGeometry(pw, ph, { width: 0.13, depth: 0.07, uvScale: 1 }), giltFrame));
       portrait.position.set(X0 + 0.04, 2.45, FIRE.z); portrait.rotation.y = Math.PI / 2;
       portrait.userData.dynamic = true;
@@ -522,7 +529,7 @@ export default {
     add(gasLight);
 
     // ================================================================ moonlight
-    const moon = new THREE.SpotLight(0xbcc8ec, 1100, 26, 0.42, 0.18, 2);
+    const moon = new THREE.SpotLight(0xbcc8ec, 650, 26, 0.42, 0.18, 2);
     // high and almost straight behind the bay, so each window lays its own pane pattern
     // into the room: the centre one across the rug in front of the piano
     moon.position.set(5.0, 6.5, Z0 - 7.5);

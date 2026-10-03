@@ -33,6 +33,7 @@ function rcone(px, py, pz, a, b, r1, r2) { // round cone between a (r1) and b (r
 }
 const sph = (px, py, pz, c, r) => len3(px - c[0], py - c[1], pz - c[2]) - r;
 
+export { ell, rcone, sph, smin, smax };
 export const HEAD = [0, 1.31, 0.43];
 export const SHOULDER = { L: [-0.205, 1.045, 0.5], R: [0.205, 1.045, 0.5] };
 
@@ -42,14 +43,14 @@ function panel(x, y, z, a, b, r1, r2, squash) {
   const zc = (a[2] + b[2]) / 2;
   return rcone(x, y, zc + (z - zc) * squash, a, b, r1, r2) / Math.sqrt(squash);
 }
-function body(x, y, z) {
+export function body(x, y, z) {
   let d = ell(x, y, z, [0, 0.63, 0.6], [0.175, 0.1, 0.15]);                        // pelvis / seat
   d = smin(d, rcone(x, y, z, [0, 0.66, 0.6], [0, 0.95, 0.51], 0.15, 0.17), 0.06);  // torso, leaning to the keys
   d = smin(d, ell(x, y, z, [0, 1.0, 0.5], [0.235, 0.075, 0.12]), 0.07);           // broad shoulders (padded coat)
   for (const s of [-1, 1]) d = smin(d, sph(x, y, z, [s * 0.2, 1.01, 0.5], 0.06), 0.06);
-  d = smin(d, rcone(x, y, z, [0, 1.03, 0.49], [0, 1.2, 0.45], 0.056, 0.046), 0.03); // neck
+  d = smin(d, rcone(x, y, z, [0, 1.03, 0.49], [0, 1.22, 0.45], 0.05, 0.042), 0.03); // neck
   // high stand collar with points, white stock and a full cravat bow
-  d = smin(d, rcone(x, y, z, [0, 1.05, 0.48], [0, 1.15, 0.455], 0.07, 0.064), 0.012);
+  d = smin(d, rcone(x, y, z, [0, 1.06, 0.48], [0, 1.12, 0.465], 0.06, 0.056), 0.012);
   d = smin(d, ell(x, y, z, [0, 1.06, 0.405], [0.05, 0.05, 0.03]), 0.015);
   for (const s of [-1, 1]) d = smin(d, ell(x, y, z, [s * 0.035, 1.075, 0.4], [0.035, 0.02, 0.016]), 0.01);
   // rolled coat collar standing behind the neck
@@ -83,32 +84,32 @@ function body(x, y, z) {
 }
 
 // value regions (0 = dark cloth, 1 = linen / skin): lets the coat, shirt and cravat read apart
-function bodyTint(x, y, z) {
+export function bodyTint(x, y, z) {
   let d = ell(x, y, z, [0, 1.06, 0.405], [0.06, 0.06, 0.04]);
   for (const s of [-1, 1]) d = Math.min(d, ell(x, y, z, [s * 0.035, 1.075, 0.4], [0.045, 0.03, 0.03]));
   d = Math.min(d, ell(x, y, z, [0, 0.93, 0.425], [0.05, 0.11, 0.035]));
-  d = Math.min(d, rcone(x, y, z, [0, 1.05, 0.48], [0, 1.16, 0.455], 0.075, 0.07));
+  d = Math.min(d, rcone(x, y, z, [0, 1.06, 0.48], [0, 1.13, 0.465], 0.065, 0.06));
   return d < 0.004 ? 1 : 0;
 }
-function headTint(x, y, z) {
+export function headTint(x, y, z) {
   // hair darker than the face
   const face = z < -0.055 + Math.max(0, y - 0.06) * 0.3 - Math.max(0, 0.06 - y) * 0.5 && y > -0.12;
   return face ? 1 : 0.35;
 }
 
 // ------------------------------------------------------------------ head (relative to HEAD), faces -Z
-function head(x, y, z) {
+export function head(x, y, z) {
   let d = ell(x, y, z, [0, 0.02, 0.01], [0.074, 0.097, 0.092]);                   // cranium
   d = smin(d, ell(x, y, z, [0, -0.05, -0.02], [0.058, 0.052, 0.072]), 0.03);      // jaw
   d = smin(d, ell(x, y, z, [0, -0.09, -0.052], [0.027, 0.023, 0.026]), 0.02);     // chin
-  d = smin(d, ell(x, y, z, [0, 0.036, -0.074], [0.066, 0.019, 0.028]), 0.014);    // heavy brow ridge
-  d = smin(d, ell(x, y, z, [0, 0.05, -0.083], [0.012, 0.012, 0.01]), 0.01);       // frown knot between the brows
+  d = smin(d, ell(x, y, z, [0, 0.034, -0.07], [0.06, 0.014, 0.024]), 0.014);      // brow ridge
+  d = smin(d, ell(x, y, z, [0, 0.046, -0.08], [0.01, 0.01, 0.008]), 0.01);        // frown knot between the brows
   for (const s of [-1, 1]) {
-    d = smin(d, ell(x, y, z, [s * 0.049, -0.012, -0.061], [0.022, 0.015, 0.022]), 0.014); // high cheekbones
-    d = smax(d, -sph(x, y, z, [s * 0.031, 0.012, -0.095], 0.022), 0.009);                 // deep sockets
-    d = smin(d, sph(x, y, z, [s * 0.031, 0.011, -0.081], 0.0135), 0.004);                 // eyes
-    d = smin(d, ell(x, y, z, [s * 0.031, 0.022, -0.088], [0.016, 0.004, 0.006]), 0.004);  // heavy lids
-    d = smax(d, -ell(x, y, z, [s * 0.052, -0.054, -0.07], [0.019, 0.026, 0.013]), 0.012); // hollow cheeks
+    d = smin(d, ell(x, y, z, [s * 0.044, -0.014, -0.056], [0.017, 0.011, 0.017]), 0.016); // high cheekbones
+    d = smax(d, -sph(x, y, z, [s * 0.03, 0.012, -0.092], 0.018), 0.01);                   // sockets
+    d = smin(d, sph(x, y, z, [s * 0.03, 0.011, -0.073], 0.012), 0.003);                   // eyes (set back)
+    d = smin(d, ell(x, y, z, [s * 0.03, 0.017, -0.081], [0.012, 0.005, 0.007]), 0.005);   // upper lids
+    d = smax(d, -ell(x, y, z, [s * 0.05, -0.05, -0.066], [0.016, 0.022, 0.01]), 0.012);   // hollow cheeks
     d = smax(d, -rcone(x, y, z, [s * 0.022, -0.04, -0.1], [s * 0.035, -0.07, -0.09], 0.004, 0.003), 0.004); // nasolabial folds
     d = smin(d, ell(x, y, z, [s * 0.078, 0.0, 0.006], [0.012, 0.031, 0.02]), 0.01);       // ears
   }
@@ -117,15 +118,14 @@ function head(x, y, z) {
   d = smin(d, sph(x, y, z, [0, 0.0, -0.104], 0.009), 0.006);
   for (const s of [-1, 1]) d = smin(d, sph(x, y, z, [s * 0.012, -0.034, -0.099], 0.009), 0.006);
   // mouth: thin lips pressed in a downturned line, and a drooping moustache
-  d = smin(d, ell(x, y, z, [0, -0.059, -0.089], [0.026, 0.01, 0.014]), 0.008);
+  d = smin(d, ell(x, y, z, [0, -0.059, -0.087], [0.021, 0.0065, 0.01]), 0.008);
   d = smax(d, -ell(x, y, z, [0, -0.061 - 0.004 * x * x * 400, -0.101], [0.025, 0.0025, 0.012]), 0.004);
-  for (const s of [-1, 1]) d = smin(d, rcone(x, y, z, [s * 0.004, -0.047, -0.104], [s * 0.03, -0.066, -0.093], 0.006, 0.003), 0.005);
   // hair: a long Lisztian mane swept back from the brow and falling to the collar,
   // full over the ears; medium-scale lumps break the silhouette into locks
   let hr = ell(x, y, z, [0, 0.03, 0.02], [0.082, 0.088, 0.097]);
   hr = smin(hr, ell(x, y, z, [0, -0.04, 0.055], [0.078, 0.085, 0.055]), 0.04);          // back of the head, to the collar
   for (const s of [-1, 1]) {
-    hr = smin(hr, ell(x, y, z, [s * 0.072, -0.025, 0.035], [0.03, 0.075, 0.06]), 0.03);  // over the ears
+    hr = smin(hr, ell(x, y, z, [s * 0.07, -0.015, 0.04], [0.026, 0.062, 0.055]), 0.03);  // over the ears
     hr = smin(hr, ell(x, y, z, [s * 0.066, -0.075, 0.05], [0.026, 0.045, 0.04]), 0.03);  // ends curling at the collar
   }
   const lump = Math.sin(x * 70 + Math.sin(z * 50) * 2) * Math.sin(y * 55 + z * 30) * Math.sin(z * 45 + x * 20);
@@ -133,6 +133,7 @@ function head(x, y, z) {
   hr = smax(hr, -(z + 0.06 - Math.max(0, y - 0.06) * 0.3 + Math.max(0, 0.06 - y) * 0.5), 0.012);                  // hairline: off the face and brow
   hr = smax(hr, -(y + 0.13), 0.02);                                                   // not below the collar
   for (const s of [-1, 1]) hr = smin(hr, ell(x, y, z, [s * 0.072, -0.045, -0.015], [0.011, 0.04, 0.018]), 0.012); // side-whiskers
+  head.skull = d; head.hair = hr;
   return smin(d, hr, 0.006);
 }
 
@@ -236,6 +237,9 @@ function surfaceNets(f, min, max, h, tf) {
 }
 
 // ------------------------------------------------------------------ build + write
+import { pathToFileURL } from 'node:url';
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+function main() {
 const parts = [
   { name: 'body', f: body, tint: bodyTint, min: [-0.3, 0.0, 0.2 - 0.1], max: [0.3, 1.24, 0.9], h: 0.0075 },
   { name: 'head', f: head, tint: headTint, min: [-0.12, -0.17, -0.14], max: [0.12, 0.15, 0.16], h: 0.0032 },
@@ -268,3 +272,5 @@ const lenBuf = Buffer.alloc(4); lenBuf.writeUInt32LE(hj.length, 0);
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, Buffer.concat([lenBuf, hj, ...chunks]));
 console.log('wrote', out, fs.statSync(out).size, 'bytes');
+
+}

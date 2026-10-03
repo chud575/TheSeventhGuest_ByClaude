@@ -136,7 +136,7 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
       [-0.42, 0.66, 0.07, 0.14], [-0.12, 0.64, 0.065, 0.12], [0.2, 0.58, 0.06, 0.1], [0.46, 0.5, 0.04, 0.07],
       [-0.42, 1.2, 0.08, 0.17], [-0.12, 1.1, 0.06, 0.13], [-0.45, 1.66, 0.06, 0.1],
     ];
-    for (const [x, y, rx, ry] of holes) {
+    for (const [x, y, rx, ry] of holes.slice(0, 0)) {   // (lightening holes read as blotches through the strings: omitted)
       const h = new THREE.Path();
       h.absellipse(x, y, rx, ry, 0, Math.PI * 2, true, 0);
       s.holes.push(h);
