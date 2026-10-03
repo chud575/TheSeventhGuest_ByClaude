@@ -321,10 +321,11 @@ export function buildBladeGrass({ material, regions, count = 6000, seed = 21, av
       const k = R();
       const s = k < 0.45 ? 0.18 + R() * 0.12 : k < 0.8 ? 0.32 + R() * 0.15 : k < 0.97 ? 0.5 + R() * 0.2 : 0.75 + R() * 0.25;
       const ti = Math.floor(R() * templates.length);
+      const sc = r.scale ?? 1;
       lists[ti].push(new THREE.Matrix4().compose(
         new THREE.Vector3(x, y - 0.02, z),
         new THREE.Quaternion().setFromEuler(new THREE.Euler((R() - 0.5) * 0.2, R() * Math.PI * 2, (R() - 0.5) * 0.2)),
-        new THREE.Vector3(s * (0.8 + R() * 0.5), s * (0.85 + dens * 0.5), s * (0.8 + R() * 0.5)),
+        new THREE.Vector3(s * (0.8 + R() * 0.5), s * (0.85 + dens * 0.5) * sc, s * (0.8 + R() * 0.5)),
       ));
       // olive-grey dead straw, some greener, some bleached
       const v = (0.55 + R() * 0.55) * 0.55;

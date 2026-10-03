@@ -193,12 +193,14 @@ export function glassMaterial(map) {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <color_fragment>', '')
       .replace('#include <alphamap_fragment>', '#ifdef USE_ALPHAMAP\n diffuseColor.a *= texture2D( alphaMap, vAlphaMapUv ).a;\n#endif')
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+  reflectedLight.directSpecular *= 0.04;   // no hot glints from the fill: glass reads by its env reflection`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
 #if defined( USE_INSTANCING_COLOR ) || defined( USE_COLOR )
   totalEmissiveRadiance *= vColor.rgb;
 #endif`);
   };
-  m.customProgramCacheKey = () => 'ext-glass';
+  m.customProgramCacheKey = () => 'ext-glass2';
   return m;
 }
 

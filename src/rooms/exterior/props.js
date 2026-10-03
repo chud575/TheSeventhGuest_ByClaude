@@ -5,7 +5,7 @@ import { instanced } from './lib.js';
 import { gnarledTree } from './trees.js';
 
 /** The Stauf family plot: leaning headstones, a Celtic cross, an obelisk, a broken column. */
-export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13 } = {}) {
+export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13, facing = -0.45 } = {}) {
   const G = ctx.geometry;
   const B = new Bucket();
   const R = rng(seed);
@@ -16,23 +16,60 @@ export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13 } = {}) 
   const shapeGothic = (w, h) => { const s = new THREE.Shape(); s.moveTo(-w / 2, 0); s.lineTo(w / 2, 0); s.lineTo(w / 2, h * 0.7); s.quadraticCurveTo(w / 2, h * 0.92, 0, h); s.quadraticCurveTo(-w / 2, h * 0.92, -w / 2, h * 0.7); s.lineTo(-w / 2, 0); return s; };
   const shapeShoulder = (w, h) => { const s = new THREE.Shape(); s.moveTo(-w / 2, 0); s.lineTo(w / 2, 0); s.lineTo(w / 2, h * 0.82); s.lineTo(w * 0.32, h * 0.82); s.absarc(0, h * 0.82, w * 0.32, 0, Math.PI, false); s.lineTo(-w / 2, h * 0.82); s.lineTo(-w / 2, 0); return s; };
   const shapeCross = (w, h) => { const s = new THREE.Shape(); const a = w * 0.18; s.moveTo(-a, 0); s.lineTo(a, 0); s.lineTo(a, h * 0.62); s.lineTo(w / 2, h * 0.62); s.lineTo(w / 2, h * 0.78); s.lineTo(a, h * 0.78); s.lineTo(a, h); s.lineTo(-a, h); s.lineTo(-a, h * 0.78); s.lineTo(-w / 2, h * 0.78); s.lineTo(-w / 2, h * 0.62); s.lineTo(-a, h * 0.62); s.lineTo(-a, 0); return s; };
-  const shapes = [shapeRound, shapeGothic, shapeShoulder, shapeRound, shapeCross, shapeShoulder];
+  const shapes = [shapeRound, shapeGothic, shapeShoulder, shapeRound, null, shapeShoulder];
+  const epiTex = epitaphTexture(ctx);
+  const epiMat = new THREE.MeshStandardMaterial({ color: 0x9a9a98, map: epiTex, alphaMap: epiTex, alphaTest: 0.35, transparent: false, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, name: 'epitaph' });
+  epiMat.userData.groundShade = false;
+  const epiGeo = [];
   const spots = [[-2.6, -1.5], [-1.0, -1.8], [0.6, -1.4], [2.1, -1.9], [-2.0, 0.6], [-0.3, 0.9], [1.4, 0.5], [3.0, 0.8], [-1.2, 2.9], [0.9, 3.1], [2.6, 2.7]];
   spots.forEach(([dx, dz], i) => {
     const x = cx + dx + (R() - 0.5) * 0.3, z = cz + dz + (R() - 0.5) * 0.3;
     const y = height(x, z);
     const w = 0.55 + R() * 0.25, h = 0.8 + R() * 0.55, d = 0.12 + R() * 0.06;
-    const sh = shapes[i % shapes.length](w, h);
-    const g = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.015, bevelSegments: 2, curveSegments: 14 });
-    g.translate(0, 0, -d / 2);
-    const m = mat4(x, y - 0.12, z, (R() - 0.5) * 0.25, 0.25 + (R() - 0.5) * 0.4, (R() - 0.5) * 0.22);
-    B.add(g, i % 3 === 0 ? M.graveDark : M.grave, m, { uvScale: 1.2 });
-    // grave mound
+    const ry = facing + (R() - 0.5) * 0.45;
+    const tiltX = (R() - 0.5) * 0.28 + (i % 4 === 1 ? 0.16 : 0), tiltZ = (R() - 0.5) * 0.24;
+    const sink = 0.1 + R() * 0.12;
+    const m = mat4(x, y - sink, z, tiltX, ry, tiltZ);
+    const mat = i % 3 === 0 ? M.graveDark : M.grave;
+    if (shapes[i % shapes.length]) {
+      const sh = shapes[i % shapes.length](w, h);
+      const g = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 3, curveSegments: 18 });
+      g.translate(0, 0, -d / 2);
+      B.add(g, mat, m, { uvScale: 1 });
+      // incised border line + epitaph panel (decal with carved letters)
+      const eg = new THREE.PlaneGeometry(w * 0.78, Math.min(h * 0.55, w * 0.78 * 1.1));
+      const cell = i % 16, cu = (cell % 4) / 4, cv = 1 - (Math.floor(cell / 4) + 1) / 4;
+      const uv = eg.attributes.uv;
+      for (let k = 0; k < uv.count; k++) uv.setXY(k, cu + uv.getX(k) / 4, cv + uv.getY(k) / 4);
+      eg.applyMatrix4(m.clone().multiply(mat4(0, h * 0.52 - 0.05, d / 2 + 0.021)));
+      epiGeo.push(eg);
+    } else {
+      // Celtic wheel cross: bevelled shaft and arms, ring, stepped base
+      const a = 0.09, ch = h + 0.35;
+      const cross = new THREE.Shape();
+      cross.moveTo(-a, 0); cross.lineTo(a, 0); cross.lineTo(a, ch * 0.62); cross.lineTo(w * 0.5, ch * 0.62); cross.lineTo(w * 0.5, ch * 0.78);
+      cross.lineTo(a, ch * 0.78); cross.lineTo(a, ch); cross.lineTo(-a, ch); cross.lineTo(-a, ch * 0.78); cross.lineTo(-w * 0.5, ch * 0.78); cross.lineTo(-w * 0.5, ch * 0.62); cross.lineTo(-a, ch * 0.62); cross.lineTo(-a, 0);
+      const cg = new THREE.ExtrudeGeometry(cross, { depth: 0.12, bevelEnabled: true, bevelThickness: 0.025, bevelSize: 0.022, bevelSegments: 3 });
+      cg.translate(0, 0.3, -0.06);
+      B.add(cg, mat, m, { uvScale: 1 });
+      const ring = new THREE.TorusGeometry(w * 0.3, 0.035, 8, 32);
+      ring.scale(1, 1, 1.6);
+      B.add(ring, mat, m.clone().multiply(mat4(0, 0.3 + ch * 0.7, 0)), { uvScale: 1 });
+      B.add(ctx.geometry.latheFromProfile([[0.0, 0], [0.5, 0], [0.5, 0.14], [0.44, 0.17], [0.38, 0.22], [0.38, 0.3], [0.0, 0.3]].map(([r2, yy]) => [r2, yy]), 4), mat, m.clone().multiply(mat4(0, 0, 0, 0, Math.PI / 4, 0, 0.72, 1, 0.5)), { uv: 'box', uvScale: 1 });
+    }
+    // grave mound (behind the stone) + a seating hump of turf around the base
     const mound = new THREE.SphereGeometry(1, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2);
     { const p = mound.attributes.position; for (let k = 0; k < p.count; k++) { const px = p.getX(k), py = p.getY(k), pz = p.getZ(k); const n = 1 + 0.12 * Math.sin(px * 9 + i) * Math.sin(pz * 7 + i * 2) + 0.06 * Math.sin(px * 23 + pz * 19); p.setXYZ(k, px * n, py * n, pz * n); } mound.computeVertexNormals(); }
-    B.add(mound, M.mound, mat4(x + Math.sin(0.25) * 0.9, y - 0.1, z + Math.cos(0.25) * 0.9, 0, 0.25 + (R() - 0.5) * 0.2, 0, 0.42, 0.2 + R() * 0.08, 0.9), { uvScale: 0.5 });
+    B.add(mound, M.mound, mat4(x - Math.sin(ry) * 0.95, y - 0.1, z - Math.cos(ry) * 0.95, 0, ry, 0, 0.45, 0.18 + R() * 0.1, 0.95), { uvScale: 0.5 });
+    B.add(mound, M.mound, mat4(x, y - 0.06, z, 0, ry, 0, w * 0.75, 0.12, 0.3), { uvScale: 0.5 });
     stones.push(new THREE.Vector3(x, y + h / 2, z));
   });
+  if (epiGeo.length) {
+    const eg = ctx.geometry.mergeGeometries(epiGeo.map((g) => { const q = g.index ? g.toNonIndexed() : g; for (const k of Object.keys(q.attributes)) if (!['position', 'normal', 'uv'].includes(k)) q.deleteAttribute(k); return q; }));
+    const em = new THREE.Mesh(eg, epiMat);
+    em.name = 'epitaphs'; em.receiveShadow = true;
+    group.add(em);
+  }
   // obelisk
   {
     const x = cx + 4.4, z = cz - 0.2, y = height(x, z);
@@ -69,7 +106,7 @@ export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13 } = {}) 
     glass.position.y = 0.11; glass.scale.setScalar(1); votive.add(glass);
     const fl = ctx.fx.flame({ height: 0.04, width: 0.012, intensity: 8, seed: 3 });
     fl.position.y = 0.05; votive.add(fl);
-    const pl = new THREE.PointLight(0xff9a48, 2.2, 7, 2);
+    const pl = new THREE.PointLight(0xffb070, 0.9, 5, 2);
     pl.position.y = 0.16; votive.add(pl);
     votive.userData.light = pl;
   }
@@ -214,4 +251,37 @@ export function buildBrokenUrn(ctx, M, { x, z, ry = 0 }) {
   group.name = 'brokenUrn';
   B.build(group, { name: 'urn' });
   return group;
+}
+
+/** Atlas (4x4) of carved epitaphs: dark incised letters (alpha) for the headstone faces. */
+export function epitaphTexture(ctx) {
+  const E = [
+    ['HERE LIES', 'ELIAS', 'STAUF', '1801 - 1866'], ['IN MEMORY OF', 'MARTHA', 'BEloved WIFE', '1809 - 1871'], ['ASLEEP', 'IN THE LORD', '', '1842'],
+    ['THOMAS', 'AGED 7 YRS', 'SUFFER THE', 'LITTLE ONES'], ['', '', '', ''], ['R.I.P.', '', 'NOV. 1871', ''], ['GONE', 'BUT NOT', 'FORGOTTEN', ''],
+    ['ADELAIDE', 'STAUF', '1838 - 1874', 'SHE WAITS'], ['HIS WILL', 'BE DONE', '', '1879'], ['UNKNOWN', '', '', ''], ['WHO WILL', 'BE THE', 'SEVENTH?', ''],
+    ['HERE LIES', 'ONE WHO', 'KNOCKED', ''], ['', '', '', ''], ['', '', '', ''], ['', '', '', ''], ['', '', '', ''],
+  ];
+  return ctx.textures.canvas('ext:epitaphs2', 1024, 1024, (g, w, h) => {
+    g.clearRect(0, 0, w, h);
+    const cw = w / 4, chh = h / 4;
+    E.forEach((lines, i) => {
+      const x0 = (i % 4) * cw, y0 = Math.floor(i / 4) * chh;
+      g.save();
+      g.translate(x0, y0);
+      // incised border
+      g.strokeStyle = 'rgba(0,0,0,0.9)'; g.lineWidth = 3;
+      g.strokeRect(14, 14, cw - 28, chh - 28);
+      g.fillStyle = 'rgba(0,0,0,1)';
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      lines.forEach((t, k) => {
+        if (!t) return;
+        const big = k === 1 || (k === 2 && lines[0] === 'HERE LIES');
+        g.font = `${big ? 'bold 34' : 'bold 24'}px Cinzel, "Times New Roman", serif`;
+        g.fillText(t.toUpperCase(), cw / 2, 52 + k * 46);
+      });
+      // a little cross / urn glyph at the bottom
+      if (lines.some(Boolean)) { g.fillRect(cw / 2 - 2, chh - 50, 4, 26); g.fillRect(cw / 2 - 10, chh - 44, 20, 4); }
+      g.restore();
+    });
+  }, { tile: false });
 }

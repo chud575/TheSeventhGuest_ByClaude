@@ -191,10 +191,10 @@ export function buildMansion(ctx, M) {
     win.add({ x: x + Math.sin(ry) * 0.11, y: yb + 0.35, z: z + Math.cos(ry) * 0.11, ry, w, h, type: 'round', lit, panes: 2 });
   };
   const dz = MB.z1 + ov - 0.1 - 0.45;
-  dormer(-7.0, dz, 0, 0); dormer(-4.4, dz, 0, 0.0); dormer(4.4, dz, 0, 0.75);
+  dormer(-7.0, dz, 0, 0); dormer(-4.4, dz, 0, 0.0); dormer(3.6, dz, 0, 0.75);
   const dxL = MB.x0 - ov + 0.1 + 0.45, dxR = MB.x1 + ov - 0.1 - 0.45;
   dormer(dxL, -3.6, -Math.PI / 2); dormer(dxL, 0, -Math.PI / 2); dormer(dxL, 3.2, -Math.PI / 2, 0.4);
-  dormer(dxR, -3.6, Math.PI / 2, 0); dormer(dxR, 0, Math.PI / 2);
+  dormer(dxR, 0.4, Math.PI / 2);
   dormer(-3.2, MB.z0 - ov + 0.55, Math.PI); dormer(3.2, MB.z0 - ov + 0.55, Math.PI);
 
   // ------------------------------------------------------------------ tower
@@ -471,20 +471,85 @@ export function buildMansion(ctx, M) {
     for (const s of [-1, 1]) brackets.push(mat4(p.x + s * 0.12, PORCH.roof - 0.42, p.z, 0, s * Math.PI / 2, 0, 0.9, 0.9, 1.6));
   }
 
-  // ------------------------------------------------------------------ chimneys
-  const chimney = (x, z, y0, y1, w = 1.1, d = 0.75) => {
-    wallBox(x - w / 2, x + w / 2, y0, y1, z - d / 2, z + d / 2, M.brick, 1.2);
-    // corbelled cap
+  // ------------------------------------------------------------------ chimneys: clustered flues on corbelled bases
+  const chimney = (x, z, y0, y1, w = 1.1, d = 0.75, flues = 1) => {
+    const baseTop = flues > 1 ? y1 - 1.6 : y1;
+    wallBox(x - w / 2, x + w / 2, y0, baseTop, z - d / 2, z + d / 2, M.brick, 1.2);
+    if (flues > 1) {
+      // string course, then separate square flues, each with its own corbelled cap and pot
+      B.add(new THREE.BoxGeometry(w + 0.16, 0.14, d + 0.16), M.ashlar, mat4(x, baseTop + 0.07, z), { uvScale: 1 });
+      const fw = Math.min(0.42, (w - 0.08 * (flues - 1)) / flues);
+      for (let f = 0; f < flues; f++) {
+        const fx = x - w / 2 + fw / 2 + f * (w - fw) / Math.max(1, flues - 1);
+        const ft = y1 + (f % 2 ? 0.25 : 0) + (f === 1 ? 0.15 : 0);
+        // slight twist/inset: alternate flues are set diagonally (Queen Anne)
+        const diag = f % 2 === 1;
+        B.add(new THREE.BoxGeometry(fw, ft - baseTop - 0.14, fw), M.brick, mat4(fx, (baseTop + 0.14 + ft) / 2, z, 0, diag ? Math.PI / 4 : 0, 0), { uvScale: 1.2 });
+        for (const [dy, g] of [[0, 0.04], [0.12, 0.08], [0.24, 0.11]]) B.add(new THREE.BoxGeometry(fw + g * 2, 0.12, fw + g * 2), M.brick, mat4(fx, ft + dy + 0.06, z, 0, diag ? Math.PI / 4 : 0, 0), { uvScale: 1.2 });
+        B.add(G.latheFromProfile([[0.0, 0], [0.13, 0], [0.11, 0.14], [0.09, 0.42], [0.12, 0.5], [0.11, 0.55], [0.08, 0.55], [0.07, 0.2], [0.0, 0.2]], 12), M.terracotta, mat4(fx, ft + 0.36, z), { uv: 'keep' });
+      }
+      return;
+    }
     for (const [dy, g] of [[0, 0.08], [0.18, 0.14], [0.36, 0.2], [0.6, 0.1]]) {
       B.add(new THREE.BoxGeometry(w + g * 2, 0.18, d + g * 2), M.brick, mat4(x, y1 + dy + 0.09, z), { uvScale: 1.2 });
     }
     B.add(new THREE.BoxGeometry(w + 0.34, 0.08, d + 0.34), M.ashlar, mat4(x, y1 + 0.84, z), { uvScale: 1 });
-    for (const s of [-1, 1]) B.add(G.latheFromProfile([[0.0, 0], [0.15, 0], [0.13, 0.15], [0.11, 0.45], [0.14, 0.55], [0.13, 0.6], [0.1, 0.6], [0.09, 0.2], [0.0, 0.2]], 14), M.terracotta, mat4(x + s * w * 0.25, y1 + 0.88, z), { uv: 'keep' });
+    for (const s2 of [-1, 1]) B.add(G.latheFromProfile([[0.0, 0], [0.15, 0], [0.13, 0.15], [0.11, 0.45], [0.14, 0.55], [0.13, 0.6], [0.1, 0.6], [0.09, 0.2], [0.0, 0.2]], 14), M.terracotta, mat4(x + s2 * w * 0.25, y1 + 0.88, z), { uv: 'keep' });
   };
-  chimney(-5.4, -2.2, TOP + 3, 16.0);
-  chimney(5.6, -3.0, TOP + 3, 16.3);
-  chimney(MB.x0 - 0.45, -2.8, 0, 15.2, 1.0, 1.3);
+  chimney(-5.4, -2.2, TOP + 3, 17.2, 1.5, 0.75, 3);
+  chimney(5.6, -3.0, TOP + 3, 17.6, 1.5, 0.75, 3);
+  chimney(MB.x0 - 0.45, -2.8, 0, 16.4, 1.0, 1.3, 2);
   chimney(1.2, -5.4, TOP + 3, 15.6, 0.9, 0.7);
+  chimney(MB.x1 - 1.2, 2.6, TOP + 3, 16.2, 1.1, 0.7, 2);
+
+  // ------------------------------------------------------------------ widow's walk on the main roof
+  {
+    const yb = mtop.y + 0.12 + 0.9;
+    const x0 = mtop.x0 + 2.2, x1 = mtop.x1 - 2.2, z0 = mtop.z0 + 2.2, z1 = mtop.z1 - 2.2;
+    B.add(new THREE.BoxGeometry(x1 - x0 + 0.2, 0.12, z1 - z0 + 0.2), M.trim, mat4((x0 + x1) / 2, yb + 0.06, (z0 + z1) / 2), { uvScale: 1 });
+    crestRail(x0, x1, z0, z1, yb + 0.12, 0.24);
+    // corner posts with urn finials
+    for (const [px, pz] of [[x0, z0], [x1, z0], [x1, z1], [x0, z1]]) {
+      B.add(new THREE.BoxGeometry(0.08, 0.9, 0.08), M.iron, mat4(px, yb + 0.55, pz), { uv: 'keep' });
+      B.add(G.latheFromProfile([[0.0, 0], [0.07, 0], [0.09, 0.08], [0.05, 0.16], [0.03, 0.3], [0.0, 0.36]], 10), M.iron, mat4(px, yb + 1.0, pz), { uv: 'keep' });
+    }
+  }
+
+  // ------------------------------------------------------------------ Queen Anne gables on the right wing
+  const gable = (x, z, ry, w = 2.6, h = 2.1, depth = 2.2, yb = TOP + 0.5) => {
+    const base = mat4(x, yb, z, 0, ry, 0);
+    const put = (g, mat, m, opts = { uvScale: 1 }) => B.add(g, mat, base.clone().multiply(m), opts);
+    // pediment wall (front triangle + body)
+    const tri = new THREE.Shape();
+    tri.moveTo(-w / 2, 0); tri.lineTo(w / 2, 0); tri.lineTo(w / 2, 0.9); tri.lineTo(0, 0.9 + h); tri.lineTo(-w / 2, 0.9); tri.lineTo(-w / 2, 0);
+    const tg = new THREE.ExtrudeGeometry(tri, { depth, bevelEnabled: false });
+    tg.translate(0, 0, -depth);
+    put(tg, M.siding, mat4(0, 0, 0), { uvScale: 0.5 });
+    // fish-scale shingle field in the gable (slate texture) slightly proud
+    const tri2 = new THREE.Shape();
+    tri2.moveTo(-w / 2 + 0.15, 1.05); tri2.lineTo(w / 2 - 0.15, 1.05); tri2.lineTo(0, 0.9 + h - 0.2); tri2.lineTo(-w / 2 + 0.15, 1.05);
+    put(new THREE.ShapeGeometry(tri2), M.slateDark, mat4(0, 0, 0.02), { uvScale: 0.66 });
+    // roof slopes
+    const slope = Math.atan2(h, w / 2);
+    const sl = Math.hypot(h, w / 2) + 0.35;
+    for (const sgn of [-1, 1]) {
+      put(new THREE.BoxGeometry(sl, 0.1, depth + 0.5), M.slate, mat4(sgn * (w / 4 + 0.08), 0.9 + h / 2 + 0.12, -depth / 2 + 0.2, 0, 0, -sgn * slope), { uvScale: 0.66 });
+      // carved bargeboard following the rake
+      put(new THREE.BoxGeometry(sl - 0.1, 0.28, 0.06), M.trim, mat4(sgn * (w / 4 + 0.04), 0.9 + h / 2 - 0.06, 0.42, 0, 0, -sgn * slope), { uvScale: 1 });
+    }
+    // collar truss + king post + finial spike at the apex
+    put(new THREE.BoxGeometry(w * 0.7, 0.1, 0.1), M.trim, mat4(0, 0.9 + h * 0.35, 0.4), { uvScale: 1 });
+    put(new THREE.BoxGeometry(0.1, h * 0.65, 0.1), M.trim, mat4(0, 0.9 + h * 0.67, 0.4), { uvScale: 1 });
+    put(G.latheFromProfile([[0.0, 0], [0.06, 0], [0.08, 0.1], [0.04, 0.2], [0.07, 0.3], [0.02, 0.45], [0.01, 1.0], [0.0, 1.05]], 8), M.iron, mat4(0, 0.9 + h + 0.15, 0.42), { uv: 'keep' });
+    // pendant drop
+    put(G.latheFromProfile([[0.0, 0], [0.05, 0.02], [0.07, -0.12], [0.03, -0.28], [0.0, -0.36]], 8), M.trim, mat4(0, 0.9 + h * 0.98, 0.42), { uv: 'keep' });
+    // window: paired lancet in the gable
+    const wm = base.clone().multiply(mat4(0, 0, 0.02));
+    const wp = new THREE.Vector3().setFromMatrixPosition(wm);
+    win.add({ x: wp.x, y: yb + 0.35, z: wp.z, ry, w: 0.9, h: 1.55, type: 'round', lit: 0, panes: 2 });
+  };
+  gable(6.2, MB.z1 + ov - 0.1 - 0.2, 0, 2.4, 1.9, 2.0);
+  gable(MB.x1 + ov - 0.3, -3.2, Math.PI / 2, 2.6, 2.0, 2.0);
 
   // ------------------------------------------------------------------ instanced ironwork + brackets
   const crestGeo = (() => {
