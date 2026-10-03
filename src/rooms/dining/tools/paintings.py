@@ -63,7 +63,7 @@ def col(*c):
 
 
 def lerp(a, b, t):
-    if np.ndim(t) == 2 and np.ndim(a) == 3 or (np.ndim(t) == 2 and np.ndim(b) == 3):
+    if np.ndim(t) == 2 and (np.ndim(a) in (1, 3) or np.ndim(b) in (1, 3)):
         t = t[..., None]
     return a + (b - a) * t
 
@@ -171,7 +171,7 @@ def age_canvas(img, seed, crack_cell=70, varnish=1.0, grime=1.0, weave=1.0, smea
     cw = canvas_weave(H, W) * weave
     cr = cracks(H, W, seed + 6, cell=crack_cell)
     img = img * (1 + 0.05 * cw)[..., None]
-    img = img * (1 - 0.22 * cr)[..., None]
+    img = img * (1 - 0.16 * cr)[..., None]
     # tiny lighter lips along crack edges (varnish catching light)
     lip = np.clip(blur(cr, 1.2) - cr, 0, 1)
     img = img + lip[..., None] * 0.03
@@ -205,6 +205,13 @@ def place_face(canvas, face_path, x, y, size, keep_ellipse, dark_thr=0.33, feath
     lum = blur(fu @ np.array([0.3, 0.59, 0.11], np.float32), 1.5)
     hair = 1 - ss(dark_thr - 0.08, dark_thr + 0.08, lum)
     a = np.maximum(ell, hair * (1 - ss(0.9, 1.0, np.hypot((xx - cx) / (rx * 1.6), (yy - cy) / (ry * 1.25)))))
+    # key out the source's own background (colour of its border)
+    src_border = np.concatenate([f[:5].reshape(-1, 3), f[:, :5].reshape(-1, 3), f[:, -5:].reshape(-1, 3)])
+    bgc = np.median(src_border, 0)
+    dist = np.linalg.norm(blur(fu, 2.0) - bgc[None, None, :], axis=-1)
+    core = 1 - ss(0.45, 0.68, np.hypot((xx - cx) / rx, (yy - cy) / ry))
+    if bgc @ np.array([0.3, 0.59, 0.11]) > 0.42:
+        a *= np.maximum(ss(0.07, 0.17, dist), core)
     # always fade at the source's border
     bx = np.minimum(xx, 256 - xx); by = np.minimum(yy, 256 - yy)
     a *= ss(0, 14, np.minimum(bx, by) * 1.0)
@@ -273,8 +280,10 @@ def lace(img, cx, y0, y1, w0, w1, seed, lit=1.0, scallop=18):
     inside = (np.abs(xx - cx) < hw) & (yy >= y0) & (yy <= y1 + 14)
     ang = (xx - cx) / np.maximum(hw, 1)
     sc = y1 + 9 * np.abs(np.sin((xx - cx) / (w1 * 2) * scallop * np.pi / 2))
+    top_frill = y0 - 5 * np.abs(np.sin((xx - cx) / 5.0))
+    inside = (np.abs(xx - cx) < hw + 3) & (yy >= top_frill) & (yy <= y1 + 14)
     m = inside & (yy < sc)
-    m = blur(m.astype(np.float32), 1.0)
+    m = blur(m.astype(np.float32), 1.2)
     # open-work: rows of little rings
     u = (xx - cx) / 7.5; v = (yy - y0) / 7.5
     ring = np.abs(np.hypot((u % 1) - 0.5, (v % 1) - 0.5) - 0.3)
@@ -345,25 +354,26 @@ def lady():
     img = lerp(img, hair_col, hair_ext * 0.95)
     # costume
     cx = fx - 6; neckY = fy + fsz * 0.86
-    cm = costume_mask(W, H, cx, neckY, 88, 430, 230, seed)
-    dress = silk(H, W, cm, cx - 40, neckY + 150, seed + 20, col(30, 28, 34), sheen=0.6)
+    cm = costume_mask(W, H, cx, neckY + 36, 64, 390, 230, seed, ctrl=[(0.0, 0.0), (0.2, 0.12), (0.48, 0.36), (0.74, 0.6), (0.92, 0.85), (1.0, 1.2), (1.03, 1.9), (1.06, 4.0)])
+    dress = silk(H, W, cm, cx - 60, neckY + 170, seed + 20, col(44, 40, 48), sheen=2.2)
     img = lerp(img, dress, cm)
     # face
     img, fa = place_face(img, os.path.join(HERE, 'src_faces/m4.png'), fx, fy, fsz, (124, 132, 74, 100), dark_thr=0.3, feather=7,
                          tone=lambda f: np.clip((f - 0.02) * np.array([1.0, 0.97, 0.95], np.float32), 0, 1) ** 1.08)
     # pale neck column bridging chin and collar
-    neck = np.exp(-(((xx - (fx - 4)) / 52) ** 4 + ((yy - (fy + fsz * 0.93)) / 46) ** 4))
-    neck_col = col(196, 168, 150) * (0.55 + 0.45 * np.clip(1 - (xx - fx + 40) / 110, 0, 1))[..., None]
-    img = lerp(img, neck_col, neck * (1 - fa) * 0.95)
+    neck = np.exp(-(((xx - (fx - 6)) / 58) ** 4 + ((yy - (fy + fsz * 0.9)) / 52) ** 4))
+    chin_sh = ss(fy + fsz * 0.83, fy + fsz * 0.93, yy)
+    neck_col = col(178, 146, 126) * ((0.35 + 0.65 * np.clip(1 - (xx - fx + 50) / 120, 0, 1)) * (0.45 + 0.55 * chin_sh))[..., None]
+    img = lerp(img, neck_col, neck * (1 - fa) * 0.97)
     # high lace collar, cameo, pearls
-    img = lace(img, fx - 4, neckY + 22, neckY + 72, 58, 74, seed)
-    img = pearls(img, fx - 4, neckY + 92, 120, 80, 21, 7.5, a0=0.25, a1=np.pi - 0.25)
-    img = cameo(img, fx - 4, neckY + 58, 20, 25)
+    img = lace(img, fx - 4, neckY + 2, neckY + 48, 52, 66, seed, lit=0.72)
+    img = pearls(img, fx - 4, neckY + 40, 125, 150, 19, 10, a0=0.35, a1=np.pi - 0.35, lit=0.85)
+    img = cameo(img, fx - 4, neckY + 30, 19, 24)
     # mourning ribbon at the throat shadow
     # warm final glaze: deepen the darks toward umber, lift the face light a touch
     lum = img @ np.array([0.3, 0.59, 0.11], np.float32)
     img = img * (0.92 + 0.12 * ss(0.15, 0.6, lum))[..., None]
-    img, bump = age_canvas(img, seed, crack_cell=64, varnish=1.0, grime=1.0, smear=6.5)
+    img, bump = age_canvas(img, seed, crack_cell=44, varnish=1.0, grime=1.0, smear=6.5)
     save('lady', img, bump)
 
 
@@ -376,16 +386,20 @@ def gent(name='gent', face='v1_2.png', W=768, H=988, seed=211, fsz=440, fx=None,
     dress = silk(H, W, cm, cx - 30, neckY + 120, seed + 20, col(32, 30, 30), sheen=0.25)
     img = lerp(img, dress, cm)
     if shirt:
-        # white collar points + dark cravat
+        # shirt front in the waistcoat opening, black stock wrapped high round the neck with a knot
         sh = Image.new('L', (W, H), 0); d = ImageDraw.Draw(sh)
-        d.polygon([(cx - 70, neckY - 10), (cx + 70, neckY - 10), (cx + 30, neckY + 140), (cx - 30, neckY + 140)], fill=255)
-        sm = blur(np.asarray(sh, np.float32) / 255, 4)
-        shade = np.clip(1.1 - (xx - cx + 60) / 160, 0.35, 1)[..., None] * (1 - 0.5 * ss(neckY, neckY + 150, yy))[..., None]
-        img = lerp(img, col(200, 192, 176) * shade, sm * 0.9)
-        cr = Image.new('L', (W, H), 0); d = ImageDraw.Draw(cr)
-        d.polygon([(cx - 34, neckY + 10), (cx + 34, neckY + 10), (cx + 12, neckY + 120), (cx - 12, neckY + 120)], fill=255)
-        crm = blur(np.asarray(cr, np.float32) / 255, 3)
-        img = lerp(img, col(20, 16, 16) * (0.7 + 0.5 * snoise(H, W, 6, 30, seed + 4))[..., None], crm)
+        d.polygon([(cx - 62, neckY - 6), (cx + 62, neckY - 6), (cx + 6, neckY + 190), (cx - 6, neckY + 190)], fill=255)
+        sm = blur(np.asarray(sh, np.float32) / 255, 3)
+        shade = np.clip(1.05 - (xx - cx + 50) / 150, 0.3, 1)[..., None] * (1 - 0.6 * ss(neckY, neckY + 200, yy))[..., None]
+        img = lerp(img, col(186, 178, 160) * shade, sm * 0.92)
+        st = Image.new('L', (W, H), 0); d = ImageDraw.Draw(st)
+        d.rectangle([cx - 66, neckY - 30, cx + 66, neckY + 34], fill=255)
+        d.ellipse([cx - 26, neckY + 14, cx + 26, neckY + 60], fill=255)
+        d.polygon([(cx - 22, neckY + 40), (cx - 40, neckY + 110), (cx - 8, neckY + 96)], fill=255)
+        d.polygon([(cx + 22, neckY + 40), (cx + 40, neckY + 110), (cx + 8, neckY + 96)], fill=255)
+        stm = blur(np.asarray(st, np.float32) / 255, 2.5)
+        silkn = (0.6 + 0.7 * snoise(H, W, 5, 26, seed + 4, angle=80))
+        img = lerp(img, col(22, 19, 19) * (silkn * np.clip(1.1 - (xx - cx + 40) / 140, 0.4, 1.1))[..., None], stm)
     img, fa = place_face(img, os.path.join(HERE, 'src_faces', face), fx, fy, fsz, keep, dark_thr=0.28, feather=7)
     img, bump = age_canvas(img, seed, crack_cell=56, varnish=1.1, grime=1.1, smear=5.5)
     save(name, img, bump)
@@ -417,23 +431,30 @@ def storm(W=2048, H=1280, seed=303, name='storm'):
     sky = lerp(sky, col(240, 236, 214) * 1.1, ss(0.034, 0.028, md))
     img = sky
     haze = col(70, 76, 78)
-    # mountain ranges back to front with aerial perspective
-    ranges = [(0.5, 0.26, 700, 0.75, 0.62), (0.58, 0.3, 420, 0.55, 0.42), (0.66, 0.24, 260, 0.35, 0.25)]
-    for i, (base, amp, cell, fog, lightness) in enumerate(ranges):
-        line = ridge_line(W, base, amp, cell, seed + 10 + i, sharp=1.6) * H
-        mask = ss(-1.5, 1.5, yy - line[None, :])
-        rock = noise(H, W, 60 / (i + 1), seed + 20 + i, 5)
-        strata = snoise(H, W, 30, 6, seed + 30 + i, angle=-20 + 10 * i)
-        # light from the moon side: slopes facing right lit
-        dline = np.gradient(line)[None, :]
-        facing = np.clip(0.5 - dline * 0.08, 0, 1)
-        snow = ss(0.55, 0.7, rock * 0.6 + facing * 0.4 + (1 - (yy - line[None, :]) / (H * 0.15)) * 0.3) * ss(H * 0.25, -H * 0.02, yy - line[None, :] - H * 0.06)
-        rc = col(40, 42, 44) * (0.5 + 0.8 * rock * facing + 0.2 * strata)[..., None]
-        rc = lerp(rc, col(150, 156, 160) * (0.6 + 0.6 * facing)[..., None], snow * 0.8)
-        # fog in valleys below each ridge
-        vf = ss(0, H * 0.18, yy - line[None, :]) * fog
-        rc = lerp(rc, haze * (0.8 + 0.4 * noise(H, W, 200, seed + 40 + i)[..., None]), np.clip(vf + fog * 0.35, 0, 1))
-        img = lerp(img, rc * lightness / 0.5, mask)
+    # mountains: seven receding layers (Friedrich-style), each shaded per column from the slope
+    # of its own ridge profile (faces toward the moon lit, others in shadow), gullies streaked
+    # vertically, snow on the far peaks, valley mist between layers.
+    haze = col(62, 66, 68)
+    layers = 7
+    for i in range(layers):
+        t = i / (layers - 1)
+        base = 0.4 + 0.3 * t; amp = 0.2 - 0.08 * t; cell = int(900 - 560 * t)
+        line = ridge_line(W, base, amp, cell, seed + 10 + i, sharp=1.5 + 0.3 * (1 - t)) * H
+        sl = np.gradient(blur(line[None, :].astype(np.float32), 3)[0])
+        litc = 1 / (1 + np.exp(-sl * 1.6))          # descending to the right -> faces the moon
+        depth = np.clip((yy - line[None, :]) / (H * (0.25 + 0.2 * t)), 0, 1)
+        gul = snoise(H, W, 6 + int(10 * t), 90, seed + 30 + i, angle=4)
+        gul2 = noise(H, W, 40, seed + 35 + i, 3)
+        lit = litc[None, :] * (1 - 0.6 * depth) * (0.85 + 0.25 * gul) * (0.8 + 0.4 * gul2)
+        far = 1 - t
+        rock = lerp(col(30, 31, 32), col(120, 122, 118), np.clip(lit * (0.55 + 0.5 * far), 0, 1))
+        snow = ss(0.35, 0.05, depth) * far * (0.6 + 0.4 * gul)
+        rock = lerp(rock, col(176, 178, 172) * (0.35 + 0.8 * lit)[..., None], np.clip(snow * 1.3, 0, 0.95))
+        fogk = 0.15 + 0.55 * far * 0.8 + 0.35 * ss(0.3, 1.0, depth)
+        rock = lerp(rock, haze * (0.85 + 0.3 * noise(H, W, 260, seed + 40 + i))[..., None], np.clip(fogk, 0, 0.85))
+        rock *= (0.38 + 0.62 * far)
+        mask = ss(-1.0, 1.0, yy - line[None, :])
+        img = lerp(img, rock, mask)
     # waterfall in the cleft (left-centre) with mist
     wf_x = 0.36
     wf = np.exp(-((u - wf_x - 0.01 * np.sin(v * 30)) / 0.008) ** 2) * ss(0.42, 0.48, v) * ss(0.8, 0.74, v)
@@ -477,7 +498,7 @@ def storm(W=2048, H=1280, seed=303, name='storm'):
     img = lerp(img, col(10, 12, 11) * (0.8 + 0.4 * noise(H, W, 10, seed + 91))[..., None], pm)
     # overall glaze
     img = img * np.array([0.98, 0.98, 0.96], np.float32)
-    img, bump = age_canvas(img, seed, crack_cell=80, varnish=1.0, grime=0.9, smear=9, kuw=3)
+    img, bump = age_canvas(img, seed, crack_cell=80, varnish=1.0, grime=0.9, smear=5, kuw=1)
     save(name, img, bump)
 
 

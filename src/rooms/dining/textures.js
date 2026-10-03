@@ -244,3 +244,255 @@ void surface(vec2 uv, inout Surface s) {
 }`,
   });
 }
+
+/** Diamond button-tufted velvet (seat cushions). UV in metres; one tile = 0.36 m. */
+export function tuftedTexture(forge) {
+  return forge.generate('dining:tufted', {
+    size: 1024, normalStrength: 2.2,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  // diamond lattice: 4 x 4 cells per tile, offset rows
+  vec2 g = uv * vec2(4.0, 4.0);
+  vec2 q = vec2(g.x + g.y, g.x - g.y) * 0.5;      // rotate 45deg
+  vec2 f = fract(q) - 0.5;
+  vec2 dc = abs(f);
+  float edge = max(dc.x, dc.y);                    // 0 centre -> 0.5 pleat line
+  float dome = cos(min(edge, 0.5) * PI);          // pillow
+  // buttons at the diamond corners
+  vec2 bc = fract(q + 0.5) - 0.5;
+  float bd = length(bc);
+  float button = smoothstep(0.075, 0.055, bd);
+  float dimple = smoothstep(0.22, 0.0, bd);
+  // radiating creases into each button
+  float ang = atan(bc.y, bc.x);
+  float crease = pow(abs(sin(ang * 4.0)), 18.0) * smoothstep(0.32, 0.06, bd) * 0.6;
+  float nap = fbm(uv * 30.0, vec2(30.0), 4);
+  float crush = fbm(uv * 3.0 + nap * 0.2, vec2(3.0), 4);
+  float h = dome * 0.55 - dimple * 0.35 - crease * 0.25 + button * 0.32 + nap * 0.02;
+  vec3 velvet = vec3(0.07, 0.15, 0.2) * (0.75 + 0.5 * dome) * (0.85 + 0.25 * crush);
+  velvet *= 1.0 - 0.35 * smoothstep(0.3, 0.5, edge);
+  vec3 btn = vec3(0.06, 0.12, 0.16) * (0.8 + 0.4 * smoothstep(0.07, 0.0, length(bc + vec2(0.02, -0.02))));
+  s.albedo = mix(velvet, btn, button);
+  s.height = h;
+  s.rough = mix(0.82, 0.55, button);
+  s.metal = 0.0;
+  s.ao = 1.0 - dimple * 0.45 - smoothstep(0.32, 0.5, edge) * 0.25;
+}`,
+  });
+}
+
+/** French-polished flame mahogany veneer (book-matched crotch figure). UV 0..1 across the top. */
+export function flameMahoganyTexture(forge) {
+  return forge.generate('dining:flamemahogany', {
+    size: 2048, tile: false, normalStrength: 0.15,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 p = uv - 0.5;
+  float bm = abs(p.x);                           // book-match mirror line
+  // crotch flame: chevrons rising from the centre line, warped
+  float w = fbm(vec2(bm * 2.0, p.y * 1.2) + 3.0, vec2(4.0), 5) * 0.12;
+  float flame = p.y * 6.0 - bm * bm * 9.0 + w * 6.0;
+  float rings = sin(flame * 9.0 + fbm(vec2(bm * 6.0, p.y * 3.0), vec2(8.0), 4) * 4.0);
+  float fine = fbm(vec2(bm * 60.0, flame * 4.0), vec2(64.0), 3);
+  // chatoyant ribbon (curl figure across the grain)
+  float curl = sin(bm * 140.0 + fbm(p * 8.0, vec2(8.0), 3) * 6.0) * 0.5 + 0.5;
+  vec3 dark = vec3(0.17, 0.05, 0.03), mid = vec3(0.36, 0.11, 0.06), lite = vec3(0.5, 0.2, 0.1);
+  vec3 c = mix(dark, mid, smoothstep(-0.8, 0.9, rings));
+  c = mix(c, lite, smoothstep(0.6, 1.0, rings) * 0.45);
+  c *= 0.86 + 0.18 * fine + 0.08 * curl;
+  // pores (very fine), darker crossband border banding
+  float r = length(p);
+  float band = smoothstep(0.455, 0.46, r) * (1.0 - smoothstep(0.49, 0.495, r));
+  float bandGrain = sin(atan(p.y, p.x) * 220.0 + fbm(p * 30.0, vec2(30.0), 2) * 3.0) * 0.5 + 0.5;
+  c = mix(c, vec3(0.2, 0.07, 0.035) * (0.8 + 0.35 * bandGrain), band);
+  float string = smoothstep(0.004, 0.0, abs(r - 0.455)) + smoothstep(0.003, 0.0, abs(r - 0.43));
+  c = mix(c, vec3(0.62, 0.48, 0.3), string * 0.7);
+  s.albedo = c;
+  s.height = 0.5 + fine * 0.03;
+  s.rough = 0.16 + 0.06 * fine;
+  s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+}
+
+/** Dinner plate: ivory porcelain, broad gilt rim band with a fine inner line and a small crest. */
+export function giltPlateTexture(forge) {
+  return forge.generate('dining:giltplate', {
+    size: 1024, tile: false, normalStrength: 0.25,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 p = (uv - 0.5) * 2.0;
+  float r = length(p);
+  float a = atan(p.y, p.x);
+  vec3 ivory = vec3(0.86, 0.84, 0.79);
+  float gold = 0.0;
+  gold = max(gold, smoothstep(0.84, 0.845, r) * (1.0 - smoothstep(0.95, 0.955, r)));   // rim band
+  gold = max(gold, stroke(r - 0.79, 0.0, 0.004));                                        // inner line
+  gold = max(gold, stroke(r - 0.985, 0.0, 0.008));                                       // edge
+  // Greek-key-ish notches inside the band (darker)
+  float notch = step(0.5, fract(a / TAU * 48.0)) * smoothstep(0.87, 0.875, r) * (1.0 - smoothstep(0.92, 0.925, r));
+  // crest at the top of the well: a little wreath + S
+  vec2 cq = p - vec2(0.0, 0.62);
+  float wreath = stroke(length(cq) - 0.085, 0.0, 0.006) * step(-0.05, cq.y + 0.06);
+  float leaves = fill(sdVesica(rot2(0.6) * (vec2(abs(cq.x), cq.y) - vec2(0.07, 0.0)), 0.035, 0.022), 0.005);
+  float S = stroke(length(cq - vec2(0.0, 0.02)) - 0.025, 0.0, 0.005) * step(0.0, cq.x * -1.0 + 0.0) + stroke(length(cq + vec2(0.0, 0.025)) - 0.025, 0.0, 0.005) * step(0.0, cq.x);
+  gold = max(gold, max(wreath, max(leaves, S)));
+  gold *= 0.85 + 0.15 * fbm(p * 20.0, vec2(20.0), 2);
+  vec3 g = mix(vec3(0.78, 0.6, 0.3), vec3(0.5, 0.36, 0.16), notch);
+  s.albedo = mix(ivory * (0.97 + 0.03 * fbm(p * 4.0, vec2(4.0), 2)), g, gold);
+  s.metal = gold;
+  s.rough = mix(0.08, 0.22, gold);
+  s.height = 0.5 + gold * 0.1;
+  s.ao = 1.0;
+}`,
+  });
+}
+
+/** Grey fondant tombstone face with an engraved R.I.P. and cross (UV 0..1 over the front). */
+export function tombTexture(forge) {
+  return forge.generate('dining:tomb', {
+    size: 256, tile: false, normalStrength: 2.5,
+    glsl: /* glsl */ `
+float letterR(vec2 p) { float d = sdBox(p - vec2(-0.03, 0.0), vec2(0.008, 0.05)); d = min(d, abs(length(p - vec2(0.0, 0.022)) - 0.026) - 0.007); d = max(d, -(p.x + 0.03)); d = min(d, sdSegment(p, vec2(-0.01, 0.0), vec2(0.03, -0.05)) - 0.008); return d; }
+float letterI(vec2 p) { return sdBox(p, vec2(0.008, 0.05)); }
+float letterP(vec2 p) { float d = sdBox(p - vec2(-0.03, 0.0), vec2(0.008, 0.05)); d = min(d, max(abs(length(p - vec2(-0.005, 0.022)) - 0.024) - 0.007, -(p.x + 0.03))); return d; }
+void surface(vec2 uv, inout Surface s) {
+  vec2 p = uv - vec2(0.5, 0.45);
+  float d = 1.0;
+  d = min(d, letterR((p - vec2(-0.2, 0.0)) * 1.6));
+  d = min(d, letterI((p - vec2(0.0, 0.0)) * 1.6));
+  d = min(d, letterP((p - vec2(0.17, 0.0)) * 1.6));
+  float dots = min(length(p - vec2(-0.1, -0.035)), length(p - vec2(0.07, -0.035))) - 0.012;
+  d = min(d, dots * 1.6);
+  float cross = min(sdBox(p - vec2(0.0, 0.25), vec2(0.016, 0.085)), sdBox(p - vec2(0.0, 0.28), vec2(0.06, 0.016)));
+  d = min(d, cross * 1.6);
+  float eng = fill(d, 0.006);
+  float speck = fbm(uv * 12.0, vec2(12.0), 4);
+  s.albedo = vec3(0.56, 0.56, 0.58) * (0.9 + 0.2 * speck) * (1.0 - eng * 0.55);
+  s.height = 0.6 - eng * 0.45 + speck * 0.04;
+  s.rough = 0.7 + eng * 0.1;
+  s.metal = 0.0; s.ao = 1.0 - eng * 0.4;
+}`,
+  });
+}
+
+/** Round crocheted lace doily with an alpha cut-out (UV 0..1 over the disc). */
+export function laceTexture(forge) {
+  return forge.generate('dining:lace', {
+    size: 1024, tile: false, normalStrength: 1.0,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 p = (uv - 0.5) * 2.0;
+  float r = length(p), a = atan(p.y, p.x);
+  float thread = 0.0;
+  // scalloped edge
+  float edge = 0.93 + 0.05 * cos(a * 36.0);
+  // concentric rings + radial chains
+  thread = max(thread, stroke(r - 0.82, 0.0, 0.012));
+  thread = max(thread, stroke(r - 0.62, 0.0, 0.01));
+  thread = max(thread, stroke(r - 0.36, 0.0, 0.01));
+  float rad = abs(fract(a / TAU * 36.0) - 0.5);
+  thread = max(thread, (1.0 - smoothstep(0.03, 0.06, rad)) * step(0.36, r) * step(r, 0.82));
+  // net between rings: diamond mesh
+  vec2 g = vec2(a / TAU * 72.0, r * 30.0);
+  vec2 q = abs(fract(vec2(g.x + g.y, g.x - g.y) * 0.5) - 0.5);
+  float net = 1.0 - smoothstep(0.06, 0.12, min(q.x, q.y));
+  thread = max(thread, net * step(0.62, r) * step(r, 0.82));
+  // petals in the centre and picots at the rim
+  vec2 pr = polarRep(p, 12.0);
+  float pet = abs(sdVesica(rot2(PI * 0.5) * (pr - vec2(0.2, 0.0)), 0.13, 0.08)) - 0.012;
+  thread = max(thread, fill(pet, 0.006) * step(r, 0.36));
+  vec2 pr2 = polarRep(p, 36.0);
+  thread = max(thread, stroke(length(pr2 - vec2(0.88, 0.0)) - 0.035, 0.0, 0.01));
+  thread = max(thread, stroke(r - 0.08, 0.0, 0.012));
+  thread *= step(r, edge);
+  s.albedo = vec3(0.86, 0.83, 0.76);
+  s.alpha = thread;
+  s.height = 0.4 + thread * 0.3;
+  s.rough = 0.9; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+}
+
+/** Acid-etched frosted glass with a cut star pattern (tulip shades, gasolier bowl). */
+export function frostTexture(forge) {
+  return forge.generate('dining:frost', {
+    size: 512, normalStrength: 0.6,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 g = uv * vec2(6.0, 4.0);
+  vec2 f = fract(g) - 0.5;
+  float star = fill(sdStar(f, 0.22, 8.0, 3.0), 0.02);
+  float ring = stroke(length(f) - 0.32, 0.0, 0.02);
+  float grain = fbm(uv * 40.0, vec2(40.0), 3);
+  float clear = max(star * 0.8, ring * 0.6);
+  s.albedo = vec3(0.92, 0.9, 0.86) * (1.0 - clear * 0.45) * (0.95 + 0.05 * grain);
+  s.height = 0.5 - clear * 0.2 + grain * 0.03;
+  s.rough = mix(0.55, 0.15, clear);
+  s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+}
+
+/** Mid-distance layer of bare winter trees (alpha cut-out), seen through the window. */
+export function treeLayerTexture(forge) {
+  return forge.generate('dining:treelayer', {
+    size: 1024, aspect: 0.7, tile: false,
+    glsl: /* glsl */ `
+float branchy(vec2 p, vec2 base, float hgt, float seed) {
+  vec2 q = p - base;
+  float tw = 0.014 * (1.0 - q.y / hgt) + 0.003;
+  float d = max(abs(q.x - 0.01 * sin(q.y * 11.0 + seed)) - tw, max(-q.y, q.y - hgt));
+  for (int i = 0; i < 12; i++) {
+    float fi = float(i);
+    float y0 = hgt * (0.22 + fi * 0.06);
+    float side = mod(fi, 2.0) < 0.5 ? -1.0 : 1.0;
+    float ang = side * (0.6 + 0.3 * sin(fi * 5.1 + seed));
+    vec2 b = rot2(ang) * (q - vec2(0.0, y0));
+    float len = hgt * (0.38 - fi * 0.024);
+    float bw = 0.004 * (1.0 - clamp(b.y / len, 0.0, 1.0)) + 0.0007;
+    d = min(d, max(abs(b.x + 0.01 * sin(b.y * 30.0 + fi)) - bw, max(-b.y, b.y - len)));
+    for (int k = 0; k < 2; k++) {
+      float fk = float(k);
+      vec2 c = rot2(-side * (0.5 + 0.3 * fk)) * (b - vec2(0.0, len * (0.35 + 0.3 * fk)));
+      d = min(d, max(abs(c.x + 0.004 * sin(c.y * 60.0)) - 0.0011, max(-c.y, c.y - len * 0.4)));
+    }
+  }
+  return d;
+}
+void surface(vec2 uv, inout Surface s) {
+  float d = branchy(uv, vec2(0.12, 0.0), 0.9, 2.0);
+  d = min(d, branchy(uv, vec2(0.82, 0.0), 0.75, 5.0));
+  d = min(d, branchy(uv, vec2(0.55, 0.05), 0.35, 8.0));
+  float a = smoothstep(0.0015, -0.0005, d);
+  // snow resting on the upper side of limbs
+  s.albedo = vec3(0.025, 0.03, 0.05);
+  s.alpha = a;
+  s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+}
+
+/** Frost ferns creeping in from the edges of the window panes (alpha = frost density). */
+export function frostPaneTexture(forge) {
+  return forge.generate('dining:frostpane', {
+    size: 1024, aspect: 0.62, tile: false,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  // 2 x 4 panes: distance to the nearest pane edge
+  vec2 g = uv * vec2(2.0, 4.0);
+  vec2 f = fract(g);
+  float e = min(min(f.x, 1.0 - f.x) * 0.5, min(f.y, 1.0 - f.y) * 0.25) ;
+  float n = fbm(uv * vec2(6.0, 9.0), vec2(6.0, 9.0), 6);
+  float fern = abs(fbm(uv * vec2(18.0, 28.0) + n, vec2(18.0, 28.0), 4));
+  float edge = smoothstep(0.07 + 0.05 * n, 0.0, e);
+  float corner = smoothstep(0.16, 0.0, length(min(f, 1.0 - f) * vec2(0.5, 0.25)) - 0.02 * n);
+  float a = clamp(max(edge, corner) * (0.55 + 0.6 * smoothstep(0.05, 0.3, fern)), 0.0, 1.0);
+  // faint condensation haze over the lower panes
+  a = max(a, 0.12 * smoothstep(0.5, 0.0, uv.y) * (0.6 + 0.4 * n));
+  s.albedo = vec3(0.85, 0.9, 1.0);
+  s.alpha = a * 0.75;
+  s.height = 0.5; s.rough = 0.6; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+}
