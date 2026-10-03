@@ -96,7 +96,7 @@ export default {
     mat.rosePlaster = M.create('plaster', { color: [0.22, 0.24, 0.3], cracks: 0.2, stains: 0.5, roughness: 0.9, repeat: [3, 3] });
     mat.tassel = M.create('velvet', { color: [0.5, 0.36, 0.16], crush: 0.2, repeat: [6, 6], sheen: 1, sheenColor: [0.9, 0.7, 0.35] });
     mat.giltDark = M.create('gold', { wear: 0.6, dirt: 0.8, repeat: [2, 1], color: [0.45, 0.4, 0.36] });
-    mat.standSilver = M.basic('silver', { roughness: 0.32, envMapIntensity: 0.55, color: 0x9a9a9e });
+    mat.standSilver = M.basic('silver', { roughness: 0.34, envMapIntensity: 0.5, color: 0x86868a });
     mat.chairWood = M.create('mahogany', { repeat: [1.4, 1.4], color: [0.2, 0.1, 0.08], roughness: 0.95, clearcoat: 0.8, clearcoatRoughness: 0.24 });
     const tuft = tuftedTexture(ctx.textures).withRepeat(1 / 0.36, 1 / 0.36);
     mat.seat = new THREE.MeshPhysicalMaterial({ map: tuft.map, normalMap: tuft.normalMap, roughnessMap: tuft.ormMap, aoMap: tuft.ormMap, roughness: 1, metalness: 0, sheen: 1, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.3, 0.5, 0.6), name: 'tufted' });
@@ -571,6 +571,9 @@ export default {
     {
       const st = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.11, 0], [0.11, 0.006], [0.08, 0.014], [0.03, 0.024], [0.022, 0.045], [0.03, 0.055], [0.06, 0.06], [0.31, 0.062], [0.315, 0.066], [0.3, STAND_H], [0, STAND_H]], 48), mat.standSilver);
       st.position.set(T.x, TABLE_H, T.z); add(st);
+      const doily = new THREE.Mesh(new THREE.CircleGeometry(0.3, 64), mat.lace); doily.rotation.x = -Math.PI / 2; doily.position.set(T.x, TABLE_H + STAND_H + 0.0015, T.z); add(doily);
+      // chased rim band on the stand
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.312, 0.006, 8, 96), mat.silver); rim.rotation.x = Math.PI / 2; rim.position.set(T.x, TABLE_H + STAND_H - 0.002, T.z); add(rim);
     }
     // two small candelabra flanking the cake
     const tableCandles = [];
@@ -691,10 +694,10 @@ export default {
       parent: root, origin: cakeOrigin, side: 0.088, height: 0.1, plates, mats: cakeMats,
       camera: { position: [T.x, 2.12, T.z + 1.05], target: [T.x, TABLE_H, T.z + 0.06], fov: 50 },
       onSetup: () => {
-        spotK = 0.2; foyerSpill.intensity = 0.15; sconceLights.forEach((l) => { l.userData.i0 ??= l.intensity; l.intensity = l.userData.i0 * 0.3; });
-        ctx.post.set({ exposure: 1.15, bloomThreshold: 1.9, bloomStrength: 0.15, godRayWeight: 0.0, vignette: 0.5 }, 0.8);
+        spotK = 0.25; chandBase = 4; mat.woodTop.clearcoatRoughness = 0.34; mat.woodTop.roughness = 1.4; foyerSpill.intensity = 0.15; sconceLights.forEach((l) => { l.userData.i0 ??= l.intensity; l.intensity = l.userData.i0 * 0.3; });
+        ctx.post.set({ exposure: 1.45, bloomThreshold: 1.9, bloomStrength: 0.15, godRayWeight: 0.0, vignette: 0.5 }, 0.8);
       },
-      onTeardown: () => { spotK = 0.6; foyerSpill.intensity = 2.2; sconceLights.forEach((l) => { if (l.userData.i0) l.intensity = l.userData.i0; }); ctx.post.reset(1.0); },
+      onTeardown: () => { spotK = 0.6; chandBase = 7; mat.woodTop.clearcoatRoughness = 0.14; mat.woodTop.roughness = 1; foyerSpill.intensity = 2.2; sconceLights.forEach((l) => { if (l.userData.i0) l.intensity = l.userData.i0; }); ctx.post.reset(1.0); },
       onBeat: () => {
         // the candles gutter, the gasolier dims, and the guests take their seats
         ghostFade.target = 1; chandBase = 4.5; gutter.t = 0;

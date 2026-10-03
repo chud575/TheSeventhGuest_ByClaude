@@ -137,7 +137,7 @@ function skullGeometry(G) {
 }
 function socketsGeometry(G) {
   const parts = [];
-  for (const x of [-0.0055, 0.0055]) { const e = new THREE.SphereGeometry(0.0042, 12, 8); e.scale(1, 0.9, 0.55); e.translate(x, 0.0135, 0.0158); parts.push(e); }
+  for (const x of [-0.006, 0.006]) { const e = new THREE.SphereGeometry(0.0049, 12, 8); e.scale(1, 0.95, 0.6); e.translate(x, 0.0155, 0.0152); parts.push(e); }
   const nose = new THREE.ConeGeometry(0.0021, 0.0042, 3); nose.rotateX(Math.PI); nose.translate(0, 0.0085, 0.0162); parts.push(nose);
   // painted icing flourish on the forehead (dark violet dots)
   for (let i = 0; i < 5; i++) { const a = -0.8 + i * 0.4; const d = new THREE.SphereGeometry(0.0011, 6, 4); d.translate(Math.sin(a) * 0.009, 0.024 + Math.cos(a) * 0.004, 0.0165 - Math.abs(a) * 0.002); parts.push(d); }
@@ -248,7 +248,7 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
       const sk = new THREE.Mesh(skullG, mats.sugar); sk.castShadow = true;
       sk.add(new THREE.Mesh(socketG, mats.socket));
       sk.position.set(0, height + 0.001, 0); sk.scale.setScalar(1.2);
-      sk.rotation.y = ((c.i * 37) % 7 - 3) * 0.08;
+      sk.rotation.set(-0.5, ((c.i * 37) % 7 - 3) * 0.08, 0, 'YXZ');
       m.add(sk);
     } else if (mk === 2) {
       const tb = new THREE.Mesh(tombG, mats.stone); tb.castShadow = true; tb.scale.setScalar(1.08);
