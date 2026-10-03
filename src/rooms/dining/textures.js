@@ -530,5 +530,6 @@ export function denseHerizTexture(forge, rugGen, { colors, aspect, knots = 560, 
   rep('floor(2.0 * L / 0.14)', 'floor(2.0 * L / 0.085)');
   rep('float b0 = 0.018, b1 = 0.05, b2 = 0.062, b3 = 0.2, b4 = 0.212, b5 = 0.245, b6 = 0.255;', 'float b0 = 0.012, b1 = 0.034, b2 = 0.082, b3 = 0.19, b4 = 0.2, b5 = 0.226, b6 = 0.236;');
   rep('int mc = medallion(f, min(FA, FL) * 0.62, er);', 'int mc = medallion(f, min(FA, FL) * 0.5, er);');
+  rep('if (spLine < 0.0) { ci = 2; return; }', 'if (spLine < -0.004) { ci = 3; return; }');
   return forge.generate(`dining:denseheriz:${def.key}`, { ...def, glsl: g, key: undefined });
 }

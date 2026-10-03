@@ -1,0 +1,14 @@
+import { launch, startServer } from '../../../scripts/lib/browser.mjs';
+const server = await startServer(); const browser = await launch();
+const page = await browser.newPage({ viewport: { width: 1232, height: 928 } });
+const logs = []; page.on('pageerror', (e) => logs.push('ERR ' + e.message)); page.on('console', (m) => logs.push(m.type() + ' ' + m.text().slice(0, 200)));
+await page.goto(`${server.url}?room=dining&node=${process.argv[2] || 'back'}&shot=1&time=2`);
+await page.waitForFunction(() => window.__SHOT_READY === true, null, { timeout: 300000 });
+const info = await page.evaluate(() => JSON.stringify(window.__SHOT_INFO));
+console.log(info.slice(0, 400));
+const t = await page.evaluate(async () => { const g = window.__game; const t0 = performance.now(); g.post.render(g.scene, g.camera, 0); return performance.now() - t0; });
+console.log('frame ms', t);
+const t1 = Date.now(); await page.screenshot({ path: 'review/dining/dbg/back_dbg.png', timeout: 240000 }); console.log('shot ms', Date.now() - t1);
+const t2 = Date.now(); await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); console.log('2 raf ms', Date.now() - t2);
+console.log(logs.filter((l) => !/KHR|GPU stall/.test(l)).slice(0, 20).join('\n'));
+await browser.close(); await server.close();

@@ -49,19 +49,19 @@ void main() {
   // erosion: solid head and shoulders, eaten away below the chest into rising wisps
   vec3 q = vL * vec3(7.0, 4.5, 7.0) + vec3(uSeed, -uTime * 0.35, uSeed * 0.7);
   float e = fbm(q + 0.6 * vec3(fbm(q * 0.5 + 3.1), 0.0, fbm(q * 0.5 + 9.7)));
-  float hgt = clamp((vL.y - 0.3) / 0.72, 0.0, 1.0);
-  float thr = pow(1.0 - hgt, 1.3) * 0.85;
+  float hgt = clamp((vL.y - 0.5) / 0.55, 0.0, 1.0);
+  float thr = pow(1.0 - hgt, 1.15) * 0.8;
   float mask = smoothstep(thr - 0.06, thr + 0.06, e);
   float edge = clamp(mask * (1.0 - mask) * 4.0, 0.0, 1.0) * (1.0 - hgt);
   // drifting inner mist so the figure is never a flat shell
   float mist = fbm(vL * 9.0 + vec3(0.0, -uTime * 0.6, uTime * 0.2));
-  float a = (mix(0.035, 0.55, fres) + 0.09 * key * key + 0.05 * mist) * mask + edge * 0.2;
+  float a = (mix(0.025, 0.5, fres) + 0.06 * key * key + 0.05 * mist) * mask + edge * 0.22;
   vec3 col = uColor * (0.35 + 0.9 * key * key + 0.25 * mist) + uRim * fres * 1.25 + uRim * edge * 0.9;
   gl_FragColor = vec4(col * uIntensity, a * uOpacity);
 }
 `;
 
-export function createGuestMaterial(ctx, { color = 0x7f9eff, rim = 0xd6e4ff, intensity = 0.85, seed = 0 } = {}) {
+export function createGuestMaterial(ctx, { color = 0x7f9eff, rim = 0xd6e4ff, intensity = 0.7, seed = 0 } = {}) {
   const m = new THREE.ShaderMaterial({
     vertexShader: VERT, fragmentShader: FRAG,
     uniforms: {

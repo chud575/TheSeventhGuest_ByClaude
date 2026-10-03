@@ -103,6 +103,9 @@ export default {
       mat.rug = new THREE.MeshPhysicalMaterial({ map: rs.map, normalMap: rs.normalMap, normalScale: new THREE.Vector2(1.2, 1.2), roughnessMap: rs.ormMap, aoMap: rs.ormMap, roughness: 1, metalness: 0, alphaTest: 0.5, sheen: 0.8, sheenRoughness: 0.6, sheenColor: new THREE.Color(0.55, 0.42, 0.38), envMapIntensity: 0.5, name: 'rug' });
       mat.rug.map.anisotropy = 8;
     }
+    // the drapes: a smooth velvet (the generator's crushed-pile noise sparkled as white static under the moon);
+    // the folds come from the geometry, the pile from a soft sheen lobe
+    mat.drape = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(0.035, 0.06, 0.24), roughness: 0.88, metalness: 0, sheen: 0.6, sheenRoughness: 0.75, sheenColor: new THREE.Color(0.22, 0.32, 0.7), side: THREE.DoubleSide, envMapIntensity: 0.35, name: 'drapeVelvet' });
     mat.rosePlaster = M.create('plaster', { color: [0.22, 0.24, 0.3], cracks: 0.2, stains: 0.5, roughness: 0.9, repeat: [3, 3] });
     mat.tassel = M.create('velvet', { color: [0.5, 0.36, 0.16], crush: 0.2, repeat: [6, 6], sheen: 1, sheenColor: [0.9, 0.7, 0.35] });
     mat.giltDark = M.create('gold', { wear: 0.6, dirt: 0.8, repeat: [2, 1], color: [0.45, 0.4, 0.36] });
@@ -555,6 +558,8 @@ export default {
       // a real (half-resolution) planar reflection, silvering slightly tarnished
       const mirror = new Reflector(new THREE.PlaneGeometry(mw, mh), { clipBias: 0.003, textureWidth: Math.round(ctx.renderer.domElement.width * 0.5) || 512, textureHeight: Math.round(ctx.renderer.domElement.height * 0.5) || 512, color: 0x8f8a82 });
       mirror.userData.keep = true; mirror.userData.noBake = true; mirror.userData.noShadow = true;
+      // the reflection is a whole extra scene render: refresh it only every 20th frame (the room is static but for flames)
+      { const orig = mirror.onBeforeRender.bind(mirror); let n = 0; mirror.onBeforeRender = (...args) => { if (n++ % 20 === 0) orig(...args); }; }
       mg.add(mirror);
       const fox = foxingTexture(ctx.textures);
       const foxM = new THREE.MeshStandardMaterial({ map: fox.map, transparent: true, depthWrite: false, roughness: 0.9, metalness: 0, name: 'foxing' });
@@ -724,7 +729,7 @@ export default {
     moon.map = fx.windowCookie({ cols: 2, rows: 4 });
     root.add(moon, moon.target);
     root.add(new THREE.HemisphereLight(0x4a62b8, 0x140e0a, 0.6));
-    root.add(fx.areaLight({ center: [0, WIN.sill + WIN.h / 2, Z0 - 0.12], normal: [0, -0.35, 1], width: WIN.w - 0.1, height: WIN.h - 0.1, color: 0x8ea6ff, intensity: 2.5 }));
+    root.add(fx.areaLight({ center: [0, WIN.sill + WIN.h / 2, Z0 + 0.06], normal: [0, -0.3, 1], width: WIN.w - 0.1, height: WIN.h - 0.1, color: 0x8ea6ff, intensity: 2.5 }));
     // gasolier: one shadowed warm light at the globe ring + a soft up-light for the ceiling
     let chandBase = 7, spotK = 0.6;
     const chandLight = new THREE.PointLight(0xffa860, 10, 12, 2);
@@ -768,10 +773,10 @@ export default {
       parent: root, origin: cakeOrigin, side: 0.088, height: 0.1, plates, mats: cakeMats,
       camera: { position: [T.x, 2.12, T.z + 1.05], target: [T.x, TABLE_H, T.z + 0.06], fov: 50 },
       onSetup: () => {
-        spotK = 0.18; chandBase = 4; tBase = 0.3; chandSpot.penumbra = 1.0; chandSpot.angle = 1.2; mat.woodTop.clearcoatRoughness = 0.34; mat.woodTop.roughness = 1.4; foyerSpill.intensity = 0.15; sconceLights.forEach((l) => { l.userData.i0 ??= l.intensity; l.intensity = l.userData.i0 * 0.3; });
+        spotK = 0.18; chandBase = 4; tBase = 0.3; chandSpot.penumbra = 1.0; chandSpot.angle = 1.2; mat.woodTop.clearcoatRoughness = 0.5; mat.woodTop.clearcoat = 0.35; mat.woodTop.roughness = 1.4; foyerSpill.intensity = 0.15; sconceLights.forEach((l) => { l.userData.i0 ??= l.intensity; l.intensity = l.userData.i0 * 0.3; });
         ctx.post.set({ exposure: 1.45, bloomThreshold: 1.9, bloomStrength: 0.15, godRayWeight: 0.0, vignette: 0.5 }, 0.8);
       },
-      onTeardown: () => { spotK = 0.6; chandBase = 7; tBase = 1.2; chandSpot.penumbra = 0.7; chandSpot.angle = 1.05; mat.woodTop.clearcoatRoughness = 0.22; mat.woodTop.roughness = 1; foyerSpill.intensity = 2.2; sconceLights.forEach((l) => { if (l.userData.i0) l.intensity = l.userData.i0; }); ctx.post.reset(1.0); },
+      onTeardown: () => { spotK = 0.6; chandBase = 7; tBase = 1.2; chandSpot.penumbra = 0.7; chandSpot.angle = 1.05; mat.woodTop.clearcoatRoughness = 0.22; mat.woodTop.clearcoat = 1; mat.woodTop.roughness = 1; foyerSpill.intensity = 2.2; sconceLights.forEach((l) => { if (l.userData.i0) l.intensity = l.userData.i0; }); ctx.post.reset(1.0); },
       onBeat: () => {
         // the candles gutter, the gasolier dims, and the guests take their seats
         ghostFade.target = 1; chandBase = 4.5; gutter.t = 0;
