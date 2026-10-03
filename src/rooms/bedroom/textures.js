@@ -15,7 +15,7 @@ import * as THREE from 'three';
  */
 
 export function nightSky(ctx) {
-  return ctx.textures.generate('bedroom:sky', {
+  return ctx.textures.generate('bedroom:sky2', {
     size: 1024, aspect: 0.8, tile: false,
     glsl: /* glsl */ `
     void surface(vec2 uv, inout Surface s) {
@@ -29,7 +29,11 @@ export function nightSky(ctx) {
       float c = smoothstep(-0.1, 0.4, cl + cl2 * 0.35);
       sky = mix(sky, sky * 0.3 + vec3(0.015, 0.02, 0.035), c * 0.85);
       sky += vec3(0.75, 0.8, 0.95) * smoothstep(0.16, 0.0, abs(cl + cl2 * 0.35 - 0.05)) * exp(-md * 3.5) * 0.35;
-      sky = mix(sky, vec3(1.0, 0.98, 0.9) * 1.25, smoothstep(0.048, 0.04, md) * (1.0 - c * 0.5));
+      // the moon disk keeps an edge: limb-darkened, a few maria, no blow-out
+      float disk = smoothstep(0.046, 0.042, md);
+      float maria = fbm((p - moon) * 60.0, vec2(64.0), 4) * 0.5 + 0.5;
+      vec3 moonC = vec3(0.95, 0.94, 0.88) * (0.78 + 0.22 * sqrt(max(0.0, 1.0 - md / 0.046))) * (0.82 + 0.18 * smoothstep(0.35, 0.7, maria));
+      sky = mix(sky, moonC, disk * (1.0 - c * 0.6));
       // stars in the clear patches
       vec2 sg = floor(p * 260.0);
       float st = step(0.996, hash12(sg)) * (1.0 - c) * smoothstep(0.3, 0.8, p.y);
@@ -57,6 +61,8 @@ export function nightSky(ctx) {
       float hill = p.y - (0.13 + 0.05 * fbm(vec2(p.x * 3.0, 0.5), vec2(64.0), 4));
       // a distant gabled roofline of the east wing
       float roof = max(p.y - 0.22 - max(0.0, 0.08 - abs(p.x - 0.78) * 0.6), abs(p.x - 0.78) - 0.2);
+      // ground mist rolling over the grounds below the hill line
+      sky = mix(sky, vec3(0.13, 0.16, 0.24), smoothstep(0.32, 0.1, p.y) * 0.55 * (0.7 + 0.3 * (fbm(vec2(p.x * 4.0, p.y * 12.0), vec2(64.0), 4) * 0.5 + 0.5)));
       vec3 col = sky;
       float sil = smoothstep(0.003, -0.003, min(min(tree, hill), roof));
       col = mix(col, vec3(0.008, 0.01, 0.018), sil);
@@ -69,92 +75,138 @@ export function nightSky(ctx) {
   });
 }
 
-/** Rotted velvet for the bed hangings. uv 0..1 over one panel (u across, v bottom->top). */
-export function tornDrape(ctx, { seed = 1, color = [0.3, 0.05, 0.07] } = {}) {
-  return ctx.textures.generate(`bedroom:drape${seed}`, {
-    size: 1024, aspect: 0.5, tile: false, normalStrength: 1.6, seed,
-    uniforms: { uCol: color, uS: seed * 7.13 },
+/**
+ * Rotted velvet for the bed hangings. uv 0..1 over one panel (u across, v bottom->top).
+ * Alpha (use alphaTest 0.5): the hem is torn off in tatters at uneven heights, long rips run up
+ * from it, a few ragged diagonal slashes cut the body, and loose threads hang from every torn
+ * edge. No round holes, no wood-like streaks: the nap is a soft isotropic pile with crushed patches.
+ * Dust settles toward the top (lighter, greyer), grime and fraying darken the torn edges.
+ */
+export function tornDrape(ctx, { seed = 1, color = [0.3, 0.085, 0.09], valance = false } = {}) {
+  return ctx.textures.generate(`bedroom:velvetDrape${seed}${valance ? 'v' : ''}`, {
+    size: 1024, aspect: valance ? 3.0 : 0.5, tile: false, normalStrength: 1.1, seed,
+    uniforms: { uCol: color, uS: seed * 7.13, uVal: valance ? 1 : 0 },
     glsl: /* glsl */ `
+    float n01(vec2 p, float per, int o) { return fbm(p, vec2(per), o) * 0.5 + 0.5; }
     void surface(vec2 uv, inout Surface s) {
       vec2 p = uv;
-      float n = fbm(p * vec2(4.0, 8.0) + uS, vec2(64.0), 6);
-      float n2 = fbm(p * vec2(18.0, 30.0) + uS * 1.7, vec2(256.0), 4);
-      // ragged, shredded hem at an uneven height, hanging in strips
-      float strip = fbm(vec2(p.x * 9.0 + uS, 0.5), vec2(64.0), 4);
-      float hem = 0.06 + 0.3 * strip * strip + 0.05 * n;
-      float sid = floor(p.x * 7.0 + strip * 1.5 + uS);
-      float tearLine = abs(fract(p.x * 7.0 + strip * 1.5 + uS) - 0.5);
-      // long rips running up from the hem (some reach two thirds of the way up)
-      float ripLen = step(0.45, hash11(sid)) * (0.2 + 0.5 * hash11(sid + 3.1));
-      float ripW = 0.035 * (1.0 - smoothstep(hem, hem + ripLen, p.y)) + 0.004;
-      float rip = smoothstep(ripW, ripW * 0.5, tearLine + n2 * 0.02) * step(p.y, hem + ripLen);
-      float alpha = smoothstep(hem - 0.01, hem + 0.01, p.y + n2 * 0.04) * (1.0 - rip);
-      // moth holes (many, ragged) and rotted-through patches
-      vec4 v = voronoi(p * vec2(10.0, 20.0) + uS, vec2(256.0), 1.0);
-      float holeSel = step(0.58, hash12(v.zw + uS));
-      float hole = smoothstep(0.2, 0.13, v.x + n2 * 0.16) * holeSel;
-      vec4 v2 = voronoi(p * vec2(3.0, 5.0) + uS * 1.3, vec2(256.0), 1.0);
-      float bigHole = smoothstep(0.26, 0.18, v2.x + n2 * 0.18 + n * 0.08) * step(0.7, hash12(v2.zw + uS * 2.0)) * smoothstep(0.95, 0.6, p.y);
-      float rot = smoothstep(0.58, 0.72, n + n2 * 0.3) * smoothstep(0.85, 0.25, p.y);
-      alpha *= 1.0 - max(max(hole, bigHole), rot);
-      // frayed edges darken (scorched/rotten rims round every hole and rip)
-      float edge = smoothstep(0.12, 0.0, p.y - hem) + smoothstep(0.28, 0.17, v.x) * holeSel * 0.7
-                 + smoothstep(0.34, 0.24, v2.x) * step(0.7, hash12(v2.zw + uS * 2.0)) * 0.6 + smoothstep(ripW * 3.0, ripW, tearLine) * step(p.y, hem + ripLen) * 0.6;
-      edge = clamp(edge, 0.0, 1.0);
-      // velvet pile: vertical nap, crushed patches
-      float nap = vnoise(vec2(p.x * 700.0, p.y * 90.0), vec2(700.0, 90.0));
-      float crush = smoothstep(0.3, 0.7, fbm(p * vec2(3.0, 5.0) + uS * 2.0, vec2(64.0), 4));
-      vec3 c = uCol * (0.65 + 0.5 * crush) * (0.9 + 0.15 * nap);
-      // sun/moon fading toward the top folds, grime toward the hem
-      c = mix(c, c * vec3(1.15, 1.05, 1.1) + vec3(0.03, 0.02, 0.03), smoothstep(0.5, 1.0, p.y) * 0.4);
-      c = mix(c, vec3(0.05, 0.035, 0.03), edge * 0.7 + smoothstep(0.5, 0.0, p.y) * 0.35);
-      // dust bloom
-      c += vec3(0.05, 0.045, 0.04) * smoothstep(0.55, 0.85, n2) * 0.6;
+      float xs = uVal > 0.5 ? 3.0 : 1.0;            // valance panels are wide: keep features metric
+      vec2 m = vec2(p.x * xs, p.y);
+      // ---- tattered hem: strips of random width torn off at different heights
+      float sx = m.x * 5.0 + 0.8 * n01(vec2(m.x * 0.7, 0.2) + uS, 64.0, 3);
+      float sid = floor(sx), sf = fract(sx);
+      float hs = uVal > 0.5 ? (0.05 + 0.32 * pow(hash11(sid * 1.7 + uS), 2.0)) : (0.02 + 0.2 * pow(hash11(sid * 1.7 + uS), 2.2));
+      // the tatter tapers toward a ragged point at its lower end
+      hs += 0.06 * pow(abs(sf - 0.5) * 2.0, 2.0) * step(0.5, hash11(sid + 9.0 + uS));
+      float rag = 0.025 * fbm(vec2(m.x * 30.0, uS), vec2(512.0), 4) + 0.01 * fbm(vec2(m.x * 140.0, uS * 2.0), vec2(2048.0), 3);
+      float hem = hs + rag;
+      float eHem = p.y - hem;                        // > 0 cloth above the torn hem
+      // ---- rips running up from between the tatters
+      float tl = min(sf, 1.0 - sf) / 5.0;            // distance (uv) to the strip boundary
+      float ripLen = step(0.35, hash11(sid + 3.3 + uS)) * (0.12 + 0.45 * hash11(sid + 5.1 + uS)) * (uVal > 0.5 ? 1.6 : 1.0);
+      float rt = clamp((p.y - hem) / max(ripLen, 1e-3), 0.0, 1.0);
+      float ripW = (0.016 * (1.0 - rt) * (1.0 - rt) + 0.0015) * step(p.y, hem + ripLen);
+      float eRip = tl + 0.004 * fbm(vec2(m.x * 60.0, p.y * 40.0) + uS, vec2(512.0), 3) - ripW;
+      // ---- ragged slashes through the body (lens-shaped, wandering)
+      float eSl = 1.0;
+      if (uVal < 0.5) {
+        for (int i = 0; i < 4; i++) {
+          float fi = float(i) + uS;
+          if (hash11(fi * 3.7) < 0.3) continue;
+          vec2 c = vec2(0.15 + 0.7 * hash11(fi * 1.3), 0.28 + 0.5 * hash11(fi * 2.9));
+          float ang = (hash11(fi * 5.1) - 0.5) * 0.9;
+          float len = 0.05 + 0.11 * hash11(fi * 7.7);
+          vec2 q = rot2(ang) * ((p - c) * vec2(2.0, 1.0));
+          q.x += 0.012 * fbm(vec2(q.y * 25.0, fi), vec2(256.0), 3);
+          float t = clamp(q.y / len, -1.0, 1.0);
+          float w = (0.01 + 0.012 * hash11(fi * 9.3)) * (1.0 - t * t);
+          float d = max(abs(q.x) - w, abs(q.y) - len) * 0.5;
+          eSl = min(eSl, d + 0.003 * fbm(p * 90.0 + fi, vec2(1024.0), 3));
+        }
+      }
+      float edgeD = min(min(eHem, eRip), eSl);       // signed distance-ish to the nearest torn edge
+      float alpha = step(0.0, edgeD);
+      // ---- loose threads hanging below the torn hem (thin, uneven lengths)
+      float tc = m.x * 420.0;
+      float thr = step(fract(tc), 0.42) * step(0.35, hash11(floor(tc) + uS));
+      float tlen = 0.035 * hash11(floor(tc) * 1.31 + uS) * (uVal > 0.5 ? 1.4 : 1.0);
+      float hang = step(-tlen, eHem) * step(eHem, 0.0) * thr * step(0.0, eRip);
+      alpha = max(alpha, hang);
+      // ---- pile: soft isotropic nap + broad crushed patches (no directional streaks)
+      float crush = n01(p * vec2(2.5 * xs, 4.0) + uS * 2.0, 32.0, 4);
+      float nap = fbm(p * vec2(xs, 2.0) * 160.0, vec2(1024.0), 3);
+      float fray = 1.0 - smoothstep(0.0, 0.03, edgeD);
+      vec3 c = uCol * (0.72 + 0.45 * crush) * (0.95 + 0.05 * nap);
+      // worn threads at the torn edges go pale and greyed; grime toward the hem
+      float dl = dot(c, vec3(0.333));
+      c = mix(c, vec3(dl) * 1.6 + vec3(0.03, 0.025, 0.02), fray * 0.55);
+      c = mix(c, c * 0.55, smoothstep(0.35, 0.0, p.y) * 0.4);
+      // dust: a grey film that thickens toward the top (and on the tatters' ends)
+      float dust = smoothstep(0.35, 1.0, p.y) * 0.45 + 0.12 * n01(p * 9.0 + uS, 64.0, 4);
+      c = mix(c, vec3(0.26, 0.24, 0.22), clamp(dust, 0.0, 0.6) * 0.55);
+      // threads are lighter, fibrous
+      c = mix(c, vec3(0.36, 0.3, 0.27), hang * step(edgeD, 0.0) * 0.6);
       s.albedo = c;
       s.alpha = alpha;
-      s.height = 0.5 + 0.12 * nap + 0.2 * crush - edge * 0.2;
-      s.rough = 0.8 - 0.15 * crush;
+      s.height = 0.5 + 0.18 * crush + 0.04 * nap - fray * 0.12;
+      s.rough = 0.9;
       s.metal = 0.0;
-      s.ao = 1.0 - edge * 0.3;
+      s.ao = 1.0 - fray * 0.25;
     }`,
   });
 }
 
-/** Diamond-quilted silk counterpane, tufted at the crossings. 1 tile = 0.4 m. */
+/**
+ * Faded Victorian counterpane: a wine-on-old-rose damask (motif read mostly by sheen and a faint
+ * colour lift), shallow running-stitch quilting in a large diamond, foxing and tea-coloured stains.
+ * 1 tile = 0.6 m. Very low relief: this is cloth, not upholstery.
+ */
 export function quilt(ctx) {
-  return ctx.textures.generate('bedroom:quilt', {
-    size: 1024, tile: true, normalStrength: 3.0,
+  return ctx.textures.generate('bedroom:counterpane', {
+    size: 1024, tile: true, normalStrength: 0.9,
     glsl: /* glsl */ `
+    float motif(vec2 p) {
+      p.x = abs(p.x);
+      float d = sdVesica(p - vec2(0.0, 0.02), 0.34, 0.31);
+      d = min(d, sdVesica(rot2(-1.0) * (p - vec2(0.12, 0.05)), 0.17, 0.12));
+      d = min(d, sdVesica(rot2(-0.4) * (p - vec2(0.21, 0.13)), 0.08, 0.05));
+      d = min(d, abs(sdCircle(p - vec2(0.15, -0.16), 0.07)) - 0.012);
+      d = min(d, sdCircle(p - vec2(0.0, 0.4), 0.03));
+      vec2 q = p - vec2(0.0, -0.27);
+      for (int i = 0; i < 5; i++) { vec2 r = rot2(-1.2 + float(i) * 0.6) * q; d = min(d, sdVesica(r - vec2(0.0, -0.07), 0.075, 0.06)); }
+      return d;
+    }
     void surface(vec2 uv, inout Surface s) {
       vec2 p = uv;
-      // diamond grid: 4 diamonds per tile
-      vec2 q = rot2(0.785398) * (p * 4.0) ;
-      vec2 f = fract(q * 0.7071) - 0.5;
-      float d = max(abs(f.x), abs(f.y));
-      float puff = 1.0 - pow(d * 2.0, 2.0);
-      float seam = smoothstep(0.47, 0.5, d);
-      vec2 cf = fract(q * 0.7071 + 0.5) - 0.5;
-      float tuft = smoothstep(0.07, 0.02, length(cf));
-      // brocade motif inside each diamond
-      vec2 m = f * 2.0;
-      float leaf = sdVesica(rot2(0.785398) * m * 1.6, 0.6, 0.38);
-      float star = sdStar(m, 0.18, 6.0, 3.0);
-      vec3 base = vec3(0.30, 0.07, 0.07);
-      vec3 gold = vec3(0.55, 0.38, 0.16);
-      float silk = vnoise(vec2(p.x * 900.0, p.y * 120.0), vec2(900.0, 120.0));
-      vec3 c = base * (0.75 + 0.35 * puff) * (0.92 + 0.12 * silk);
-      c = mix(c, gold * 0.7, smoothstep(0.01, -0.01, abs(leaf) - 0.02) * 0.7);
-      c = mix(c, gold, smoothstep(0.01, -0.01, star) * 0.8);
-      c *= 1.0 - seam * 0.6;
-      c = mix(c, vec3(0.08, 0.05, 0.03), tuft * 0.8);
-      // age stains and fading
-      float st = fbm(p * 1.3, vec2(1.3), 5);
-      c = mix(c, c * vec3(0.7, 0.62, 0.5) + vec3(0.06, 0.05, 0.03), smoothstep(0.55, 0.8, st) * 0.6);
+      float dA = motif((p - 0.5) * 1.25);
+      float dB = motif((fract(p + 0.5) - 0.5) * 1.25);
+      float mo = smoothstep(0.006, -0.006, min(dA, dB));
+      // quilting: one big diamond per tile, a soft valley along each stitch line
+      vec2 q = rot2(0.785398) * p * 1.41421 * 2.0;
+      vec2 f = fract(q) - 0.5;
+      float ld = min(abs(f.x), abs(f.y));
+      float stitchV = smoothstep(0.12, 0.0, ld);
+      float stitch = step(ld, 0.006) * step(0.5, fract((q.x + q.y) * 18.0));
+      float weave = (sin(p.x * 2600.0) * sin(p.y * 2600.0)) * 0.5 + 0.5;
+      vec3 ground = vec3(0.33, 0.13, 0.13);
+      vec3 mcol = vec3(0.4, 0.2, 0.17);
+      vec3 c = mix(ground, mcol, mo * 0.55);
+      c *= 0.94 + 0.06 * weave;
+      c *= 1.0 - stitchV * 0.12;
+      c = mix(c, vec3(0.5, 0.42, 0.33), stitch * 0.5);
+      // fading: patches bleached toward a dusty rose, tea stains with darker tide lines
+      float fade = fbm(p * 1.0 + 3.0, vec2(1.0), 5) * 0.5 + 0.5;
+      c = mix(c, c * 1.25 + vec3(0.05, 0.035, 0.03), smoothstep(0.5, 0.8, fade) * 0.6);
+      float st = fbm(p * 1.7 + 8.0, vec2(1.7), 5) * 0.5 + 0.5;
+      c = mix(c, c * vec3(0.72, 0.6, 0.45), smoothstep(0.62, 0.7, st) * 0.45);
+      c = mix(c, c * 0.6, smoothstep(0.012, 0.0, abs(st - 0.62)) * 0.35);
+      float fox = smoothstep(0.75, 0.82, fbm(p * 9.0 + 1.0, vec2(9.0), 4) * 0.5 + 0.5);
+      c = mix(c, vec3(0.32, 0.22, 0.14), fox * 0.35);
       s.albedo = c;
-      s.height = 0.3 + 0.55 * puff - seam * 0.3 - tuft * 0.4;
-      s.rough = 0.55 - 0.15 * silk + seam * 0.3;
+      s.height = 0.5 - stitchV * 0.35 + mo * 0.04 + weave * 0.02;
+      s.rough = 0.92 - mo * 0.16;
       s.metal = 0.0;
-      s.ao = 0.75 + 0.25 * puff - seam * 0.3;
+      s.ao = 1.0 - stitchV * 0.25;
     }`,
   });
 }
@@ -184,7 +236,7 @@ export function linen(ctx) {
  * board: fraction of the lid depth the board occupies.
  */
 export function knightsBoard(ctx, { aspect = 2.0, board = 0.82 } = {}) {
-  return ctx.textures.generate('bedroom:board', {
+  return ctx.textures.generate('bedroom:board2', {
     size: 2048, aspect, tile: false, normalStrength: 2.2,
     uniforms: { uAspect2: aspect, uBoard: board },
     glsl: /* glsl */ `
@@ -221,20 +273,44 @@ export function knightsBoard(ctx, { aspect = 2.0, board = 0.82 } = {}) {
         // worn centre of each square (fingers)
         col = mix(col, col * 1.12, smoothstep(0.5, 0.0, length(f - 0.5)) * 0.2);
       } else if (ax < hb) {
-        // carved border: brass stringing, a band of interlaced knotwork, ebony line
+        // carved border: brass stringing, then a relief band of acanthus scrolls cut into the
+        // walnut (the ground sunk and dark, the leaves domed and catching the light), ebony line
         float t = (ax - field) / (hb - field);
-        vec2 along = abs(c.x) > abs(c.y) ? vec2(c.y, ax) : vec2(c.x, ax);
-        if (t < 0.08) { col = vec3(0.75, 0.55, 0.25); rough = 0.3; h = 0.6; }
+        float alongC = abs(c.x) > abs(c.y) ? c.y : c.x;
+        if (t < 0.07) { col = vec3(0.62, 0.45, 0.2); rough = 0.32; h = 0.62; }
         else if (t < 0.9) {
-          float k = along.x * 34.0;
-          float w1 = abs(fract(k) - 0.5 - 0.25 * sin((t - 0.08) / 0.82 * 6.2832));
-          float w2 = abs(fract(k + 0.5) - 0.5 + 0.25 * sin((t - 0.08) / 0.82 * 6.2832));
-          float band = min(w1, w2);
-          float rope = smoothstep(0.16, 0.06, band);
-          col = mix(walB * 0.6, mix(walA, vec3(0.3, 0.17, 0.08), 0.5), rope);
-          h = 0.3 + 0.45 * rope;
-          rough = 0.5;
-        } else { col = vec3(0.02, 0.015, 0.012); rough = 0.25; h = 0.5; }
+          float tt = (t - 0.07) / 0.83;                 // 0..1 across the band
+          float P = 0.052;
+          float a = alongC / P;
+          float lx = (fract(a) - 0.5) * P, ly = (tt - 0.5) * (hb - field) * 0.83;
+          float bw = (hb - field) * 0.83;
+          float cellA = floor(a);
+          float sgn = mod(cellA, 2.0) < 0.5 ? 1.0 : -1.0;
+          // undulating stem
+          float stemY = 0.28 * bw * sin(a * 3.14159);
+          float stem = abs(ly - stemY) - 0.006 * bw / 0.05;
+          // curling scroll in each half-wave, alternating up and down
+          vec2 sc = vec2(lx, ly - sgn * 0.18 * bw);
+          float curl = abs(length(sc) - 0.3 * bw) - 0.05 * bw;
+          curl = max(curl, -sgn * sc.y - 0.02 * bw);
+          // acanthus leaves: three lobed vesicas fanning off the stem
+          float lf = 1e3;
+          for (int k = 0; k < 3; k++) {
+            float ang = (float(k) - 1.0) * 0.7 + sgn * 0.5;
+            vec2 q = rot2(ang) * (vec2(lx, ly) - vec2(0.0, stemY));
+            lf = min(lf, sdVesica(q - vec2(0.0, sgn * 0.18 * bw), 0.2 * bw, 0.13 * bw));
+          }
+          lf += 0.004 * sin(atan(ly - stemY, lx) * 14.0);   // serrated leaf edges
+          float shape = min(min(stem, curl), lf);
+          float relief = domeh(shape, 0.12 * bw);
+          float carved = smoothstep(0.002, -0.002, shape);
+          vec3 lit = mix(walA * 1.15, vec3(0.38, 0.23, 0.12), 0.4);
+          col = mix(walB * 0.45, lit, carved);
+          // veins cut into the leaves
+          col *= 1.0 - smoothstep(0.003, 0.0, abs(shape + 0.03 * bw)) * carved * 0.35;
+          h = 0.25 + 0.55 * relief;
+          rough = mix(0.65, 0.42, carved);
+        } else { col = vec3(0.02, 0.015, 0.012); rough = 0.28; h = 0.5; }
       } else {
         // lid field: walnut with a sunk panel moulding line and carved corner fans
         col = wal;
@@ -262,48 +338,82 @@ export function knightsBoard(ctx, { aspect = 2.0, board = 0.82 } = {}) {
   });
 }
 
-/** Silvered mirror with a radial impact fracture and foxing at the edges. uv 0..1 over the glass. */
-export function crackedMirror(ctx, { aspect = 0.7, impact = [0.62, 0.58] } = {}) {
-  return ctx.textures.generate('bedroom:mirror', {
-    size: 1024, aspect, tile: false, normalStrength: 6.0,
-    uniforms: { uImp: impact, uAsp: aspect },
+/**
+ * Silvered glass for the broken dressing-table mirror. uv 0..1 over the glass (aspect w/h).
+ * The big radial fractures are real geometry (separate tilted shards, see buildVanity); this map
+ * adds what lies inside them: a crushed impact star, short branching cracks, two broken concentric
+ * rings, and desilvering (dark foxing blotches creeping in from the edges).
+ * glint = true returns a mask of the thin bright crack edges (use it as an emissiveMap / sparkle).
+ * angles: up to 6 radial crack angles (radians) so the grooves line up with the shard edges.
+ */
+export function crackedMirror(ctx, { aspect = 0.7, impact = [0.62, 0.58], angles = [0, 1, 2, 3, 4, 5], glint = false } = {}) {
+  const a = angles.concat([9, 9, 9, 9, 9, 9]).slice(0, 6);
+  return ctx.textures.generate(`bedroom:mirror2${glint ? 'G' : ''}`, {
+    size: 1024, aspect, tile: false, normalStrength: 2.0,
+    uniforms: { uImp: impact, uAsp: aspect, uA0: a.slice(0, 3), uA1: a.slice(3, 6), uGlint: glint ? 1 : 0 },
     glsl: /* glsl */ `
+    float lineD(vec2 p, float ang, float wob, float seed) {
+      vec2 d = vec2(cos(ang), sin(ang));
+      float along = dot(p, d);
+      float across = dot(p, vec2(-d.y, d.x));
+      across += wob * fbm(vec2(along * 6.0, seed), vec2(64.0), 3) * smoothstep(0.0, 0.15, along);
+      return along < 0.0 ? 1.0 : abs(across);
+    }
     void surface(vec2 uv, inout Surface s) {
       vec2 p = (uv - uImp) * vec2(uAsp, 1.0);
       float r = length(p);
-      float a = atan(p.y, p.x);
-      // radial cracks: irregular sectors
-      float sectors = 13.0;
-      float sa = a / 6.2832 * sectors;
-      float wob = fbm(vec2(r * 5.0, floor(sa)), vec2(64.0), 3) * 0.6;
-      float sid = floor(sa + wob);
-      float fs = fract(sa + wob);
-      float radial = min(fs, 1.0 - fs) * r * 6.2832 / sectors;   // distance to nearest radial crack (approx metres)
-      // concentric cracks
-      float ringIdx = floor(log(r * 12.0 + 1.0) * 2.4 + hash11(sid) * 0.8);
-      float ringF = fract(log(r * 12.0 + 1.0) * 2.4 + hash11(sid) * 0.8);
-      float ring = min(ringF, 1.0 - ringF) * r * 0.5;
-      float crackD = min(radial, ring * step(0.03, r) * step(r, 0.45 + 0.1 * hash11(sid)));
-      float crack = smoothstep(0.0025, 0.0, crackD) * smoothstep(0.75, 0.2, r);
-      // each shard tilted a little: height ramps per shard
-      vec2 shard = vec2(sid, ringIdx);
-      vec2 tilt = (hash22(shard) - 0.5) * 2.0;
-      float hs = dot(p, tilt) * 1.2 * smoothstep(0.6, 0.05, r);
-      // the impact crater
-      float crater = smoothstep(0.025, 0.0, r);
-      // foxing / desilvering near the edges
-      vec2 e = min(uv, 1.0 - uv);
+      float ang = atan(p.y, p.x);
+      float A[6]; A[0] = uA0.x; A[1] = uA0.y; A[2] = uA0.z; A[3] = uA1.x; A[4] = uA1.y; A[5] = uA1.z;
+      float crack = 1.0;
+      // main radials (straight, they coincide with the shard seams)
+      for (int i = 0; i < 6; i++) { if (A[i] > 8.0) continue; crack = min(crack, lineD(p, A[i], 0.0, float(i))); }
+      // secondary cracks: branch off the radials and wander, dying out with distance
+      for (int i = 0; i < 9; i++) {
+        float fi = float(i);
+        float a0 = A[int(mod(fi, 6.0))] + (hash11(fi * 3.1) - 0.5) * 0.9;
+        vec2 o = vec2(cos(a0), sin(a0)) * (0.03 + 0.12 * hash11(fi * 7.3));
+        float len = 0.05 + 0.18 * hash11(fi * 1.9);
+        float dd = lineD(p - o, a0 + (hash11(fi * 5.7) - 0.5) * 1.2, 0.03, fi + 10.0);
+        float along = length(p - o);
+        crack = min(crack, dd + step(len, along) * 1.0 + along * 0.004);
+      }
+      // two broken concentric rings
+      float ring = 1.0;
+      for (int k = 0; k < 2; k++) {
+        float rr = k == 0 ? 0.075 : 0.16;
+        float wob = 0.012 * fbm(vec2(ang * 3.0, float(k) * 7.0), vec2(64.0), 3);
+        float rd = abs(r - rr - wob);
+        // rings are broken into arcs
+        float on = step(0.35, fbm(vec2(ang * 2.0 + float(k) * 4.0, 1.0), vec2(64.0), 2) * 0.5 + 0.5);
+        ring = min(ring, rd + (1.0 - on));
+      }
+      crack = min(crack, ring);
+      // impact star: dense short spokes + crushed glass at the centre
+      float starA = fract(ang / 6.2832 * 23.0 + 0.3 * fbm(vec2(r * 30.0, 0.0), vec2(64.0), 2));
+      float star = min(starA, 1.0 - starA) * r * 6.2832 / 23.0 + step(0.045 + 0.02 * hash11(floor(ang / 6.2832 * 23.0)), r);
+      crack = min(crack, star);
+      float crushed = smoothstep(0.022, 0.0, r + 0.006 * fbm(p * 200.0, vec2(256.0), 3));
+      float line = smoothstep(0.0022, 0.0004, crack);
+      float halo = smoothstep(0.008, 0.0, crack);
+      // desilvering: dark blotches eating in from the frame, a few freckles of foxing
+      vec2 e = min(uv, 1.0 - uv) * vec2(uAsp, 1.0);
       float edge = min(e.x, e.y);
-      float fox = smoothstep(0.12, 0.0, edge + fbm(uv * 8.0, vec2(64.0), 5) * 0.08);
-      float spots = smoothstep(0.7, 0.8, fbm(uv * 14.0 + 5.0, vec2(64.0), 4)) * 0.8;
-      vec3 silver = vec3(0.82, 0.83, 0.85);
-      vec3 col = silver * (1.0 - crack * 0.85) * (1.0 - crater * 0.7);
-      col = mix(col, vec3(0.16, 0.13, 0.1), max(fox, spots) * 0.85);
+      float fn = fbm(uv * 5.0, vec2(64.0), 5);
+      float desil = smoothstep(0.1, 0.0, edge + fn * 0.06 - 0.01);
+      float blot = smoothstep(0.62, 0.72, fbm(uv * 7.0 + 3.0, vec2(64.0), 5) * 0.5 + 0.5) * smoothstep(0.25, 0.05, edge);
+      float fox = smoothstep(0.86, 0.9, fbm(uv * 30.0 + 5.0, vec2(256.0), 3) * 0.5 + 0.5);
+      float bad = clamp(max(max(desil, blot), fox * 0.7), 0.0, 1.0);
+      vec3 silver = vec3(0.78, 0.78, 0.76);
+      vec3 col = mix(silver, vec3(0.07, 0.06, 0.05), bad);
+      col *= 1.0 - halo * 0.25;
+      col = mix(col, vec3(0.9, 0.9, 0.88), line * 0.6);
+      col = mix(col, vec3(0.35), crushed);
+      if (uGlint > 0.5) { col = vec3(line * (1.0 - bad) * (0.6 + 0.4 * hash12(floor(p * 300.0)))) + vec3(crushed * 0.25); }
       s.albedo = col;
-      s.metal = 1.0 - max(fox, spots) * 0.8;
-      s.rough = 0.04 + crack * 0.5 + crater * 0.6 + max(fox, spots) * 0.5;
-      s.height = 0.5 + hs * 0.08 - crack * 0.15 - crater * 0.2;
-      s.ao = 1.0 - crack * 0.5;
+      s.metal = 1.0 - bad * 0.9;
+      s.rough = 0.035 + halo * 0.25 + crushed * 0.5 + bad * 0.55;
+      s.height = 0.5 - line * 0.25 - halo * 0.08 - crushed * 0.2 + bad * 0.04;
+      s.ao = 1.0 - halo * 0.3;
     }`,
   });
 }
@@ -373,13 +483,13 @@ export function wallpaper(ctx) {
 
 /** Painted bisque doll face (canvas, 1024x512). Face centred at u = 0.25 (SphereGeometry +Z). */
 export function dollFace(ctx, { seed = 0, cracked = false, eyes = '#3a5a8a', hair = '#4a2a14' } = {}) {
-  return ctx.textures.canvas(`bedroom:doll2_${seed}${cracked ? 'c' : ''}`, 1024, 512, (g, w, h) => {
+  return ctx.textures.canvas(`bedroom:doll3_${seed}${cracked ? 'c' : ''}`, 1024, 512, (g, w, h) => {
     const rnd = (i) => { const x = Math.sin(i * 91.7 + seed * 47.3) * 43758.5453; return x - Math.floor(x); };
     // bisque ground: warm ivory with a cooler, slightly grey shading toward the back
     const base = g.createLinearGradient(0, 0, w, 0);
     base.addColorStop(0, '#d9cdbd'); base.addColorStop(0.25, '#efe4d4'); base.addColorStop(0.5, '#d6c9b8'); base.addColorStop(1, '#d9cdbd');
     g.fillStyle = base; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 700; i++) { g.fillStyle = `rgba(${150 + rnd(i) * 60},${120 + rnd(i + 1) * 40},100,0.035)`; g.beginPath(); g.arc(rnd(i + 2) * w, rnd(i + 3) * h, 3 + rnd(i + 4) * 14, 0, 7); g.fill(); }
+    for (let i = 0; i < 700; i++) { const x = rnd(i + 2) * w, y = rnd(i + 3) * h, r = 3 + rnd(i + 4) * 14; const gg = g.createRadialGradient(x, y, 0, x, y, r); gg.addColorStop(0, `rgba(${150 + rnd(i) * 60},${120 + rnd(i + 1) * 40},100,0.06)`); gg.addColorStop(1, 'rgba(150,120,100,0)'); g.fillStyle = gg; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
     const cx = w * 0.25, cy = h * 0.52;
     const S = 2.0;      // feature scale (px per old px)
     // hair line (the hair cap covers the rest)
@@ -387,12 +497,14 @@ export function dollFace(ctx, { seed = 0, cracked = false, eyes = '#3a5a8a', hai
     // cheeks: strong, rouged blush that reads from across the room
     for (const sd of [-1, 1]) {
       const x = cx + sd * 40 * S, y = cy + 26 * S;
-      const gr = g.createRadialGradient(x, y, 2, x, y, 34 * S);
-      gr.addColorStop(0, 'rgba(214,82,86,0.75)'); gr.addColorStop(0.6, 'rgba(214,92,96,0.3)'); gr.addColorStop(1, 'rgba(214,92,96,0)');
-      g.fillStyle = gr; g.beginPath(); g.arc(x, y, 34 * S, 0, 7); g.fill();
+      const ox = x + (rnd(sd + 9) - 0.5) * 10 * S;
+      const gr = g.createRadialGradient(ox, y, 2, ox, y, 30 * S);
+      const fa = 0.18 + rnd(sd + 5) * 0.2;   // the rouge has faded unevenly
+      gr.addColorStop(0, `rgba(190,96,92,${fa})`); gr.addColorStop(0.6, `rgba(190,104,100,${fa * 0.4})`); gr.addColorStop(1, 'rgba(190,104,100,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(ox, y, 30 * S, 0, 7); g.fill();
     }
     // chin + nose-tip blush
-    for (const [x, y, r, a] of [[cx, cy + 48 * S, 14 * S, 0.35], [cx, cy + 16 * S, 8 * S, 0.3]]) {
+    for (const [x, y, r, a] of [[cx, cy + 48 * S, 14 * S, 0.12], [cx, cy + 16 * S, 8 * S, 0.1]]) {
       const gr = g.createRadialGradient(x, y, 1, x, y, r); gr.addColorStop(0, `rgba(205,95,90,${a})`); gr.addColorStop(1, 'rgba(205,95,90,0)');
       g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
     }
@@ -403,23 +515,23 @@ export function dollFace(ctx, { seed = 0, cracked = false, eyes = '#3a5a8a', hai
       const sh = g.createRadialGradient(ex, ey - 6 * S, 2, ex, ey - 4 * S, 22 * S);
       sh.addColorStop(0, 'rgba(120,70,70,0.45)'); sh.addColorStop(1, 'rgba(120,70,70,0)');
       g.fillStyle = sh; g.beginPath(); g.arc(ex, ey - 4 * S, 22 * S, 0, 7); g.fill();
-      g.fillStyle = '#efe9de'; g.beginPath(); g.ellipse(ex, ey, 15 * S, 10 * S, 0, 0, 7); g.fill();
-      g.fillStyle = eyes; g.beginPath(); g.arc(ex, ey + 1 * S, 8.5 * S, 0, 7); g.fill();
-      g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.arc(ex, ey + 1 * S, 8.5 * S, Math.PI, 0); g.fill();
-      g.fillStyle = '#050403'; g.beginPath(); g.arc(ex, ey + 1 * S, 4 * S, 0, 7); g.fill();
-      // heavy upper lid line + painted lashes (upper and lower)
-      g.strokeStyle = '#1a0f08'; g.lineWidth = 3.4 * S; g.beginPath(); g.ellipse(ex, ey + 1 * S, 15.5 * S, 10.5 * S, 0, Math.PI * 1.04, Math.PI * 1.96); g.stroke();
-      g.lineWidth = 1.4 * S;
-      for (let k = 0; k < 9; k++) { const a = Math.PI * (1.1 + k * 0.1); g.beginPath(); g.moveTo(ex + Math.cos(a) * 15 * S, ey + 1 * S + Math.sin(a) * 10 * S); g.lineTo(ex + Math.cos(a) * 21 * S, ey + 1 * S + Math.sin(a) * 16 * S); g.stroke(); }
-      g.lineWidth = 0.9 * S; g.strokeStyle = 'rgba(40,20,10,0.8)';
-      for (let k = 0; k < 7; k++) { const a = Math.PI * (0.2 + k * 0.1); g.beginPath(); g.moveTo(ex + Math.cos(a) * 14 * S, ey + 1 * S + Math.sin(a) * 9 * S); g.lineTo(ex + Math.cos(a) * 17 * S, ey + 1 * S + Math.sin(a) * 13 * S); g.stroke(); }
+      // small, deep-set painted eye under a heavy lid (the glass eyeball sits in the socket)
+      g.fillStyle = '#d8d0c2'; g.beginPath(); g.ellipse(ex, ey + 1 * S, 10 * S, 5.5 * S, 0, 0, 7); g.fill();
+      g.fillStyle = eyes; g.beginPath(); g.arc(ex, ey + 1.6 * S, 5 * S, 0, 7); g.fill();
+      g.fillStyle = '#050403'; g.beginPath(); g.arc(ex, ey + 1.6 * S, 2.4 * S, 0, 7); g.fill();
+      // heavy upper lid: a painted crease and a dark lash line that cuts the top of the iris
+      g.fillStyle = 'rgba(150,110,96,0.55)'; g.beginPath(); g.ellipse(ex, ey - 2.5 * S, 12 * S, 6 * S, 0, Math.PI, 0); g.fill();
+      g.strokeStyle = '#1a0f08'; g.lineWidth = 2.6 * S; g.beginPath(); g.ellipse(ex, ey + 1 * S, 10.5 * S, 5.5 * S, 0, Math.PI * 1.02, Math.PI * 1.98); g.stroke();
+      g.strokeStyle = 'rgba(90,60,45,0.6)'; g.lineWidth = 1.0 * S; g.beginPath(); g.ellipse(ex, ey - 3.5 * S, 12 * S, 6 * S, 0, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
+      g.lineWidth = 0.9 * S; g.strokeStyle = '#1a0f08';
+      for (let k = 0; k < 8; k++) { const a = Math.PI * (1.12 + k * 0.11); g.beginPath(); g.moveTo(ex + Math.cos(a) * 10 * S, ey + 1 * S + Math.sin(a) * 5.5 * S); g.lineTo(ex + Math.cos(a) * 13 * S, ey + 1 * S + Math.sin(a) * 9 * S); g.stroke(); }
       // feathered brows, high and thin (surprised)
-      g.strokeStyle = 'rgba(80,45,22,0.85)'; g.lineWidth = 1.2 * S;
+      g.strokeStyle = 'rgba(90,60,36,0.45)'; g.lineWidth = 0.7 * S;
       for (let k = 0; k < 10; k++) { const t = k / 9; const bx = ex - 15 * S + t * 30 * S; const by = ey - 22 * S - Math.sin(t * Math.PI) * 6 * S; g.beginPath(); g.moveTo(bx, by + 2 * S); g.lineTo(bx + 4 * S, by - 1 * S); g.stroke(); }
     }
     // nostril dots and a tiny rosebud mouth, parted to show two painted teeth
     g.fillStyle = 'rgba(150,70,60,0.75)'; g.beginPath(); g.arc(cx - 3.5 * S, cy + 19 * S, 1.8 * S, 0, 7); g.arc(cx + 3.5 * S, cy + 19 * S, 1.8 * S, 0, 7); g.fill();
-    g.fillStyle = '#a32a2c'; g.beginPath(); g.moveTo(cx - 11 * S, cy + 35 * S); g.quadraticCurveTo(cx - 5 * S, cy + 28 * S, cx, cy + 32 * S); g.quadraticCurveTo(cx + 5 * S, cy + 28 * S, cx + 11 * S, cy + 35 * S); g.quadraticCurveTo(cx, cy + 43 * S, cx - 11 * S, cy + 35 * S); g.fill();
+    g.fillStyle = '#7a4a44'; g.beginPath(); g.moveTo(cx - 11 * S, cy + 35 * S); g.quadraticCurveTo(cx - 5 * S, cy + 28 * S, cx, cy + 32 * S); g.quadraticCurveTo(cx + 5 * S, cy + 28 * S, cx + 11 * S, cy + 35 * S); g.quadraticCurveTo(cx, cy + 43 * S, cx - 11 * S, cy + 35 * S); g.fill();
     g.fillStyle = '#2a0808'; g.beginPath(); g.ellipse(cx, cy + 35.5 * S, 6 * S, 1.8 * S, 0, 0, 7); g.fill();
     g.fillStyle = '#f2ece0'; g.fillRect(cx - 3.2 * S, cy + 34 * S, 2.8 * S, 2.2 * S); g.fillRect(cx + 0.4 * S, cy + 34 * S, 2.8 * S, 2.2 * S);
     if (cracked) {
@@ -431,7 +543,11 @@ export function dollFace(ctx, { seed = 0, cracked = false, eyes = '#3a5a8a', hai
       g.fillStyle = '#140d08'; g.beginPath(); g.moveTo(cx + 30 * S, cy - 44 * S); g.lineTo(cx + 46 * S, cy - 34 * S); g.lineTo(cx + 37 * S, cy - 24 * S); g.lineTo(cx + 33 * S, cy - 30 * S); g.closePath(); g.fill();
     }
     // grime in the creases + a brown tear stain under one eye
-    for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(60,45,30,${0.03 + rnd(i + 70) * 0.05})`; g.beginPath(); g.arc(rnd(i + 80) * w, rnd(i + 90) * h, 8 + rnd(i + 100) * 30, 0, 7); g.fill(); }
+    for (let i = 0; i < 90; i++) {
+      const x = rnd(i + 80) * w, y = rnd(i + 90) * h, r = 8 + rnd(i + 100) * 30;
+      const gg = g.createRadialGradient(x, y, 0, x, y, r); gg.addColorStop(0, `rgba(60,45,30,${0.04 + rnd(i + 70) * 0.08})`); gg.addColorStop(1, 'rgba(60,45,30,0)');
+      g.fillStyle = gg; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+    }
     const tx = cx + (seed % 2 ? 26 : -26) * S;
     const tg = g.createLinearGradient(tx, cy + 10 * S, tx, cy + 60 * S); tg.addColorStop(0, 'rgba(80,55,35,0.35)'); tg.addColorStop(1, 'rgba(80,55,35,0)');
     g.fillStyle = tg; g.fillRect(tx - 2.5 * S, cy + 10 * S, 5 * S, 50 * S);
@@ -622,77 +738,341 @@ export function fringeTex(ctx) {
 }
 
 /**
- * Over-mantel portrait (canvas, 1024 x 1320): a gentleman in a black frock coat and white stock
- * against a brown-black ground, painted with soft glazes — except the eyes, which someone has
- * rubbed away to bare, smeared ground. Yellowed varnish and craquelure over everything.
+ * Over-mantel portrait (canvas, 1024 x 1320): a gentleman in a black frock coat and white stock,
+ * lit Rembrandt-fashion from the upper left out of a brown-black varnish ground. The face is built
+ * from layered glazes (light, half-tone, reflected light, cast shadow) and then the whole canvas is
+ * re-laid in ~40k directional brush strokes sampled from itself, so it reads as oil paint, not as a
+ * gradient. The eye whites are painted; the irises are added by the material at render time so the
+ * eyes follow the viewer (see EYES). Yellowed varnish and craquelure over everything.
  */
+export const PORTRAIT_EYES = [[(512 - 58) / 1024, 1 - (0.34 * 1320 - 12) / 1320], [(512 + 58) / 1024, 1 - (0.34 * 1320 - 12) / 1320]];
 export function fatherPortrait(ctx) {
-  return ctx.textures.canvas('bedroom:father', 1024, 1320, (g, w, h) => {
+  return ctx.textures.canvas('bedroom:father2', 1024, 1320, (g, w, h) => {
     const rnd = (i) => { const x = Math.sin(i * 51.37 + 7.1) * 43758.5453; return x - Math.floor(x); };
+    const blob = (x, y, rx, ry, col, rot = 0) => { g.fillStyle = col; g.beginPath(); g.ellipse(x, y, rx, ry, rot, 0, 7); g.fill(); };
+    const glow = (x, y, r, c0, c1 = 'rgba(0,0,0,0)', sx = 1, sy = 1) => {
+      g.save(); g.translate(x, y); g.scale(sx, sy);
+      const gr = g.createRadialGradient(0, 0, 0, 0, 0, r); gr.addColorStop(0, c0); gr.addColorStop(1, c1);
+      g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r, 0, 7); g.fill(); g.restore();
+    };
     // ground: warm umber, lighter behind the head (old-master halo)
-    const bg = g.createRadialGradient(w * 0.5, h * 0.33, 40, w * 0.5, h * 0.4, h * 0.75);
-    bg.addColorStop(0, '#5a4630'); bg.addColorStop(0.45, '#2a1f15'); bg.addColorStop(1, '#0c0907');
+    const bg = g.createRadialGradient(w * 0.42, h * 0.3, 40, w * 0.5, h * 0.42, h * 0.75);
+    bg.addColorStop(0, '#4e3c28'); bg.addColorStop(0.4, '#261c13'); bg.addColorStop(1, '#0a0806');
     g.fillStyle = bg; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(${40 + rnd(i) * 40},${30 + rnd(i + 1) * 25},${18},0.05)`; g.beginPath(); g.arc(rnd(i + 2) * w, rnd(i + 3) * h, 10 + rnd(i + 4) * 50, 0, 7); g.fill(); }
+    for (let i = 0; i < 600; i++) glow(rnd(i + 2) * w, rnd(i + 3) * h, 20 + rnd(i + 4) * 80, `rgba(${50 + rnd(i) * 40},${36 + rnd(i + 1) * 25},20,0.06)`);
     const cx = w * 0.5, hy = h * 0.34;
-    // shoulders + black frock coat
-    g.fillStyle = '#0d0b0a';
-    g.beginPath(); g.moveTo(cx - 470, h); g.bezierCurveTo(cx - 430, h * 0.66, cx - 260, h * 0.56, cx - 120, h * 0.52); g.lineTo(cx + 120, h * 0.52);
+    // coat
+    g.fillStyle = '#0c0a09';
+    g.beginPath(); g.moveTo(cx - 480, h); g.bezierCurveTo(cx - 440, h * 0.66, cx - 270, h * 0.56, cx - 120, h * 0.52); g.lineTo(cx + 120, h * 0.52);
     g.bezierCurveTo(cx + 260, h * 0.56, cx + 430, h * 0.66, cx + 470, h); g.closePath(); g.fill();
-    // lapels catching a little light
-    g.fillStyle = '#1d1a18';
-    g.beginPath(); g.moveTo(cx - 110, h * 0.53); g.lineTo(cx - 200, h * 0.75); g.lineTo(cx - 60, h * 0.95); g.lineTo(cx - 30, h * 0.62); g.closePath(); g.fill();
+    glow(cx - 260, h * 0.68, 220, 'rgba(60,52,46,0.35)', 'rgba(0,0,0,0)', 1, 1.4);       // light on the left shoulder
+    g.fillStyle = '#1b1816';
+    g.beginPath(); g.moveTo(cx - 110, h * 0.53); g.lineTo(cx - 205, h * 0.76); g.lineTo(cx - 60, h * 0.96); g.lineTo(cx - 30, h * 0.62); g.closePath(); g.fill();
+    g.fillStyle = '#121010';
     g.beginPath(); g.moveTo(cx + 110, h * 0.53); g.lineTo(cx + 200, h * 0.75); g.lineTo(cx + 60, h * 0.95); g.lineTo(cx + 30, h * 0.62); g.closePath(); g.fill();
-    // white stock + shirt
-    const st = g.createLinearGradient(cx - 90, 0, cx + 90, 0); st.addColorStop(0, '#9c9384'); st.addColorStop(0.5, '#e4dccb'); st.addColorStop(1, '#8a8274');
-    g.fillStyle = st; g.beginPath(); g.moveTo(cx - 95, h * 0.5); g.quadraticCurveTo(cx, h * 0.56, cx + 95, h * 0.5); g.lineTo(cx + 40, h * 0.7); g.lineTo(cx, h * 0.76); g.lineTo(cx - 40, h * 0.7); g.closePath(); g.fill();
-    g.fillStyle = '#0a0808'; g.beginPath(); g.moveTo(cx - 30, h * 0.53); g.lineTo(cx + 30, h * 0.53); g.lineTo(cx + 12, h * 0.6); g.lineTo(cx - 12, h * 0.6); g.closePath(); g.fill();
-    // neck
-    g.fillStyle = '#8d6a52'; g.fillRect(cx - 62, hy + 150, 124, 110);
-    // head: lit from the upper left, cool shadow on the right
-    const sk = g.createRadialGradient(cx - 60, hy - 40, 20, cx, hy + 20, 230);
-    sk.addColorStop(0, '#e3c2a2'); sk.addColorStop(0.45, '#b98d6c'); sk.addColorStop(0.8, '#6e4a36'); sk.addColorStop(1, '#3a281e');
-    g.fillStyle = sk; g.beginPath(); g.ellipse(cx, hy + 10, 150, 200, 0, 0, 7); g.fill();
+    // stock + shirt, the light falling across from the left
+    const st = g.createLinearGradient(cx - 100, 0, cx + 100, 0); st.addColorStop(0, '#d8cfbd'); st.addColorStop(0.45, '#c4baa6'); st.addColorStop(1, '#5e574c');
+    g.fillStyle = st; g.beginPath(); g.moveTo(cx - 98, h * 0.5); g.quadraticCurveTo(cx, h * 0.565, cx + 95, h * 0.5); g.lineTo(cx + 40, h * 0.7); g.lineTo(cx, h * 0.77); g.lineTo(cx - 42, h * 0.7); g.closePath(); g.fill();
+    for (let k = 0; k < 7; k++) { g.strokeStyle = `rgba(70,62,52,${0.25 + rnd(k) * 0.2})`; g.lineWidth = 3; g.beginPath(); g.moveTo(cx - 60 + k * 18, h * 0.53); g.quadraticCurveTo(cx - 40 + k * 14, h * 0.62, cx - 30 + k * 10, h * 0.7); g.stroke(); }
+    g.fillStyle = '#0a0808'; g.beginPath(); g.moveTo(cx - 32, h * 0.532); g.lineTo(cx + 30, h * 0.532); g.lineTo(cx + 12, h * 0.6); g.lineTo(cx - 12, h * 0.6); g.closePath(); g.fill();
+    // neck in shadow under the jaw
+    g.fillStyle = '#6a4c3a'; g.fillRect(cx - 62, hy + 150, 124, 110);
+    glow(cx + 30, hy + 175, 90, 'rgba(30,18,12,0.8)', 'rgba(30,18,12,0)', 1.2, 0.6);
+    // ---- head: base half-tone, then light, then shadow
+    blob(cx, hy + 10, 150, 200, '#9c7258');
+    glow(cx - 70, hy - 30, 210, 'rgba(232,200,168,0.95)', 'rgba(232,200,168,0)', 0.9, 1.1);   // light side
+    glow(cx + 120, hy + 40, 170, 'rgba(48,30,22,0.92)', 'rgba(48,30,22,0)', 0.7, 1.2);         // shadow side
+    glow(cx + 135, hy + 60, 50, 'rgba(120,88,72,0.5)', 'rgba(120,88,72,0)', 0.6, 1.6);          // reflected light on the far cheek
+    glow(cx - 75, hy + 30, 55, 'rgba(240,206,176,0.6)');                                       // cheekbone
+    glow(cx - 40, hy - 115, 80, 'rgba(240,214,186,0.55)', 'rgba(0,0,0,0)', 1.4, 0.6);          // forehead highlight
+    glow(cx - 60, hy + 115, 50, 'rgba(150,96,80,0.35)');                                        // ruddy jaw
+    glow(cx + 10, hy + 165, 60, 'rgba(70,42,30,0.6)', 'rgba(0,0,0,0)', 1.4, 0.7);              // under-chin shadow
     // ears
-    g.fillStyle = '#946a50'; g.beginPath(); g.ellipse(cx - 150, hy + 30, 22, 46, 0.1, 0, 7); g.fill(); g.fillStyle = '#5a3c2c'; g.beginPath(); g.ellipse(cx + 150, hy + 30, 20, 44, -0.1, 0, 7); g.fill();
-    // hair: dark, receding, oiled; grey side-whiskers
-    g.fillStyle = '#16100c';
-    g.beginPath(); g.ellipse(cx, hy - 120, 165, 110, 0, Math.PI, 0); g.fill();
-    g.beginPath(); g.moveTo(cx - 165, hy - 120); g.quadraticCurveTo(cx - 175, hy - 20, cx - 140, hy + 60); g.lineTo(cx - 120, hy - 60); g.closePath(); g.fill();
-    g.beginPath(); g.moveTo(cx + 165, hy - 120); g.quadraticCurveTo(cx + 175, hy - 20, cx + 140, hy + 60); g.lineTo(cx + 120, hy - 60); g.closePath(); g.fill();
-    g.fillStyle = 'rgba(120,112,104,0.75)';
-    for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(cx + sd * 140, hy + 20); g.quadraticCurveTo(cx + sd * 150, hy + 140, cx + sd * 95, hy + 175); g.lineTo(cx + sd * 112, hy + 60); g.closePath(); g.fill(); }
-    // nose, mouth, jaw shadow
-    g.fillStyle = 'rgba(90,55,40,0.6)'; g.beginPath(); g.moveTo(cx + 5, hy - 10); g.quadraticCurveTo(cx + 28, hy + 70, cx + 18, hy + 88); g.lineTo(cx - 12, hy + 90); g.closePath(); g.fill();
-    g.fillStyle = 'rgba(240,215,190,0.35)'; g.beginPath(); g.ellipse(cx - 8, hy + 40, 9, 45, 0, 0, 7); g.fill();
-    g.strokeStyle = '#4a2a20'; g.lineWidth = 6; g.beginPath(); g.moveTo(cx - 48, hy + 128); g.quadraticCurveTo(cx, hy + 136, cx + 48, hy + 126); g.stroke();
-    g.fillStyle = 'rgba(40,24,16,0.45)'; g.beginPath(); g.ellipse(cx + 70, hy + 90, 60, 110, 0, 0, 7); g.fill();
+    blob(cx - 150, hy + 30, 22, 46, '#a07a5e', 0.1); blob(cx - 150, hy + 30, 10, 28, '#6a4a38', 0.1);
+    blob(cx + 150, hy + 30, 20, 44, '#3e2a20', -0.1);
+    // eye sockets (deep, the far one in full shadow)
+    for (const sd of [-1, 1]) glow(cx + sd * 58, hy - 12, 50, sd < 0 ? 'rgba(90,58,44,0.7)' : 'rgba(40,24,18,0.85)', 'rgba(0,0,0,0)', 1.2, 0.85);
     // brows
-    g.strokeStyle = '#1a120c'; g.lineWidth = 12; g.lineCap = 'round';
-    for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(cx + sd * 25, hy - 48); g.quadraticCurveTo(cx + sd * 60, hy - 62, cx + sd * 100, hy - 50); g.stroke(); }
-    // the eyes: rubbed out — smeared to raw, pale ground in two thumb-shaped scrubs
-    for (const sd of [-1, 1]) {
-      const ex = cx + sd * 58, ey = hy - 15;
-      for (let k = 0; k < 40; k++) {
-        const a = rnd(k + sd * 50) * 6.28, r = rnd(k + 9 + sd * 50) * 26;
-        g.fillStyle = `rgba(${170 + rnd(k) * 40},${150 + rnd(k + 2) * 30},${120},${0.12 + rnd(k + 4) * 0.12})`;
-        g.beginPath(); g.ellipse(ex + Math.cos(a) * r, ey + Math.sin(a) * r * 0.6, 26, 14, (rnd(k + 6) - 0.5) * 0.8, 0, 7); g.fill();
+    g.lineCap = 'round';
+    for (const sd of [-1, 1]) { for (let k = 0; k < 18; k++) { g.strokeStyle = `rgba(30,20,14,${0.35 + rnd(k + sd * 9) * 0.3})`; g.lineWidth = 4 + rnd(k) * 4; const t = k / 17; g.beginPath(); g.moveTo(cx + sd * (24 + t * 70), hy - 48 - Math.sin(t * 3.1) * 12 + rnd(k) * 4); g.lineTo(cx + sd * (34 + t * 70), hy - 54 - Math.sin(t * 3.1) * 12); g.stroke(); } }
+    // nose: lit bridge, shadow plane on the right, nostrils, tip highlight, cast shadow
+    g.fillStyle = 'rgba(70,42,30,0.55)'; g.beginPath(); g.moveTo(cx + 8, hy - 15); g.quadraticCurveTo(cx + 34, hy + 60, cx + 30, hy + 92); g.lineTo(cx + 4, hy + 94); g.closePath(); g.fill();
+    glow(cx - 6, hy + 30, 16, 'rgba(246,220,192,0.55)', 'rgba(0,0,0,0)', 0.5, 3.2);
+    glow(cx - 2, hy + 80, 16, 'rgba(246,220,192,0.6)');
+    blob(cx - 16, hy + 96, 8, 5, 'rgba(50,26,20,0.8)'); blob(cx + 18, hy + 96, 8, 5, 'rgba(30,16,12,0.85)');
+    glow(cx + 40, hy + 108, 40, 'rgba(50,30,20,0.55)', 'rgba(0,0,0,0)', 1.4, 0.6);
+    // mouth: shadowed upper lip, line, lit lower lip; deep naso-labial folds
+    g.fillStyle = 'rgba(96,52,40,0.8)'; g.beginPath(); g.moveTo(cx - 46, hy + 128); g.quadraticCurveTo(cx, hy + 118, cx + 44, hy + 126); g.quadraticCurveTo(cx, hy + 132, cx - 46, hy + 128); g.fill();
+    g.strokeStyle = '#3a1e16'; g.lineWidth = 4; g.beginPath(); g.moveTo(cx - 46, hy + 129); g.quadraticCurveTo(cx, hy + 135, cx + 44, hy + 127); g.stroke();
+    glow(cx - 8, hy + 142, 30, 'rgba(200,140,120,0.45)', 'rgba(0,0,0,0)', 1.4, 0.5);
+    for (const sd of [-1, 1]) { g.strokeStyle = sd < 0 ? 'rgba(110,70,52,0.5)' : 'rgba(40,24,18,0.6)'; g.lineWidth = 7; g.beginPath(); g.moveTo(cx + sd * 34, hy + 84); g.quadraticCurveTo(cx + sd * 62, hy + 112, cx + sd * 58, hy + 150); g.stroke(); }
+    // hair: dark, oiled, receding; grey side-whiskers laid in as strands
+    g.fillStyle = '#140e0a';
+    g.beginPath(); g.ellipse(cx, hy - 128, 162, 100, 0, Math.PI, 0); g.fill();
+    g.beginPath(); g.moveTo(cx - 162, hy - 128); g.quadraticCurveTo(cx - 176, hy - 20, cx - 142, hy + 60); g.lineTo(cx - 122, hy - 60); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(cx + 162, hy - 128); g.quadraticCurveTo(cx + 176, hy - 20, cx + 142, hy + 60); g.lineTo(cx + 122, hy - 60); g.closePath(); g.fill();
+    for (let k = 0; k < 160; k++) { const sd = k % 2 ? 1 : -1; const y0 = hy - 40 + rnd(k) * 200; g.strokeStyle = `rgba(${110 + rnd(k + 1) * 60},${104 + rnd(k + 1) * 50},${96 + rnd(k + 1) * 40},${sd < 0 ? 0.35 : 0.15})`; g.lineWidth = 2 + rnd(k + 2) * 2; g.beginPath(); g.moveTo(cx + sd * (140 - (y0 - hy) * 0.2), y0); g.quadraticCurveTo(cx + sd * (148 - (y0 - hy) * 0.25), y0 + 20, cx + sd * (132 - (y0 - hy) * 0.28), y0 + 40); g.stroke(); }
+    for (let k = 0; k < 90; k++) { g.strokeStyle = `rgba(80,60,44,${0.15 + rnd(k + 5) * 0.15})`; g.lineWidth = 2; const x0 = cx - 140 + rnd(k + 7) * 280; g.beginPath(); g.moveTo(x0, hy - 200 + rnd(k) * 20); g.quadraticCurveTo(x0 + 30, hy - 170, x0 + 50, hy - 150 + rnd(k + 3) * 30); g.stroke(); }
+    // ---- re-lay the canvas in directional brush strokes sampled from itself
+    {
+      const src = g.getImageData(0, 0, w, h).data;
+      const at = (x, y) => { const i = ((Math.min(h - 1, Math.max(0, y | 0)) * w) + Math.min(w - 1, Math.max(0, x | 0))) * 4; return [src[i], src[i + 1], src[i + 2]]; };
+      for (let i = 0; i < 42000; i++) {
+        const x = rnd(i * 2 + 101) * w, y = rnd(i * 2 + 102) * h;
+        const [r, gg, b] = at(x, y);
+        const inFace = Math.hypot((x - cx) / 170, (y - hy) / 220) < 1;
+        // strokes follow the form: around the head they curve with it, elsewhere a loose diagonal
+        const ang = inFace ? Math.atan2(y - hy, x - cx) + Math.PI / 2 + (rnd(i + 7) - 0.5) * 0.5 : 0.7 + Math.sin(x * 0.01 + y * 0.013) * 0.6 + (rnd(i + 7) - 0.5) * 0.4;
+        const len = inFace ? 5 + rnd(i + 3) * 8 : 10 + rnd(i + 3) * 26, wd = inFace ? 1.6 + rnd(i + 4) * 2 : 2.5 + rnd(i + 4) * 4;
+        const j = (rnd(i + 5) - 0.5) * 14;
+        g.fillStyle = `rgba(${r + j},${gg + j * 0.9},${b + j * 0.7},${inFace ? 0.55 : 0.4})`;
+        g.beginPath(); g.ellipse(x, y, len, wd, ang, 0, 7); g.fill();
       }
-      g.strokeStyle = 'rgba(60,40,28,0.5)'; g.lineWidth = 2;
-      for (let k = 0; k < 12; k++) { const y = ey - 16 + k * 3; g.beginPath(); g.moveTo(ex - 34, y + rnd(k) * 4); g.lineTo(ex + 34, y + rnd(k + 1) * 4); g.stroke(); }
+      // impasto: a few thick strokes of light on the forehead, nose and collar
+      for (let i = 0; i < 260; i++) {
+        const k = rnd(i + 900); const [x, y] = k < 0.4 ? [cx - 90 + rnd(i + 901) * 110, hy - 150 + rnd(i + 902) * 70] : k < 0.6 ? [cx - 12 + rnd(i + 901) * 12, hy + rnd(i + 902) * 90] : [cx - 90 + rnd(i + 901) * 110, h * 0.5 + rnd(i + 902) * 60];
+        const [r, gg, b] = at(x, y);
+        g.fillStyle = `rgba(${Math.min(255, r + 18)},${Math.min(255, gg + 14)},${Math.min(255, b + 8)},0.5)`;
+        g.beginPath(); g.ellipse(x, y, 7 + rnd(i) * 8, 2 + rnd(i + 1) * 2, -0.4 + rnd(i + 2) * 0.8, 0, 7); g.fill();
+      }
+    }
+    // ---- eye whites (almond, aged ivory, darker under the lids); irises are added in the shader
+    for (const [k, [u, v]] of PORTRAIT_EYES.entries()) {
+      const ex = u * w, ey = (1 - v) * h, sd = k ? 1 : -1;
+      g.save(); g.beginPath(); g.ellipse(ex, ey, 27, 12, 0, 0, 7); g.clip();
+      const wg = g.createLinearGradient(ex, ey - 12, ex, ey + 12); wg.addColorStop(0, sd < 0 ? '#6e5e4c' : '#3a3026'); wg.addColorStop(0.5, sd < 0 ? '#c4b49a' : '#6a5c4a'); wg.addColorStop(1, sd < 0 ? '#a8987e' : '#4a3e32');
+      g.fillStyle = wg; g.fillRect(ex - 30, ey - 14, 60, 28); g.restore();
+      g.strokeStyle = 'rgba(30,16,10,0.9)'; g.lineWidth = 5; g.beginPath(); g.ellipse(ex, ey + 1, 28, 13, 0, Math.PI * 1.05, Math.PI * 1.95); g.stroke();
+      g.strokeStyle = 'rgba(60,34,24,0.6)'; g.lineWidth = 3; g.beginPath(); g.ellipse(ex, ey - 7, 30, 14, 0, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
+      g.strokeStyle = 'rgba(80,50,38,0.5)'; g.lineWidth = 2; g.beginPath(); g.ellipse(ex, ey + 2, 26, 12, 0, Math.PI * 0.1, Math.PI * 0.9); g.stroke();
     }
     // varnish: yellowed, darker toward the edges
-    g.fillStyle = 'rgba(120,90,30,0.16)'; g.fillRect(0, 0, w, h);
-    const vg = g.createRadialGradient(cx, h * 0.42, h * 0.25, cx, h * 0.5, h * 0.75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.55)');
+    g.fillStyle = 'rgba(120,90,30,0.18)'; g.fillRect(0, 0, w, h);
+    const vg = g.createRadialGradient(cx, h * 0.4, h * 0.22, cx, h * 0.5, h * 0.78); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.6)');
     g.fillStyle = vg; g.fillRect(0, 0, w, h);
     // craquelure network
-    g.strokeStyle = 'rgba(10,6,4,0.45)'; g.lineWidth = 1.2;
-    for (let i = 0; i < 520; i++) {
+    g.strokeStyle = 'rgba(10,6,4,0.4)'; g.lineWidth = 1.1;
+    for (let i = 0; i < 700; i++) {
       let x = rnd(i * 3) * w, y = rnd(i * 3 + 1) * h; g.beginPath(); g.moveTo(x, y);
-      for (let k = 0; k < 4; k++) { x += (rnd(i * 7 + k) - 0.5) * 60; y += (rnd(i * 11 + k) - 0.5) * 60; g.lineTo(x, y); }
+      for (let k = 0; k < 4; k++) { x += (rnd(i * 7 + k) - 0.5) * 50; y += (rnd(i * 11 + k) - 0.5) * 50; g.lineTo(x, y); }
       g.stroke();
     }
-    g.strokeStyle = 'rgba(230,210,170,0.06)'; g.lineWidth = 1;
-    for (let i = 0; i < 300; i++) { const x = rnd(i * 5 + 2) * w, y = rnd(i * 5 + 3) * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd(i) - 0.5) * 40, y + (rnd(i + 1) - 0.5) * 40); g.stroke(); }
   }, { tile: false });
+}
+
+/** Craquelure height for the portrait varnish (normal map; tiles once over the canvas). */
+export function craquelure(ctx) {
+  return ctx.textures.generate('bedroom:craq', {
+    size: 1024, tile: true, normalStrength: 1.5,
+    glsl: /* glsl */ `
+    void surface(vec2 uv, inout Surface s) {
+      float e = voronoiEdge(uv * vec2(28.0, 36.0), vec2(28.0, 36.0), 1.0);
+      float e2 = voronoiEdge(uv * vec2(70.0, 90.0) + 2.0, vec2(70.0, 90.0), 1.0);
+      float cr = smoothstep(0.04, 0.0, e) + smoothstep(0.03, 0.0, e2) * 0.5;
+      float brush = fbm(uv * vec2(60.0, 20.0), vec2(60.0, 20.0), 3) * 0.5 + 0.5;
+      s.albedo = vec3(1.0); s.height = 0.5 - cr * 0.3 + brush * 0.12; s.rough = 0.3 + cr * 0.4; s.metal = 0.0; s.ao = 1.0;
+    }`,
+  });
+}
+
+/**
+ * Worn Persian (Heriz/Tabriz-style) carpet, 3.0 x 4.0 m, uv 0..1 over the whole rug
+ * (u across the 3 m width, v along the 4 m length). A dense medallion-and-corner field on madder
+ * red, an all-over herati lattice, and six nested borders (guards, a main indigo border with a
+ * rosette-and-vine cartouche run). The pattern is quantised to the knot grid and dyed in uneven
+ * lots (abrash). Wear: a threadbare walking path and a worn centre where the pile is gone and the
+ * beige warp/weft shows through (flatter, smoother), plus two old stains.
+ */
+export function persianRug(ctx) {
+  return ctx.textures.generate('bedroom:persian2', {
+    size: 2048, aspect: 0.75, tile: false, normalStrength: 1.4,
+    glsl: /* glsl */ `
+    const vec3 RED = vec3(0.43, 0.12, 0.085);
+    const vec3 RED2 = vec3(0.34, 0.09, 0.07);
+    const vec3 IND = vec3(0.11, 0.14, 0.25);
+    const vec3 NAVY = vec3(0.045, 0.05, 0.085);
+    const vec3 OCH = vec3(0.6, 0.44, 0.2);
+    const vec3 IVO = vec3(0.7, 0.62, 0.48);
+    const vec3 TEAL = vec3(0.2, 0.29, 0.26);
+    const vec3 ROSE = vec3(0.56, 0.3, 0.24);
+    float sdLoz(vec2 p, vec2 b) { p = abs(p); return (p.x / b.x + p.y / b.y - 1.0) * min(b.x, b.y) * 0.7; }
+    // small flower: 6-8 petals + eye
+    float flower(vec2 p, float r, float n) { float a = atan(p.y, p.x); float rr = r * (0.65 + 0.35 * abs(cos(a * n * 0.5))); return length(p) - rr; }
+    vec3 herati(vec2 c) {
+      vec2 q = c / vec2(0.072, 0.072);
+      vec2 id = floor(q); vec2 f = fract(q) - 0.5;
+      vec3 col = RED;
+      float lat = abs(abs(f.x) + abs(f.y) - 0.5);
+      col = mix(col, NAVY, smoothstep(0.045, 0.02, lat));
+      float fl = flower(f, 0.13, 8.0);
+      col = mix(col, IVO, smoothstep(0.01, -0.01, fl));
+      col = mix(col, RED2, smoothstep(0.01, -0.01, length(f) - 0.04));
+      // four lancet leaves round each rosette, alternately rose and teal
+      for (int k = 0; k < 4; k++) {
+        float a = 0.785398 + float(k) * 1.570796;
+        vec2 r = rot2(-a) * f;
+        float lf = sdVesica(vec2(r.y, r.x - 0.3), 0.11, 0.075);
+        col = mix(col, mod(float(k) + id.x + id.y, 2.0) < 0.5 ? TEAL : ROSE, smoothstep(0.01, -0.01, lf));
+      }
+      // tiny ochre dots in the lattice diamonds, and a secondary lattice of fine navy tendrils
+      col = mix(col, OCH, smoothstep(0.03, 0.015, length(abs(f) - vec2(0.5, 0.0))));
+      col = mix(col, IVO * 0.9, smoothstep(0.03, 0.015, length(abs(f) - vec2(0.0, 0.5))));
+      vec2 g2 = fract(q * 0.5 + 0.25) - 0.5;
+      float tend = abs(length(g2) - 0.28) ;
+      col = mix(col, NAVY * 1.3, smoothstep(0.02, 0.008, tend) * step(0.35, fract(atan(g2.y, g2.x) * 1.2732)) * 0.8);
+      return col;
+    }
+    vec3 medallion(vec2 c, vec3 col) {
+      float a = atan(c.y, c.x);
+      float scal = 0.025 * cos(a * 18.0);
+      float md = abs(c.x) / 0.6 + abs(c.y) / 0.98;
+      float e = md + scal;
+      if (e < 1.0) {
+        col = IND;
+        // inner pattern of the medallion: a smaller herati in ivory/rose on indigo
+        vec2 f = fract(c / 0.07) - 0.5;
+        float fl = flower(f, 0.16, 6.0);
+        col = mix(col, ROSE, smoothstep(0.01, -0.01, fl) * 0.85);
+        col = mix(col, IVO, smoothstep(0.02, 0.0, abs(abs(f.x) + abs(f.y) - 0.5)) * 0.4);
+        col = mix(col, IVO, smoothstep(0.02, 0.0, abs(e - 0.93)));
+        if (e < 0.7) {
+          col = RED;
+          float s8 = sdStar(c, 0.2, 8.0, 3.0);
+          col = mix(col, IVO, smoothstep(0.012, 0.0, abs(e - 0.66)));
+          vec2 g = fract(c / 0.06) - 0.5;
+          col = mix(col, NAVY, smoothstep(0.02, 0.0, abs(abs(g.x) + abs(g.y) - 0.45)) * 0.7);
+          if (s8 < 0.0) {
+            col = OCH;
+            col = mix(col, NAVY, smoothstep(0.012, 0.0, abs(s8 + 0.03)));
+            col = mix(col, IND, smoothstep(0.01, -0.01, flower(c, 0.08, 8.0)));
+            col = mix(col, IVO, smoothstep(0.01, -0.01, length(c) - 0.025));
+          }
+        }
+      }
+      // pendants top and bottom: palmette on a stem
+      vec2 pc = vec2(c.x, abs(c.y) - 1.1);
+      float pend = min(flower(pc, 0.12, 6.0), sdBox(pc + vec2(0.0, 0.11), vec2(0.015, 0.06)));
+      col = mix(col, IND, smoothstep(0.01, -0.01, pend));
+      col = mix(col, IVO, smoothstep(0.01, -0.01, length(pc) - 0.035));
+      return col;
+    }
+    vec3 mainBorder(float along, float t) {
+      // t: 0 (outer) .. 1 (inner) across the band
+      float per = 0.26;
+      float x = (fract(along / per) - 0.5) * per;
+      float y = (t - 0.5) * 0.22;
+      float cell = floor(along / per);
+      vec3 col = NAVY * 1.25;
+      // undulating vine
+      float vine = abs(y - 0.055 * sin(along / per * 6.2832));
+      col = mix(col, OCH * 0.85, smoothstep(0.009, 0.004, vine));
+      // alternating rosettes and cartouches
+      if (mod(cell, 2.0) < 0.5) {
+        float fl = flower(vec2(x, y), 0.07, 8.0);
+        col = mix(col, RED, smoothstep(0.008, -0.008, fl));
+        col = mix(col, IVO, smoothstep(0.006, -0.006, flower(vec2(x, y), 0.035, 6.0)));
+        col = mix(col, NAVY, smoothstep(0.006, -0.006, length(vec2(x, y)) - 0.012));
+      } else {
+        float lz = sdLoz(vec2(x, y), vec2(0.1, 0.07));
+        col = mix(col, ROSE, smoothstep(0.006, -0.006, lz));
+        col = mix(col, TEAL, smoothstep(0.006, -0.006, sdLoz(vec2(x, y), vec2(0.06, 0.04))));
+        col = mix(col, IVO, smoothstep(0.004, 0.0, abs(lz + 0.012)));
+      }
+      // small leaves along the vine
+      vec2 lp = vec2(fract(along / (per * 0.5)) - 0.5, y / 0.11);
+      float lf = sdVesica(rot2(0.9) * (lp - vec2(0.0, 0.5 * sin(along / per * 6.2832 + 1.57))), 0.18, 0.12);
+      col = mix(col, TEAL, smoothstep(0.02, -0.02, lf) * 0.8);
+      return col;
+    }
+    void surface(vec2 uv, inout Surface s) {
+      vec2 m = uv * vec2(3.0, 4.0);
+      // knot grid quantisation (~5 knots/cm is too fine to see; 2.2 mm reads as woven)
+      const float K = 0.0045;
+      vec2 kid = floor(m / K);
+      vec2 kf = fract(m / K);
+      vec2 mq = (kid + 0.5) * K;
+      vec2 c = mq - vec2(1.5, 2.0);
+      float d = min(1.5 - abs(c.x), 2.0 - abs(c.y));     // distance to the rug edge
+      bool vertEdge = (1.5 - abs(c.x)) < (2.0 - abs(c.y));
+      float along = vertEdge ? c.y : c.x;
+      vec3 col;
+      if (d < 0.035) {                                  // outer guard: reciprocal teeth
+        float tooth = abs(fract(along / 0.03) - 0.5) * 2.0;
+        col = (d / 0.035) < tooth ? NAVY : RED2;
+      } else if (d < 0.065) {                           // ochre guard with beads
+        col = OCH * 0.8;
+        col = mix(col, RED2, smoothstep(0.006, 0.003, length(vec2(fract(along / 0.03) - 0.5, (d - 0.05) / 0.03) * vec2(0.03, 0.03))));
+      } else if (d < 0.08) { col = RED;                 // red line
+      } else if (d < 0.31) { col = mainBorder(along, (d - 0.08) / 0.23);
+      } else if (d < 0.345) {                           // ivory guard with a running S
+        float t = (d - 0.31) / 0.035;
+        col = IVO;
+        float sv = abs(t - 0.5 - 0.3 * sin(along / 0.04 * 3.14159));
+        col = mix(col, RED2, smoothstep(0.16, 0.08, sv));
+      } else if (d < 0.37) { col = RED2;
+      } else if (d < 0.38) { col = NAVY;
+      } else {
+        col = herati(c);
+        // corner spandrels (quarter medallions)
+        vec2 cc = abs(c) - vec2(1.12, 1.62);
+        float sp = length(cc * vec2(1.0, 0.8)) - 0.42;
+        if (sp < 0.0) {
+          vec2 g = fract(c / 0.08) - 0.5;
+          col = IND;
+          col = mix(col, ROSE, smoothstep(0.01, -0.01, flower(g, 0.14, 6.0)) * 0.8);
+          col = mix(col, IVO, smoothstep(0.012, 0.0, abs(sp + 0.025)));
+        }
+        col = medallion(c, col);
+      }
+      // abrash: dye lots change in bands across the length
+      float ab = fbm(vec2(mq.y * 0.6, 0.5), vec2(64.0), 3);
+      col *= 1.0 + ab * 0.12;
+      col = mix(col, col * vec3(1.08, 0.95, 0.9), smoothstep(0.2, 0.5, ab) * 0.4);
+      // per-knot jitter and the knot's own shading (each knot is a little dome)
+      float kn = hash12(kid);
+      float dome = 1.0 - length(kf - 0.5) * 1.2;
+      col *= 0.9 + 0.12 * kn;
+      // ---- wear: threadbare path (door -> chest diagonal) and a worn centre
+      float path = abs((m.x - 1.5) * 0.85 + (m.y - 2.0) * 0.5 - 0.15) ;
+      float wearN = fbm(m * 1.5, vec2(64.0), 5) * 0.5 + 0.5;
+      float wear = smoothstep(0.55, 0.0, path) * 0.7 + smoothstep(0.9, 0.0, length((m - vec2(1.6, 2.1)) * vec2(1.0, 0.8))) * 0.5;
+      wear = clamp(wear * (0.6 + 0.8 * wearN) - 0.25, 0.0, 1.0);
+      wear += smoothstep(0.03, 0.0, d) * 0.4;           // edges rubbed
+      wear = clamp(wear, 0.0, 1.0);
+      vec3 warp = vec3(0.52, 0.46, 0.37) * (0.85 + 0.2 * step(0.5, fract(m.x / K * 0.5)) * step(0.5, fract(m.y / K * 0.5)) + 0.1 * kn);
+      float bare = smoothstep(0.55, 0.9, wear);
+      col = mix(col, mix(col * 0.85 + vec3(0.06, 0.05, 0.04), warp, bare), smoothstep(0.15, 0.6, wear));
+      // stains: one dark wine/tea, one grey water mark
+      float st1 = smoothstep(0.18, 0.1, length((m - vec2(0.95, 2.9)) * vec2(1.0, 1.3)) + fbm(m * 6.0, vec2(64.0), 4) * 0.05);
+      col = mix(col, col * vec3(0.45, 0.35, 0.3), st1 * 0.7);
+      float st2r = length((m - vec2(2.2, 1.1)) * vec2(1.2, 1.0)) + fbm(m * 5.0 + 3.0, vec2(64.0), 4) * 0.06;
+      col = mix(col, col * 0.8 + vec3(0.04), smoothstep(0.25, 0.15, st2r) * 0.4);
+      col = mix(col, col * 0.6, smoothstep(0.012, 0.0, abs(st2r - 0.22)) * 0.5);
+      // dust and grime toward the edges
+      col *= 0.82 + 0.18 * smoothstep(0.0, 0.5, d);
+      s.albedo = col;
+      float pile = (1.0 - bare) * (0.55 + 0.25 * dome + 0.1 * kn);
+      s.height = 0.25 + pile * 0.5 + wearN * 0.08;
+      s.rough = mix(0.95, 0.8, bare) - 0.06 * fbm(m * 3.0 + 7.0, vec2(64.0), 3);
+      s.metal = 0.0;
+      s.ao = 0.75 + 0.25 * dome * (1.0 - bare) + bare * 0.2;
+    }`,
+  });
+}
+
+/** Bisque crazing + pores for the doll heads (tiles; normal map only matters). 1 tile ~ 6 cm. */
+export function bisqueCraze(ctx) {
+  return ctx.textures.generate('bedroom:craze', {
+    size: 512, tile: true, normalStrength: 1.2,
+    glsl: /* glsl */ `
+    void surface(vec2 uv, inout Surface s) {
+      float e = voronoiEdge(uv * 9.0, vec2(9.0), 1.0);
+      float e2 = voronoiEdge(uv * 23.0 + 3.0, vec2(23.0), 1.0);
+      float craze = smoothstep(0.035, 0.0, e) * 0.8 + smoothstep(0.025, 0.0, e2) * 0.4;
+      float pores = fbm(uv * 40.0, vec2(40.0), 3) * 0.5 + 0.5;
+      s.albedo = vec3(1.0 - craze * 0.35) * (0.95 + 0.05 * pores);
+      s.height = 0.5 - craze * 0.25 + pores * 0.05;
+      s.rough = 0.45 + craze * 0.2; s.metal = 0.0; s.ao = 1.0 - craze * 0.4;
+    }`,
+  });
 }

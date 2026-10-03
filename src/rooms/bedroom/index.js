@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { mergeStatic } from './merge.js';
-import { fatherPortrait, boneGrain, ebonyGrain, laceTex, neroMarble, charLog, fringeTex, nightSky, tornDrape, quilt, linen, knightsBoard, crackedMirror, coals, dollFace, clockFace, cobweb } from './textures.js';
+import { fatherPortrait, PORTRAIT_EYES, craquelure, boneGrain, ebonyGrain, laceTex, neroMarble, charLog, fringeTex, nightSky, tornDrape, quilt, linen, knightsBoard, crackedMirror, coals, dollFace, clockFace, cobweb, persianRug, bisqueCraze } from './textures.js';
 import {
   rbox, curtain, velvetCurtain, buildCeilingRose, buildGasolier, buildBed, buildChest, buildFireplace, buildVanity, buildStool, buildNightstand, buildOilLamp, buildDoll, buildDollShelf,
-  buildRockingChair, buildWardrobe, buildAtticStair, buildWingChair, buildMantelClock, buildCandlestick, buildBook,
+  buildRockingChair, buildWardrobe, buildAtticStair, buildWingChair, buildMantelClock, buildCandlestick, buildBook, buildSconce, etchedGlassTex, MIRROR_IMPACT, MIRROR_ANGLES,
 } from './furniture.js';
 import { createKnightsPuzzle, knightsMeta, KNIGHTS_ID } from './puzzleKnights.js';
 
@@ -53,10 +53,96 @@ function addDust(mat, amount = 0.4, color = [0.33, 0.31, 0.29]) {
         diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(dustL), uDustCol, 0.7), dustK);`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.95, uDustAmt * smoothstep(0.35, 0.95, vDustUp));');
   };
-  mat.customProgramCacheKey = () => `dust${amount}`;
+  const pk = mat.customProgramCacheKey?.bind(mat);
+  mat.customProgramCacheKey = () => (pk ? pk() : '') + `|dust${amount}`;
   return mat;
 }
-const ROOM_GRADE = { exposure: 2.0, contrast: 1.08, saturation: 0.98, bloomStrength: 0.38, bloomThreshold: 1.0, godRayWeight: 0.35, godRayThreshold: 2.5, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4 };
+/**
+ * Age the wallpaper in world space: vertical paper seams (a few lifting), tide-marked water stains
+ * running down from the cornice, soot blooms above every flame, a band of grime where the bed has
+ * stood against the wall, and darkening into the room's corners, floor and ceiling.
+ * soot: [[x, y, z, radius], ...] (max 8); band: { min: [x,y,z], max: [x,y,z] }.
+ */
+function ageWall(mat, { soot = [], band = null, room = [3.2, 3.6], height = 3.75 } = {}) {
+  const prev = mat.onBeforeCompile;
+  const S = soot.slice(0, 8); while (S.length < 8) S.push([0, -99, 0, 0.01]);
+  mat.onBeforeCompile = (sh, r) => {
+    prev?.(sh, r);
+    sh.uniforms.uSoot = { value: S.map((q) => new THREE.Vector4(...q)) };
+    sh.uniforms.uBandMin = { value: new THREE.Vector3(...(band?.min || [0, -9, 0])) };
+    sh.uniforms.uBandMax = { value: new THREE.Vector3(...(band?.max || [0, -9, 0])) };
+    sh.uniforms.uRoom = { value: new THREE.Vector3(room[0], room[1], height) };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vAgeW;\nvarying vec3 vAgeN;')
+      .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvAgeN = normalize(mat3(modelMatrix) * objectNormal);')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvAgeW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+varying vec3 vAgeW; varying vec3 vAgeN;
+uniform vec4 uSoot[8]; uniform vec3 uBandMin; uniform vec3 uBandMax; uniform vec3 uRoom;
+float aH(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float aN(vec3 x) { vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(aH(i), aH(i + vec3(1,0,0)), f.x), mix(aH(i + vec3(0,1,0)), aH(i + vec3(1,1,0)), f.x), f.y),
+             mix(mix(aH(i + vec3(0,0,1)), aH(i + vec3(1,0,1)), f.x), mix(aH(i + vec3(0,1,1)), aH(i + vec3(1,1,1)), f.x), f.y), f.z); }
+float aF(vec3 p) { return aN(p) * 0.5 + aN(p * 2.1 + 7.0) * 0.3 + aN(p * 4.3 + 13.0) * 0.2; }`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+      {
+        vec3 W = vAgeW; vec3 N = normalize(vAgeN);
+        float hz = abs(N.x) > abs(N.z) ? W.z : W.x;          // horizontal coordinate along this wall
+        float k = 1.0;
+        // paper seams every 53 cm, the odd one lifting (shadow line + paler lifted edge)
+        float sp = hz / 0.533; float sid = floor(sp + 0.5); float sd = abs(sp - sid) * 0.533;
+        float lift = step(0.62, aH(vec3(sid, 3.0, N.x * 7.0 + N.z * 3.0))) * smoothstep(1.2, 2.6, W.y + aN(vec3(sid, W.y * 2.0, 1.0)) * 0.6);
+        k *= 1.0 - smoothstep(0.0016, 0.0004, sd) * (0.3 + 0.4 * lift);
+        k *= 1.0 + smoothstep(0.006, 0.0016, sd) * step(0.0016, sd) * lift * 0.35 * step(0.0, sp - sid);
+        // water: tide-marked stains bleeding down from the cornice
+        float wn = aF(vec3(hz * 1.3, W.y * 0.6, N.x * 3.0 + 5.0));
+        float wet = smoothstep(0.25, 1.0, (W.y - (uRoom.z - 1.6)) / 1.6 + (wn - 0.5) * 0.9);
+        float tide = smoothstep(0.035, 0.0, abs(wet - 0.45));
+        k *= 1.0 - wet * 0.28 - tide * 0.25;
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.08, 1.0, 0.82), wet * 0.6);
+        // broad blotchy grime so the repeat breaks up
+        float gr = aF(W * 0.9 + 3.0);
+        k *= 0.82 + 0.3 * gr;
+        // soot above the flames (rises: stronger above the source)
+        for (int i = 0; i < 8; i++) {
+          vec4 q = uSoot[i];
+          vec3 d = W - q.xyz; d.y = d.y > 0.0 ? d.y * 0.45 : d.y * 1.6;
+          k *= 1.0 - 0.7 * exp(-dot(d, d) / (q.w * q.w)) * (0.75 + 0.5 * aN(W * 6.0));
+        }
+        // grime band where the bed has stood
+        vec3 bm = smoothstep(uBandMin - 0.15, uBandMin + 0.1, W) * (1.0 - smoothstep(uBandMax - 0.1, uBandMax + 0.15, W));
+        k *= 1.0 - 0.42 * bm.x * bm.y * bm.z;
+        // corners, floor and ceiling darken
+        float cd = min(uRoom.x - abs(W.x), uRoom.y - abs(W.z));
+        k *= mix(0.55, 1.0, smoothstep(0.0, 0.55, cd));
+        k *= mix(0.6, 1.0, smoothstep(0.0, 0.5, uRoom.z - W.y));
+        k *= mix(0.75, 1.0, smoothstep(0.0, 0.4, W.y));
+        diffuseColor.rgb *= k;
+      }`);
+  };
+  const key = mat.customProgramCacheKey?.bind(mat);
+  mat.customProgramCacheKey = () => (key ? key() : '') + '|agewall';
+  mat.needsUpdate = true;
+  return mat;
+}
+
+/** Soft contact shadow decal (darkens the floor right under an object). */
+let contactTex = null;
+function contactShadow(ctx, parent, { x, z, w, d, rotY = 0, opacity = 0.7, y = 0.0078 }) {
+  contactTex ||= ctx.textures.canvas('bedroom:contact', 256, 256, (g, W2) => {
+    const img = g.createImageData(W2, W2);
+    for (let j = 0; j < W2; j++) for (let i = 0; i < W2; i++) {
+      const u = Math.abs(i / (W2 - 1) * 2 - 1), v = Math.abs(j / (W2 - 1) * 2 - 1);
+      const dd = Math.pow(Math.pow(u, 4) + Math.pow(v, 4), 0.25);           // superellipse
+      const a = Math.max(0, 1 - dd); const k = (i + j * W2) * 4;
+      img.data[k] = img.data[k + 1] = img.data[k + 2] = 0; img.data[k + 3] = Math.round(255 * Math.pow(a, 1.6));
+    }
+    g.putImageData(img, 0, 0);
+  }, { tile: false });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: contactTex, color: 0x000000, transparent: true, opacity, depthWrite: false, name: 'contactShadow' }));
+  m.position.set(x, y, z); m.rotation.y = rotY; m.renderOrder = 1; m.userData.noShadow = true; m.userData.noBake = true;
+  parent.add(m); return m;
+}
+const ROOM_GRADE = { exposure: 2.0, contrast: 1.1, saturation: 0.9, bloomStrength: 0.3, bloomRadius: 0.4, bloomThreshold: 2.6, shadowTint: [0.86, 0.98, 1.1], highlightTint: [1.1, 1.0, 0.86], splitAmount: 0.5, lift: [0.002, 0.0035, 0.007], godRayWeight: 0.35, godRayThreshold: 2.5, vignette: 0.45, aoIntensity: 1.7, aoRadius: 0.55 };
 const DOOR_EXPOSURE = 3.0;     // +0.6 EV on the door / wardrobe view
 const PUZZLE_EXPOSURE = 1.45;
 
@@ -83,33 +169,42 @@ export default {
       const C = physical ? THREE.MeshPhysicalMaterial : THREE.MeshStandardMaterial;
       return new C({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, metalnessMap: set.ormMap, aoMap: set.ormMap, roughness: 1, metalness: 1, ...opts });
     };
-    const drapeA = tornDrape(ctx, { seed: 1, color: [0.42, 0.07, 0.09] });
-    const drapeB = tornDrape(ctx, { seed: 2, color: [0.36, 0.06, 0.08] });
-    const quiltSet = quilt(ctx).withRepeat(2.5, 2.5);
+    const drapeA = tornDrape(ctx, { seed: 1, color: [0.3, 0.085, 0.09] });
+    const drapeB = tornDrape(ctx, { seed: 2, color: [0.26, 0.075, 0.08] });
+    const drapeV = tornDrape(ctx, { seed: 3, color: [0.27, 0.08, 0.085], valance: true });
+    const quiltSet = quilt(ctx).withRepeat(1.6, 1.6);
     const linenSet = linen(ctx).withRepeat(1.6, 1.6);
     const boardSet = knightsBoard(ctx, { aspect: 1.21 / 0.61, board: 0.82 });
-    const mirrorSet = crackedMirror(ctx, { aspect: 0.65 / 0.87 });
+    const mirrorSet = crackedMirror(ctx, { aspect: 0.65 / 0.87, impact: MIRROR_IMPACT, angles: MIRROR_ANGLES });
+    const mirrorGlint = crackedMirror(ctx, { aspect: 0.65 / 0.87, impact: MIRROR_IMPACT, angles: MIRROR_ANGLES, glint: true });
     const coalSet = coals(ctx).withRepeat(2, 2);
     const charSet = charLog(ctx).withRepeat(1, 1);
     const charGlow = charLog(ctx, { glow: true }).withRepeat(1, 1);
     const neroSet = neroMarble(ctx);
-    const drapeMat = (set) => {
-      const m = new THREE.MeshPhysicalMaterial({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, roughness: 1, metalness: 0, alphaTest: 0.4, side: THREE.DoubleSide, sheen: 0.4, sheenRoughness: 0.55, sheenColor: new THREE.Color(0.6, 0.35, 0.38), envMapIntensity: 0.3, name: 'drape' });
-      addDust(m, 0.45);
+    // rotted velvet: dark dusty oxblood, strong soft sheen on the folds, alpha-tested tatters
+    const drapeMat = (set, base) => {
+      const sc = new THREE.Color().setRGB(base[0] * 2, base[1] * 2, base[2] * 2, THREE.SRGBColorSpace);
+      const m = new THREE.MeshPhysicalMaterial({ map: set.map, normalMap: set.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), roughness: 0.9, metalness: 0, alphaTest: 0.5, side: THREE.DoubleSide, sheen: 1.0, sheenRoughness: 0.35, sheenColor: sc, specularIntensity: 0.25, envMapIntensity: 0.25, name: 'drape' });
+      addDust(m, 0.5);
       m.shadowSide = THREE.DoubleSide;
       return m;
     };
     const faceCache = new Map();
     const mats = {
-      wall: M.create('damask', { repeat: [1.9, 1.9], base: [0.07, 0.09, 0.22], motif: [0.13, 0.16, 0.36], sheen: 0.5, variant: 0 }),
+      // damask at ~23 cm repeat, low motif contrast; aged in world space below (ageWall)
+      wall: M.create('damask', { repeat: [4.4, 4.4], base: [0.075, 0.095, 0.21], motif: [0.105, 0.13, 0.29], sheen: 0.35, aging: 0.6, variant: 0 }),
       floor: M.create('floorboards', { species: 'walnut', boards: 6, boardLength: 0.34, polish: 0.6, wear: 0.6, tint: [0.55, 0.45, 0.4], repeat: [1 / 3.0, 1 / 1.0] }),
       ceiling: M.create('plaster', { color: [0.46, 0.47, 0.53], cracks: 0.7, stains: 0.7, repeat: [0.45, 0.45] }),
       // mahogany pulled ~30% toward brown-black (the stock species reads saturated red)
       mahogany: M.create('mahogany', { tint: [0.66, 0.54, 0.5], wear: 0.5, repeat: [1.6, 1.6], clearcoatRoughness: 0.3 }),
       canopyWood: M.create('mahogany', { tint: [0.6, 0.5, 0.47], wear: 0.6, repeat: [1.6, 1.6], clearcoat: 0.15, clearcoatRoughness: 0.5, envMapIntensity: 0.3 }),
-      vanityWood: M.create('wood', { species: 'rosewood', boards: 0, polish: 0.6, wear: 0.55, tint: [0.42, 0.34, 0.33], repeat: [1.8, 1.8], clearcoat: 0.3, clearcoatRoughness: 0.35, envMapIntensity: 0.3 }),
-      walnut: M.create('walnut', { tint: [0.8, 0.72, 0.66], wear: 0.5, repeat: [1.6, 1.6] }),
+      vanityWood: M.create('mahogany', { tint: [0.5, 0.4, 0.37], wear: 0.6, repeat: [1.8, 1.8], clearcoat: 0.12, clearcoatRoughness: 0.5, envMapIntensity: 0.15 }),
+      walnut: M.create('walnut', { tint: [0.8, 0.72, 0.66], wear: 0.75, repeat: [1.6, 1.6] }),
       panel: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.6, wear: 0.45, tint: [0.66, 0.55, 0.5], repeat: [1.3, 1.3], clearcoat: 0.4, clearcoatRoughness: 0.32 }),
+      // picture rail, dado and skirting: a higher-albedo varnished mahogany that catches rim light
+      rail: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, wear: 0.4, tint: [0.92, 0.74, 0.64], repeat: [1.3, 1.3], clearcoat: 0.8, clearcoatRoughness: 0.18 }),
+      boardLight: M.create('wood', { species: 'pine', boards: 0, polish: 0.8, wear: 0.3, tint: [1.12, 1.02, 0.72], figure: 0.2, repeat: [9, 9], clearcoat: 0.5, clearcoatRoughness: 0.25, envMapIntensity: 0.5 }),
+      boardDark: M.create('wood', { species: 'rosewood', boards: 0, polish: 0.8, wear: 0.3, tint: [0.8, 0.62, 0.55], figure: 0.7, repeat: [9, 9], clearcoat: 0.5, clearcoatRoughness: 0.22, envMapIntensity: 0.5 }),
       ebonyWood: M.create('ebony', { repeat: [2, 2] }),
       crown: M.create('gilded', { pattern: 0, repeats: 4, wear: 0.55, dirt: 0.7, repeat: [1 / 0.5, 1] }),
       frieze: M.create('gilded', { pattern: 6, repeats: 3, ground: 1, groundColor: [0.03, 0.04, 0.09], wear: 0.4, dirt: 0.65, repeat: [1 / 0.75, 1] }),
@@ -135,26 +230,33 @@ export default {
       log: new THREE.MeshStandardMaterial({ map: charSet.map, normalMap: charSet.normalMap, roughness: 0.92, emissive: new THREE.Color(1, 1, 1), emissiveMap: charGlow.map, emissiveIntensity: 2.2, name: 'charLog' }),
       logEnd: new THREE.MeshStandardMaterial({ color: 0x1a0c06, roughness: 0.9, emissive: new THREE.Color(1.0, 0.32, 0.06), emissiveIntensity: 1.2, name: 'logEnd' }),
       coals: new THREE.MeshStandardMaterial({ map: coalSet.map, normalMap: coalSet.normalMap, roughness: 0.9, emissive: new THREE.Color(1, 1, 1), emissiveMap: coalSet.map, emissiveIntensity: 1.6, name: 'coals' }),
-      quilt: fromSet(quiltSet, { metalness: 0, side: THREE.DoubleSide, name: 'quilt' }, false),
+      quilt: new THREE.MeshPhysicalMaterial({ map: quiltSet.map, normalMap: quiltSet.normalMap, normalScale: new THREE.Vector2(0.45, 0.45), roughnessMap: quiltSet.ormMap, roughness: 1.0, metalness: 0, side: THREE.DoubleSide, clearcoat: 0, sheen: 0.6, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.55, 0.3, 0.28), specularIntensity: 0.2, envMapIntensity: 0.3, name: 'quilt' }),
       linen: fromSet(linenSet, { metalness: 0, name: 'linen' }),
-      drapeA: drapeMat(drapeA), drapeB: drapeMat(drapeB),
+      drapeA: drapeMat(drapeA, [0.3, 0.085, 0.09]), drapeB: drapeMat(drapeB, [0.26, 0.075, 0.08]), drapeVal: drapeMat(drapeV, [0.27, 0.08, 0.085]),
       board: new THREE.MeshPhysicalMaterial({ map: boardSet.map, normalMap: boardSet.normalMap, roughnessMap: boardSet.ormMap, roughness: 1, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.3, envMapIntensity: 0.55, name: 'board' }),
       frostGlass: new THREE.MeshPhysicalMaterial({ color: 0xd8d4c8, roughness: 0.55, transmission: 0, transparent: true, opacity: 0.72, side: THREE.DoubleSide, name: 'frost' }),
-      mirror: new THREE.MeshPhysicalMaterial({ map: mirrorSet.map, normalMap: mirrorSet.normalMap, normalScale: new THREE.Vector2(1.8, 1.8), roughnessMap: mirrorSet.ormMap, metalnessMap: mirrorSet.ormMap, roughness: 1, metalness: 1, envMapIntensity: 1.0, color: new THREE.Color(0.75, 0.75, 0.78), name: 'mirror' }),
-      lampGlobe: new THREE.MeshStandardMaterial({ color: 0x3a2a18, emissive: new THREE.Color(1.0, 0.62, 0.3), emissiveIntensity: 3.0, roughness: 0.4, transparent: true, opacity: 0.94, name: 'lampGlobe' }),
-      velvetRose: M.create('velvet', { color: [0.3, 0.08, 0.1], crush: 0.5, repeat: [3, 3], sheen: 0.4, envMapIntensity: 0.25 }),
+      mirror: new THREE.MeshPhysicalMaterial({ map: mirrorSet.map, normalMap: mirrorSet.normalMap, normalScale: new THREE.Vector2(0.8, 0.8), roughnessMap: mirrorSet.ormMap, metalnessMap: mirrorSet.ormMap, roughness: 2.6, metalness: 1, envMapIntensity: 1.25, color: new THREE.Color(0.72, 0.72, 0.72), emissive: new THREE.Color(0.5, 0.48, 0.44), emissiveMap: mirrorGlint.map, emissiveIntensity: 0.35, side: THREE.DoubleSide, name: 'mirror' }),
+      lampGlobe: new THREE.MeshStandardMaterial({ color: 0x3a2a18, map: etchedGlassTex(ctx), emissive: new THREE.Color(1.0, 0.66, 0.36), emissiveMap: etchedGlassTex(ctx), emissiveIntensity: 1.4, roughness: 0.45, transparent: true, opacity: 0.95, name: 'lampGlobe' }),
+      sconceGlass: new THREE.MeshStandardMaterial({ color: 0x5a4a38, emissive: new THREE.Color(1.0, 0.7, 0.42), emissiveMap: etchedGlassTex(ctx), emissiveIntensity: 1.1, roughness: 0.5, transparent: true, opacity: 0.88, side: THREE.DoubleSide, depthWrite: false, name: 'sconceGlass' }),
+      velvetRose: M.create('velvet', { color: [0.24, 0.1, 0.11], crush: 0.6, repeat: [3, 3], sheen: 1.0, sheenRoughness: 0.4, sheenColor: [0.5, 0.24, 0.26], envMapIntensity: 0.2 }),
       velvetChair: M.create('leather', { color: [0.2, 0.07, 0.05], wear: 0.7, buttons: 1, repeat: [4, 4], clearcoat: 0.3, clearcoatRoughness: 0.45 }),
       curtain: M.create('velvet', { color: [0.055, 0.08, 0.21], crush: 0.85, repeat: [1.4, 1.4], side: THREE.DoubleSide, sheen: 0.45, sheenRoughness: 0.4, sheenColor: [0.3, 0.36, 0.6], envMapIntensity: 0.25 }),
       buttons: M.basic('black', { color: 0x0a0a12, roughness: 0.4 }),
       clockFace: new THREE.MeshStandardMaterial({ map: clockFace(ctx), roughness: 0.4 }),
-      glass: M.create('glass', { dirt: 0.7, opacity: 0.16, repeat: [1.5, 1.5], depthWrite: false, envMapIntensity: 0.8, normalScale: 0.6 }),
+      glass: M.create('glass', { dirt: 0.55, opacity: 0.12, repeat: [1.5, 1.5], depthWrite: false, envMapIntensity: 0.8, normalScale: 0.6 }),
       plasterRose: M.create('plaster', { color: [0.62, 0.6, 0.58], cracks: 0.5, stains: 0.8, repeat: [4, 4] }),
       atticBoard: M.create('wood', { species: 'oak', boards: 3, boardLength: 1.2, polish: 0.1, wear: 0.9, tint: [0.55, 0.5, 0.46], repeat: [1, 1], side: THREE.DoubleSide, clearcoat: 0 }),
       atticBeam: M.create('wood', { species: 'oak', boards: 0, polish: 0.05, wear: 0.8, tint: [0.42, 0.36, 0.32], repeat: [1.5, 1.5], clearcoat: 0 }),
       atticPlaster: M.create('plaster', { color: [0.42, 0.42, 0.44], cracks: 0.8, stains: 0.8, repeat: [0.8, 0.8], side: THREE.DoubleSide }),
-      rug: M.create('rug', { palette: 'faded', aspect: 3.0 / 4.0, knots: 560, wear: 0.6, fringe: 0, seed: 11, size: 2048, normalScale: 1.4 }),
+      rug: (() => { const r = persianRug(ctx); return new THREE.MeshPhysicalMaterial({ map: r.map, normalMap: r.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), roughnessMap: r.ormMap, aoMap: r.ormMap, roughness: 1, metalness: 0, sheen: 0.5, sheenRoughness: 0.6, sheenColor: new THREE.Color(0.45, 0.36, 0.32), specularIntensity: 0.35, envMapIntensity: 0.3, name: 'rug' }); })(),
     };
     addDust(mats.canopyWood, 0.4);
+    mats.curtain.shadowSide = THREE.DoubleSide;
+    ageWall(mats.wall, {
+      room: [W / 2, D / 2], height: H,
+      soot: [[X1 - 0.02, 1.95, FIRE.z, 0.6], [X1 - 0.6, 2.35, FIRE.z, 0.5], [2.15, 2.95, Z0, 0.38], [X0, 1.45, BED.z + BED.W / 2 + 0.36, 0.35], [VAN.x + 0.45, 1.5, Z0, 0.3], [DOOR.x + 0.12, 2.3, Z1 + 1.1, 0.3], [X1 - 0.6, 1.55, FIRE.z + 0.55, 0.22]],
+      band: { min: [X0 - 0.1, 0.9, BED.z - 1.0], max: [X0 + 0.1, 2.55, BED.z + 1.0] },
+    });
     const clothCache = new Map();
     const hairSet = ctx.textures.generate('bedroom:hair', { size: 256, tile: true, normalStrength: 2.5, glsl: /* glsl */ `
       void surface(vec2 uv, inout Surface s) {
@@ -162,8 +264,10 @@ export default {
         s.albedo = vec3(0.8 + 0.2 * st); s.height = st; s.rough = 0.45; s.metal = 0.0; s.ao = 1.0;
       }` });
     mats.dollCloth = (hex) => { if (!clothCache.has(hex)) clothCache.set(hex, M.basic('cloth', { color: new THREE.Color(hex), sheenColor: new THREE.Color(hex).lerp(new THREE.Color(1, 1, 1), 0.5) })); return clothCache.get(hex); };
-    mats.dollHair = (hex) => { const k = `h${hex}`; if (!clothCache.has(k)) clothCache.set(k, new THREE.MeshPhysicalMaterial({ color: hex, roughness: 0.42, sheen: 0.6, sheenRoughness: 0.35, sheenColor: new THREE.Color(hex).lerp(new THREE.Color(1, 0.95, 0.85), 0.5), normalMap: hairSet.normalMap, normalScale: new THREE.Vector2(0.8, 0.8) })); return clothCache.get(k); };
-    const skin = new THREE.MeshPhysicalMaterial({ color: 0xead9c6, roughness: 0.34, clearcoat: 0.55, clearcoatRoughness: 0.22, sheen: 0.2, sheenColor: new THREE.Color(1, 0.85, 0.8) });
+    mats.dollHair = (hex) => { const k = `h${hex}`; if (!clothCache.has(k)) clothCache.set(k, new THREE.MeshPhysicalMaterial({ color: new THREE.Color(hex).multiplyScalar(0.8), roughness: 0.62, sheen: 0.35, sheenRoughness: 0.35, sheenColor: new THREE.Color(hex).lerp(new THREE.Color(1, 0.95, 0.85), 0.5), normalMap: hairSet.normalMap, normalScale: new THREE.Vector2(0.8, 0.8) })); return clothCache.get(k); };
+    // aged bisque: warm off-white, satin (no glaze), hairline crazing in the normal map
+    const craze = bisqueCraze(ctx).withRepeat(14, 14);
+    const skin = new THREE.MeshPhysicalMaterial({ color: 0xdcccb8, roughness: 0.45, normalMap: craze.normalMap, normalScale: new THREE.Vector2(0.35, 0.35), sheen: 0.15, sheenRoughness: 0.6, sheenColor: new THREE.Color(1, 0.9, 0.85), specularIntensity: 0.4, name: 'bisque' });
     const eyeCache = new Map();
     const eyeMat = (hex) => {
       if (!eyeCache.has(hex)) {
@@ -176,26 +280,29 @@ export default {
           g2.strokeStyle = 'rgba(255,255,255,0.18)'; g2.lineWidth = 1;
           for (let k = 0; k < 24; k++) { const a = (k / 24) * 6.283; g2.beginPath(); g2.moveTo(cx + Math.cos(a) * 9, cy + Math.sin(a) * 9); g2.lineTo(cx + Math.cos(a) * 20, cy + Math.sin(a) * 20); g2.stroke(); }
         }, { tile: false });
-        eyeCache.set(hex, new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1.6 }));
+        eyeCache.set(hex, new THREE.MeshPhysicalMaterial({ map: tex, color: 0xb8b0a4, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.4 }));
       }
       return eyeCache.get(hex);
     };
     mats.dollFace = (o) => {
       const k = `${o.seed}${o.cracked}`;
-      if (!faceCache.has(k)) faceCache.set(k, { mat: new THREE.MeshPhysicalMaterial({ map: dollFace(ctx, o), roughness: 0.34, clearcoat: 0.55, clearcoatRoughness: 0.22, sheen: 0.2, sheenColor: new THREE.Color(1, 0.85, 0.8) }), skin, glass: eyeMat(o.eyes || '#3a5a8a') });
+      if (!faceCache.has(k)) faceCache.set(k, { mat: new THREE.MeshPhysicalMaterial({ map: dollFace(ctx, o), color: 0xf2ebe2, roughness: 0.45, normalMap: craze.normalMap, normalScale: new THREE.Vector2(0.35, 0.35), sheen: 0.15, sheenRoughness: 0.6, sheenColor: new THREE.Color(1, 0.9, 0.85), specularIntensity: 0.4, name: 'dollFace' }), skin, glass: eyeMat(o.eyes || '#3a5a8a') });
       return faceCache.get(k);
     };
     const velCache = new Map();
     mats.dollVelvet = (hex) => {
       if (!velCache.has(hex)) {
-        const c = { r: ((hex >> 16) & 255) / 255, g: ((hex >> 8) & 255) / 255, b: (hex & 255) / 255 };   // sRGB albedo
-        velCache.set(hex, M.create('velvet', { color: [c.r, c.g, c.b], crush: 0.7, repeat: [9, 9], sheen: 0.6, sheenRoughness: 0.5, sheenColor: [Math.min(1, c.r * 2 + 0.15), Math.min(1, c.g * 2 + 0.15), Math.min(1, c.b * 2 + 0.15)], envMapIntensity: 0.3 }));
+        const c0 = { r: ((hex >> 16) & 255) / 255, g: ((hex >> 8) & 255) / 255, b: (hex & 255) / 255 };   // sRGB albedo
+        // aged, dusty silk: desaturated ~45% and dimmed
+        const l = 0.3 * c0.r + 0.59 * c0.g + 0.11 * c0.b;
+        const c = { r: (l + (c0.r - l) * 0.55) * 0.85, g: (l + (c0.g - l) * 0.55) * 0.85, b: (l + (c0.b - l) * 0.55) * 0.85 };
+        velCache.set(hex, addDust(M.create('velvet', { color: [c.r, c.g, c.b], crush: 0.7, repeat: [9, 9], sheen: 0.55, sheenRoughness: 0.5, sheenColor: [Math.min(1, c.r * 1.6 + 0.08), Math.min(1, c.g * 1.6 + 0.08), Math.min(1, c.b * 1.6 + 0.08)], envMapIntensity: 0.25 }), 0.45));
       }
       return velCache.get(hex);
     };
-    mats.laceFrill = new THREE.MeshPhysicalMaterial({ map: laceTex(ctx), color: 0xe4dccb, roughness: 0.85, alphaTest: 0.4, side: THREE.DoubleSide, sheen: 0.5, sheenColor: new THREE.Color(1, 1, 1), name: 'lace' });
+    mats.laceFrill = new THREE.MeshPhysicalMaterial({ map: laceTex(ctx), color: 0xbcb2a0, roughness: 0.85, alphaTest: 0.4, side: THREE.DoubleSide, sheen: 0.5, sheenColor: new THREE.Color(1, 1, 1), name: 'lace' });
     mats.laceFrill.map.repeat.set(1, 1);
-    mats.dollSash = new THREE.MeshPhysicalMaterial({ color: 0x5a1820, roughness: 0.35, sheen: 0.8, sheenColor: new THREE.Color(0.9, 0.5, 0.55), name: 'sash' });
+    mats.dollSash = new THREE.MeshPhysicalMaterial({ color: 0x4a2a2c, roughness: 0.35, sheen: 0.8, sheenColor: new THREE.Color(0.9, 0.5, 0.55), name: 'sash' });
     mats.shoe = new THREE.MeshPhysicalMaterial({ color: 0x080606, roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.1, name: 'shoe' });
     const bookCache = new Map();
     mats.bookCover = (hex) => { if (!bookCache.has(hex)) bookCache.set(hex, M.create('leather', { color: new THREE.Color(hex).multiplyScalar(2.2), wear: 0.6, repeat: [4, 4] })); return bookCache.get(hex); };
@@ -219,11 +326,7 @@ export default {
       // the gallery's gaslight beyond the half-open door
       const hall = new THREE.PointLight(0xffa860, 3, 7, 2); hall.position.set(DOOR.x + 0.12, 1.98, Z1 + 0.95); add(hall);
       // the gas sconce on the gallery wall that the light comes from
-      const hs = new THREE.Group();
-      hs.add(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.055, 0], [0.045, 0.02], [0, 0.03]], 20).rotateX(-Math.PI / 2), mats.brass));
-      const harm = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.008, 8, 20, Math.PI / 2), mats.brass); harm.position.set(0, -0.09, 0); harm.rotation.y = Math.PI / 2; hs.add(harm);
-      const hsh = new THREE.Mesh(G.latheFromProfile([[0.02, 0], [0.05, 0.03], [0.06, 0.08], [0.045, 0.13], [0.028, 0.14]], 20), mats.lampGlobe); hsh.position.set(0, 0.0, -0.09); hsh.userData.noShadow = true; hs.add(hsh);
-      hs.position.set(DOOR.x + 0.12, 1.9, Z1 + 1.09); add(hs);
+      const hs = buildSconce(ctx, mats, { out: 0.18, seed: 5 }); hs.rotation.y = Math.PI; hs.position.set(DOOR.x + 0.12, 1.88, Z1 + 1.09); add(hs);
       // landing side walls, ceiling, skirting and a dado rail, a picture in shadow
       for (const sx of [-1, 1]) {
         const sw = new THREE.Mesh(G.planeUV(1.15, DOOR.h + 0.3, 1), mats.wall); sw.rotation.y = -sx * Math.PI / 2; sw.position.set(DOOR.x + sx * 1.22, (DOOR.h + 0.3) / 2, Z1 + 0.55); add(sw);
@@ -256,7 +359,7 @@ export default {
         p.push(V3(r + 0.05, WIN.h - r, 0), V3(r + 0.05, 0, 0));
         return p;
       })(), { up: V3(0, 0, 1), uvScale: 1, flipOutward: true });
-      const casing = new THREE.Mesh(cas, mats.panel); casing.position.set(WIN.x, WIN.sill, Z0 + 0.002); add(casing);
+      const casing = new THREE.Mesh(cas, mats.rail); casing.position.set(WIN.x, WIN.sill, Z0 + 0.002); add(casing);
       // sash frame + glazing bars
       const wg = new THREE.Group(); wg.position.set(WIN.x, WIN.sill, Z0 - WIN.depth * 0.6);
       const fm = new THREE.MeshStandardMaterial({ color: 0x0b0908, roughness: 0.6 });
@@ -273,25 +376,27 @@ export default {
       const glass = new THREE.Mesh(new THREE.ShapeGeometry(gs, 32), mats.glass); glass.position.z = 0.012; glass.userData.noShadow = true; wg.add(glass);
       add(wg);
       const skyTex = nightSky(ctx);
-      const skyMat = new THREE.MeshBasicMaterial({ map: skyTex.map, color: new THREE.Color(1, 1, 1).multiplyScalar(2.1), toneMapped: false, name: 'sky' });
+      const skyMat = new THREE.MeshBasicMaterial({ map: skyTex.map, color: new THREE.Color(1, 1, 1).multiplyScalar(1.45), toneMapped: false, name: "sky" });
       const sky = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 5.5), skyMat); sky.position.set(WIN.x - 0.4, WIN.sill + 1.1, Z0 - 2.6); sky.userData.noShadow = true; add(sky);
       // heavy velvet curtains, gathered into tasselled tie-backs, pooling on the boards
       const top = WIN.sill + WIN.h + 0.32;
       for (const side of [-1, 1]) {
         const cw = 1.0;
-        const cg = velvetCurtain({ width: cw, height: top, folds: 9, depth: 0.075, tieback: 0.78, tiebackV: 0.6, waist: 0.2, flare: 0.8, pool: 0.2, seed: side + 7 });
+        const cg = velvetCurtain({ width: cw, height: top, folds: 9, depth: 0.085, tieback: 0.78, tiebackV: 0.6, waist: 0.2, flare: 0.8, pool: 0.2, seed: side + 7, jitter: 1.15 });
         const c = new THREE.Mesh(cg, mats.curtain);
         // outer edge sits beside the casing; the inner edge reaches over the glass
         c.position.set(WIN.x + side * (WIN.w / 2 + 0.42), top, Z0 + 0.14);
         c.scale.x = -side;
         c.name = 'cloth'; add(c);
-        // tie-back: a twisted gilt cord round the waist with a hanging tassel
+        c.material = mats.curtain;
+        // tie-back: a twisted gilt cord looped round the gathered waist, a tassel hanging in front
         const wi = cg.userData.waist;
-        const cord = new THREE.Mesh(new THREE.TorusGeometry(1, 0.012, 8, 32), mats.gilt);
-        cord.scale.set(wi.w * 0.55, 0.06, 0.1); cord.rotation.x = Math.PI / 2;
-        cord.position.set(c.position.x - side * wi.x, top + wi.y, Z0 + 0.15); add(cord);
-        const tassel = new THREE.Mesh(G.latheFromProfile([[0, 0.12], [0.018, 0.11], [0.022, 0.085], [0.014, 0.07], [0.03, 0.05], [0.038, 0.0], [0, -0.005]], 16), mats.gilt);
-        tassel.position.set(c.position.x - side * (wi.x + wi.w * 0.45), top + wi.y - 0.2, Z0 + 0.22); add(tassel);
+        const cx0 = c.position.x - side * wi.w * 0.5;
+        const pts = []; for (let i = 0; i <= 32; i++) { const a = (i / 32) * Math.PI * 2; pts.push(V3(Math.cos(a) * (wi.w * 0.5 + 0.004), Math.sin(a * 2) * 0.01, Math.sin(a) * 0.075)); }
+        const cord = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 96, 0.011, 8, true), mats.gilt);
+        cord.position.set(cx0, top + wi.y, Z0 + 0.19); cord.userData.noShadow = true; add(cord);
+        const tassel = new THREE.Mesh(G.latheFromProfile([[0, 0.12], [0.018, 0.11], [0.022, 0.085], [0.014, 0.07], [0.03, 0.05], [0.038, 0.0], [0, -0.005]], 20), mats.gilt);
+        tassel.position.set(cx0 + side * wi.w * 0.1, top + wi.y - 0.2, Z0 + 0.28); tassel.userData.noShadow = true; add(tassel);
         const hook = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.04, 0], [0.035, 0.02], [0.015, 0.03], [0, 0.05]], 16).rotateX(Math.PI / 2), mats.brass);
         hook.position.set(c.position.x - side * 0.02, top + wi.y, Z0 + 0.005); add(hook);
       }
@@ -314,8 +419,8 @@ export default {
       const path = (y) => [V3(wl, y, Z1), V3(X0, y, Z1), V3(X0, y, Z0), V3(X1, y, Z0), V3(X1, y, Z1), V3(dl, y, Z1)];
       const path2 = (y) => [V3(dr, y, Z1), V3(wr, y, Z1)];
       for (const pth of [path, path2]) {
-        add(new THREE.Mesh(G.sweepProfile(G.PROFILES.chairRail(0.075, 0.035), pth(DADO - 0.05), { uvScale: 1 }), mats.panel));
-        add(new THREE.Mesh(G.sweepProfile(G.PROFILES.baseboard(0.24, 0.03), pth(0), { uvScale: 1 }), mats.panel));
+        add(new THREE.Mesh(G.sweepProfile(G.PROFILES.chairRail(0.075, 0.035), pth(DADO - 0.05), { uvScale: 1 }), mats.rail));
+        add(new THREE.Mesh(G.sweepProfile(G.PROFILES.baseboard(0.24, 0.03), pth(0), { uvScale: 1 }), mats.rail));
       }
       // wainscot backing + raised panels
       const panelGeo = G.raisedPanel(0.6, 0.58, { border: 0.07, bevel: 0.03 });
@@ -370,7 +475,27 @@ export default {
 
     // ================================================================ rug
     {
-      const rug = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 4.0), mats.rug); rug.rotation.x = -Math.PI / 2; rug.rotation.z = Math.PI / 2;
+      // the near corner has curled up (rolled over on itself), the rest lies with a faint ripple
+      const rg = new THREE.PlaneGeometry(3.0, 4.0, 96, 128);
+      {
+        const p = rg.attributes.position;
+        const cx = -1.5, cy = -2.0, n = new THREE.Vector2(1, 1).normalize(), sf = 0.3, rc = 0.03;
+        for (let i = 0; i < p.count; i++) {
+          let x = p.getX(i), y = p.getY(i), z = 0.002 * Math.sin(x * 2.1 + y * 1.3) * Math.sin(y * 3.7);
+          const sAlong = (x - cx) * n.x + (y - cy) * n.y;
+          if (sAlong < sf) {
+            // roll over a cylinder of radius rc, then lie folded back on top of the rug
+            const b = sf - sAlong, phi = Math.min(b / rc, Math.PI), e = Math.max(0, b - rc * Math.PI);
+            const sNew = sf - rc * Math.sin(phi) + e;
+            z = rc * (1 - Math.cos(phi)) + (e > 0 ? 0.002 : 0);
+            x += n.x * (sNew - sAlong); y += n.y * (sNew - sAlong);
+          }
+          p.setXYZ(i, x, y, z);
+        }
+        rg.computeVertexNormals();
+      }
+      rg.setAttribute('uv1', rg.attributes.uv);
+      const rug = new THREE.Mesh(rg, mats.rug); rug.rotation.x = -Math.PI / 2; rug.rotation.z = Math.PI / 2;
       rug.position.set(-0.85, 0.006, BED.z + 0.1); rug.name = 'rug'; add(rug);
       const maxAn = ctx.renderer.capabilities.getMaxAnisotropy();
       for (const k of ['map', 'normalMap', 'roughnessMap']) if (mats.rug[k]) { mats.rug[k].anisotropy = maxAn; mats.rug[k].needsUpdate = true; }
@@ -389,7 +514,7 @@ export default {
     bed.position.set(X0 + 0.06 + BED.L / 2, 0, BED.z); bed.rotation.y = Math.PI / 2; add(bed);
     // a doll left sitting against the pillows
     {
-      const d = buildDoll(ctx, mats, { size: 0.36, seed: 9, dress: 0xcfc4b0, hair: 0x6a4a20, eyes: '#2a3a5a', bonnet: true, tilt: 0.18, pose: 'limp' });
+      const d = buildDoll(ctx, mats, { size: 0.36, seed: 9, dress: 0xcfc4b0, hair: 0x6a4a20, eyes: '#2a3a5a', bonnet: true, bonnetBack: true, tilt: 0.18, pose: 'limp' });
       d.position.set(X0 + 0.62, 0.86, BED.z + 0.25); d.rotation.y = Math.PI / 2 + 0.2; d.rotation.x = -0.15; add(d);
     }
 
@@ -410,16 +535,31 @@ export default {
     // ================================================================ chest + knights puzzle
     const chest = buildChest(ctx, mats, { w: 1.18, d: 0.58 });
     chest.position.set(CHEST.x, 0, CHEST.z); chest.rotation.y = Math.PI / 2; add(chest);
-    const boardField = 0.82 * 0.61 * (5 / 6);     // field size in metres (matches the board texture)
-    const puzzleCam = { position: [CHEST.x + 0.68, 1.28, CHEST.z], target: [CHEST.x + 0.02, 0.5, CHEST.z], fov: 40 };
+    const boardField = chest.userData.fieldSize;     // field size in metres (matches the board texture)
+    const puzzleCam = { position: [CHEST.x + 0.66, 1.3, CHEST.z], target: [CHEST.x + 0.03, 0.54, CHEST.z], fov: 34 };
+    // a low warm candle on the far side of the board: the amber rim on the ebony knights
+    const rimLight = new THREE.PointLight(0xffa04a, 0.5, 1.6, 2); rimLight.position.set(CHEST.x - 0.38, chest.userData.boardTop + 0.18, CHEST.z - 0.25); add(rimLight);
     const boneSet = boneGrain(ctx).withRepeat(3, 3);
+    // cavity tint for the carved pieces: crevices (concave, facing down/in) go yellow-brown, judged
+    // from the object-space normal and height so the mane grooves, jaw and eye read as carved
+    const knightAO = (m, tint) => {
+      m.onBeforeCompile = (sh) => {
+        sh.uniforms.uCav = { value: new THREE.Color(...tint) };
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vCav;')
+          .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvCav = clamp(0.5 - objectNormal.y * 0.6, 0.0, 1.0) * smoothstep(0.03, 0.0, length(position.xz) - 0.01);');
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vCav;\nuniform vec3 uCav;')
+          .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * uCav, vCav * 0.6);');
+      };
+      m.customProgramCacheKey = () => 'knightCav' + tint.join();
+      return m;
+    };
     const ebonySet = ebonyGrain(ctx).withRepeat(3, 3);
     const wardrobe = buildWardrobe(ctx, mats);
     const knights = createKnightsPuzzle(ctx, {
       parent: chest, center: V3(0, chest.userData.boardTop, 0), size: boardField,
       mats: {
-        bone: new THREE.MeshPhysicalMaterial({ color: 0xe6dac2, map: boneSet.map, roughness: 1, roughnessMap: boneSet.ormMap, normalMap: boneSet.normalMap, normalScale: new THREE.Vector2(0.4, 0.4), clearcoat: 0.4, clearcoatRoughness: 0.3, sheen: 0.3, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.9, 0.86, 0.78), envMapIntensity: 0.8, name: 'bone' }),
-        ebony: new THREE.MeshPhysicalMaterial({ color: 0x0e0a08, map: ebonySet.map, roughness: 0.22, normalMap: ebonySet.normalMap, normalScale: new THREE.Vector2(0.25, 0.25), clearcoat: 0.9, clearcoatRoughness: 0.15, envMapIntensity: 1.2, name: 'ebonyPiece' }),
+        bone: knightAO(new THREE.MeshPhysicalMaterial({ color: 0xe8dcc4, map: boneSet.map, roughness: 0.35, normalMap: boneSet.normalMap, normalScale: new THREE.Vector2(0.8, 0.8), clearcoat: 0.15, clearcoatRoughness: 0.4, sheen: 0.25, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.9, 0.84, 0.7), specularIntensity: 0.6, envMapIntensity: 0.55, name: 'bone' }), [0.62, 0.5, 0.3]),
+        ebony: knightAO(new THREE.MeshPhysicalMaterial({ color: 0x241810, map: ebonySet.map, roughness: 0.3, normalMap: ebonySet.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), clearcoat: 0.45, clearcoatRoughness: 0.25, specularColor: new THREE.Color(1.0, 0.85, 0.65), envMapIntensity: 0.35, name: 'ebonyPiece' }), [0.35, 0.3, 0.26]),
       },
       camera: puzzleCam,
       onSolved: async () => { openWardrobe(false); },
@@ -444,7 +584,38 @@ export default {
       // over-mantel portrait: a child
       const pw = 0.62, ph = 0.8;
       const pg = new THREE.Group();
-      pg.add(new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshPhysicalMaterial({ map: fatherPortrait(ctx), roughness: 0.55, clearcoat: 0.45, clearcoatRoughness: 0.3, envMapIntensity: 0.5, name: 'father' })));
+      // oil on canvas under yellowed varnish; the irises are drawn here, in the shader, offset
+      // toward wherever the viewer stands — the eyes follow you round the room
+      const craq = craquelure(ctx);
+      const pm = new THREE.MeshPhysicalMaterial({ map: fatherPortrait(ctx), roughness: 0.6, normalMap: craq.normalMap, normalScale: new THREE.Vector2(0.5, 0.5), clearcoat: 0.55, clearcoatRoughness: 0.32, clearcoatNormalMap: craq.normalMap, clearcoatNormalScale: new THREE.Vector2(0.8, 0.8), envMapIntensity: 0.45, name: 'father' });
+      pm.onBeforeCompile = (sh) => {
+        sh.uniforms.uEyes = { value: PORTRAIT_EYES.map(([u, v]) => new THREE.Vector2(u, v)) };
+        sh.uniforms.uPSize = { value: new THREE.Vector2(pw, ph) };
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vPUv;\nvarying vec3 vCamL;')
+          .replace('#include <uv_vertex>', '#include <uv_vertex>\nvPUv = uv;\nvCamL = (inverse(modelMatrix) * vec4(cameraPosition, 1.0)).xyz;');
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vPUv;\nvarying vec3 vCamL;\nuniform vec2 uEyes[2];\nuniform vec2 uPSize;')
+          .replace('#include <map_fragment>', `#include <map_fragment>
+          for (int i = 0; i < 2; i++) {
+            vec2 e = uEyes[i];
+            vec3 eL = vec3((e.x - 0.5) * uPSize.x, (e.y - 0.5) * uPSize.y, 0.0);
+            vec3 dv = normalize(vCamL - eL);
+            vec2 off = dv.xy / max(dv.z, 0.35) * vec2(0.010, 0.006);        // iris travel, in uv
+            vec2 px = (vPUv - e - off) * vec2(1024.0, 1320.0);
+            vec2 ex = (vPUv - e) * vec2(1024.0, 1320.0);
+            float almond = 1.0 - smoothstep(0.85, 1.0, length(ex / vec2(27.0, 12.0)));
+            float r = length(px);
+            float iris = (1.0 - smoothstep(10.0, 11.5, r)) * almond;
+            float pupil = (1.0 - smoothstep(4.0, 5.0, r)) * almond;
+            vec3 irisC = mix(vec3(0.16, 0.1, 0.06), vec3(0.32, 0.22, 0.12), smoothstep(10.0, 3.0, r)) * (i == 0 ? 1.0 : 0.45);
+            diffuseColor.rgb = mix(diffuseColor.rgb, irisC * vec3(1.0, 0.92, 0.75), iris);
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.012, 0.008, 0.006), pupil);
+            // the wet catch-light, fixed (painted) high on the iris
+            float cl = 1.0 - smoothstep(1.2, 2.4, length(px - vec2(-3.5, 4.0)));
+            diffuseColor.rgb += vec3(0.55, 0.5, 0.42) * cl * almond * (i == 0 ? 1.0 : 0.5);
+          }`);
+      };
+      pm.customProgramCacheKey = () => 'fatherEyes';
+      pg.add(new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), pm));
       pg.add(new THREE.Mesh(G.frameGeometry(pw, ph, { width: 0.1, depth: 0.06, uvScale: 1 }), mats.giltFrame));
       pg.position.set(X1 - 0.44, my + 0.95, FIRE.z); pg.rotation.y = -Math.PI / 2; add(pg);
     }
@@ -465,7 +636,7 @@ export default {
         [1.2, -0.38, { size: 0.3, dress: 0x7a2232, hair: 0x3a1c0c, seed: 1, pose: 'lap' }],
         [1.2, -0.02, { size: 0.36, dress: 0x2c3e6a, hair: 0xb89050, seed: 2, cracked: true, bonnet: true, pose: 'reach', headYaw: 0.5, tilt: 0.12 }],
         [1.2, 0.36, { size: 0.28, dress: 0xcfc2aa, hair: 0x2a140a, seed: 3, pose: 'limp', tilt: 0.35 }],
-        [1.63, -0.34, { size: 0.33, dress: 0x26232a, hair: 0x8a4a22, seed: 4, eyes: '#5a3a20', pose: 'lap', headYaw: -0.55 }],
+        [1.63, -0.34, { size: 0.33, dress: 0x26232a, hair: 0x8a4a22, seed: 4, eyes: '#5a3a20', pose: 'lap', headYaw: -0.55, cracked: true }],
         [1.63, 0.3, { size: 0.31, dress: 0x8a6282, hair: 0xc8a060, seed: 5, bonnet: true, tilt: -0.3, pose: 'lap' }, { toppled: true }],
         [2.06, -0.36, { size: 0.35, dress: 0x4e6a52, hair: 0x5a2e14, seed: 6, pose: 'reach' }],
         [2.06, 0.34, { size: 0.29, dress: 0x8a2a22, hair: 0xa07840, seed: 8, tilt: 0.25, pose: 'limp', headYaw: 0.25 }],
@@ -473,8 +644,18 @@ export default {
       for (const [y, x, o, extra] of specs) {
         const d = buildDoll(ctx, mats, o);
         d.position.set(2.15 + x, y, Z0 + 0.1); d.rotation.y = (o.seed * 0.37) % 0.5 - 0.25;
-        if (extra?.toppled) { d.rotation.set(0, -0.3, -1.45); d.position.set(2.15 + x - 0.02, y + 0.065, Z0 + 0.11); }
         dollGroup.add(d);
+        if (extra?.toppled) {
+          // fallen on her side: rest her on the board (real contact, measured), well inside the shelf
+          d.rotation.set(0, -0.25, -1.5); d.position.set(2.15 + x - 0.06, y, Z0 + 0.105);
+          d.updateMatrixWorld(true);
+          const bb = new THREE.Box3().setFromObject(d);
+          d.position.y += y - bb.min.y + 0.001;
+          const over = bb.max.x - (2.15 + 0.56 - 0.05); if (over > 0) d.position.x -= over;
+          contactShadow(ctx, root, { x: d.position.x + 0.02, z: Z0 + 0.105, w: 0.3, d: 0.16, opacity: 0.55, y: y + 0.0015 });
+        } else {
+          contactShadow(ctx, root, { x: 2.15 + x, z: Z0 + 0.11, w: o.size * 0.75, d: o.size * 0.6, opacity: 0.5, y: y + 0.0015 });
+        }
       }
       // the empty place on the top shelf: a ring of clean wood in the dust
       const ringG = new THREE.RingGeometry(0.075, 0.13, 40).rotateX(-Math.PI / 2);
@@ -487,7 +668,7 @@ export default {
       const vcan = fx.candle({ height: 0.08, radius: 0.013, light: true, lightIntensity: 1.1, lightDistance: 3.5, seed: 91, burn: 0.95 });
       vcan.position.set(2.15 - 0.04, 1.63 + 0.12, Z0 + 0.12); add(vcan);
       const rc = buildRockingChair(ctx, mats); rc.position.set(2.45, 0, Z0 + 0.75); rc.rotation.y = -0.55; add(rc);
-      const big = buildDoll(ctx, mats, { size: 0.62, seed: 12, dress: 0x8a7290, hair: 0xc09a58, eyes: '#4a6a9a', bonnet: true, tilt: -0.28, headYaw: 0.35, pose: 'lap' });
+      const big = buildDoll(ctx, mats, { size: 0.62, seed: 12, dress: 0x8a7290, hair: 0xc09a58, eyes: '#4a6a9a', bonnet: true, bonnetBack: true, cracked: true, tilt: -0.28, headYaw: 0.35, pose: 'lap' });
       big.position.set(0, 0.42, 0.0); rc.add(big);
     }
 
@@ -498,7 +679,7 @@ export default {
       vanity.position.set(VAN.x, 0, Z0 + 0.02); add(vanity);
       const st = buildStool(ctx, { ...mats, walnut: mats.vanityWood }); st.position.set(VAN.x + 0.05, 0, Z0 + 0.78); st.rotation.y = 0.2; add(st);
       // the right-hand vanity candle is lit and throws the mirror into relief
-      const vl = new THREE.PointLight(0xffa04a, 2.5, 4.5, 2); vl.position.set(VAN.x + 0.45, 0.76 + 0.37, Z0 + 0.32); add(vl);
+      const vl = new THREE.PointLight(0xffa04a, 1.4, 4.5, 2); vl.position.set(VAN.x + 0.45, 0.76 + 0.37, Z0 + 0.32); add(vl);
       vanity.userData.light = vl;
     }
 
@@ -507,6 +688,16 @@ export default {
     const stair = buildAtticStair(ctx, mats, { w: 1.18, y0: 0.16 });
     stair.position.set(WARD.x, 0, Z1); stair.rotation.y = Math.PI; add(stair);
     const stairLights = [stair.userData.light, stair.userData.fill];
+    {
+      const su = stair.userData;
+      const sweb = (size, pos, flip, seed) => {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ map: cobweb(ctx, { seed }), transparent: true, depthWrite: false, side: THREE.DoubleSide, color: 0xa8acb8, roughness: 1, metalness: 0, name: 'cobweb' }));
+        m.geometry.translate(size / 2, -size / 2, 0); m.position.copy(pos); if (flip) m.scale.x = -1; m.userData.noShadow = true; m.renderOrder = 3; stair.add(m);
+      };
+      sweb(0.7, V3(-1.18 / 2 + 0.01, su.topY + 1.0, su.endZ + 0.25), false, 11);
+      sweb(0.55, V3(1.18 / 2 - 0.01, su.topY + 1.05, su.endZ + 0.6), true, 12);
+      sweb(0.5, V3(-1.18 / 2 + 0.01, 2.35, -0.25), false, 13);
+    }
     for (const l of stairLights) l.visible = false;
     // the cold shaft from the attic skylight, with dust hanging in it (shown once the stair is revealed)
     {
@@ -565,15 +756,10 @@ export default {
       web(root, 0.8, V3(X0 + 0.01, H - 0.46, Z0 + 0.57), Math.PI * 0.25, false, 5);
       web(root, 0.75, V3(X1 - 0.01, H - 0.46, Z1 - 0.53), -Math.PI * 0.75, false, 6);
       web(root, 0.6, V3(X0 + 0.43, H - 0.3, Z1 - 0.01), Math.PI * 0.75, true, 7);
-      // brass gas sconce between window and doll shelf (lit, warm)
-      const sc = new THREE.Group();
-      sc.add(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.06, 0], [0.05, 0.02], [0, 0.03]], 24).rotateX(Math.PI / 2), mats.brass));
-      const arm = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.008, 8, 24, Math.PI / 2), mats.brass); arm.position.set(0, -0.1, 0); arm.rotation.y = -Math.PI / 2; sc.add(arm);
-      const cup = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.025, 0.0], [0.03, 0.02], [0, 0.02]], 16), mats.brass); cup.position.set(0, 0.0, 0.1); sc.add(cup);
-      const shade = new THREE.Mesh(G.latheFromProfile([[0.025, 0], [0.055, 0.03], [0.065, 0.08], [0.05, 0.14], [0.03, 0.15]], 24), mats.lampGlobe); shade.position.set(0, 0.02, 0.1); shade.userData.noShadow = true; sc.add(shade);
-      sc.position.set(2.15, 2.62, Z0 + 0.01); add(sc);
-      const scl = new THREE.PointLight(0xffa860, 2.6, 6, 2); scl.position.set(2.15, 2.72, Z0 + 0.2); add(scl);
-      ctx.onUpdate((dt, t) => { scl.intensity = 2.6 * (0.95 + 0.05 * Math.sin(t * 7.7) * Math.sin(t * 2.9)); });
+      // brass gas sconce above the doll shelf: a real fixture (backplate, scrolled arm, etched tulip)
+      const sc = buildSconce(ctx, mats, { out: 0.2, seed: 2 }); sc.position.set(2.15, 2.6, Z0 + 0.005); add(sc);
+      const scl = new THREE.PointLight(0xffa860, 2.4, 6, 2); scl.position.set(2.15, 2.6 + 0.08, Z0 + 0.2); add(scl);
+      ctx.onUpdate((dt, t) => { scl.intensity = 2.4 * (0.95 + 0.05 * Math.sin(t * 7.7) * Math.sin(t * 2.9)); });
       // velvet slippers by the bed, a hatbox by the wardrobe, a side table and cold tea by the chair
       const hb = new THREE.Group();
       hb.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.22, 32), mats.dollCloth(0x6a5a48)), 0, 0.11, 0));
@@ -588,6 +774,28 @@ export default {
       tbl.position.set(2.75, 0, FIRE.z + 2.35); add(tbl);
     }
 
+    // ================================================================ contact shadows (furniture sits on the floor)
+    {
+      const bx = X0 + 0.06 + BED.L / 2, hw = BED.W / 2, hl = BED.L / 2;
+      const C = (o) => contactShadow(ctx, root, o);
+      C({ x: CHEST.x, z: CHEST.z, w: 0.78, d: 1.36, opacity: 0.8 });
+      C({ x: bx, z: BED.z, w: BED.L + 0.25, d: BED.W + 0.25, opacity: 0.6 });
+      for (const a of [-1, 1]) for (const b of [-1, 1]) C({ x: bx + a * hl, z: BED.z + b * hw, w: 0.22, d: 0.22, opacity: 0.85 });
+      for (const b of [-1, 1]) C({ x: X0 + 0.3, z: BED.z + b * (BED.W / 2 + 0.36), w: 0.6, d: 0.62, opacity: 0.7 });
+      C({ x: VAN.x, z: Z0 + 0.27, w: 1.35, d: 0.62, opacity: 0.7 });
+      C({ x: VAN.x + 0.05, z: Z0 + 0.78, w: 0.6, d: 0.48, rotY: 0.2, opacity: 0.6 });
+      C({ x: 2.25, z: FIRE.z + 1.75, w: 0.95, d: 0.95, rotY: Math.PI - 0.55, opacity: 0.75 });
+      C({ x: 2.45, z: Z0 + 0.75, w: 0.62, d: 0.72, rotY: -0.55, opacity: 0.6 });
+      C({ x: WARD.x, z: Z1 - 0.3, w: 1.65, d: 0.85, opacity: 0.75 });
+      C({ x: 2.75, z: FIRE.z + 2.35, w: 0.5, d: 0.5, opacity: 0.55 });
+      C({ x: WARD.x - 0.95, z: Z1 - 0.35, w: 0.5, d: 0.5, opacity: 0.55 });
+      // dirt and occlusion gathered along the skirting
+      C({ x: 0, z: Z0, w: W, d: 0.5, opacity: 0.45, y: 0.0072 });
+      C({ x: 0, z: Z1, w: W, d: 0.5, opacity: 0.45, y: 0.0072 });
+      C({ x: X0, z: 0, w: 0.5, d: D, opacity: 0.45, y: 0.0072 });
+      C({ x: X1, z: 0, w: 0.5, d: D, opacity: 0.45, y: 0.0072 });
+    }
+
     // ================================================================ lighting
     const moon = new THREE.SpotLight(0xa8bcff, 1500, 20, 0.28, 0.4, 2);
     moon.position.set(WIN.x + 1.6, 5.6, Z0 - 4.6);
@@ -597,12 +805,14 @@ export default {
     moon.shadow.bias = -0.0004; moon.shadow.normalBias = 0.02; moon.shadow.radius = ctx.quality.shadowRadius;
     moon.shadow.camera.near = 1.5; moon.shadow.camera.far = 16;
     root.add(moon, moon.target);
-    root.add(new THREE.HemisphereLight(0x4a62b0, 0x22140c, 0.9));
+    root.add(new THREE.HemisphereLight(0x34405e, 0x1a120c, 0.5));
     // moonlight bounced off the floorboards up onto the ceiling, so the plaster separates from black
     root.add(fx.areaLight({ center: [WIN.x - 0.4, 0.05, -1.4], normal: [0, 1, 0], width: 2.6, height: 2.6, color: 0x7f92c8, intensity: 1.6 }));
     // moonlight bounced off the floor and the bed: a soft cold fill on the front (door / wardrobe) wall
     const frontFill = new THREE.PointLight(0x8094d0, 2.4, 5.5, 2); frontFill.position.set(-0.3, 2.6, 1.6); root.add(frontFill);
-    root.add(fx.areaLight({ center: [WIN.x, WIN.sill + 1.2, Z0 + 0.04], normal: [0, -0.35, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 5 }));
+    // low cold bounce off the boards in front of the wardrobe, so it stands in the room, not in black
+    const floorFill = new THREE.PointLight(0x7a8cc4, 0.9, 3.2, 2); floorFill.position.set(WARD.x + 0.4, 0.5, Z1 - 1.6); root.add(floorFill);
+    root.add(fx.areaLight({ center: [WIN.x, WIN.sill + 1.2, Z0 + 0.04], normal: [0, -0.35, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 2.2 }));
 
     const winCenter = V3(WIN.x, WIN.sill + WIN.h * 0.47, Z0 - 0.02);
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
@@ -630,14 +840,14 @@ export default {
       [0.0, 1.72], [0.06, 1.71], [0.095, 1.66], [0.105, 1.58], [0.09, 1.5], [0.065, 1.46], [0.06, 1.41], [0.16, 1.36], [0.2, 1.28], [0.18, 1.1],
       [0.15, 0.95], [0.24, 0.6], [0.34, 0.2], [0.38, 0.0],
     ], 40), ghostMat);
-    ghost.position.set(WIN.x + 0.95, 0.0, Z0 + 0.55); ghost.renderOrder = 7; add(ghost);
+    ghost.position.set(WIN.x + 0.95, 0.0, Z0 + 0.55); ghost.renderOrder = 7; ghost.visible = false; ghost.userData.keep = true; add(ghost);
     ctx.onUpdate((dt, t) => { ghost.position.y = Math.sin(t * 0.7) * 0.025; ghost.rotation.y = Math.sin(t * 0.25) * 0.3; });
 
     // ================================================================ navigation
     const nodes = {
       main: { position: [0.75, 1.62, 2.95], target: [-0.3, 1.18, -3.0], fov: 60, label: 'The bedroom', look: { yaw: [-60, 60], pitch: [-30, 28] } },
       chest: { position: [CHEST.x + 1.55, 1.68, CHEST.z + 1.2], target: [CHEST.x - 0.55, 0.62, CHEST.z - 0.3], fov: 54, label: 'The chest at the foot of the bed' },
-      bed: { position: [-1.15, 1.72, 1.8], target: [X0 + 0.62, 0.85, BED.z - 0.15], fov: 56, label: 'The bed' },
+      bed: { position: [-1.95, 1.64, 1.4], target: [-2.5, 0.88, BED.z - 0.05], fov: 58, label: 'The bed' },
       hearth: { position: [0.3, 1.6, 0.55], target: [X1, 1.15, FIRE.z - 0.35], fov: 56, label: 'The fireplace', look: { yaw: [-60, 60], pitch: [-25, 30] } },
       dolls: { position: [0.95, 1.6, -0.9], target: [2.25, 1.45, Z0], fov: 54, label: 'The doll shelf' },
       vanity: { position: [-0.45, 1.6, -1.85], target: [VAN.x - 0.1, 1.3, Z0], fov: 54, label: 'The dressing table' },
@@ -677,7 +887,7 @@ export default {
       { id: 'bigdoll', nodes: ['dolls', 'hearth', 'chest'], sphere: { center: [2.45, 0.75, Z0 + 0.75], radius: 0.35 }, cursor: 'examine', label: 'A doll in a rocking chair', onActivate: async () => { ctx.audio.creak?.(); await ctx.ui.caption('A large doll with a painted, patient face. The chair rocks, once, though no one touched it.', { title: 'The Rocking Chair' }); } },
       { id: 'fire', nodes: ['hearth', 'main'], box: { min: [X1 - 0.75, 0.0, FIRE.z - 0.6], max: [X1, 1.1, FIRE.z + 0.6] }, cursor: 'examine', label: 'The fire', onActivate: cap('The Fireplace', 'Coals glow in a grate no one has laid in decades. The ash is cold. The flames are not.') },
       { id: 'clock', nodes: ['hearth'], box: { min: [X1 - 0.8, fire.userData.mantelY, FIRE.z - 0.2], max: [X1, fire.userData.mantelY + 0.4, FIRE.z + 0.2] }, cursor: 'examine', label: 'The mantel clock', onActivate: async () => { ctx.audio.chimeClock?.(3); await ctx.ui.caption('Stopped at twenty-seven minutes to four. It chimes anyway.', { title: 'The Clock' }); } },
-      { id: 'child', nodes: ['hearth'], box: { min: [X1 - 0.1, fire.userData.mantelY + 0.45, FIRE.z - 0.45], max: [X1, fire.userData.mantelY + 1.45, FIRE.z + 0.45] }, cursor: 'examine', label: 'A portrait', onActivate: cap('The Portrait', 'A gentleman in a black coat, painted with great care everywhere but the eyes, which someone has rubbed away with a thumb. The brass plate reads only: "Father."') },
+      { id: 'child', nodes: ['hearth'], box: { min: [X1 - 0.1, fire.userData.mantelY + 0.45, FIRE.z - 0.45], max: [X1, fire.userData.mantelY + 1.45, FIRE.z + 0.45] }, cursor: 'examine', label: 'A portrait', onActivate: cap('The Portrait', 'A gentleman in a black coat, painted in thick, careful oils. Wherever you stand, his eyes have found you first. The brass plate reads only: "Father."') },
       { id: 'bed', nodes: ['bed', 'main'], box: { min: [X0 + 0.1, 0.5, BED.z - 0.9], max: [X0 + 2.2, 1.0, BED.z + 0.9] }, cursor: 'examine', label: 'The bed', onActivate: cap('The Bed', 'The counterpane is turned down, the pillows dented by a head. The hangings have rotted to rags, but the sheets are warm.') },
       { id: 'beddoll', nodes: ['bed'], sphere: { center: [X0 + 0.62, 1.05, BED.z + 0.25], radius: 0.2 }, cursor: 'talk', label: 'A doll on the pillow', onActivate: async () => { await ctx.say({ text: 'She was tucked in, once. Then the little girl went away... and *never* came back for her.', speaker: 'stauf', speakerName: 'Stauf' }); } },
       { id: 'window', nodes: ['dolls', 'main', 'chest'], box: { min: [WIN.x - WIN.w / 2, WIN.sill, Z0 - 0.4], max: [WIN.x + WIN.w / 2, WIN.sill + WIN.h, Z0] }, cursor: 'examine', label: 'The window', onActivate: cap('The Window', 'The dead oak taps at the glass. Across the grounds, one window in the east wing is lit — and someone is standing in it.') },
@@ -685,11 +895,11 @@ export default {
         id: 'ghost', nodes: ['main', 'dolls', 'chest'], sphere: { center: [WIN.x + 0.95, 1.2, Z0 + 0.55], radius: 0.4 }, cursor: 'ghost', label: 'A presence',
         onActivate: () => ctx.cinematic(async (c, h) => {
           ctx.post.set({ saturation: 0.55, vignette: 0.65 }, 0.8);
-          ghostMat.uniforms.uOpacity.value = 0.85;
+          ghost.visible = true; ghostMat.uniforms.uOpacity.value = 0.85;
           await ctx.nav.lookAt(V3(WIN.x + 0.95, 1.4, Z0 + 0.55), 1.2);
           await ctx.say({ text: 'She waits by the window every night, for a carriage that will never come up the drive.', speaker: 'stauf', speakerName: 'Stauf' });
           await h.wait(0.4);
-          ghostMat.uniforms.uOpacity.value = 0.28;
+          ghostMat.uniforms.uOpacity.value = 0.28; ghost.visible = false;
           ctx.post.set(ROOM_GRADE, 1.2);
           await ctx.nav.returnToNode(1.0);
         }),
