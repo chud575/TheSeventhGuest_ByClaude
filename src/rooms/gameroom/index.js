@@ -146,7 +146,7 @@ export default {
       mat.stagRuff = new THREE.MeshStandardMaterial({ map: fs2.map, color: new THREE.Color(0.7, 0.6, 0.5), roughness: 0.9, side: THREE.DoubleSide, name: 'stagRuff' });
       mat.boarFur = new THREE.MeshStandardMaterial({ map: boarSet.map, normalMap: boarSet.normalMap, roughnessMap: boarSet.ormMap, aoMap: boarSet.ormMap, roughness: 1, metalness: 0, vertexColors: true, envMapIntensity: 0.4, name: 'boarFur' });
       mat.boarFurD = mat.boarFur.clone(); mat.boarFurD.side = THREE.DoubleSide; mat.boarFurD.name = 'boarFurD';
-      mat.bristle = new THREE.MeshStandardMaterial({ color: 0x1a1410, roughness: 0.7, name: 'bristle' });
+      mat.bristle = new THREE.MeshStandardMaterial({ color: 0x3a2e24, roughness: 0.75, name: 'bristle' });
       mat.noseLeather = new THREE.MeshPhysicalMaterial({ color: 0x0a0807, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.3, name: 'noseLeather' });
       mat.shieldWalnut = M.create('walnut', { repeat: [3, 3], color: [0.2, 0.16, 0.135], roughness: 0.8, clearcoat: 0.25, clearcoatRoughness: 0.5 });
       const iv = ivoryTexture(ctx.textures).withRepeat(1, 1);
@@ -434,7 +434,7 @@ export default {
     const boardY = gtable.userData.topY + 0.001;
     {
       const bset = chessboardTexture(ctx.textures, { inner: FIELD / BOARD });
-      const bm = new THREE.MeshPhysicalMaterial({ map: bset.map, normalMap: bset.normalMap, roughnessMap: bset.ormMap, roughness: 1, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.4, envMapIntensity: 0.15, color: new THREE.Color(1.04, 0.98, 0.92), name: 'chessboard' });
+      const bm = new THREE.MeshPhysicalMaterial({ map: bset.map, normalMap: bset.normalMap, roughnessMap: bset.ormMap, roughness: 1, metalness: 0, clearcoat: 0.2, clearcoatRoughness: 0.55, envMapIntensity: 0.15, color: new THREE.Color(1.04, 0.98, 0.92), name: 'chessboard' });
       const top = new THREE.Mesh(new THREE.PlaneGeometry(BOARD, BOARD).rotateX(-Math.PI / 2), bm);
       top.position.set(C.x, boardY - 0.001, C.z); top.name = 'chessboard'; top.userData.keep = true; top.receiveShadow = true;
       add(top);
@@ -718,7 +718,7 @@ export default {
     // card table oil lamp
     const oilLight = new THREE.PointLight(0xffa04a, 1.5, 4, 2); oilLight.position.set(CARD.x - 0.05, 1.0, CARD.z - 0.3); root.add(oilLight);
     // a candle left burning on the games table: warm fill on the chessboard
-    const chessCandle = fx.candle({ height: 0.1, radius: 0.012, light: true, lightIntensity: 1.9, lightDistance: 3, seed: 61, burn: 0.55 });
+    const chessCandle = fx.candle({ height: 0.1, radius: 0.012, light: true, lightIntensity: 1.5, lightDistance: 3, seed: 61, burn: 0.55 });
     {
       // a brass chamberstick: drip pan with a ring handle and a short socket
       const cs = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.05, 0], [0.054, 0.004], [0.052, 0.012], [0.046, 0.009], [0.016, 0.012], [0.011, 0.02], [0.011, 0.038], [0.016, 0.042], [0.013, 0.046], [0, 0.046]], 24), mat.brass);

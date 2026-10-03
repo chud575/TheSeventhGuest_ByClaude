@@ -313,7 +313,7 @@ export function buildStag(ctx, mats) {
   // -------------------------------------------------------------- antlers (a royal: brow, bez, trez and a crown of three)
   // vertex colours multiply the antler map (already bone-brown): dark at the burr, bleached toward the tips
   const LC = (r, g2, b) => new THREE.Color().setRGB(r, g2, b);
-  const C0 = LC(0.62, 0.54, 0.45), C1 = LC(2.0, 1.9, 1.7);
+  const C0 = LC(0.85, 0.74, 0.6), C1 = LC(2.3, 2.15, 1.9);
   const bone = [];
   for (const sx of [-1, 1]) {
     const base = surf(4.15, sx > 0 ? 1.05 : Math.PI - 1.05, -0.006);
@@ -321,7 +321,7 @@ export function buildStag(ctx, mats) {
       base, base.clone().add(V3(sx * 0.07, 0.07, -0.03)), base.clone().add(V3(sx * 0.17, 0.19, -0.05)), base.clone().add(V3(sx * 0.26, 0.34, -0.05)),
       base.clone().add(V3(sx * 0.3, 0.5, -0.01)), base.clone().add(V3(sx * 0.28, 0.64, 0.04)), base.clone().add(V3(sx * 0.22, 0.75, 0.09)),
     ], false, 'centripetal');
-    bone.push(antlerTube(beam, 64, 0.032, 0.013, 14, C0, LC(1.35, 1.25, 1.08), 1.1));
+    bone.push(antlerTube(beam, 64, 0.032, 0.013, 14, C0, LC(1.6, 1.48, 1.28), 1.1));
     const tines = [
       [0.06, V3(sx * 0.03, 0.03, 0.2), 0.018, 0.012],
       [0.17, V3(sx * 0.035, 0.06, 0.17), 0.016, 0.011],
@@ -430,7 +430,7 @@ export function buildBoar(ctx, mats) {
   g.add(new THREE.Mesh(G.mergeGeometries(bone.map(toNI)), mats.antler));
   // bristle crest: instanced tapering spikes along the ridge of the neck and skull
   const rnd = ctx.random.fork('boar-bristle');
-  const bg = new THREE.ConeGeometry(0.0022, 0.05, 4, 1).translate(0, 0.025, 0);
+  const bg = new THREE.ConeGeometry(0.003, 0.07, 4, 1).translate(0, 0.035, 0);
   const n = 260;
   const im = new THREE.InstancedMesh(bg, mats.bristle || mats.nose, n);
   const curve = new THREE.CatmullRomCurve3(st.slice(0, 5).map((q) => V3(q.p[0], q.p[1] + q.ry * 0.96, q.p[2])));

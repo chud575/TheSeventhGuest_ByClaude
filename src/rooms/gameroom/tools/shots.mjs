@@ -23,7 +23,7 @@ const SHOTS = {
   c_chair: 'node=chess&pos=-0.9,1.2,-1.6&target=-1.45,0.55,-2.15&fov=50',
   c_boar: 'node=main&pos=-1.75,2.35,1.75&target=-3.2,2.7,0.85&fov=40',
   c_drape2: 'node=main&pos=-1.2,1.65,-1.6&target=-1.45,1.75,-4.0&fov=55',
-  c_chest: 'node=hearth&pos=0.6,1.3,-1.4&target=1.85,0.5,-2.85&fov=50',
+  c_chest: 'node=hearth&pos=0.95,1.3,-0.95&target=2.0,0.5,-2.08&fov=50',
 };
 const OPTIONAL = new Set(Object.keys(SHOTS).filter((k) => k.startsWith('c_')));
 const server = await startServer();
