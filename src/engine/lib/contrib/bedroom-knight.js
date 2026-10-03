@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices, toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /** weld an ExtrudeGeometry so curved walls shade smoothly (bevels keep the cap edges soft anyway) */
 function smooth(g, tol) {
@@ -72,10 +72,10 @@ export function knightGeometry(height = 0.06, { radial = 32, curveSegments = 6 }
   shape.splineThru(back);
   shape.lineTo(front[0].x, front[0].y);
 
-  const thick = 0.15 * u;
-  const bevel = 0.06 * u;
+  const thick = 0.17 * u;
+  const bevel = 0.04 * u;
   const head = new THREE.ExtrudeGeometry(shape, {
-    depth: thick, bevelEnabled: true, bevelThickness: bevel, bevelSize: 0.05 * u, bevelSegments: 4, curveSegments,
+    depth: thick, bevelEnabled: true, bevelThickness: bevel, bevelSize: 0.032 * u, bevelSegments: 3, curveSegments,
   });
   head.translate(0, 0, -thick / 2);
   // taper toward the muzzle: a horse's face is narrower than its neck
@@ -88,7 +88,9 @@ export function knightGeometry(height = 0.06, { radial = 32, curveSegments = 6 }
       p.setZ(i, p.getZ(i) * k * neck);
     }
   }
-  const headS = smooth(head, u * 1e-4);
+  // creased normals: the flat carved cheeks stay crisp, the bevels and the profile curve stay smooth
+  head.deleteAttribute('uv'); head.deleteAttribute('normal');
+  const headS = toCreasedNormals(mergeVertices(head, u * 1e-4), 0.75);
   headS.rotateY(-Math.PI / 2);           // shape +x (muzzle) -> +z
   parts.push(headS);
 

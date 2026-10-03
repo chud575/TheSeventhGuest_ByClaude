@@ -31,6 +31,7 @@ const BED = { z: -0.7, W: 1.78, L: 2.22 };            // headboard against the l
 const FIRE = { z: -1.05 };
 const CHEST = { x: X0 + 0.06 + BED.L + 0.48, z: BED.z };
 const WARD = { x: -1.55 };
+const RUG = { x: -0.55, z: 0.0 };                     // rug centre (3 m across z, 4 m along x)
 const VAN = { x: -1.36 };                               // dressing table against the back wall, between bed and window
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 
@@ -235,15 +236,15 @@ export default {
       drapeA: drapeMat(drapeA, [0.3, 0.085, 0.09]), drapeB: drapeMat(drapeB, [0.26, 0.075, 0.08]), drapeVal: drapeMat(drapeV, [0.27, 0.08, 0.085]),
       board: new THREE.MeshPhysicalMaterial({ map: boardSet.map, normalMap: boardSet.normalMap, roughnessMap: boardSet.ormMap, roughness: 1, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.3, envMapIntensity: 0.55, name: 'board' }),
       frostGlass: new THREE.MeshPhysicalMaterial({ color: 0xd8d4c8, roughness: 0.55, transmission: 0, transparent: true, opacity: 0.72, side: THREE.DoubleSide, name: 'frost' }),
-      mirror: new THREE.MeshPhysicalMaterial({ map: mirrorSet.map, normalMap: mirrorSet.normalMap, normalScale: new THREE.Vector2(0.8, 0.8), roughnessMap: mirrorSet.ormMap, metalnessMap: mirrorSet.ormMap, roughness: 2.6, metalness: 1, envMapIntensity: 1.25, color: new THREE.Color(0.72, 0.72, 0.72), emissive: new THREE.Color(0.5, 0.48, 0.44), emissiveMap: mirrorGlint.map, emissiveIntensity: 0.35, side: THREE.DoubleSide, name: 'mirror' }),
-      lampGlobe: new THREE.MeshStandardMaterial({ color: 0x3a2a18, map: etchedGlassTex(ctx), emissive: new THREE.Color(1.0, 0.66, 0.36), emissiveMap: etchedGlassTex(ctx), emissiveIntensity: 1.4, roughness: 0.45, transparent: true, opacity: 0.95, name: 'lampGlobe' }),
+      mirror: new THREE.MeshPhysicalMaterial({ map: mirrorSet.map, normalMap: mirrorSet.normalMap, normalScale: new THREE.Vector2(0.8, 0.8), roughnessMap: mirrorSet.ormMap, metalnessMap: mirrorSet.ormMap, roughness: 2.6, metalness: 1, envMapIntensity: 1.25, color: new THREE.Color(0.72, 0.72, 0.72), emissive: new THREE.Color(0.5, 0.48, 0.44), emissiveMap: mirrorGlint.map, emissiveIntensity: 0.1, side: THREE.DoubleSide, name: 'mirror' }),
+      lampGlobe: new THREE.MeshStandardMaterial({ color: 0x3a2a18, map: etchedGlassTex(ctx), emissive: new THREE.Color(1.0, 0.56, 0.24), emissiveMap: etchedGlassTex(ctx), emissiveIntensity: 0.75, roughness: 0.45, transparent: true, opacity: 0.95, name: 'lampGlobe' }),
       sconceGlass: new THREE.MeshStandardMaterial({ color: 0x5a4a38, emissive: new THREE.Color(1.0, 0.7, 0.42), emissiveMap: etchedGlassTex(ctx), emissiveIntensity: 1.1, roughness: 0.5, transparent: true, opacity: 0.88, side: THREE.DoubleSide, depthWrite: false, name: 'sconceGlass' }),
       velvetRose: M.create('velvet', { color: [0.24, 0.1, 0.11], crush: 0.6, repeat: [3, 3], sheen: 1.0, sheenRoughness: 0.4, sheenColor: [0.5, 0.24, 0.26], envMapIntensity: 0.2 }),
       velvetChair: M.create('leather', { color: [0.2, 0.07, 0.05], wear: 0.7, buttons: 1, repeat: [4, 4], clearcoat: 0.3, clearcoatRoughness: 0.45 }),
       curtain: M.create('velvet', { color: [0.055, 0.08, 0.21], crush: 0.85, repeat: [1.4, 1.4], side: THREE.DoubleSide, sheen: 0.45, sheenRoughness: 0.4, sheenColor: [0.3, 0.36, 0.6], envMapIntensity: 0.25 }),
       buttons: M.basic('black', { color: 0x0a0a12, roughness: 0.4 }),
       clockFace: new THREE.MeshStandardMaterial({ map: clockFace(ctx), roughness: 0.4 }),
-      glass: M.create('glass', { dirt: 0.55, opacity: 0.12, repeat: [1.5, 1.5], depthWrite: false, envMapIntensity: 0.8, normalScale: 0.6 }),
+      glass: M.create('glass', { dirt: 0.25, opacity: 0.07, repeat: [1.5, 1.5], depthWrite: false, envMapIntensity: 0.6, normalScale: 0.25 }),
       plasterRose: M.create('plaster', { color: [0.62, 0.6, 0.58], cracks: 0.5, stains: 0.8, repeat: [4, 4] }),
       atticBoard: M.create('wood', { species: 'oak', boards: 3, boardLength: 1.2, polish: 0.1, wear: 0.9, tint: [0.55, 0.5, 0.46], repeat: [1, 1], side: THREE.DoubleSide, clearcoat: 0 }),
       atticBeam: M.create('wood', { species: 'oak', boards: 0, polish: 0.05, wear: 0.8, tint: [0.42, 0.36, 0.32], repeat: [1.5, 1.5], clearcoat: 0 }),
@@ -496,7 +497,7 @@ export default {
       }
       rg.setAttribute('uv1', rg.attributes.uv);
       const rug = new THREE.Mesh(rg, mats.rug); rug.rotation.x = -Math.PI / 2; rug.rotation.z = Math.PI / 2;
-      rug.position.set(-0.85, 0.006, BED.z + 0.1); rug.name = 'rug'; add(rug);
+      rug.position.set(RUG.x, 0.006, RUG.z); rug.name = 'rug'; add(rug);
       const maxAn = ctx.renderer.capabilities.getMaxAnisotropy();
       for (const k of ['map', 'normalMap', 'roughnessMap']) if (mats.rug[k]) { mats.rug[k].anisotropy = maxAn; mats.rug[k].needsUpdate = true; }
       // short knotted fringes at both ends, lying just off the boards
@@ -505,7 +506,7 @@ export default {
         const fg = new THREE.PlaneGeometry(3.0, 0.075, 1, 3).rotateX(-Math.PI / 2);
         const fp = fg.attributes.position; for (let i = 0; i < fp.count; i++) fp.setY(i, -0.004 * (fp.getZ(i) / 0.0375 + 1) * 0.5);
         const f = new THREE.Mesh(fg, fr); f.rotation.y = e > 0 ? Math.PI / 2 : -Math.PI / 2;
-        f.position.set(-0.85 + e * (2.0 + 0.0375), 0.007, BED.z + 0.1); f.name = 'rug'; add(f);
+        f.position.set(RUG.x + e * (2.0 + 0.0375), 0.007, RUG.z); f.name = 'rug'; add(f);
       }
     }
 
@@ -538,7 +539,7 @@ export default {
     const boardField = chest.userData.fieldSize;     // field size in metres (matches the board texture)
     const puzzleCam = { position: [CHEST.x + 0.66, 1.3, CHEST.z], target: [CHEST.x + 0.03, 0.54, CHEST.z], fov: 34 };
     // a low warm candle on the far side of the board: the amber rim on the ebony knights
-    const rimLight = new THREE.PointLight(0xffa04a, 0.5, 1.6, 2); rimLight.position.set(CHEST.x - 0.38, chest.userData.boardTop + 0.18, CHEST.z - 0.25); add(rimLight);
+    const rimLight = new THREE.PointLight(0xffa04a, 0.35, 2.2, 2); rimLight.position.set(CHEST.x - 0.7, chest.userData.boardTop + 0.32, CHEST.z - 0.1); add(rimLight);
     const boneSet = boneGrain(ctx).withRepeat(3, 3);
     // cavity tint for the carved pieces: crevices (concave, facing down/in) go yellow-brown, judged
     // from the object-space normal and height so the mane grooves, jaw and eye read as carved
@@ -546,7 +547,7 @@ export default {
       m.onBeforeCompile = (sh) => {
         sh.uniforms.uCav = { value: new THREE.Color(...tint) };
         sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vCav;')
-          .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvCav = clamp(0.5 - objectNormal.y * 0.6, 0.0, 1.0) * smoothstep(0.03, 0.0, length(position.xz) - 0.01);');
+          .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvCav = clamp(-objectNormal.y * 1.2, 0.0, 1.0);');
         sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vCav;\nuniform vec3 uCav;')
           .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * uCav, vCav * 0.6);');
       };
@@ -558,7 +559,7 @@ export default {
     const knights = createKnightsPuzzle(ctx, {
       parent: chest, center: V3(0, chest.userData.boardTop, 0), size: boardField,
       mats: {
-        bone: knightAO(new THREE.MeshPhysicalMaterial({ color: 0xe8dcc4, map: boneSet.map, roughness: 0.35, normalMap: boneSet.normalMap, normalScale: new THREE.Vector2(0.8, 0.8), clearcoat: 0.15, clearcoatRoughness: 0.4, sheen: 0.25, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.9, 0.84, 0.7), specularIntensity: 0.6, envMapIntensity: 0.55, name: 'bone' }), [0.62, 0.5, 0.3]),
+        bone: knightAO(new THREE.MeshPhysicalMaterial({ color: 0xe6d3ac, map: boneSet.map, roughness: 0.35, normalMap: boneSet.normalMap, normalScale: new THREE.Vector2(0.35, 0.35), clearcoat: 0.15, clearcoatRoughness: 0.4, sheen: 0.25, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.9, 0.84, 0.7), specularIntensity: 0.6, envMapIntensity: 0.55, name: 'bone' }), [0.62, 0.5, 0.3]),
         ebony: knightAO(new THREE.MeshPhysicalMaterial({ color: 0x241810, map: ebonySet.map, roughness: 0.3, normalMap: ebonySet.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), clearcoat: 0.45, clearcoatRoughness: 0.25, specularColor: new THREE.Color(1.0, 0.85, 0.65), envMapIntensity: 0.35, name: 'ebonyPiece' }), [0.35, 0.3, 0.26]),
       },
       camera: puzzleCam,
@@ -774,6 +775,33 @@ export default {
       tbl.position.set(2.75, 0, FIRE.z + 2.35); add(tbl);
     }
 
+    // ================================================================ peeling wallpaper: strips lifting at the seams
+    {
+      const plaster = new THREE.MeshStandardMaterial({ color: 0x5c564c, roughness: 0.95, name: 'barePlaster' });
+      const paperBack = new THREE.MeshStandardMaterial({ color: 0x8a8070, roughness: 0.95, side: THREE.BackSide, name: 'paperBack' });
+      const flap = (wallPos, rotY, w, h, curl, seed) => {
+        const g = new THREE.PlaneGeometry(w, h, 6, 20); g.translate(w / 2, -h / 2, 0);   // anchor = top-left (at the seam)
+        const p = g.attributes.position;
+        for (let i = 0; i < p.count; i++) {
+          const x = p.getX(i), y = p.getY(i);
+          const t = Math.min(1, Math.max(0, (-y) / h));    // 0 top .. 1 bottom
+          const lift = Math.pow(1 - t, 2.2) * curl;        // the top has come away and curls forward
+          const a = lift / 0.06;                            // roll radius 6 cm
+          p.setXYZ(i, x + Math.sin(seed + y * 9) * 0.004, y + (1 - Math.cos(Math.min(a, 2.4))) * 0.0 + (a > 0 ? 0.06 * Math.sin(Math.min(a, 2.4)) * 0.4 : 0), 0.004 + 0.06 * (1 - Math.cos(Math.min(a, 2.4))) * (0.6 + 0.4 * x / w));
+        }
+        g.computeVertexNormals();
+        const grp = new THREE.Group(); grp.position.copy(wallPos); grp.rotation.y = rotY;
+        const front = new THREE.Mesh(g, mats.wall); front.userData.noShadow = false; grp.add(front);
+        const back = new THREE.Mesh(g, paperBack); grp.add(back);
+        // bare plaster where the paper has gone
+        const bare = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.9, h * 0.55).translate(w * 0.45, -h * 0.28, 0.0015), plaster); grp.add(bare);
+        add(grp);
+      };
+      flap(V3(-0.533, H - 0.5, Z0 + 0.002), 0, 0.17, 0.75, 1.0, 1);
+      flap(V3(X1 - 0.002, H - 0.5, 1.066), -Math.PI / 2, 0.15, 0.6, 0.8, 2);
+      flap(V3(X0 + 0.002, H - 0.5, -2.132 - 0.12), Math.PI / 2, 0.12, 0.5, 0.7, 3);
+    }
+
     // ================================================================ contact shadows (furniture sits on the floor)
     {
       const bx = X0 + 0.06 + BED.L / 2, hw = BED.W / 2, hl = BED.L / 2;
@@ -811,12 +839,12 @@ export default {
     // moonlight bounced off the floor and the bed: a soft cold fill on the front (door / wardrobe) wall
     const frontFill = new THREE.PointLight(0x8094d0, 2.4, 5.5, 2); frontFill.position.set(-0.3, 2.6, 1.6); root.add(frontFill);
     // low cold bounce off the boards in front of the wardrobe, so it stands in the room, not in black
-    const floorFill = new THREE.PointLight(0x7a8cc4, 0.9, 3.2, 2); floorFill.position.set(WARD.x + 0.4, 0.5, Z1 - 1.6); root.add(floorFill);
+    const floorFill = new THREE.PointLight(0x7a8cc4, 1.8, 3.6, 2); floorFill.position.set(WARD.x + 0.6, 0.45, Z1 - 1.4); root.add(floorFill);
     root.add(fx.areaLight({ center: [WIN.x, WIN.sill + 1.2, Z0 + 0.04], normal: [0, -0.35, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 2.2 }));
 
     const winCenter = V3(WIN.x, WIN.sill + WIN.h * 0.47, Z0 - 0.02);
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
-    const shaft = fx.shaft({ center: winCenter, right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h * 0.5, 0), direction: beamDir, length: 4.2, color: 0x9fb6ff, intensity: 0.3, softness: 0.3, falloff: 1.2, panes: [3, 4], mullion: 0.03, noise: 0.75 });
+    const shaft = fx.shaft({ center: winCenter, right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h * 0.5, 0), direction: beamDir, length: 4.0, color: 0x9fb6ff, intensity: 0.13, softness: 0.35, falloff: 1.6, panes: [3, 4], mullion: 0.03, noise: 0.75 });
     root.add(shaft);
     root.add(fx.dust({ box: new THREE.Box3(V3(-1.6, 0.1, Z0 + 0.05), V3(2.0, 3.0, 1.2)), count: 2400, shafts: [shaft], size: 0.011, intensity: 2.2, ambient: 0.05 }));
     root.add(fx.fog({ box: new THREE.Box3(V3(X0 + 0.2, 0, Z0 + 0.1), V3(X1 - 0.2, 0.5, Z1 - 0.3)), color: 0x0a0f1c, litColor: 0x2e3a58, density: 0.45, heightFalloff: 4 }));
@@ -952,6 +980,7 @@ export default {
       o.castShadow = !o.userData.noShadow && !fxLike && !['floor', 'rug', 'ceiling'].includes(o.name);
       o.receiveShadow = !m?.isShaderMaterial && !m?.isMeshBasicMaterial;
     });
+    for (const pc of knights.pieces || []) pc.mesh.receiveShadow = false;
     root.userData.mergedCount = mergeStatic(root);
 
     // the puzzle close-up sits in the moon beam: pull the exposure down while it is open so the

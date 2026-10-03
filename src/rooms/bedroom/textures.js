@@ -24,7 +24,7 @@ export function nightSky(ctx) {
       float md = length((p - moon) * vec2(0.8, 1.0));
       float cl = fbm(p * vec2(2.2, 3.2) + vec2(0.35, 0.1), vec2(64.0), 6);
       float cl2 = fbm(p * vec2(5.0, 7.0) + 3.1, vec2(64.0), 5);
-      vec3 sky = mix(vec3(0.02, 0.035, 0.09), vec3(0.16, 0.22, 0.4), smoothstep(0.0, 1.0, p.y));
+      vec3 sky = mix(vec3(0.02, 0.03, 0.07), vec3(0.08, 0.11, 0.22), smoothstep(0.2, 1.0, p.y));
       sky += vec3(0.5, 0.58, 0.8) * exp(-md * 7.0) * 0.4;
       float c = smoothstep(-0.1, 0.4, cl + cl2 * 0.35);
       sky = mix(sky, sky * 0.3 + vec3(0.015, 0.02, 0.035), c * 0.85);
@@ -40,11 +40,11 @@ export function nightSky(ctx) {
       sky += vec3(0.6, 0.7, 1.0) * st * 0.6;
       // dead oak: trunk + recursive-looking branches
       float tree = 1.0;
-      float tx = 0.2 + 0.03 * sin(p.y * 7.0);
+      float tx = 0.4 + 0.03 * sin(p.y * 7.0);
       tree = min(tree, abs(p.x - tx) - 0.03 * (1.15 - p.y));
       for (int i = 0; i < 9; i++) {
         float fi = float(i);
-        vec2 o = vec2(tx, 0.3 + fi * 0.075);
+        vec2 o = vec2(tx, 0.36 + fi * 0.06);
         float side = mod(fi, 2.0) * 2.0 - 1.0;
         vec2 d = rot2(side * (0.75 + 0.25 * sin(fi * 2.3))) * (p - o);
         d.y += 0.03 * sin(d.x * 18.0 + fi);
@@ -58,16 +58,16 @@ export function nightSky(ctx) {
         tw = max(tw, d2.x - len * 0.4);
         tree = min(tree, tw);
       }
-      float hill = p.y - (0.13 + 0.05 * fbm(vec2(p.x * 3.0, 0.5), vec2(64.0), 4));
+      float hill = p.y - (0.28 + 0.05 * fbm(vec2(p.x * 3.0, 0.5), vec2(64.0), 4));
       // a distant gabled roofline of the east wing
-      float roof = max(p.y - 0.22 - max(0.0, 0.08 - abs(p.x - 0.78) * 0.6), abs(p.x - 0.78) - 0.2);
+      float roof = max(p.y - 0.36 - max(0.0, 0.08 - abs(p.x - 0.7) * 0.6), abs(p.x - 0.7) - 0.16);
       // ground mist rolling over the grounds below the hill line
-      sky = mix(sky, vec3(0.13, 0.16, 0.24), smoothstep(0.32, 0.1, p.y) * 0.55 * (0.7 + 0.3 * (fbm(vec2(p.x * 4.0, p.y * 12.0), vec2(64.0), 4) * 0.5 + 0.5)));
+      sky = mix(sky, vec3(0.1, 0.12, 0.18), smoothstep(0.42, 0.25, p.y) * 0.55 * (0.7 + 0.3 * (fbm(vec2(p.x * 4.0, p.y * 12.0), vec2(64.0), 4) * 0.5 + 0.5)));
       vec3 col = sky;
       float sil = smoothstep(0.003, -0.003, min(min(tree, hill), roof));
       col = mix(col, vec3(0.008, 0.01, 0.018), sil);
       // one lit window in the far wing
-      float win = sdBox(p - vec2(0.83, 0.18), vec2(0.008, 0.014));
+      float win = sdBox(p - vec2(0.74, 0.33), vec2(0.008, 0.014));
       col = mix(col, vec3(1.0, 0.62, 0.25) * 0.9, smoothstep(0.002, -0.002, win));
       s.albedo = col;
       s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
@@ -110,16 +110,16 @@ export function tornDrape(ctx, { seed = 1, color = [0.3, 0.085, 0.09], valance =
       // ---- ragged slashes through the body (lens-shaped, wandering)
       float eSl = 1.0;
       if (uVal < 0.5) {
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 6; i++) {
           float fi = float(i) + uS;
-          if (hash11(fi * 3.7) < 0.3) continue;
-          vec2 c = vec2(0.15 + 0.7 * hash11(fi * 1.3), 0.28 + 0.5 * hash11(fi * 2.9));
+          if (hash11(fi * 3.7) < 0.35) continue;
+          vec2 c = vec2(0.15 + 0.7 * hash11(fi * 1.3), 0.2 + 0.6 * hash11(fi * 2.9));
           float ang = (hash11(fi * 5.1) - 0.5) * 0.9;
-          float len = 0.05 + 0.11 * hash11(fi * 7.7);
+          float len = 0.06 + 0.12 * hash11(fi * 7.7);
           vec2 q = rot2(ang) * ((p - c) * vec2(2.0, 1.0));
           q.x += 0.012 * fbm(vec2(q.y * 25.0, fi), vec2(256.0), 3);
           float t = clamp(q.y / len, -1.0, 1.0);
-          float w = (0.01 + 0.012 * hash11(fi * 9.3)) * (1.0 - t * t);
+          float w = (0.03 + 0.05 * hash11(fi * 9.3)) * (1.0 - t * t) * (0.75 + 0.5 * (fbm(vec2(q.y * 30.0, fi), vec2(256.0), 2) * 0.5 + 0.5));
           float d = max(abs(q.x) - w, abs(q.y) - len) * 0.5;
           eSl = min(eSl, d + 0.003 * fbm(p * 90.0 + fi, vec2(1024.0), 3));
         }
@@ -286,21 +286,22 @@ export function knightsBoard(ctx, { aspect = 2.0, board = 0.82 } = {}) {
           float bw = (hb - field) * 0.83;
           float cellA = floor(a);
           float sgn = mod(cellA, 2.0) < 0.5 ? 1.0 : -1.0;
-          // undulating stem
-          float stemY = 0.28 * bw * sin(a * 3.14159);
-          float stem = abs(ly - stemY) - 0.006 * bw / 0.05;
-          // curling scroll in each half-wave, alternating up and down
-          vec2 sc = vec2(lx, ly - sgn * 0.18 * bw);
-          float curl = abs(length(sc) - 0.3 * bw) - 0.05 * bw;
-          curl = max(curl, -sgn * sc.y - 0.02 * bw);
-          // acanthus leaves: three lobed vesicas fanning off the stem
+          // undulating stem (thin) carrying big lobed acanthus leaves and spiral curls
+          float stemY = 0.22 * bw * sin(a * 3.14159);
+          float stem = abs(ly - stemY) - 0.035 * bw;
+          // spiral curl in each half-wave, alternating up and down
+          vec2 sc = vec2(lx - 0.12 * P, ly - sgn * 0.16 * bw);
+          float ca = atan(sc.y, sc.x * sgn);
+          float sr = 0.06 * bw + 0.045 * bw * (ca + 3.14159) / 6.2832;
+          float curl = abs(length(sc) - sr) - 0.03 * bw;
+          curl = max(curl, length(sc) - 0.17 * bw);
           float lf = 1e3;
-          for (int k = 0; k < 3; k++) {
-            float ang = (float(k) - 1.0) * 0.7 + sgn * 0.5;
-            vec2 q = rot2(ang) * (vec2(lx, ly) - vec2(0.0, stemY));
-            lf = min(lf, sdVesica(q - vec2(0.0, sgn * 0.18 * bw), 0.2 * bw, 0.13 * bw));
+          for (int k = 0; k < 4; k++) {
+            float ang = (float(k) - 1.5) * 0.55 + sgn * 0.35;
+            vec2 q = rot2(ang) * (vec2(lx + 0.15 * P, ly) - vec2(0.0, stemY));
+            lf = min(lf, sdVesica(q - vec2(0.0, -sgn * 0.2 * bw), 0.3 * bw, 0.2 * bw));
           }
-          lf += 0.004 * sin(atan(ly - stemY, lx) * 14.0);   // serrated leaf edges
+          lf += 0.006 * bw / 0.05 * abs(sin(atan(ly - stemY, lx) * 9.0));   // serrated, lobed edges
           float shape = min(min(stem, curl), lf);
           float relief = domeh(shape, 0.12 * bw);
           float carved = smoothstep(0.002, -0.002, shape);
@@ -404,13 +405,13 @@ export function crackedMirror(ctx, { aspect = 0.7, impact = [0.62, 0.58], angles
       float fox = smoothstep(0.86, 0.9, fbm(uv * 30.0 + 5.0, vec2(256.0), 3) * 0.5 + 0.5);
       float bad = clamp(max(max(desil, blot), fox * 0.7), 0.0, 1.0);
       vec3 silver = vec3(0.78, 0.78, 0.76);
-      vec3 col = mix(silver, vec3(0.07, 0.06, 0.05), bad);
+      vec3 col = mix(silver, vec3(0.03, 0.026, 0.022), bad);
       col *= 1.0 - halo * 0.25;
-      col = mix(col, vec3(0.9, 0.9, 0.88), line * 0.6);
+      col = mix(col, vec3(0.6, 0.6, 0.58), line * 0.4);
       col = mix(col, vec3(0.35), crushed);
       if (uGlint > 0.5) { col = vec3(line * (1.0 - bad) * (0.6 + 0.4 * hash12(floor(p * 300.0)))) + vec3(crushed * 0.25); }
       s.albedo = col;
-      s.metal = 1.0 - bad * 0.9;
+      s.metal = 1.0 - bad;
       s.rough = 0.035 + halo * 0.25 + crushed * 0.5 + bad * 0.55;
       s.height = 0.5 - line * 0.25 - halo * 0.08 - crushed * 0.2 + bad * 0.04;
       s.ao = 1.0 - halo * 0.3;
@@ -899,27 +900,32 @@ export function persianRug(ctx) {
     // small flower: 6-8 petals + eye
     float flower(vec2 p, float r, float n) { float a = atan(p.y, p.x); float rr = r * (0.65 + 0.35 * abs(cos(a * n * 0.5))); return length(p) - rr; }
     vec3 herati(vec2 c) {
-      vec2 q = c / vec2(0.072, 0.072);
+      // all-over herati: a rosette in a lozenge framed by four curling lancet leaves, on a lattice of
+      // indigo vines; alternate cells are dyed a shade darker so the field reads dense, not dotted
+      vec2 q = c / vec2(0.115, 0.115);
       vec2 id = floor(q); vec2 f = fract(q) - 0.5;
-      vec3 col = RED;
+      vec3 col = mod(id.x + id.y, 2.0) < 0.5 ? RED : RED2 * 1.1;
       float lat = abs(abs(f.x) + abs(f.y) - 0.5);
-      col = mix(col, NAVY, smoothstep(0.045, 0.02, lat));
-      float fl = flower(f, 0.13, 8.0);
-      col = mix(col, IVO, smoothstep(0.01, -0.01, fl));
-      col = mix(col, RED2, smoothstep(0.01, -0.01, length(f) - 0.04));
-      // four lancet leaves round each rosette, alternately rose and teal
+      col = mix(col, IND, smoothstep(0.06, 0.035, lat));
+      col = mix(col, OCH * 0.8, smoothstep(0.018, 0.006, lat));
+      float loz = abs(f.x) + abs(f.y);
+      col = mix(col, NAVY * 1.4, smoothstep(0.24, 0.22, loz) * (1.0 - smoothstep(0.2, 0.18, loz)));
+      float fl = flower(f, 0.15, 8.0);
+      col = mix(col, IVO, smoothstep(0.012, -0.012, fl));
+      col = mix(col, ROSE, smoothstep(0.012, -0.012, flower(f, 0.085, 6.0)));
+      col = mix(col, NAVY, smoothstep(0.01, -0.01, length(f) - 0.03));
       for (int k = 0; k < 4; k++) {
         float a = 0.785398 + float(k) * 1.570796;
         vec2 r = rot2(-a) * f;
-        float lf = sdVesica(vec2(r.y, r.x - 0.3), 0.11, 0.075);
-        col = mix(col, mod(float(k) + id.x + id.y, 2.0) < 0.5 ? TEAL : ROSE, smoothstep(0.01, -0.01, lf));
+        r.y += 0.05 * sin(r.x * 12.0);
+        float lf = sdVesica(vec2(r.y, r.x - 0.33), 0.15, 0.1);
+        col = mix(col, mod(float(k) + id.x, 2.0) < 0.5 ? TEAL : OCH * 0.85, smoothstep(0.012, -0.012, lf));
+        col = mix(col, NAVY, smoothstep(0.008, 0.0, abs(lf + 0.02)) * 0.6);
       }
-      // tiny ochre dots in the lattice diamonds, and a secondary lattice of fine navy tendrils
-      col = mix(col, OCH, smoothstep(0.03, 0.015, length(abs(f) - vec2(0.5, 0.0))));
-      col = mix(col, IVO * 0.9, smoothstep(0.03, 0.015, length(abs(f) - vec2(0.0, 0.5))));
-      vec2 g2 = fract(q * 0.5 + 0.25) - 0.5;
-      float tend = abs(length(g2) - 0.28) ;
-      col = mix(col, NAVY * 1.3, smoothstep(0.02, 0.008, tend) * step(0.35, fract(atan(g2.y, g2.x) * 1.2732)) * 0.8);
+      // small blossoms where the lattice crosses
+      vec2 fc = f - sign(f) * 0.5 * vec2(1.0, 0.0);
+      col = mix(col, IVO * 0.9, smoothstep(0.012, -0.012, flower(abs(f) - vec2(0.5, 0.0), 0.07, 6.0)));
+      col = mix(col, ROSE * 0.9, smoothstep(0.012, -0.012, flower(abs(f) - vec2(0.0, 0.5), 0.07, 6.0)));
       return col;
     }
     vec3 medallion(vec2 c, vec3 col) {
@@ -958,11 +964,14 @@ export function persianRug(ctx) {
     }
     vec3 mainBorder(float along, float t) {
       // t: 0 (outer) .. 1 (inner) across the band
-      float per = 0.26;
+      float per = 0.19;
       float x = (fract(along / per) - 0.5) * per;
       float y = (t - 0.5) * 0.22;
       float cell = floor(along / per);
       vec3 col = NAVY * 1.25;
+      // a ground of tiny ivory/rose florets between the big motifs
+      vec2 fg = fract(vec2(along, y) / 0.03) - 0.5;
+      col = mix(col, mod(floor(along / 0.03), 2.0) < 0.5 ? ROSE * 0.7 : IVO * 0.6, smoothstep(0.1, 0.05, length(fg)) * 0.8);
       // undulating vine
       float vine = abs(y - 0.055 * sin(along / per * 6.2832));
       col = mix(col, OCH * 0.85, smoothstep(0.009, 0.004, vine));

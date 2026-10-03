@@ -238,7 +238,7 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
       // soft wrinkles and the body's dent on top (low frequency, cloth not upholstery)
       const top = as < cw / 2 ? 1 : 0.35;
       y += (Math.sin(s * 7.0 + zz * 2.3) * Math.sin(zz * 4.1 + 1.3) * 0.008 + Math.sin(s * 17 + zz * 5) * Math.sin(zz * 13 - s * 3) * 0.003) * top;
-      y -= 0.018 * Math.exp(-((s + 0.15) ** 2) / 0.08 - ((zz + 0.2) ** 2) / 0.35) * top;
+      y -= 0.012 * Math.exp(-((s + 0.15) ** 2) / 0.08 - ((zz + 0.2) ** 2) / 0.35) * top;
       // crumpled where it was dragged toward the near foot corner
       const cm = Math.max(0, Math.min(1, (zz - (cl / 2 - 0.6)) / 0.4)) * Math.max(0, Math.min(1, (-s - 0.1) / 0.3));
       y += cm * (Math.abs(Math.sin(s * 19 + zz * 11) * Math.sin(zz * 15 - s * 7)) * 0.03 + 0.008);
@@ -246,7 +246,7 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
       uv.setXY(i, (s + half) * 1.0, (zz + cl / 2) * 1.0);
     }
     geo.computeVertexNormals();
-    const cover = mesh(geo, mats.quilt, 0, mTop + 0.012, 0.16 - 0.0, g);
+    const cover = mesh(geo, mats.quilt, 0, mTop + 0.03, 0.16 - 0.0, g);
     cover.name = 'cloth';
     // turned-down sheet at the head
     const sheet = mesh(rbox(G, cw + 0.02, 0.03, 0.26, 0.012), mats.linen, 0, mTop + 0.02, -hl + 0.06 + 0.42, g);
