@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeStatic } from './merge.js';
-import { boneGrain, ebonyGrain, laceTex, neroMarble, charLog, fringeTex, nightSky, tornDrape, quilt, linen, knightsBoard, crackedMirror, coals, dollFace, clockFace, cobweb } from './textures.js';
+import { fatherPortrait, boneGrain, ebonyGrain, laceTex, neroMarble, charLog, fringeTex, nightSky, tornDrape, quilt, linen, knightsBoard, crackedMirror, coals, dollFace, clockFace, cobweb } from './textures.js';
 import {
   rbox, curtain, velvetCurtain, buildCeilingRose, buildGasolier, buildBed, buildChest, buildFireplace, buildVanity, buildStool, buildNightstand, buildOilLamp, buildDoll, buildDollShelf,
   buildRockingChair, buildWardrobe, buildAtticStair, buildWingChair, buildMantelClock, buildCandlestick, buildBook,
@@ -107,6 +107,7 @@ export default {
       // mahogany pulled ~30% toward brown-black (the stock species reads saturated red)
       mahogany: M.create('mahogany', { tint: [0.66, 0.54, 0.5], wear: 0.5, repeat: [1.6, 1.6], clearcoatRoughness: 0.3 }),
       canopyWood: M.create('mahogany', { tint: [0.6, 0.5, 0.47], wear: 0.6, repeat: [1.6, 1.6], clearcoat: 0.15, clearcoatRoughness: 0.5, envMapIntensity: 0.3 }),
+      vanityWood: M.create('wood', { species: 'rosewood', boards: 0, polish: 0.75, wear: 0.55, tint: [0.62, 0.52, 0.5], repeat: [1.8, 1.8], clearcoat: 0.5, clearcoatRoughness: 0.25 }),
       walnut: M.create('walnut', { tint: [0.8, 0.72, 0.66], wear: 0.5, repeat: [1.6, 1.6] }),
       panel: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.6, wear: 0.45, tint: [0.66, 0.55, 0.5], repeat: [1.3, 1.3], clearcoat: 0.4, clearcoatRoughness: 0.32 }),
       ebonyWood: M.create('ebony', { repeat: [2, 2] }),
@@ -139,7 +140,7 @@ export default {
       drapeA: drapeMat(drapeA), drapeB: drapeMat(drapeB),
       board: new THREE.MeshPhysicalMaterial({ map: boardSet.map, normalMap: boardSet.normalMap, roughnessMap: boardSet.ormMap, roughness: 1, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.3, envMapIntensity: 0.55, name: 'board' }),
       frostGlass: new THREE.MeshPhysicalMaterial({ color: 0xd8d4c8, roughness: 0.55, transmission: 0, transparent: true, opacity: 0.72, side: THREE.DoubleSide, name: 'frost' }),
-      mirror: new THREE.MeshPhysicalMaterial({ map: mirrorSet.map, normalMap: mirrorSet.normalMap, normalScale: new THREE.Vector2(1, 1), roughnessMap: mirrorSet.ormMap, metalnessMap: mirrorSet.ormMap, roughness: 1, metalness: 1, envMapIntensity: 1.0, color: new THREE.Color(0.75, 0.75, 0.78), name: 'mirror' }),
+      mirror: new THREE.MeshPhysicalMaterial({ map: mirrorSet.map, normalMap: mirrorSet.normalMap, normalScale: new THREE.Vector2(1.8, 1.8), roughnessMap: mirrorSet.ormMap, metalnessMap: mirrorSet.ormMap, roughness: 1, metalness: 1, envMapIntensity: 1.0, color: new THREE.Color(0.75, 0.75, 0.78), name: 'mirror' }),
       lampGlobe: new THREE.MeshStandardMaterial({ color: 0x3a2a18, emissive: new THREE.Color(1.0, 0.62, 0.3), emissiveIntensity: 3.0, roughness: 0.4, transparent: true, opacity: 0.94, name: 'lampGlobe' }),
       velvetRose: M.create('velvet', { color: [0.3, 0.08, 0.1], crush: 0.5, repeat: [3, 3] }),
       velvetChair: M.create('leather', { color: [0.2, 0.07, 0.05], wear: 0.7, buttons: 1, repeat: [4, 4], clearcoat: 0.3, clearcoatRoughness: 0.45 }),
@@ -442,7 +443,7 @@ export default {
       // over-mantel portrait: a child
       const pw = 0.62, ph = 0.8;
       const pg = new THREE.Group();
-      pg.add(new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), M.create('painting', { subject: 1, seed: 31, aspect: pw / ph, size: 2048, cracks: 0.75 })));
+      pg.add(new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshPhysicalMaterial({ map: fatherPortrait(ctx), roughness: 0.55, clearcoat: 0.45, clearcoatRoughness: 0.3, envMapIntensity: 0.5, name: 'father' })));
       pg.add(new THREE.Mesh(G.frameGeometry(pw, ph, { width: 0.1, depth: 0.06, uvScale: 1 }), mats.giltFrame));
       pg.position.set(X1 - 0.44, my + 0.95, FIRE.z); pg.rotation.y = -Math.PI / 2; add(pg);
     }
@@ -492,9 +493,9 @@ export default {
     // ================================================================ vanity (back wall, between the bed and the window)
     let vanity;
     {
-      vanity = buildVanity(ctx, mats);
+      vanity = buildVanity(ctx, { ...mats, walnut: mats.vanityWood });
       vanity.position.set(VAN.x, 0, Z0 + 0.02); add(vanity);
-      const st = buildStool(ctx, mats); st.position.set(VAN.x + 0.05, 0, Z0 + 0.78); st.rotation.y = 0.2; add(st);
+      const st = buildStool(ctx, { ...mats, walnut: mats.vanityWood }); st.position.set(VAN.x + 0.05, 0, Z0 + 0.78); st.rotation.y = 0.2; add(st);
       // the right-hand vanity candle is lit and throws the mirror into relief
       const vl = new THREE.PointLight(0xffa04a, 2.5, 4.5, 2); vl.position.set(VAN.x + 0.45, 0.76 + 0.37, Z0 + 0.32); add(vl);
       vanity.userData.light = vl;
@@ -634,7 +635,7 @@ export default {
     const nodes = {
       main: { position: [0.75, 1.62, 2.95], target: [-0.3, 1.18, -3.0], fov: 60, label: 'The bedroom', look: { yaw: [-60, 60], pitch: [-30, 28] } },
       chest: { position: [CHEST.x + 1.55, 1.68, CHEST.z + 1.2], target: [CHEST.x - 0.55, 0.62, CHEST.z - 0.3], fov: 54, label: 'The chest at the foot of the bed' },
-      bed: { position: [-0.3, 1.65, 1.35], target: [X0 + 0.6, 0.95, BED.z + 0.1], fov: 56, label: 'The bed' },
+      bed: { position: [-1.15, 1.72, 1.8], target: [X0 + 0.62, 0.85, BED.z - 0.15], fov: 56, label: 'The bed' },
       hearth: { position: [0.3, 1.6, 0.55], target: [X1, 1.15, FIRE.z - 0.35], fov: 56, label: 'The fireplace', look: { yaw: [-60, 60], pitch: [-25, 30] } },
       dolls: { position: [0.95, 1.6, -0.9], target: [2.25, 1.45, Z0], fov: 54, label: 'The doll shelf' },
       vanity: { position: [-0.45, 1.6, -1.85], target: [VAN.x - 0.1, 1.3, Z0], fov: 54, label: 'The dressing table' },

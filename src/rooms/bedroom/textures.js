@@ -25,10 +25,10 @@ export function nightSky(ctx) {
       float cl = fbm(p * vec2(2.2, 3.2) + vec2(0.35, 0.1), vec2(64.0), 6);
       float cl2 = fbm(p * vec2(5.0, 7.0) + 3.1, vec2(64.0), 5);
       vec3 sky = mix(vec3(0.02, 0.035, 0.09), vec3(0.16, 0.22, 0.4), smoothstep(0.0, 1.0, p.y));
-      sky += vec3(0.5, 0.58, 0.8) * exp(-md * 5.0) * 0.9;
+      sky += vec3(0.5, 0.58, 0.8) * exp(-md * 7.0) * 0.4;
       float c = smoothstep(-0.1, 0.4, cl + cl2 * 0.35);
       sky = mix(sky, sky * 0.3 + vec3(0.015, 0.02, 0.035), c * 0.85);
-      sky += vec3(0.75, 0.8, 0.95) * smoothstep(0.16, 0.0, abs(cl + cl2 * 0.35 - 0.05)) * exp(-md * 2.5) * 0.6;
+      sky += vec3(0.75, 0.8, 0.95) * smoothstep(0.16, 0.0, abs(cl + cl2 * 0.35 - 0.05)) * exp(-md * 3.5) * 0.35;
       sky = mix(sky, vec3(1.0, 0.98, 0.9) * 1.25, smoothstep(0.048, 0.04, md) * (1.0 - c * 0.5));
       // stars in the clear patches
       vec2 sg = floor(p * 260.0);
@@ -619,4 +619,80 @@ export function fringeTex(ctx) {
     // the knotted band where the warp threads leave the rug
     g.fillStyle = 'rgb(200,188,160)'; g.fillRect(0, 0, w, 5);
   }, { tile: true });
+}
+
+/**
+ * Over-mantel portrait (canvas, 1024 x 1320): a gentleman in a black frock coat and white stock
+ * against a brown-black ground, painted with soft glazes — except the eyes, which someone has
+ * rubbed away to bare, smeared ground. Yellowed varnish and craquelure over everything.
+ */
+export function fatherPortrait(ctx) {
+  return ctx.textures.canvas('bedroom:father', 1024, 1320, (g, w, h) => {
+    const rnd = (i) => { const x = Math.sin(i * 51.37 + 7.1) * 43758.5453; return x - Math.floor(x); };
+    // ground: warm umber, lighter behind the head (old-master halo)
+    const bg = g.createRadialGradient(w * 0.5, h * 0.33, 40, w * 0.5, h * 0.4, h * 0.75);
+    bg.addColorStop(0, '#5a4630'); bg.addColorStop(0.45, '#2a1f15'); bg.addColorStop(1, '#0c0907');
+    g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(${40 + rnd(i) * 40},${30 + rnd(i + 1) * 25},${18},0.05)`; g.beginPath(); g.arc(rnd(i + 2) * w, rnd(i + 3) * h, 10 + rnd(i + 4) * 50, 0, 7); g.fill(); }
+    const cx = w * 0.5, hy = h * 0.34;
+    // shoulders + black frock coat
+    g.fillStyle = '#0d0b0a';
+    g.beginPath(); g.moveTo(cx - 470, h); g.bezierCurveTo(cx - 430, h * 0.66, cx - 260, h * 0.56, cx - 120, h * 0.52); g.lineTo(cx + 120, h * 0.52);
+    g.bezierCurveTo(cx + 260, h * 0.56, cx + 430, h * 0.66, cx + 470, h); g.closePath(); g.fill();
+    // lapels catching a little light
+    g.fillStyle = '#1d1a18';
+    g.beginPath(); g.moveTo(cx - 110, h * 0.53); g.lineTo(cx - 200, h * 0.75); g.lineTo(cx - 60, h * 0.95); g.lineTo(cx - 30, h * 0.62); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(cx + 110, h * 0.53); g.lineTo(cx + 200, h * 0.75); g.lineTo(cx + 60, h * 0.95); g.lineTo(cx + 30, h * 0.62); g.closePath(); g.fill();
+    // white stock + shirt
+    const st = g.createLinearGradient(cx - 90, 0, cx + 90, 0); st.addColorStop(0, '#9c9384'); st.addColorStop(0.5, '#e4dccb'); st.addColorStop(1, '#8a8274');
+    g.fillStyle = st; g.beginPath(); g.moveTo(cx - 95, h * 0.5); g.quadraticCurveTo(cx, h * 0.56, cx + 95, h * 0.5); g.lineTo(cx + 40, h * 0.7); g.lineTo(cx, h * 0.76); g.lineTo(cx - 40, h * 0.7); g.closePath(); g.fill();
+    g.fillStyle = '#0a0808'; g.beginPath(); g.moveTo(cx - 30, h * 0.53); g.lineTo(cx + 30, h * 0.53); g.lineTo(cx + 12, h * 0.6); g.lineTo(cx - 12, h * 0.6); g.closePath(); g.fill();
+    // neck
+    g.fillStyle = '#8d6a52'; g.fillRect(cx - 62, hy + 150, 124, 110);
+    // head: lit from the upper left, cool shadow on the right
+    const sk = g.createRadialGradient(cx - 60, hy - 40, 20, cx, hy + 20, 230);
+    sk.addColorStop(0, '#e3c2a2'); sk.addColorStop(0.45, '#b98d6c'); sk.addColorStop(0.8, '#6e4a36'); sk.addColorStop(1, '#3a281e');
+    g.fillStyle = sk; g.beginPath(); g.ellipse(cx, hy + 10, 150, 200, 0, 0, 7); g.fill();
+    // ears
+    g.fillStyle = '#946a50'; g.beginPath(); g.ellipse(cx - 150, hy + 30, 22, 46, 0.1, 0, 7); g.fill(); g.fillStyle = '#5a3c2c'; g.beginPath(); g.ellipse(cx + 150, hy + 30, 20, 44, -0.1, 0, 7); g.fill();
+    // hair: dark, receding, oiled; grey side-whiskers
+    g.fillStyle = '#16100c';
+    g.beginPath(); g.ellipse(cx, hy - 120, 165, 110, 0, Math.PI, 0); g.fill();
+    g.beginPath(); g.moveTo(cx - 165, hy - 120); g.quadraticCurveTo(cx - 175, hy - 20, cx - 140, hy + 60); g.lineTo(cx - 120, hy - 60); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(cx + 165, hy - 120); g.quadraticCurveTo(cx + 175, hy - 20, cx + 140, hy + 60); g.lineTo(cx + 120, hy - 60); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(120,112,104,0.75)';
+    for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(cx + sd * 140, hy + 20); g.quadraticCurveTo(cx + sd * 150, hy + 140, cx + sd * 95, hy + 175); g.lineTo(cx + sd * 112, hy + 60); g.closePath(); g.fill(); }
+    // nose, mouth, jaw shadow
+    g.fillStyle = 'rgba(90,55,40,0.6)'; g.beginPath(); g.moveTo(cx + 5, hy - 10); g.quadraticCurveTo(cx + 28, hy + 70, cx + 18, hy + 88); g.lineTo(cx - 12, hy + 90); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(240,215,190,0.35)'; g.beginPath(); g.ellipse(cx - 8, hy + 40, 9, 45, 0, 0, 7); g.fill();
+    g.strokeStyle = '#4a2a20'; g.lineWidth = 6; g.beginPath(); g.moveTo(cx - 48, hy + 128); g.quadraticCurveTo(cx, hy + 136, cx + 48, hy + 126); g.stroke();
+    g.fillStyle = 'rgba(40,24,16,0.45)'; g.beginPath(); g.ellipse(cx + 70, hy + 90, 60, 110, 0, 0, 7); g.fill();
+    // brows
+    g.strokeStyle = '#1a120c'; g.lineWidth = 12; g.lineCap = 'round';
+    for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(cx + sd * 25, hy - 48); g.quadraticCurveTo(cx + sd * 60, hy - 62, cx + sd * 100, hy - 50); g.stroke(); }
+    // the eyes: rubbed out — smeared to raw, pale ground in two thumb-shaped scrubs
+    for (const sd of [-1, 1]) {
+      const ex = cx + sd * 58, ey = hy - 15;
+      for (let k = 0; k < 40; k++) {
+        const a = rnd(k + sd * 50) * 6.28, r = rnd(k + 9 + sd * 50) * 26;
+        g.fillStyle = `rgba(${170 + rnd(k) * 40},${150 + rnd(k + 2) * 30},${120},${0.12 + rnd(k + 4) * 0.12})`;
+        g.beginPath(); g.ellipse(ex + Math.cos(a) * r, ey + Math.sin(a) * r * 0.6, 26, 14, (rnd(k + 6) - 0.5) * 0.8, 0, 7); g.fill();
+      }
+      g.strokeStyle = 'rgba(60,40,28,0.5)'; g.lineWidth = 2;
+      for (let k = 0; k < 12; k++) { const y = ey - 16 + k * 3; g.beginPath(); g.moveTo(ex - 34, y + rnd(k) * 4); g.lineTo(ex + 34, y + rnd(k + 1) * 4); g.stroke(); }
+    }
+    // varnish: yellowed, darker toward the edges
+    g.fillStyle = 'rgba(120,90,30,0.16)'; g.fillRect(0, 0, w, h);
+    const vg = g.createRadialGradient(cx, h * 0.42, h * 0.25, cx, h * 0.5, h * 0.75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.55)');
+    g.fillStyle = vg; g.fillRect(0, 0, w, h);
+    // craquelure network
+    g.strokeStyle = 'rgba(10,6,4,0.45)'; g.lineWidth = 1.2;
+    for (let i = 0; i < 520; i++) {
+      let x = rnd(i * 3) * w, y = rnd(i * 3 + 1) * h; g.beginPath(); g.moveTo(x, y);
+      for (let k = 0; k < 4; k++) { x += (rnd(i * 7 + k) - 0.5) * 60; y += (rnd(i * 11 + k) - 0.5) * 60; g.lineTo(x, y); }
+      g.stroke();
+    }
+    g.strokeStyle = 'rgba(230,210,170,0.06)'; g.lineWidth = 1;
+    for (let i = 0; i < 300; i++) { const x = rnd(i * 5 + 2) * w, y = rnd(i * 5 + 3) * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd(i) - 0.5) * 40, y + (rnd(i + 1) - 0.5) * 40); g.stroke(); }
+  }, { tile: false });
 }
