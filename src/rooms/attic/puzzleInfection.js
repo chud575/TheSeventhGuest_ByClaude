@@ -25,7 +25,7 @@ export const infectionMeta = {
   ],
 };
 
-const BLUE_COL = new THREE.Color(0.03, 0.16, 1.0), GREEN_COL = new THREE.Color(0.22, 0.95, 0.04);
+const BLUE_COL = new THREE.Color(0x2a5fd0), GREEN_COL = new THREE.Color(0x8fb81c);
 
 /** organic cell blob: a flattened, slightly lumpy dome with a nucleus dimple */
 function blobGeometry(r) {
@@ -74,21 +74,41 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
   // ---------------------------------------------------------------- cells (two instanced cultures)
   const blob = blobGeometry(c * 0.8);
   // cell skin: a dark nucleus on the crown (top pole of the sphere UVs), granular cytoplasm, a pale membrane at the rim
-  const cellTex = ctx.textures.canvas('attic:cell', 128, 256, (g, w, h) => {
-    for (let y = 0; y < h; y++) {
-      const v = 1 - y / h;                         // 1 = top pole
-      const nuc = Math.max(0, 1 - Math.abs(v - 0.94) / 0.07);
-      const mem = Math.max(0, 1 - Math.abs(v - 0.5) / 0.05);
-      for (let x = 0; x < w; x += 4) {
-        const n = 0.82 + 0.18 * Math.sin(x * 0.7 + y * 1.3) * Math.sin(x * 0.23 - y * 0.41);
-        const k = Math.max(0.12, (1 - nuc * 0.88) * n) + mem * 0.35;
-        const c = Math.round(Math.min(1, k) * 255);
-        g.fillStyle = `rgb(${c},${c},${c})`; g.fillRect(x, y, 4, 1);
-      }
+  const cellTex = ctx.textures.canvas('attic:cell', 256, 256, (g, w, h) => {
+    // smooth granular cytoplasm (value noise, no periodic terms), a dark nucleus at the crown, organelles
+    const img = g.createImageData(w, h);
+    const hsh = (x, y) => { const s2 = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s2 - Math.floor(s2); };
+    const vn = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi; const u = xf * xf * (3 - 2 * xf), v2 = yf * yf * (3 - 2 * yf);
+      return (hsh(xi, yi) * (1 - u) + hsh(xi + 1, yi) * u) * (1 - v2) + (hsh(xi, yi + 1) * (1 - u) + hsh(xi + 1, yi + 1) * u) * v2; };
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const v = 1 - y / h;
+      const nuc = Math.max(0, 1 - Math.abs(v - 0.93) / 0.075);
+      const n = 0.5 * vn(x / 16, y / 16) + 0.3 * vn(x / 7 + 9, y / 7) + 0.2 * vn(x / 3 + 3, y / 3 + 5);
+      const gran = n > 0.7 ? 0.75 : 1;
+      let k = (0.62 + 0.4 * n) * gran * (1 - nuc * nuc * 0.85);
+      k *= 0.75 + 0.25 * Math.min(1, v * 1.6);   // darker toward the base (thicker culture)
+      const c = Math.round(Math.min(1, Math.max(0.05, k)) * 255);
+      const i = (y * w + x) * 4; img.data[i] = c; img.data[i + 1] = c; img.data[i + 2] = c; img.data[i + 3] = 255;
     }
+    g.putImageData(img, 0, 0);
   }, { tile: false });
-  const mkCellMat = (col, glow) => new THREE.MeshPhysicalMaterial({ map: cellTex, emissiveMap: cellTex, color: col.clone().multiplyScalar(0.6), emissive: col.clone(), emissiveIntensity: glow, roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.18, envMapIntensity: 0.5, name: 'culture' });
-  const blueMat = mkCellMat(BLUE_COL, 0.32), greenMat = mkCellMat(GREEN_COL, 0.22);
+  const mkCellMat = (col, glow, rimCol) => {
+    const m = new THREE.MeshPhysicalMaterial({ map: cellTex, emissiveMap: cellTex, color: col.clone().multiplyScalar(0.55), emissive: col.clone().multiplyScalar(0.8), emissiveIntensity: glow, roughness: 0.42, clearcoat: 0.55, clearcoatRoughness: 0.32, sheen: 0.6, sheenRoughness: 0.4, sheenColor: rimCol, envMapIntensity: 0.4, name: 'culture' });
+    // membrane: a translucent fresnel rim, as if light scatters through the edge of the cell
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.uRimC = { value: rimCol };
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uRimC;')
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  { float fr = pow(1.0 - clamp(abs(dot(normalize(vNormal), normalize(vViewPosition))), 0.0, 1.0), 2.5); totalEmissiveRadiance += uRimC * fr * 0.9; }');
+    };
+    m.customProgramCacheKey = () => `culture${rimCol.getHexString()}`;
+    return m;
+  };
+  const blueMat = mkCellMat(BLUE_COL, 0.3, new THREE.Color(0.45, 0.7, 1.0)), greenMat = mkCellMat(GREEN_COL, 0.22, new THREE.Color(0.75, 0.9, 0.3));
+  // Stauf's presence while he thinks: a sickly green glow creeps round the bezel and up off the plate
+  const staufRing = new THREE.Mesh(new THREE.TorusGeometry(plateRadius + 0.012, 0.006, 8, 128).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.35, 1.0, 0.12).multiplyScalar(2.2), transparent: true, opacity: 0, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
+  staufRing.position.y = 0.01; staufRing.userData.noBake = true; staufRing.renderOrder = 6; group.add(staufRing);
+  const staufLight = new THREE.PointLight(0x7aff3a, 0, 1.4, 2); staufLight.position.set(0, 0.18, 0); group.add(staufLight);
+  let presence = 0;
   const blues = new THREE.InstancedMesh(blob, blueMat, H.N + 1);
   const greens = new THREE.InstancedMesh(blob, greenMat, H.N + 1);
   for (const im of [blues, greens]) { im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; group.add(im); }
@@ -123,8 +143,10 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
       const breath = 1 + 0.035 * Math.sin(t * 1.7 + i * 1.3);
       q4.setFromAxisAngle(yAxis, i * 0.9 + t * 0.05);
       for (const [im, s] of [[blues, sB[i]], [greens, sG[i]]]) {
-        const k = Math.max(0, s) * breath;
-        sv.set(k, Math.max(0, s) * (0.9 + 0.12 * Math.sin(t * 2.3 + i)), k);
+        const s0 = Math.max(0, s);
+        const sq = Math.sin(Math.PI * Math.min(1, s0)) * (s0 < 0.999 ? 1 : 0);   // squash wide, then spring up
+        const k = s0 * breath * (1 + 0.32 * sq);
+        sv.set(k, s0 * (0.9 + 0.12 * Math.sin(t * 2.3 + i)) * (1 - 0.4 * sq), k);
         pv.copy(POS[i]); pv.y = 0.002;
         m4.compose(pv, q4, k > 0.001 ? sv : sv.set(0, 0, 0));
         im.setMatrixAt(i, m4);
@@ -188,7 +210,7 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
   function statusLine() {
     const b = H.count(board, H.BLUE), g = H.count(board, H.GREEN);
     const score = `Blue ${b}  —  Green ${g}`;
-    if (phase === 'solved') return `${score}.  The plate is yours.`;
+    if (phase === 'solved') return `${score}.  The plate is yours — and Stauf's germs are ash.`;
     if (phase === 'over') return result.winner === H.BLUE ? `${score}.  The plate is yours.` : `${score}.  Stauf\'s culture has the plate. Click the plate to try again.`;
     if (phase === 'stauf') return `${score}.  Stauf is considering...`;
     if (selected >= 0) return `${score}.  Divide into a blue-ringed cell, or leap to an amber one.`;
@@ -203,12 +225,15 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
     if (!r) return false;
     result = r; phase = 'over'; selected = -1;
     r.filled.forEach((j, k) => { delay[j] = 0.3 + k * 0.04; });
+    const ui = (P?.ui || ctx.ui);
     if (r.winner === H.BLUE) {
       phase = 'solved';
       P?.status?.(statusLine());
+      ui?.titleCard?.('The plate is yours', `Blue ${H.count(board, H.BLUE)}  ·  Green ${H.count(board, H.GREEN)}`, 4.5);
       setTimeout(() => P?.solve?.(), 1600);
     } else {
       P?.status?.(statusLine());
+      ui?.titleCard?.(r.winner === H.GREEN ? 'Stauf\'s culture takes the plate' : 'Neither culture prevails', `Blue ${H.count(board, H.BLUE)}  ·  Green ${H.count(board, H.GREEN)}`, 4.5);
       ctx.audio?.sfx?.('thud');
       onLose?.(r);
       (P?.say || ctx.say)?.({ text: r.winner === H.GREEN ? 'Ha! My little *pets* have eaten yours. Again? You have all the time in the world... *forever*.' : 'A draw? How *dull*. Again.', speaker: 'stauf', speakerName: 'Stauf' });
@@ -275,6 +300,8 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
       if (p) P = p;
       stepScales(dt);
       if (phase === 'stauf' && !busy()) { thinkT -= dt; if (thinkT <= 0) staufMove(); }
+      presence += ((phase === 'stauf' ? 1 : 0) - presence) * Math.min(1, dt * 3);
+      { const pulse = 0.55 + 0.45 * Math.sin(t * 5.0) * Math.sin(t * 1.7 + 1.0); staufRing.material.opacity = presence * (0.35 + 0.5 * pulse); staufLight.intensity = presence * (0.25 + 0.35 * pulse); }
       writeInstances(t); writeRings(t);
     },
     cursorAt(ndc, p) {
@@ -305,6 +332,7 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
       for (let i = 0; i < H.N; i++) { delay[i] = POS[i].length() * 6; board[i] = H.BLUE; }
       phase = 'solved'; selected = -1; result = { winner: H.BLUE, blue: H.N, green: 0, filled: [] };
       p.status(statusLine());
+      (p.ui || ctx.ui)?.titleCard?.('The plate is yours', `Blue ${H.N}  ·  Green 0`, 4.5);
       setTimeout(() => p.solve(), 1800);
     },
     async onSolved(p) { phase = 'solved'; await onSolved?.(p); },
@@ -331,6 +359,8 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
       phase = 'player'; syncScales(true); writeInstances(0); writeRings(0);
     },
     select(i) { selected = i; },
+    /** shots: freeze Stauf mid-thought (green presence on the plate) */
+    think() { phase = 'stauf'; thinkT = 1e9; presence = 1; },
     /** QA: let the computer play one blue move at the given level */
     aiMove(lvl = 1, seed = 11) { if (phase !== 'player') return false; const m = H.chooseMove(board, H.BLUE, { level: lvl, rand: H.prng(seed + moves), foresight: 0.55 }); return m ? playerMove(m.from, m.to) : false; },
     legal: () => H.legalMoves(board, H.BLUE),
