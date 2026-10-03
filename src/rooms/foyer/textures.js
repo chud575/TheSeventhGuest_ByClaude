@@ -273,7 +273,7 @@ void surface(vec2 uv, inout Surface s) {
   vec3 rosso = marbleCol(p, vec3(0.24, 0.045, 0.04), vec3(0.55, 0.36, 0.3), 4.0, 1.6);
   // malachite heart: concentric botryoidal banding
   // verde antico: deep bottle-green serpentine breccia, pale veins and milky clasts (no banding to moire)
-  vec3 verde = marbleCol(p, vec3(0.018, 0.06, 0.04), vec3(0.32, 0.4, 0.34), 21.0, 2.6);
+  vec3 verde = marbleCol(p, vec3(0.04, 0.13, 0.08), vec3(0.42, 0.52, 0.44), 21.0, 2.6);
   float clast = smoothstep(0.62, 0.7, fbm(p * 7.0 + 3.0, vec2(64.0), 4) * 0.5 + 0.5);
   verde = mix(verde, vec3(0.2, 0.26, 0.22), clast * 0.5);
   // the border ring uses the hall's own aged ivory Carrara (same albedo, veins and polish as the floor)
@@ -340,7 +340,7 @@ void surface(vec2 uv, inout Surface s) {
   vec3 b = brassC * (0.75 + 0.35 * wear);
   col = mix(col, b, inl);
   metal = inl;
-  rough = mix(0.07 + 0.05 * wear, 0.3 + 0.12 * wear, inl);
+  rough = mix(0.2 + 0.08 * wear, 0.3 + 0.12 * wear, inl);
   col = mix(col, vec3(0.08, 0.07, 0.06), joint * 0.8);
   h = 0.6 - joint * 0.3 - inl * 0.03;
   // scuffs & dull traffic patina
@@ -497,7 +497,7 @@ export function staufPortraitTexture(forge, aspect) {
     glsl: PORTRAIT_SDF + /* glsl */ `
 vec3 background(vec2 p, vec2 uv) {
   // warm umber ground glowing behind the head, falling to near-black at the edges (soft, painted, never a hard oval)
-  vec3 col = mix(vec3(0.03, 0.022, 0.016), vec3(0.24, 0.15, 0.08), exp(-length((p - vec2(-0.14, 0.13)) * vec2(1.0, 0.72)) * 2.6));
+  vec3 col = mix(vec3(0.03, 0.022, 0.016), vec3(0.17, 0.105, 0.058), exp(-length((p - vec2(-0.16, 0.0)) * vec2(1.0, 0.6)) * 2.8));
   col *= 0.7 + 0.5 * fb2(uv * 3.0 + 2.0, 4);
   col = mix(col, col * vec3(0.7, 0.75, 0.9), smoothstep(0.1, 0.45, length(p)) * 0.5);
   // Rembrandt's trick: the ground lightens behind the shadowed side of the figure, so the dark coat reads against it
@@ -618,7 +618,7 @@ void surface(vec2 uv, inout Surface s) {
   // soft value quantisation (painters' value steps), hue preserved
   float lum = dot(col, vec3(0.3, 0.59, 0.11));
   float q = (floor(lum * 6.0) + smoothstep(0.3, 0.7, fract(lum * 6.0))) / 6.0;
-  col *= mix(1.0, q / max(lum, 1e-3), 0.55);
+  col *= mix(1.0, q / max(lum, 1e-3), 0.3);
   // canvas weave shows through the thin passages
   vec2 wv = uv * vec2(uAsp, 1.0) * 260.0;
   float weave = (sin(wv.x * TAU) * 0.5 + 0.5) * (sin(wv.y * TAU + step(0.5, fract(wv.x * 0.5)) * PI) * 0.5 + 0.5);
@@ -694,13 +694,11 @@ float headSDF(vec3 q, out float mat) {
     // age: deep nasolabial folds, pouches under the eyes, a furrowed brow, crow's feet, a creased throat
     d = smax3(d, -sdCap(m, vec3(0.017, -0.034, 0.097), vec3(0.031, -0.072, 0.083), 0.0022), 0.006);
     d = smin3(d, sdEll(m - vec3(0.024, -0.047, 0.088), vec3(0.012, 0.014, 0.008)), 0.006);          // the cheek fat sagging over the fold
-    d = smin3(d, sdEll(m - vec3(0.031, -0.021, 0.076), vec3(0.014, 0.005, 0.006)), 0.006);           // eye bags
     float fh = smoothstep(0.03, 0.05, q.y) * smoothstep(0.1, 0.08, q.y) * smoothstep(0.03, 0.075, q.z) * smoothstep(0.065, 0.02, abs(q.x));
     d += 0.0006 * sin(q.y * (280.0 + 40.0 * sin(q.x * 31.0)) + sin(q.x * 55.0) * 2.2) * fh * (0.5 + 0.5 * sin(q.x * 70.0 + 1.3));   // broken forehead lines
     d = smax3(d, -sdCap(m, vec3(0.006, 0.012, 0.094), vec3(0.008, 0.034, 0.092), 0.0012), 0.003);   // the "elevens" between the brows
     float cf = smoothstep(0.024, 0.008, length(m.xy - vec2(0.05, -0.002))) * step(0.043, m.x);
     d += 0.00025 * sin(atan(m.y + 0.002, m.x - 0.044) * 11.0) * cf;                                // faint crow's feet
-    d = smax3(d, -sdCap(m, vec3(0.03, -0.074, 0.075), vec3(0.036, -0.1, 0.055), 0.0016), 0.004);   // marionette lines
     float th = smoothstep(-0.11, -0.13, q.y) * smoothstep(0.0, 0.03, q.z);
     d += 0.0009 * sin(q.y * 240.0) * th;                                                            // throat creases
   }
@@ -730,7 +728,7 @@ float headSDF(vec3 q, out float mat) {
     if (hair < d) { d = hair; mat = 5.0; }
   }
   // heavy hooded upper lids and a lower lid roll (skin), drawn over the eyeballs
-  float nar = uV < 0.5 ? 1.0 : 0.0;     // Stauf narrows his eyes
+  float nar = uV < 0.5 ? 0.4 : 0.0;     // Stauf narrows his eyes (a little)
   d = smin3(d, sdEll(m - vec3(0.029, 0.007 - 0.0012 * nar, 0.075 + 0.0008 * nar), vec3(0.016, 0.0065 + 0.0005 * nar, 0.009)), 0.004);
   d = smin3(d, sdEll(m - vec3(0.029, -0.011 + 0.0012 * nar, 0.074), vec3(0.014, 0.004 + 0.0005 * nar, 0.007)), 0.004);
   float eye = length(m - vec3(0.029, -0.001, 0.0675)) - 0.0105;
@@ -866,7 +864,12 @@ vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
   } else if (mat < 1.5) {
     vec3 m = vec3(abs(hp.x), hp.yz);
     float ir = length((m.xy - vec2(0.029 - 0.004, -0.002)) * vec2(1.0, 1.1));
-    alb = mix(vec3(0.6, 0.57, 0.5), vec3(0.06, 0.05, 0.04), smoothstep(0.0062, 0.0048, ir));
+    alb = mix(vec3(0.52, 0.48, 0.42), vec3(0.06, 0.05, 0.04), smoothstep(0.0062, 0.0048, ir));
+    alb = mix(alb, vec3(0.02, 0.015, 0.012), smoothstep(0.0022, 0.0012, ir));                 // pupil
+    // the upper lid shades the top of the eyeball; a dark lash line along it
+    float lidY = m.y + 0.001;
+    alb *= mix(1.0, 0.25, smoothstep(0.001, 0.006, lidY));
+    alb = mix(alb, vec3(0.03, 0.02, 0.02), smoothstep(0.0055, 0.0075, lidY) * 0.85);
     sp = 1.4;
   } else if (mat < 2.5) {
     alb = uCoat * (0.75 + 0.5 * fb2(uv * 14.0, 3)) * (uV < 0.5 ? 1.8 : 1.0);
@@ -1013,8 +1016,8 @@ void surface(vec2 uv, inout Surface s) {
   bg *= 0.7 + 0.5 * fb2(uv * 3.0 + uV, 4);
   if (uBg > 0.5 && uBg < 1.5) {
     // a Gainsborough park: low stormy evening sky, blue distance, a dark mass of trees framing the sitter
-    float hz = -0.12 + 0.03 * sin(p.x * 9.0 + 1.0);
-    vec3 sky = mix(vec3(0.62, 0.5, 0.32), vec3(0.16, 0.18, 0.22), smoothstep(hz, 0.45, p.y));
+    float hz = -0.2 + 0.03 * sin(p.x * 9.0 + 1.0);
+    vec3 sky = mix(vec3(0.7, 0.56, 0.36), vec3(0.2, 0.22, 0.27), smoothstep(hz, 0.75, p.y));
     sky = mix(sky, vec3(0.2, 0.17, 0.14), smoothstep(0.45, 0.75, fb2(p * vec2(4.0, 9.0) + 2.0, 5)) * 0.8);
     vec3 land = mix(vec3(0.16, 0.18, 0.2), vec3(0.05, 0.06, 0.035), smoothstep(hz, hz - 0.2, p.y));
     land *= 0.7 + 0.6 * fb2(p * vec2(12.0, 30.0), 4);

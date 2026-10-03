@@ -19,7 +19,7 @@ function wallFace(ctx, kind, face) {
   if (cache.has(key)) return cache.get(key);
   const tex = canvasTex(ctx, key, 512, 512, (g, w, h) => {
     // base: dark paper with a faint stripe/damask, wainscot below the dado
-    const paper = { dining: '#3a1a14', library: '#2a2014', music: '#1c2436', kitchen: '#3a2c1c' }[kind];
+    const paper = { dining: '#5a2a1e', library: '#3a2c1c', music: '#2a3650', kitchen: '#4a3a26' }[kind];
     g.fillStyle = paper; g.fillRect(0, 0, w, h);
     g.globalAlpha = 0.18;
     for (let x = 0; x < w; x += 18) { g.fillStyle = x % 36 ? '#000' : '#fff'; g.fillRect(x, 0, 6, h * 0.62); }
@@ -75,12 +75,12 @@ function wallFace(ctx, kind, face) {
     const lx = face === 'back' ? w * 0.62 : face === 'left' ? w * 0.95 : face === 'right' ? w * 0.05 : w * 0.5;
     const ly = face === 'floor' ? h * 0.2 : face === 'ceiling' ? h * 0.8 : h * 0.5;
     const gr = g.createRadialGradient(lx, ly, 10, lx, ly, w * 0.95);
-    gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.45, 'rgba(0,0,0,0.35)'); gr.addColorStop(1, 'rgba(0,0,0,0.92)');
+    gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.5, 'rgba(0,0,0,0.25)'); gr.addColorStop(1, 'rgba(0,0,0,0.7)');
     g.fillStyle = gr; g.fillRect(0, 0, w, h);
     if (face === 'left' || face === 'right') {
       // fall to dark towards the doorway (front = the far end of these faces' u axis)
       const fg = face === 'left' ? g.createLinearGradient(w, 0, 0, 0) : g.createLinearGradient(0, 0, w, 0);
-      fg.addColorStop(0, 'rgba(0,0,0,0)'); fg.addColorStop(1, 'rgba(0,0,0,0.85)');
+      fg.addColorStop(0, 'rgba(0,0,0,0)'); fg.addColorStop(1, 'rgba(0,0,0,0.55)');
       g.fillStyle = fg; g.fillRect(0, 0, w, h);
     }
     if (face === 'floor') {

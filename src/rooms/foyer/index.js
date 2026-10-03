@@ -710,9 +710,11 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
       tube.rotation.z = Math.PI / 2; tube.position.set(DOORS.music.x, top - 0.155, Z0 + 0.36); tube.userData.noBake = true; add(tube, { cast: false });
       // the picture light washes the whole canvas, its falloff centred on the face rather than parked on the top rail
       // high and well forward, so the varnish glare reflects down onto the gallery floor, never back at the viewer
-      const pLight = new THREE.SpotLight(0xffb878, 55, 10, 0.55, 0.95, 2);
+      // (no distance decay: a gallery picture light is designed to wash the canvas evenly; the cone's soft edge
+      // is centred on the face and falls off towards the frame)
+      const pLight = new THREE.SpotLight(0xffb878, Number(ctx.params.get('plight') || 3.2), 0, 0.5, 0.75, 0);
       pLight.position.set(DOORS.music.x - 0.25, PY + 1.3, Z0 + 1.6);
-      pLight.target.position.set(DOORS.music.x, PY - 0.45, Z0);
+      pLight.target.position.set(DOORS.music.x, PY + 0.05, Z0);
       root.add(pLight, pLight.target);
     }
     // a second, larger canvas on the east wall above the stair: a stormy landscape
@@ -1141,7 +1143,7 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
     // moon bounce off the marble onto the long side walls: wide, low, cool washes so the damask, pictures and doors hold
     root.add(fx.areaLight({ center: [X0 + 0.25, 2.2, 0.5], normal: [1, 0.15, 0], width: 11.0, height: 3.4, color: 0x5a7ab8, intensity: 1.0 }));
     root.add(fx.areaLight({ center: [X1 - 0.25, 2.2, 4.4], normal: [-1, 0.15, 0], width: 5.0, height: 3.4, color: 0x5a7ab8, intensity: 0.5 }));
-    root.add(fx.areaLight({ center: [-2.4, UF + 1.6, -4.0], normal: [0, -0.1, -1], width: 6.0, height: 2.6, color: 0x5a7ab8, intensity: 1.3 }));
+    root.add(fx.areaLight({ center: [-2.4, UF + 1.6, -4.0], normal: [0, -0.1, -1], width: 6.0, height: 2.6, color: 0x5a7ab8, intensity: 3.5 }));
     const AREA = Number(ctx.params.get('area') || 8);   // the great window and the clerestories are the cool key on the walls
     root.add(fx.areaLight({ center: [0, WIN.great.y + 1.3, Z1 - 0.05], normal: [0, -0.35, -1], width: WIN.great.w, height: WIN.great.h, color: 0x84a8e6, intensity: 2.6 * AREA }));
     root.add(fx.areaLight({ center: [0, 1.6, Z1 - 0.05], normal: [0, -0.1, -1], width: 3.0, height: 3.2, color: 0x7c9ad8, intensity: 0.25 }));
