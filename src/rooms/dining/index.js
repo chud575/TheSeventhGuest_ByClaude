@@ -763,6 +763,10 @@ export default {
     const beamDir = new THREE.Vector3().subVectors(moonTarget, moonPos).normalize();
     const shaft = fx.shaft({ center: winCenter, right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h / 2, 0), direction: beamDir, length: 5.2, color: 0x9fb6ff, intensity: 0.32, softness: 0.3, falloff: 1.0, panes: [2, 4], mullion: 0.03, noise: 0.35 });
     root.add(shaft);
+    // seen from beside the window the camera looks down the length of the beam and the volume turns into
+    // grainy haze over the drapes and wainscot: thin it out there
+    { let k = 1; const shaftI = shaft.material?.uniforms?.uIntensity; const base = shaftI?.value ?? 0.32;
+      ctx.onUpdate((dt) => { if (!shaftI) return; const cur = ctx.nav?.current; const tgt = cur === 'window' || cur === 'back' ? 0.15 : 1; k += (tgt - k) * Math.min(1, dt * 2); if (ctx.shot) k = tgt; shaftI.value = base * k; }); }
     root.add(fx.dust({ box: new THREE.Box3(V3(-1.5, 0.15, Z0 + 0.2), V3(0.7, 2.6, 0.6)), count: 520, shafts: [shaft], size: 0.009, intensity: 2.0, ambient: 0.0 }));
     root.add(fx.fog({ box: new THREE.Box3(V3(X0 + 0.1, 0, Z0 + 0.1), V3(X1 - 0.1, 0.5, Z1 - 0.3)), color: 0x0b111e, litColor: 0x33425f, density: 0.45, heightFalloff: 4 }));
 
@@ -804,8 +808,8 @@ export default {
       m.rotation.y = phi + Math.PI;
       m.renderOrder = 7; m.visible = false; m.userData.keep = true; m.userData.noBake = true; m.userData.seat = k;
       m.frustumCulled = false;
-      // depth pre-pass: only the nearest surface of each figure is drawn (no see-through limbs)
-      const pre = new THREE.Mesh(m.geometry, ghostDepth); pre.renderOrder = 6; pre.userData.noBake = true; pre.frustumCulled = false; m.add(pre);
+      // (no depth pre-pass: written depth would feed the SSAO and darken the room behind the figures;
+      //  back faces are culled instead, so only the outer shell is drawn)
       root.add(m);
       return m;
     });
