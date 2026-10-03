@@ -11,6 +11,26 @@ const V2 = (x, y) => new THREE.Vector2(x, y);
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 
 // ------------------------------------------------------------------ chair
+/** remove zero-area / zero-normal triangles from a non-indexed geometry (they shade to NaN) */
+export function dropDegenerate(g) {
+  if (g.index) g = g.toNonIndexed();
+  const P = g.attributes.position.array, N = g.attributes.normal.array, UV = g.attributes.uv?.array;
+  const keep = [];
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let t = 0; t < P.length / 9; t++) {
+    a.fromArray(P, t * 9); b.fromArray(P, t * 9 + 3); c.fromArray(P, t * 9 + 6);
+    const area = b.sub(a).cross(c.sub(a)).length();
+    let ok = area > 1e-10;
+    for (let k = 0; k < 3 && ok; k++) { const i = t * 9 + k * 3; if (N[i] * N[i] + N[i + 1] * N[i + 1] + N[i + 2] * N[i + 2] < 1e-8) ok = false; }
+    if (ok) keep.push(t);
+  }
+  const out = new THREE.BufferGeometry();
+  const take = (src, n) => { const d = new Float32Array(keep.length * 3 * n); keep.forEach((t, j) => d.set(src.subarray(t * 3 * n, (t + 1) * 3 * n), j * 3 * n)); return d; };
+  out.setAttribute('position', new THREE.BufferAttribute(take(P, 3), 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(take(N, 3), 3));
+  if (UV) out.setAttribute('uv', new THREE.BufferAttribute(take(UV, 2), 2));
+  return out;
+}
 /** point-in-polygon (2D, Vector2[]) */
 function inPoly(p, poly) {
   let c = false;
@@ -90,7 +110,8 @@ export function webBackGeometry(G, { height = 0.86, w0 = 0.175, w1 = 0.215, thic
   for (let k = 0; k < spokes; k++) {
     const a = THREE.MathUtils.degToRad(-74 + (148 * k) / (spokes - 1));
     const d = V2(Math.sin(a), Math.cos(a));
-    const L = rayPoly(B, d, inner) + 0.012;
+    const O = V2(B.x + d.x * 0.06, B.y + d.y * 0.06);
+    const L = 0.06 + rayPoly(O, d, inner) + 0.012;
     const n = V2(-d.y, d.x);
     const r0 = bossR - 0.01, wA = 0.0085, wB = 0.0058;
     const p0 = V2(B.x + d.x * r0, B.y + d.y * r0), p1 = V2(B.x + d.x * L, B.y + d.y * L);
@@ -123,7 +144,7 @@ export function webBackGeometry(G, { height = 0.86, w0 = 0.175, w1 = 0.215, thic
     flush();
   }
   const g = G.mergeGeometries(parts.map((x) => { for (const k of Object.keys(x.attributes)) if (!['position', 'normal', 'uv'].includes(k)) x.deleteAttribute(k); return x; }));
-  return G.applyBoxUVs(g, 1.6);
+  return dropDegenerate(G.applyBoxUVs(g, 1.6));
 }
 
 /** domed, button-tufted seat cushion (top surface displaced, rounded edges) */
@@ -405,14 +426,14 @@ export function gobletGeometry(G, s = 1) {
 }
 
 /** standing bishop's-mitre napkin: two-peaked starched cone with fold creases */
-export function napkinGeometry(G, { rx = 0.05, rz = 0.035, h = 0.13 } = {}) {
+export function napkinGeometry(G, { rx = 0.055, rz = 0.02, h = 0.14 } = {}) {
   const U = 48, V = 18;
   const pos = [], idx = [];
   for (let j = 0; j <= V; j++) {
     const v = j / V;
     for (let i = 0; i <= U; i++) {
       const u = i / U, a = u * Math.PI * 2;
-      const top = h * (0.62 + 0.38 * Math.pow(Math.abs(Math.sin(a)), 1.6));   // peaks front and back
+      const top = h * (0.55 + 0.45 * Math.pow(Math.abs(Math.sin(a)), 3.0));   // mitre point front and back
       const y = v * top;
       const k = Math.pow(1 - v, 0.75) * 0.92 + 0.08;
       const crease = 1 + 0.07 * Math.abs(Math.sin(a * 3)) * (1 - v);

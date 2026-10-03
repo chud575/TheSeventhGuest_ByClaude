@@ -288,18 +288,16 @@ export function flameMahoganyTexture(forge) {
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   vec2 p = uv - 0.5;
-  float bm = abs(p.x);                           // book-match mirror line
-  // crotch flame: chevrons rising from the centre line, warped
-  float w = fbm(vec2(bm * 2.0, p.y * 1.2) + 3.0, vec2(4.0), 5) * 0.12;
-  float flame = p.y * 6.0 - bm * bm * 9.0 + w * 6.0;
-  float rings = sin(flame * 9.0 + fbm(vec2(bm * 6.0, p.y * 3.0), vec2(8.0), 4) * 4.0);
-  float fine = fbm(vec2(bm * 60.0, flame * 4.0), vec2(64.0), 3);
-  // chatoyant ribbon (curl figure across the grain)
-  float curl = sin(bm * 140.0 + fbm(p * 8.0, vec2(8.0), 3) * 6.0) * 0.5 + 0.5;
-  vec3 dark = vec3(0.17, 0.05, 0.03), mid = vec3(0.36, 0.11, 0.06), lite = vec3(0.5, 0.2, 0.1);
-  vec3 c = mix(dark, mid, smoothstep(-0.8, 0.9, rings));
-  c = mix(c, lite, smoothstep(0.6, 1.0, rings) * 0.45);
-  c *= 0.86 + 0.18 * fine + 0.08 * curl;
+  float bm = abs(p.x);                           // book-matched quartered veneer
+  float w = fbm(vec2(bm * 3.0, p.y * 1.5) + 3.0, vec2(4.0), 4) * 0.05;
+  float flame = p.y * 3.0 - bm * bm * 5.0 + w * 3.0;
+  float rings = sin(flame * 26.0 + fbm(vec2(bm * 10.0, p.y * 6.0), vec2(12.0), 4) * 2.5);
+  float fine = fbm(vec2(bm * 90.0, flame * 6.0), vec2(96.0), 3);
+  float curl = sin(bm * 220.0 + fbm(p * 10.0, vec2(10.0), 3) * 4.0) * 0.5 + 0.5;
+  vec3 dark = vec3(0.13, 0.04, 0.025), mid = vec3(0.24, 0.075, 0.04), lite = vec3(0.34, 0.12, 0.06);
+  vec3 c = mix(dark, mid, smoothstep(-1.0, 1.0, rings) * 0.8 + 0.1);
+  c = mix(c, lite, smoothstep(0.75, 1.0, rings) * 0.3);
+  c *= 0.9 + 0.12 * fine + 0.06 * curl;
   // pores (very fine), darker crossband border banding
   float r = length(p);
   float band = smoothstep(0.455, 0.46, r) * (1.0 - smoothstep(0.49, 0.495, r));

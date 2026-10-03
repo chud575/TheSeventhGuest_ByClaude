@@ -66,7 +66,7 @@ export default {
 
     // ================================================================ materials
     const mat = {
-      wall: M.create('damask', { base: [0.085, 0.12, 0.3], motif: [0.16, 0.22, 0.46], sheen: 0.85, aging: 0.45, variant: 0, repeat: [1 / 0.62, 1 / 0.62], macro: 0.4, size: 1024 }),
+      wall: M.create('damask', { base: [0.085, 0.12, 0.3], motif: [0.16, 0.22, 0.46], sheen: 0.85, aging: 0.45, variant: 0, repeat: [1 / 0.42, 1 / 0.42], macro: 0.4, size: 1024 }),
       paint: M.create('plaster', { color: [0.09, 0.12, 0.28], cracks: 0.15, stains: 0.35, roughness: 0.7, repeat: [0.7, 0.7] }),
       niche: M.create('plaster', { color: [0.035, 0.045, 0.1], cracks: 0.25, stains: 0.5, repeat: [1, 1] }),
       ceiling: M.create('plaster', { color: [0.1, 0.13, 0.28], cracks: 0.3, stains: 0.45, repeat: [0.45, 0.45] }),
@@ -91,18 +91,19 @@ export default {
       linen: M.basic('cloth', { color: 0xb4ada0, roughness: 0.92 }),
       iron: M.basic('iron'),
       black: M.basic('black', { color: 0x0a0806 }),
-      wine: new THREE.MeshPhysicalMaterial({ color: 0x3a0308, roughness: 0.05, transmission: 0, clearcoat: 1, name: 'wine' }),
+      wine: new THREE.MeshPhysicalMaterial({ color: 0x3a0308, roughness: 0.12, transmission: 0, clearcoat: 1, clearcoatRoughness: 0.12, name: 'wine' }),
     };
+    mat.rosePlaster = M.create('plaster', { color: [0.42, 0.44, 0.5], cracks: 0.2, stains: 0.5, roughness: 0.9, repeat: [3, 3] });
     mat.tassel = M.create('velvet', { color: [0.5, 0.36, 0.16], crush: 0.2, repeat: [6, 6], sheen: 1, sheenColor: [0.9, 0.7, 0.35] });
     mat.giltDark = M.create('gold', { wear: 0.6, dirt: 0.8, repeat: [2, 1], color: [0.45, 0.4, 0.36] });
     mat.standSilver = M.basic('silver', { roughness: 0.32, envMapIntensity: 0.55, color: 0x9a9a9e });
-    mat.chairWood = M.create('mahogany', { repeat: [1.4, 1.4], color: [0.36, 0.2, 0.16], roughness: 0.55, clearcoat: 0.85, clearcoatRoughness: 0.18 });
+    mat.chairWood = M.create('mahogany', { repeat: [1.4, 1.4], color: [0.2, 0.1, 0.08], roughness: 0.95, clearcoat: 0.8, clearcoatRoughness: 0.24 });
     const tuft = tuftedTexture(ctx.textures).withRepeat(1 / 0.36, 1 / 0.36);
     mat.seat = new THREE.MeshPhysicalMaterial({ map: tuft.map, normalMap: tuft.normalMap, roughnessMap: tuft.ormMap, aoMap: tuft.ormMap, roughness: 1, metalness: 0, sheen: 1, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.3, 0.5, 0.6), name: 'tufted' });
     const fm = flameMahoganyTexture(ctx.textures);
-    mat.woodTop = new THREE.MeshPhysicalMaterial({ map: fm.map, normalMap: fm.normalMap, normalScale: new THREE.Vector2(0.3, 0.3), roughnessMap: fm.ormMap, roughness: 1, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.06, envMapIntensity: 0.9, name: 'flameMahogany' });
+    mat.woodTop = new THREE.MeshPhysicalMaterial({ map: fm.map, normalMap: fm.normalMap, normalScale: new THREE.Vector2(0.3, 0.3), roughnessMap: fm.ormMap, roughness: 1, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.14, envMapIntensity: 0.9, name: 'flameMahogany' });
     const gp = giltPlateTexture(ctx.textures);
-    mat.plate = new THREE.MeshPhysicalMaterial({ map: gp.map, normalMap: gp.normalMap, roughnessMap: gp.ormMap, metalnessMap: gp.ormMap, roughness: 1, metalness: 1, clearcoat: 1, clearcoatRoughness: 0.05, color: 0xe0dcd4, name: 'giltPlate' });
+    mat.plate = new THREE.MeshPhysicalMaterial({ map: gp.map, normalMap: gp.normalMap, roughnessMap: gp.ormMap, metalnessMap: gp.ormMap, roughness: 1, metalness: 1, clearcoat: 1, clearcoatRoughness: 0.12, color: 0xe0dcd4, name: 'giltPlate' });
     const lc = laceTexture(ctx.textures);
     mat.lace = new THREE.MeshStandardMaterial({ map: lc.map, alphaMap: null, alphaTest: 0.5, roughness: 0.9, metalness: 0, color: 0xb8b0a2, name: 'lace', polygonOffset: true, polygonOffsetFactor: -1 });
     mat.charger = new THREE.MeshStandardMaterial({ color: 0xc89a4a, metalness: 1, roughness: 0.3, envMapIntensity: 1.2, name: 'charger' });
@@ -115,10 +116,12 @@ export default {
     const cakeMats = {
       ganache: new THREE.MeshPhysicalMaterial({ map: ganSet.map, normalMap: ganSet.normalMap, roughnessMap: ganSet.ormMap, roughness: 1, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.18, name: 'ganache' }),
       sponge: new THREE.MeshStandardMaterial({ map: spSet.map, normalMap: spSet.normalMap, roughnessMap: spSet.ormMap, aoMap: spSet.ormMap, roughness: 1, metalness: 0, name: 'sponge' }),
-      cream: new THREE.MeshPhysicalMaterial({ color: 0xe8dcc4, roughness: 0.45, sheen: 0.5, sheenColor: new THREE.Color(1, 0.95, 0.9), name: 'cream' }),
-      sugar: new THREE.MeshPhysicalMaterial({ color: 0xf1ebdc, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.3, name: 'sugar' }),
+      cream: new THREE.MeshPhysicalMaterial({ color: 0xbfb29a, roughness: 0.55, sheen: 0.5, sheenColor: new THREE.Color(1, 0.95, 0.9), name: 'cream' }),
+      sugar: new THREE.MeshPhysicalMaterial({ color: 0xc9c1b0, roughness: 0.7, sheen: 0.4, sheenRoughness: 0.6, sheenColor: new THREE.Color(1, 0.92, 0.85), name: 'sugar' }),
+      crumb: new THREE.MeshStandardMaterial({ color: 0x4a0c0c, roughness: 0.9, name: 'crumb' }),
+      ganacheDrip: new THREE.MeshPhysicalMaterial({ color: 0x1c0a05, roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.15, name: 'ganacheDrip' }),
       socket: new THREE.MeshStandardMaterial({ color: 0x0b0503, roughness: 0.6, name: 'socket' }),
-      stone: new THREE.MeshStandardMaterial({ color: 0x8a8a90, roughness: 0.75, name: 'tombstone' }),
+      stone: (() => { const t = tombTexture(ctx.textures); return new THREE.MeshStandardMaterial({ map: t.map, normalMap: t.normalMap, roughnessMap: t.ormMap, roughness: 1, metalness: 0, color: 0xb0b0b4, name: 'tombstone' }); })(),
     };
 
     // ================================================================ shell: floor, ceiling
@@ -242,12 +245,12 @@ export default {
       add(new THREE.Mesh(G.sweepProfile(prof2, inner, { closed: true, uvScale: 2 }), mat.gilt));
       const rose = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.5, 0], [0.5, -0.02], [0.44, -0.03], [0.4, -0.025], [0.36, -0.045], [0.28, -0.05], [0.24, -0.04], [0.18, -0.07], [0.1, -0.08], [0.06, -0.11], [0.0, -0.12]].reverse(), 64), mat.gilt);
       rose.position.set(T.x, H - 0.004, T.z); add(rose);
-      rose.material = mat.giltDark;
+      rose.material = mat.rosePlaster;
       // acanthus ring: radial leaves (instanced via merge later)
       const leafGeo = new THREE.SphereGeometry(0.06, 8, 6); leafGeo.scale(0.5, 0.25, 1.4);
       for (let i = 0; i < 16; i++) {
         const a = (i / 16) * Math.PI * 2;
-        const l = new THREE.Mesh(leafGeo, mat.giltDark);
+        const l = new THREE.Mesh(leafGeo, mat.rosePlaster);
         l.position.set(T.x + Math.cos(a) * 0.32, H - 0.035, T.z + Math.sin(a) * 0.32); l.rotation.y = -a + Math.PI / 2; add(l);
       }
     }
@@ -621,7 +624,8 @@ export default {
     root.add(chandSpot, chandSpot.target);
     const upLight = new THREE.PointLight(0xffa860, 0.6, 4, 2); upLight.position.set(T.x, chandY + 0.12, T.z); root.add(upLight);
     // warm spill from the lit foyer through the doorway behind the player
-    root.add(fx.areaLight({ center: [0, 1.5, Z1 - 0.05], normal: [0, 0.05, -1], width: 1.5, height: 2.5, color: 0xffc896, intensity: 2.2 }));
+    const foyerSpill = fx.areaLight({ center: [0, 1.5, Z1 - 0.05], normal: [0, 0.05, -1], width: 1.5, height: 2.5, color: 0xffc896, intensity: 2.2 });
+    root.add(foyerSpill);
     // sideboard candles
     const sbLight = new THREE.PointLight(0xffa04a, 2.6, 3, 2); sbLight.position.set(X0 + 0.5, 1.35, SB_Z - 0.45); root.add(sbLight);
     // table candle glow (no shadow)
@@ -647,6 +651,15 @@ export default {
     const cake = createCakePuzzle(ctx, {
       parent: root, origin: cakeOrigin, side: 0.088, height: 0.1, plates, mats: cakeMats,
       camera: { position: [T.x, 2.12, T.z + 1.05], target: [T.x, TABLE_H, T.z + 0.06], fov: 50 },
+      onSetup: () => {
+        spotK = 0.2; foyerSpill.intensity = 0.15; sconceLights.forEach((l) => { l.userData.i0 ??= l.intensity; l.intensity = l.userData.i0 * 0.3; });
+        ctx.post.set({ exposure: 1.15, bloomThreshold: 1.9, bloomStrength: 0.15, godRayWeight: 0.0, vignette: 0.5 }, 0.8);
+      },
+      onTeardown: () => { spotK = 0.6; foyerSpill.intensity = 2.2; sconceLights.forEach((l) => { if (l.userData.i0) l.intensity = l.userData.i0; }); ctx.post.reset(1.0); },
+      onBeat: () => {
+        // the candles gutter, the gasolier dims, and the guests take their seats
+        ghostFade.target = 1; chandBase = 4.5; gutter.t = 0;
+      },
       onSolved: async (p) => {
         ctx.state.set('dining.cakeServed', true);
         await summonGuests(true);
@@ -695,6 +708,9 @@ export default {
       return G.mergeGeometries(parts.map((g) => { if (g.attributes.uv) g.deleteAttribute('uv'); return g.index ? g.toNonIndexed() : g; }));
     };
     const ghostGeos = [guestGeometry(true), guestGeometry(false)];
+    const ghostEchoR = fx.ghostMaterial({ color: 0xff5a7a, rimColor: 0xff9aa8, opacity: 0.0, intensity: 0.6, dissolveY: 0.45, dissolveSoft: 0.5 });
+    const ghostEchoC = fx.ghostMaterial({ color: 0x4ad8ff, rimColor: 0x9af0ff, opacity: 0.0, intensity: 0.6, dissolveY: 0.45, dissolveSoft: 0.5 });
+    for (const m of [ghostMat, ghostEchoR, ghostEchoC]) { m.blending = THREE.AdditiveBlending; m.depthWrite = false; }
     const ghostDepth = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: true, transparent: true, opacity: 1 });
     const ghosts = places.map(({ phi, dir }, k) => {
       const m = new THREE.Mesh(ghostGeos[k % 2], ghostMat);
@@ -703,15 +719,33 @@ export default {
       m.renderOrder = 7; m.visible = false; m.userData.keep = true; m.userData.noBake = true;
       // depth pre-pass: only the nearest surface of the figure is drawn (no see-through limbs)
       const pre = new THREE.Mesh(m.geometry, ghostDepth); pre.renderOrder = 6; pre.userData.noBake = true; m.add(pre);
+      // chromatic smear: faint red and cyan echoes trailing either side of the figure
+      for (const [mt, dx] of [[ghostEchoR, -0.018], [ghostEchoC, 0.018]]) { const e = new THREE.Mesh(m.geometry, mt); e.position.x = dx; e.renderOrder = 8; e.userData.noBake = true; e.userData.echo = dx; m.add(e); }
       root.add(m);
       return m;
     });
     const ghostFade = { v: 0, target: 0 };
+    const gutter = { t: 99 };
+    const _fw = new THREE.Vector3(), _fd = new THREE.Vector3(), _ft = new THREE.Vector3();
+    const allFlames = [...tableCandles].map((c) => c.userData.flame).filter(Boolean);
+    const flameBase = allFlames.map((f) => f.material.uniforms.uIntensity.value);
     if (ctx.params.get('ghosts') === '1') { ghostFade.v = ghostFade.target = 1; }   // review: show the spectral guests
     ctx.onUpdate((dt, t) => {
       ghostFade.v += (ghostFade.target - ghostFade.v) * Math.min(1, dt * 1.6);
-      const o = ghostFade.v * 0.85;
+      gutter.t += dt;
+      const gk = gutter.t < 2.5 ? 0.35 + 0.65 * Math.abs(Math.sin(gutter.t * 9.0)) * (gutter.t / 2.5) : 1;
+      allFlames.forEach((f, i) => { f.material.uniforms.uIntensity.value = flameBase[i] * gk; });
+      const o = ghostFade.v * 0.5;
       ghostMat.uniforms.uOpacity.value = o;
+      ghostEchoR.uniforms.uOpacity.value = ghostEchoC.uniforms.uOpacity.value = o * 0.45;
+      // every flame on the table leans toward the guests
+      const lean = ghostFade.v * 0.45;
+      allFlames.forEach((f) => {
+        if (!f.parent) return;
+        f.getWorldPosition(_fw); _fd.subVectors(_fw, T).setY(0).normalize();
+        _ft.copy(_fw).addScaledVector(_fd, 1); f.parent.worldToLocal(_ft); _ft.sub(f.position).setY(0).normalize();
+        f.rotation.z = -lean * _ft.x * (1 + 0.15 * Math.sin(t * 7 + _fw.x * 10)); f.rotation.x = lean * _ft.z;
+      });
       ghosts.forEach((g, k) => { g.visible = o > 0.01; g.position.y = Math.sin(t * 0.9 + k) * 0.01; g.rotation.y = places[k].phi + Math.PI + Math.sin(t * 0.4 + k * 1.7) * 0.06; });
     });
     async function summonGuests(afterCake = false) {
@@ -832,7 +866,7 @@ export default {
       dbg.states.dining = () => ({ ...cake.state(), isSolved: ctx.state.isSolved(CAKE_ID) });
       dbg.solve ||= (id) => (dbg.solvers[id] ? dbg.solvers[id]() : Promise.reject(new Error(`no solver for ${id}`)));
       dbg.state ||= (id) => (dbg.states[id] ? dbg.states[id]() : null);
-      dbg.dining = { cake, trySlice: cake.trySlice, reset: cake.reset };
+      dbg.dining = { cake, trySlice: cake.trySlice, reset: cake.reset, ghosts: (v) => { ghostFade.v = ghostFade.target = v; ghostMat.uniforms.uOpacity.value = v * 0.5; ghostEchoR.uniforms.uOpacity.value = ghostEchoC.uniforms.uOpacity.value = v * 0.3; ghosts.forEach((g) => { g.visible = v > 0.01; }); } };
     }
 
     // ================================================================ shadows + merge
