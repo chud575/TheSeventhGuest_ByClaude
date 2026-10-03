@@ -705,7 +705,7 @@ export default {
     const ridgeFill2 = new THREE.PointLight(0x6a5a50, 3.5, 6, 2); ridgeFill2.position.set(0.3, 3.2, 1.6); root.add(ridgeFill2);
     root.add(new THREE.HemisphereLight(0x34446e, 0x3e3c4c, 3.0));
     // moon bounce washing up the near (west) slope by the stairs, so the rafters there are not a black void
-    const westFill = new THREE.PointLight(0x5a6aa8, 3.2, 3.8, 2); westFill.position.set(-1.7, 2.3, 0.4); root.add(westFill);
+    const westFill = new THREE.PointLight(0x5a6aa8, 10, 4.2, 2); westFill.position.set(-1.5, 2.2, 0.2); root.add(westFill);
     root.add(fx.areaLight({ center: [OCULUS.x, OCULUS.y, Z0 - 0.05], normal: [0, -0.25, 1], width: 1.0, height: 1.0, color: 0x8ea6ff, intensity: 10 }));
     // the oil lamp over the microscope table: a shadowed downlight + soft omni
     const lampSpot = new THREE.SpotLight(0xffae5a, 20, 7, 1.15, 0.75, 2);
@@ -726,7 +726,7 @@ export default {
     hellSpot.shadow.camera.near = 0.3; hellSpot.shadow.camera.far = 12;
     root.add(hellSpot, hellSpot.target);
     const passage = new THREE.PointLight(0xff4a18, 14, 3.0, 2); passage.position.set(doorCX, 1.5, Z0 - WALL_T - 1.9); root.add(passage);
-    root.add(fx.areaLight({ center: [doorCX - 0.2, 0.95, Z0 + 0.02], normal: [0, 0, 1], width: 0.4, height: 1.8, color: 0xff5020, intensity: 0.9 }));
+    const doorSpill = fx.areaLight({ center: [doorCX - 0.2, 0.95, Z0 + 0.02], normal: [0, 0, 1], width: 0.4, height: 1.8, color: 0xff5020, intensity: 0.9 }); root.add(doorSpill);
     // flicker
     const base = { lampSpot: lampSpot.intensity, lampGlow: lampGlow.intensity, candle: candleLight.intensity, hell: hellSpot.intensity, passage: passage.intensity };
     ctx.onUpdate((dt, t) => {
@@ -873,7 +873,7 @@ export default {
     // the finale: the door swings wide, the furnace roars redder, and the figure comes down the stair to the threshold
     const hellCol0 = hellSpot.color.clone(), hellCol1 = new THREE.Color(0xff2a0c), passCol0 = passage.color.clone();
     const doorOpen = (k) => {
-      doorPivot.rotation.y = DOOR.open + k * 0.65; hellBoost = 1 + k * 1.9; climaxK = k;
+      doorPivot.rotation.y = DOOR.open + k * 0.65; hellBoost = 1 + k * 3.0; climaxK = k; doorSpill.intensity = 0.9 * (1 + 3.5 * k); hellSpot.angle = 0.45 + 0.3 * k;
       hellSpot.color.copy(hellCol0).lerp(hellCol1, k); passage.color.copy(passCol0).lerp(hellCol1, k);
       if (FIG.obj) { FIG.obj.position.lerpVectors(FIG.rest, FIG.fore, k); FIG.obj.rotation.y = 0.12 - 0.25 * k; FIG.obj.scale.setScalar(0.92 + 0.03 * k); ghostMat.uniforms.uRimGain.value = 1.5 + 1.2 * k; }
     };
