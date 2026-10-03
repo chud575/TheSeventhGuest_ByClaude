@@ -310,7 +310,19 @@ export default {
     cage.position.set(-0.3, 0.857, 0.12); cage.scale.setScalar(0.9);
     consoleT.group.add(cage);
     {
-      const mirrorMat = new THREE.MeshStandardMaterial({ color: 0x6e7076, metalness: 1.0, roughness: 0.08, envMapIntensity: 0.16, name: 'mirror' });
+      // antique pier glass: tired silvering, darker toward the frame, foxed in patches
+      const silver = ctx.textures.canvas('gallery:silvering', 256, 384, (c, w, h) => {
+        c.fillStyle = '#9a9a9c'; c.fillRect(0, 0, w, h);
+        let sd = 3; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+        for (let i = 0; i < 160; i++) { const x = rnd() * w, y = rnd() * h, r = 2 + rnd() * 14; const g2 = c.createRadialGradient(x, y, 0, x, y, r); g2.addColorStop(0, 'rgba(30,26,20,0.55)'); g2.addColorStop(1, 'rgba(30,26,20,0)'); c.fillStyle = g2; c.fillRect(x - r, y - r, r * 2, r * 2); }
+        const e = c.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.25, w / 2, h / 2, Math.max(w, h) * 0.62);
+        e.addColorStop(0, 'rgba(0,0,0,0)'); e.addColorStop(1, 'rgba(10,8,6,0.85)'); c.fillStyle = e; c.fillRect(0, 0, w, h);
+      }, { tile: false });
+      const mirrorMat = new THREE.MeshStandardMaterial({ map: silver, color: 0x7a7c82, metalness: 1.0, roughness: 0.08, envMapIntensity: 0.3, name: 'mirror' });
+      // the window's RectAreaLight would print a flat glowing card on the glass; the glass shows the
+      // (baked) hall instead, so drop rect-light specular for this material only
+      mirrorMat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <lights_physical_pars_fragment>', '#include <lights_physical_pars_fragment>\n#undef RE_Direct_RectArea'); };
+      mirrorMat.customProgramCacheKey = () => 'gallery-mirror-norect';
       const foxing = M.textures('plaster', { color: [0.5, 0.5, 0.5], cracks: 0.0, stains: 0.9 });
       mirrorMat.roughnessMap = foxing.withRepeat(1.4, 1.4).map;
       mirrorMat.roughness = 0.1;
@@ -367,8 +379,14 @@ export default {
     for (const s of [-1, 1]) {
       const G = ctx.geometry;
       const gir = new THREE.Group();
-      const plate = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.04, 0], [0.045, 0.006], [0.035, 0.014], [0, 0.02]], 20), mat.brass);
-      plate.rotation.x = Math.PI / 2; plate.scale.set(1, 1, 1.8); gir.add(plate);
+      // pierced, scalloped backplate (chased rosette with a ring of cut-outs) + a domed boss
+      const sh = new THREE.Shape();
+      for (let i = 0; i <= 96; i++) { const th = (i / 96) * Math.PI * 2, r = 0.042 * (1 + 0.1 * Math.cos(th * 10)); const x = Math.cos(th) * r, y = Math.sin(th) * r * 1.6; i ? sh.lineTo(x, y) : sh.moveTo(x, y); }
+      for (let k = 0; k < 10; k++) { const th = (k / 10) * Math.PI * 2 + Math.PI / 10; const hp = new THREE.Path(); hp.absellipse(Math.cos(th) * 0.029, Math.sin(th) * 0.029 * 1.6, 0.0045, 0.007, 0, Math.PI * 2, true); sh.holes.push(hp); }
+      const plate = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.004, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 2, curveSegments: 6 }), mat.brass);
+      gir.add(plate);
+      const boss = new THREE.Mesh(G.latheFromProfile([[0, 0.016], [0.01, 0.014], [0.017, 0.008], [0.02, 0], [0, 0]], 16), mat.brass);
+      boss.rotation.x = Math.PI / 2; boss.position.z = 0.004; gir.add(boss);
       const curve = new THREE.CatmullRomCurve3([V3(0, 0, 0.015), V3(0, -0.06, 0.08), V3(0, -0.02, 0.15), V3(0, 0.03, 0.17)]);
       gir.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 20, 0.007, 8), mat.brass));
       const cup = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.012, 0], [0.03, 0.012], [0.034, 0.02], [0.016, 0.026], [0.014, 0.04], [0, 0.04]], 20), mat.brass);
@@ -444,12 +462,12 @@ export default {
     // dim moonlit fill so the cornice, beams and rose read instead of a black void
     root.add(new THREE.HemisphereLight(0x2a3550, 0x2a3550, 0.55));
     // the moon pool on the boards bounces a little cold light back up at the far ceiling
-    root.add(fx.areaLight({ center: [0, 0.03, -6.9], normal: [0, 1, 0.15], width: 1.3, height: 1.8, color: 0x6f80b8, intensity: 1.6 }));
+    root.add(fx.areaLight({ center: [0, 0.03, -6.9], normal: [0, 1, 0.15], width: 1.6, height: 2.2, color: 0x6f80b8, intensity: 3.5 }));
     root.add(fx.areaLight({ center: [0, WIN.sill + 1.2, Z0 + 0.05], normal: [0, -0.65, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 1.6 }));
     // warm glow from the foyer chandelier below the landing balustrade (the fitting itself is out of sight)
-    const foyerGlow = new THREE.PointLight(0xffa860, 40, 14, 2);
-    foyerGlow.position.set(0, -1.6, Z1 + 5.4);
-    root.add(foyerGlow);
+    // (kept above the landing floor level, out in the stairwell, so it cannot leak up through the boards)
+    // a broad soft source (no tight specular on the glossy jambs), aimed up out of the stairwell
+    root.add(fx.areaLight({ center: [0, -0.4, Z1 + 4.8], normal: [0, 1, -0.25], width: 3.2, height: 2.0, color: 0xffa860, intensity: 3.2 }));
     // a gas lamp on the right-hand newel post lights the landing
     const landingFill = new THREE.PointLight(0xffb070, 5, 7, 2);
     {
@@ -678,6 +696,7 @@ export default {
 
     const godRays = [{ position: V3(0.3, WIN.sill + 1.5, Z0 - 2.0), color: new THREE.Color(0.72, 0.8, 1.0), strength: 0.8, radius: 0.18 }];
 
+    let rayNode = null;
     return {
       scene: root,
       nodes, edges, exits, hotspots, godRays,
@@ -691,6 +710,13 @@ export default {
         }
       },
       update(dt, t) {
+        // side views: the moon is off-screen, so screen-space rays would only smear across the
+        // pier glass and the jambs; keep them for the views that look down the hall
+        const nid = ctx.nav.current;
+        if (nid && nid !== rayNode) {
+          ctx.post.set({ godRayWeight: ['main', 'far', 'attic'].includes(nid) ? 0.35 : 0.0 }, rayNode ? 0.8 : 0);
+          rayNode = nid;
+        }
         gaze(dt);
         slide.update(dt);
         if (solvedFx > 0 && solvedFx < 1) {

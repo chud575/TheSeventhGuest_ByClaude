@@ -303,7 +303,7 @@ export function makePictureLight(ctx, mat, width = 0.42) {
   hood.rotation.z = Math.PI / 2; hood.position.set(0, 0.02, 0.17); hood.material = mat.brass; g.add(hood);
   for (const s of [-1, 1]) { const cap = new THREE.Mesh(new THREE.CircleGeometry(0.035, 16), mat.brass); cap.position.set(s * width / 2, 0.02, 0.17); cap.rotation.y = s * Math.PI / 2; g.add(cap); }
   // the lamp tube sits up inside the hood; warm and below the bloom threshold so only the hood lip reads
-  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, width - 0.04, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.78, 0.54).multiplyScalar(0.55), name: 'picLamp' }));
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, width - 0.04, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.78, 0.54).multiplyScalar(0.16), name: 'picLamp' }));
   tube.rotation.z = Math.PI / 2; tube.position.set(0, 0.03, 0.172); g.add(tube);
   return g;
 }
@@ -454,6 +454,16 @@ export function makeCoveredBust(ctx, mat) {
   const n = geo.attributes.normal;
   let out = 0; for (let i = 0; i < n.count; i++) out += n.getX(i) * pos[i * 3] + n.getZ(i) * pos[i * 3 + 2];
   if (out < 0) { for (let i = 0; i < index.length; i += 3) { const t = index[i + 1]; index[i + 1] = index[i + 2]; index[i + 2] = t; } geo.setIndex(index); geo.computeVertexNormals(); }
+  // weld the normals across the azimuth seam (j = 0 and j = NA share positions)
+  {
+    const nn = geo.attributes.normal;
+    for (let i = 0; i <= NS; i++) {
+      const a0 = i, b0 = NA * (NS + 1) + i;
+      const x = nn.getX(a0) + nn.getX(b0), y = nn.getY(a0) + nn.getY(b0), z = nn.getZ(a0) + nn.getZ(b0);
+      const l = Math.hypot(x, y, z) || 1;
+      nn.setXYZ(a0, x / l, y / l, z / l); nn.setXYZ(b0, x / l, y / l, z / l);
+    }
+  }
   const sheet = new THREE.Mesh(geo, mat.sheet);
   sheet.name = 'dustSheet';
   g.add(sheet);

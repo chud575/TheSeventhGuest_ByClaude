@@ -12,7 +12,7 @@ page.on('pageerror', (e) => errs.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
 const st = () => page.evaluate(() => ({ ...window.__debug.state('gallery'), mode: window.__game.mode }));
 try {
-  await page.goto(`${server.url}?room=gallery&node=portraits&mute=1`, { waitUntil: 'load' });
+  await page.goto(`${server.url}?room=gallery&node=portraits&mute=1&quality=ultra`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.__debug?.states?.gallery && window.__game?.mode === 'explore', null, { timeout: 300000, polling: 500 });
   const s0 = await st();
   console.log('initial', JSON.stringify(s0));
