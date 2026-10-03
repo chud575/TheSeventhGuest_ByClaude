@@ -93,8 +93,8 @@ export function bodyTint(x, y, z) {
 }
 export function headTint(x, y, z) {
   // hair darker than the face
-  const face = z < -0.055 + Math.max(0, y - 0.06) * 0.3 - Math.max(0, 0.06 - y) * 0.5 && y > -0.12;
-  return face ? 1 : 0.35;
+  head(x, y, z);
+  return head.hair < head.skull - 0.0005 ? 0.3 : 1;
 }
 
 // ------------------------------------------------------------------ head (relative to HEAD), faces -Z
@@ -102,66 +102,105 @@ export function head(x, y, z) {
   let d = ell(x, y, z, [0, 0.02, 0.01], [0.074, 0.097, 0.092]);                   // cranium
   d = smin(d, ell(x, y, z, [0, -0.05, -0.02], [0.058, 0.052, 0.072]), 0.03);      // jaw
   d = smin(d, ell(x, y, z, [0, -0.09, -0.052], [0.027, 0.023, 0.026]), 0.02);     // chin
-  d = smin(d, ell(x, y, z, [0, 0.034, -0.07], [0.06, 0.014, 0.024]), 0.014);      // brow ridge
+  for (const s of [-1, 1]) d = smin(d, ell(x, y, z, [s * 0.028, 0.034, -0.068], [0.03, 0.012, 0.02]), 0.02);  // brows
   d = smin(d, ell(x, y, z, [0, 0.046, -0.08], [0.01, 0.01, 0.008]), 0.01);        // frown knot between the brows
   for (const s of [-1, 1]) {
     d = smin(d, ell(x, y, z, [s * 0.044, -0.014, -0.056], [0.017, 0.011, 0.017]), 0.016); // high cheekbones
     d = smax(d, -sph(x, y, z, [s * 0.03, 0.012, -0.092], 0.018), 0.01);                   // sockets
-    d = smin(d, sph(x, y, z, [s * 0.03, 0.011, -0.073], 0.012), 0.003);                   // eyes (set back)
-    d = smin(d, ell(x, y, z, [s * 0.03, 0.017, -0.081], [0.012, 0.005, 0.007]), 0.005);   // upper lids
+    d = smin(d, sph(x, y, z, [s * 0.03, 0.011, -0.067], 0.0115), 0.003);                  // eyes (set back)
+    d = smin(d, ell(x, y, z, [s * 0.03, 0.017, -0.076], [0.013, 0.0045, 0.006]), 0.005);  // heavy upper lids
     d = smax(d, -ell(x, y, z, [s * 0.05, -0.05, -0.066], [0.016, 0.022, 0.01]), 0.012);   // hollow cheeks
     d = smax(d, -rcone(x, y, z, [s * 0.022, -0.04, -0.1], [s * 0.035, -0.07, -0.09], 0.004, 0.003), 0.004); // nasolabial folds
     d = smin(d, ell(x, y, z, [s * 0.078, 0.0, 0.006], [0.012, 0.031, 0.02]), 0.01);       // ears
   }
   // aquiline nose: bridge, hump, tip, nostril wings
-  d = smin(d, rcone(x, y, z, [0, 0.026, -0.088], [0, -0.03, -0.114], 0.009, 0.013), 0.008);
-  d = smin(d, sph(x, y, z, [0, 0.0, -0.104], 0.009), 0.006);
+  d = smin(d, rcone(x, y, z, [0, 0.026, -0.086], [0, -0.026, -0.107], 0.0085, 0.0115), 0.008);
+  d = smin(d, sph(x, y, z, [0, 0.0, -0.1], 0.0085), 0.006);
   for (const s of [-1, 1]) d = smin(d, sph(x, y, z, [s * 0.012, -0.034, -0.099], 0.009), 0.006);
   // mouth: thin lips pressed in a downturned line, and a drooping moustache
   d = smin(d, ell(x, y, z, [0, -0.059, -0.087], [0.021, 0.0065, 0.01]), 0.008);
   d = smax(d, -ell(x, y, z, [0, -0.061 - 0.004 * x * x * 400, -0.101], [0.025, 0.0025, 0.012]), 0.004);
-  // hair: a long Lisztian mane swept back from the brow and falling to the collar,
-  // full over the ears; medium-scale lumps break the silhouette into locks
-  let hr = ell(x, y, z, [0, 0.03, 0.02], [0.082, 0.088, 0.097]);
-  hr = smin(hr, ell(x, y, z, [0, -0.04, 0.055], [0.078, 0.085, 0.055]), 0.04);          // back of the head, to the collar
+  // hair: the high, receding forehead of the portrait, then a full mane swept straight back
+  // over the crown and falling thick over the ears to the collar; strand grooves follow the sweep
+  let hr = ell(x, y, z, [0, 0.036, 0.03], [0.088, 0.102, 0.106]);                      // crown, ~1.5-2 cm proud
+  hr = smin(hr, ell(x, y, z, [0, -0.035, 0.065], [0.084, 0.095, 0.062]), 0.04);        // back of the head, down to the collar
   for (const s of [-1, 1]) {
-    hr = smin(hr, ell(x, y, z, [s * 0.07, -0.015, 0.04], [0.026, 0.062, 0.055]), 0.03);  // over the ears
-    hr = smin(hr, ell(x, y, z, [s * 0.066, -0.075, 0.05], [0.026, 0.045, 0.04]), 0.03);  // ends curling at the collar
+    hr = smin(hr, ell(x, y, z, [s * 0.078, -0.01, 0.035], [0.034, 0.072, 0.066]), 0.03); // bushy over the ears
+    hr = smin(hr, ell(x, y, z, [s * 0.072, -0.08, 0.055], [0.032, 0.05, 0.045]), 0.03);  // ends curling at the collar
+    hr = smin(hr, ell(x, y, z, [s * 0.06, 0.07, 0.07], [0.04, 0.04, 0.05]), 0.03);       // swept-back wings at the crown
   }
-  const lump = Math.sin(x * 70 + Math.sin(z * 50) * 2) * Math.sin(y * 55 + z * 30) * Math.sin(z * 45 + x * 20);
-  hr += 0.0045 * lump;
-  hr = smax(hr, -(z + 0.06 - Math.max(0, y - 0.06) * 0.3 + Math.max(0, 0.06 - y) * 0.5), 0.012);                  // hairline: off the face and brow
-  hr = smax(hr, -(y + 0.13), 0.02);                                                   // not below the collar
-  for (const s of [-1, 1]) hr = smin(hr, ell(x, y, z, [s * 0.072, -0.045, -0.015], [0.011, 0.04, 0.018]), 0.012); // side-whiskers
+  // locks + strands: big lumps break the silhouette, fine grooves run back over the top and down the sides
+  const topW0 = Math.max(0, Math.min(1, (y + 0.01) * 18));
+  const lump = topW0 * Math.sin(x * 100 + Math.sin(z * 30) * 2) + (1 - topW0) * Math.sin((y + z * 0.6) * 110 + Math.sin(x * 30));
+  const sweepTop = Math.sin(x * 330 + Math.sin(z * 30) * 3 + Math.sin(y * 21));
+  const sweepSide = Math.sin((y + z * 0.6) * 300 + Math.sin(x * 25) * 2);
+  const topW = Math.max(0, Math.min(1, (y + 0.01) * 18));
+  hr += 0.0035 * lump + 0.0014 * (sweepTop * topW + sweepSide * (1 - topW));
+  hr = smax(hr, -(z + 0.05 - Math.max(0, y - 0.05) * 0.4 + Math.max(0, 0.05 - y) * 0.6), 0.014);  // receding hairline, off the face
+  hr = smax(hr, -(y + 0.16), 0.02);                                                   // not below the collar
+  // beard: a full, squared beard from the side-whiskers round the jaw, falling onto the cravat,
+  // with a heavy moustache over the lip (as in the overmantel portrait)
+  let br = ell(x, y, z, [0, -0.072, -0.03], [0.07, 0.066, 0.062]);
+  br = smin(br, ell(x, y, z, [0, -0.135, -0.045], [0.055, 0.06, 0.042]), 0.035);        // the fall below the chin
+  for (const s of [-1, 1]) br = smin(br, ell(x, y, z, [s * 0.066, -0.035, -0.005], [0.022, 0.05, 0.03]), 0.02);  // whiskers to the hair
+  br = smax(br, -(-(y + 0.022) - Math.max(0, -z - 0.07) * 0.6 + Math.abs(x) * 0.25), 0.012);  // top edge: below the cheekbones
+  br = smax(br, -ell(x, y, z, [0, -0.06, -0.1], [0.018, 0.008, 0.02]), 0.004);          // the lower lip shows through
+  br += 0.0016 * Math.sin(x * 300 + Math.sin(y * 40) * 2) + 0.003 * Math.sin(x * 90 + Math.sin(y * 25) * 1.5);  // vertical strands + clumps
+  // moustache: two drooping wings from under the nose into the beard
+  let mo = 1;
+  for (const s of [-1, 1]) mo = Math.min(mo, rcone(x, y, z, [s * 0.004, -0.043, -0.106], [s * 0.034, -0.064, -0.088], 0.01, 0.0075));
+  mo += 0.0008 * Math.sin(x * 500);
+  hr = smin(hr, smin(br, mo, 0.012), 0.012);
   head.skull = d; head.hair = hr;
   return smin(d, hr, 0.006);
 }
 
 // ------------------------------------------------------------------ arm (relative to shoulder), s = -1 left / +1 right
 // hands rest on the keys: fingertips just behind the white-key fronts (z = 0.17), key tops at y = 0.735
-function makeArm(s) {
+export function makeArm(s) {
   const sh = SHOULDER[s < 0 ? 'L' : 'R'];
   const rel = (p) => [p[0] - sh[0], p[1] - sh[1], p[2] - sh[2]];
   const hx = s * 0.17;
   const el = rel([s * 0.27, 0.83, 0.42]);
   const wr = rel([hx + s * 0.005, 0.776, 0.215]);
   const hand = rel([hx, 0.772, 0.17]);
+  // four arched fingers (index..little, from the thumb side), three phalanges each, knuckles raised:
+  // a pianist's curved hand with the fingertips dropping onto the keys
   const fingers = [0, 1, 2, 3].map((k) => {
-    const off = (k - 1.5) * 0.02 * -s;
-    const reach = k === 0 || k === 3 ? 0.008 : 0;
-    return [rel([hx + off, 0.772, 0.145]), rel([hx + off * 1.1, 0.762, 0.115 + reach]), rel([hx + off * 1.15, 0.744, 0.098 + reach])];
+    const off = (k - 1.5) * 0.0215 * -s;
+    const L = [1.0, 1.08, 1.02, 0.84][k];
+    const kn = rel([hx + off, 0.784, 0.15]);                                          // knuckle
+    const p1 = rel([hx + off * 1.08, 0.786 - 0.004 * L, 0.15 - 0.026 * L]);           // proximal: level, forward
+    const p2 = rel([hx + off * 1.12, 0.772 - 0.004 * L, 0.124 - 0.018 * L]);          // middle: bending down
+    const tip = rel([hx + off * 1.14, 0.744, 0.108 - 0.012 * L]);                     // tip on the key
+    return [kn, p1, p2, tip];
   });
-  const thumb = [rel([hx - s * 0.036, 0.766, 0.17]), rel([hx - s * 0.05, 0.75, 0.13])];
+  const thumb = [rel([hx - s * 0.03, 0.772, 0.178]), rel([hx - s * 0.046, 0.762, 0.15]), rel([hx - s * 0.052, 0.748, 0.124])];
   return (x, y, z) => {
     let d = rcone(x, y, z, [0, -0.01, 0], el, 0.054, 0.046);
     d = smin(d, rcone(x, y, z, el, wr, 0.046, 0.033), 0.02);
     // sleeve creases at the elbow
     d += 0.003 * Math.sin((y - el[1]) * 120) * Math.exp(-(((x - el[0]) ** 2) + ((y - el[1]) ** 2) + ((z - el[2]) ** 2)) / 0.004);
-    d = smin(d, rcone(x, y, z, [wr[0], wr[1], wr[2] + 0.03], [wr[0], wr[1], wr[2] - 0.005], 0.041, 0.039), 0.006);   // lace shirt cuff
-    d = smin(d, rcone(x, y, z, wr, hand, 0.025, 0.03), 0.015);
-    d = smin(d, ell(x, y, z, hand, [0.042, 0.014, 0.034]), 0.012);
-    for (const [a, b, c] of fingers) { d = smin(d, rcone(x, y, z, a, b, 0.0085, 0.0075), 0.006); d = smin(d, rcone(x, y, z, b, c, 0.0075, 0.006), 0.004); }
-    d = smin(d, rcone(x, y, z, thumb[0], thumb[1], 0.0105, 0.008), 0.008);
+    // turned-back coat cuff with a lace shirt cuff spilling out of it
+    d = smin(d, rcone(x, y, z, [wr[0], wr[1], wr[2] + 0.06], [wr[0], wr[1], wr[2] + 0.025], 0.042, 0.042), 0.006);
+    let lace = rcone(x, y, z, [wr[0], wr[1], wr[2] + 0.028], [wr[0], wr[1] - 0.002, wr[2] - 0.004], 0.036, 0.04);
+    lace += 0.0025 * Math.sin(Math.atan2(y - wr[1], x - wr[0]) * 14);
+    d = smin(d, lace, 0.004);
+    // back of the hand: a flattened wedge from the wrist to the knuckles, tendons faintly raised
+    d = smin(d, rcone(x, y, z, wr, hand, 0.022, 0.026), 0.012);
+    let palm = ell(x, y, z, [hand[0], hand[1] + 0.004, hand[2] + 0.006], [0.04, 0.013, 0.032]);
+    palm += 0.0012 * Math.sin((x - hand[0]) * 300);
+    d = smin(d, palm, 0.01);
+    for (const [kn, p1, p2, tip] of fingers) {
+      let f = rcone(x, y, z, kn, p1, 0.0088, 0.0078);
+      f = smin(f, rcone(x, y, z, p1, p2, 0.0078, 0.007), 0.002);
+      f = smin(f, rcone(x, y, z, p2, tip, 0.007, 0.0062), 0.002);
+      f = smin(f, sph(x, y, z, kn, 0.0098), 0.003);                                  // knuckle
+      f = smin(f, sph(x, y, z, p1, 0.0084), 0.002);                                  // finger joints
+      d = smin(d, f, 0.0035);
+    }
+    d = smin(d, rcone(x, y, z, thumb[0], thumb[1], 0.011, 0.009), 0.008);
+    d = smin(d, rcone(x, y, z, thumb[1], thumb[2], 0.009, 0.0075), 0.002);
     return d;
   };
 }
@@ -169,7 +208,7 @@ function makeArm(s) {
 // hands + lace cuffs bright, sleeves dark
 function armTint(s) {
   const sh = SHOULDER[s < 0 ? 'L' : 'R'];
-  return (x, y, z) => (z + sh[2] < 0.235 ? 1 : 0.15);
+  return (x, y, z) => (z + sh[2] < 0.236 ? 1 : 0.15);
 }
 
 // ------------------------------------------------------------------ Surface Nets
@@ -242,9 +281,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
 function main() {
 const parts = [
   { name: 'body', f: body, tint: bodyTint, min: [-0.3, 0.0, 0.2 - 0.1], max: [0.3, 1.24, 0.9], h: 0.0075 },
-  { name: 'head', f: head, tint: headTint, min: [-0.12, -0.17, -0.14], max: [0.12, 0.15, 0.16], h: 0.0032 },
-  { name: 'armL', f: makeArm(-1), tint: armTint(-1), min: [-0.12, -0.36, -0.56], max: [0.12, 0.08, 0.08], h: 0.005 },
-  { name: 'armR', f: makeArm(1), tint: armTint(1), min: [-0.12, -0.36, -0.56], max: [0.12, 0.08, 0.08], h: 0.005 },
+  { name: 'head', f: head, tint: headTint, min: [-0.13, -0.22, -0.15], max: [0.13, 0.16, 0.17], h: 0.0026 },
+  { name: 'armL', f: makeArm(-1), tint: armTint(-1), min: [-0.12, -0.36, -0.56], max: [0.12, 0.08, 0.08], h: 0.003 },
+  { name: 'armR', f: makeArm(1), tint: armTint(1), min: [-0.12, -0.36, -0.56], max: [0.12, 0.08, 0.08], h: 0.003 },
 ];
 const chunks = [];
 const header = { parts: [], head: HEAD, shoulders: SHOULDER };

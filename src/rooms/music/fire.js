@@ -42,14 +42,14 @@ void main() {
   float top = envelope * (0.38 + 0.6 * col * (0.55 + 0.45 * fxNoise(vec3(xw * 4.0, t * 1.3, uSeed + 7.0))));
   float lick = fxFbm(vec3(xw * 5.0, uv.y * 5.5 - t * 3.4, uSeed + 3.0));
   float f = top - uv.y + (lick - 0.5) * 0.32;
-  float body = smoothstep(0.0, 0.16, f);
+  float body = smoothstep(-0.04, 0.3, f);                      // soft, feathered tongues (no cut-out edge)
   // breakaway wisps above the tongues
   float wisp = smoothstep(0.62, 0.8, fxFbm(vec3(xw * 7.0, uv.y * 4.0 - t * 4.5, uSeed + 11.0))) * (1.0 - smoothstep(-0.12, 0.0, f)) * smoothstep(-0.3, -0.05, f) * envelope;
   float heat = clamp(f * 2.6 + (1.0 - uv.y) * 0.35, 0.0, 1.0);
   vec3 c = mix(vec3(0.55, 0.06, 0.01), vec3(1.0, 0.36, 0.06), smoothstep(0.0, 0.45, heat));
-  c = mix(c, vec3(1.0, 0.62, 0.22), smoothstep(0.5, 0.95, heat));
+  c = mix(c, vec3(1.0, 0.56, 0.18), smoothstep(0.55, 1.0, heat));
   float base = (1.0 - smoothstep(0.0, 0.25, uv.y)) * envelope;
-  float a = clamp(body * (0.55 + 0.45 * heat) + wisp * 0.35, 0.0, 1.0) * smoothstep(0.0, 0.05, uv.y);
+  float a = clamp(body * body * (0.5 + 0.5 * heat) + wisp * 0.3, 0.0, 1.0) * smoothstep(0.0, 0.08, uv.y) * smoothstep(1.0, 0.55, abs(x));
   vec3 outc = (c * a + vec3(1.0, 0.4, 0.08) * base * 0.25) * uIntensity;
   gl_FragColor = vec4(outc, a);
 }`;

@@ -50,7 +50,7 @@ export default {
     const ebony = M.create('ebony', { repeat: [2, 2], color: [0.55, 0.55, 0.6], clearcoat: 1.0, clearcoatRoughness: 0.06, roughness: 0.6 });
     const mahogany = M.create('mahogany', { repeat: [1.2, 1.2] });
     const panelWood = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.75, repeat: [1.2, 1.2], clearcoat: 0.5, clearcoatRoughness: 0.25, color: [0.55, 0.4, 0.36] });
-    const celloWood = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.9, figure: 0.8, repeat: [1, 1], clearcoat: 0.9, clearcoatRoughness: 0.12, color: [1.15, 0.8, 0.55] });
+    const celloWood = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.9, figure: 0.8, repeat: [1, 1], clearcoat: 0.8, clearcoatRoughness: 0.12, envMapIntensity: 0.45, color: [1.25, 0.72, 0.4] });
     const harpWood = M.create('walnut', { repeat: [2, 2], color: [1.0, 0.85, 0.7] });
     const plaster = M.create('plaster', { color: [0.3, 0.33, 0.42], cracks: 0.3, stains: 0.4, repeat: [0.45, 0.45] });
     const ceilPlaster = M.create('plaster', { color: [0.2, 0.25, 0.44], cracks: 0.25, stains: 0.5, repeat: [0.45, 0.45] });
@@ -60,17 +60,41 @@ export default {
     const giltFrame = M.create('gilded', { pattern: 1, repeats: 3, wear: 0.5, dirt: 0.7, repeat: [1 / 0.45, 1] });
     const giltFluted = M.create('gilded', { pattern: 5, repeats: 2, wear: 0.4, dirt: 0.5, repeat: [1 / 0.3, 1] });
     const giltPlain = M.create('gold', { wear: 0.5, dirt: 0.5, repeat: [2, 1] });
-    const plateGold = new THREE.MeshPhysicalMaterial({ color: 0xb8892e, metalness: 0.8, roughness: 0.35, clearcoat: 0.4, clearcoatRoughness: 0.3 });
-    const doorWoodV = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], rotation: Math.PI / 2, clearcoat: 0.5, clearcoatRoughness: 0.35, envMapIntensity: 0.45, color: [1.0, 0.78, 0.66] });
-    const doorWoodH = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], clearcoat: 0.5, clearcoatRoughness: 0.35, envMapIntensity: 0.45, color: [1.0, 0.78, 0.66] });
-    const velvet = M.create('velvet', { color: [0.05, 0.07, 0.22], crush: 0.55, repeat: [2, 2], side: THREE.DoubleSide });
+    const plateGold = new THREE.MeshPhysicalMaterial({ color: 0xd2a44a, metalness: 1.0, roughness: 0.3, clearcoat: 0.5, clearcoatRoughness: 0.2 });
+    // mirror-black piano lacquer: crisp streaks of the windows and candles in the room probe
+    const pianoLacquer = new THREE.MeshPhysicalMaterial({ color: 0x050505, roughness: 0.18, metalness: 0, clearcoat: 1.0, clearcoatRoughness: 0.03, envMapIntensity: 1.1 });
+    const doorWoodV = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], rotation: Math.PI / 2, clearcoat: 0.35, clearcoatRoughness: 0.45, envMapIntensity: 0.35, color: [1.0, 0.78, 0.66] });
+    const doorWoodH = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], clearcoat: 0.35, clearcoatRoughness: 0.45, envMapIntensity: 0.35, color: [1.0, 0.78, 0.66] });
+    // deep navy silk velvet: almost black where it faces you, a saturated blue-violet sheen
+    // rolling over the fold crests (no grey specular: that is what made it read as plastic)
+    const velvet = M.create('velvet', { color: [0.02, 0.028, 0.085], crush: 0.45, repeat: [2, 2], side: THREE.DoubleSide });
+    velvet.sheen = 1.0; velvet.sheenRoughness = 0.33; velvet.sheenColor = new THREE.Color(0x3a52b0);
+    velvet.roughness = 0.92; velvet.metalness = 0; velvet.envMapIntensity = 0.15; velvet.specularIntensity = 0.25;
     const seatVelvet = M.create('velvet', { color: [0.3, 0.04, 0.06], crush: 0.4, repeat: [3, 3] });
     const brass = M.create('brass', { tarnish: 0.35, polish: 0.7, repeat: [2, 2] });
     const glassMat = M.create('glass', { dirt: 0.5, transparent: true, opacity: 0.12 });
-    const marble = M.create('marble', { type: 'nero', polish: 0.8, repeat: [1.2, 1.2] });
+    // Nero Marquina: thin, directional, low-contrast veins in a deep black, polished to catch the fire
+    const marble = M.create('marble', { type: 'nero', vein: [0.55, 0.52, 0.47], vein2: [0.16, 0.15, 0.14], scale: 2.6, polish: 0.92, repeat: [1.2, 1.2] });
+    if (marble.isMeshPhysicalMaterial) { marble.clearcoat = 0.8; marble.clearcoatRoughness = 0.08; }
     const iron = M.basic('iron', { color: 0x060505, roughness: 0.9, metalness: 0.6 });
     const crystal = M.basic('crystal');
-    const rugMat = M.create('rug', { palette: 'kashan', aspect: 4.0 / 5.4, knots: 300, wear: 0.4, fringe: 0.03, seed: 7, size: hq ? 2048 : 1536 });
+    // an old Kashan in deep oxblood and indigo, its ivory and gold dulled with age (the value is
+    // held well below the piano and the ghost; only the moonlight lifts it)
+    const rugMat = M.create('rug', {
+      palette: 'kashan', aspect: 4.0 / 5.4, knots: 300, wear: 0.55, fringe: 0.03, seed: 7, size: hq ? 2048 : 1536,
+      colors: { field: [0.19, 0.03, 0.038], border: [0.035, 0.04, 0.1], ivory: [0.42, 0.36, 0.28], gold: [0.33, 0.22, 0.1], teal: [0.07, 0.13, 0.18], dark: [0.028, 0.02, 0.026], rose: [0.3, 0.1, 0.11] },
+    });
+    rugMat.roughness = 1.0; rugMat.envMapIntensity = 0.2;
+    {
+      // wear + dirt darkening toward the edges (trodden, never beaten), as an AO map
+      const wearTex = ctx.textures.canvas('music:rugwear', 256, 256, (g2, w, h) => {
+        g2.fillStyle = '#fff'; g2.fillRect(0, 0, w, h);
+        const gr = g2.createRadialGradient(w / 2, h / 2, w * 0.18, w / 2, h / 2, w * 0.72);
+        gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.55)');
+        g2.fillStyle = gr; g2.fillRect(0, 0, w, h);
+      }, { tile: false, srgb: false });
+      rugMat.aoMap = wearTex; rugMat.aoMapIntensity = 1.0; rugMat.needsUpdate = true;
+    }
     const bookMats = [0, 1, 2].map((i) => M.create('books', { count: 34, seed: 30 + i, fill: 0.92, repeat: [1, 1] }));
 
     // ================================================================ shell
@@ -322,20 +346,66 @@ export default {
       if (bad) g.computeVertexNormals();
       return g;
     };
+    // swag valance: a shallow festoon of velvet sagging between the pelmet corners, its folds
+    // running in concentric arcs, finished with a deep bullion fringe
+    const swagGeometry = (width, drop, depth, folds = 5, seg = [80, 28]) => {
+      const g = new THREE.PlaneGeometry(1, 1, seg[0], seg[1]);
+      const p = g.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        const u = p.getX(i) + 0.5, v = 0.5 - p.getY(i);          // u across, v 0 top .. 1 hem
+        const sag = drop * (0.32 + 0.68 * Math.sin(Math.PI * u));
+        const y = -v * sag;
+        const arc = Math.sin(Math.PI * u);
+        let z = depth * arc * Math.sin(Math.PI * Math.min(1, v * 1.1)) * 0.9;
+        z += 0.022 * arc * Math.cos(v * folds * Math.PI * 2) * (0.3 + 0.7 * v);   // the festoon folds
+        const x = (u - 0.5) * width * (1 - 0.06 * v * arc);
+        p.setXYZ(i, x, y, z);
+      }
+      g.computeVertexNormals();
+      return g;
+    };
+    const fringeMat = new THREE.MeshStandardMaterial({ color: 0x8a6a2c, roughness: 0.6, metalness: 0.4 });
+    const fringeGeo = new THREE.CylinderGeometry(0.0035, 0.003, 1, 4); fringeGeo.translate(0, -0.5, 0);
     for (const wx of WIN.xs) {
       for (const side of [-1, 1]) {
-        const c = new THREE.Mesh(curtain({ width: 0.62, height: 3.3, folds: 7, depth: 0.08, tieback: 0, pool: 0.1, seed: wx * 3 + side + 5, segX: 90, segY: 56 }), velvet);
-        c.position.set(wx + side * (WIN.w / 2 + 0.02), WIN.sill + WIN.h + 0.28, Z0 + 0.13);
+        // drawn back on tiebacks: the drapes carve a waisted silhouette against the moonlit glass
+        const c = new THREE.Mesh(curtain({ width: 0.9, height: 3.3, folds: 9, depth: 0.14, tieback: 0.45, pool: 0.12, seed: wx * 3 + side + 5, segX: 96, segY: 64 }), velvet);
+        c.position.set(wx + side * (WIN.w / 2 + 0.12), WIN.sill + WIN.h + 0.28, Z0 + 0.15);
         if (side > 0) c.scale.x = -1;
         c.name = 'curtain';
         add(c);
-        const tie = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 8, 20), giltPlain);
-        tie.position.set(wx + side * (WIN.w / 2 + 0.36), 1.25, Z0 + 0.06); add(tie);
+        // gilt rosette holdback + a silk rope and tassel where the drape is gathered
+        const hx = wx + side * (WIN.w / 2 + 0.3), hy = WIN.sill + WIN.h + 0.28 - 3.3 * 0.62;
+        const rosette = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.05, 0], [0.048, 0.012], [0.03, 0.022], [0.012, 0.03], [0, 0.032]], 24), giltPlain);
+        rosette.rotation.x = Math.PI / 2; rosette.position.set(hx, hy, Z0 + 0.03); add(rosette);
+        const rope = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.009, 8, 28, Math.PI * 1.15), new THREE.MeshPhysicalMaterial({ color: 0x6a4a1c, roughness: 0.55, sheen: 0.6, sheenColor: new THREE.Color(0.9, 0.7, 0.3) }));
+        rope.position.set(hx - side * 0.1, hy - 0.02, Z0 + 0.2); rope.rotation.set(0.25, side > 0 ? Math.PI : 0, -0.3); add(rope);
+        const tassel = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.012, 0.01], [0.022, 0.04], [0.03, 0.12], [0.028, 0.13], [0, 0.135]], 16), fringeMat);
+        tassel.position.set(hx - side * 0.04, hy - 0.26, Z0 + 0.24); add(tassel);
       }
-      const val = new THREE.Mesh(curtain({ width: WIN.w + 0.9, height: 0.4, folds: 12, depth: 0.05, gather: 1, seed: wx + 9, segX: 110, segY: 10 }), velvet);
-      val.position.set(wx, WIN.sill + WIN.h + 0.36, Z0 + 0.17); val.name = 'curtain'; add(val);
-      const pelmet = new THREE.Mesh(G.boxUV(WIN.w + 1.0, 0.12, 0.2, 1), giltFrame);
-      pelmet.position.set(wx, WIN.sill + WIN.h + 0.42, Z0 + 0.1); add(pelmet);
+      const VW = WIN.w + 1.0;
+      const val = new THREE.Mesh(swagGeometry(VW, 0.46, 0.08, 4), velvet);
+      val.position.set(wx, WIN.sill + WIN.h + 0.37, Z0 + 0.2); val.name = 'curtain'; add(val);
+      // jabots (cascading tails) at each end
+      for (const side of [-1, 1]) {
+        const jab = new THREE.Mesh(curtain({ width: 0.24, height: 0.85, folds: 3, depth: 0.05, seed: wx + side * 7, segX: 24, segY: 20 }), velvet);
+        jab.position.set(wx + side * (VW / 2 - 0.1), WIN.sill + WIN.h + 0.37, Z0 + 0.24); jab.name = 'curtain'; add(jab);
+      }
+      // bullion fringe along the swag hem (instanced cords)
+      const NF = 110;
+      const fr = new THREE.InstancedMesh(fringeGeo, fringeMat, NF);
+      const m4 = new THREE.Matrix4();
+      for (let i = 0; i < NF; i++) {
+        const u = (i + 0.5) / NF;
+        const sag = 0.46 * (0.32 + 0.68 * Math.sin(Math.PI * u));
+        const zz = 0.022 * Math.sin(Math.PI * u) * Math.cos(4 * Math.PI * 2);
+        const len = 0.07 + 0.01 * Math.sin(i * 12.9898);
+        m4.makeScale(1, len, 1).setPosition(wx + (u - 0.5) * VW * (1 - 0.06 * Math.sin(Math.PI * u)), WIN.sill + WIN.h + 0.37 - sag + 0.004, Z0 + 0.2 + zz);
+        fr.setMatrixAt(i, m4);
+      }
+      fr.castShadow = false; add(fr);
+      const pelmet = new THREE.Mesh(G.boxUV(VW + 0.04, 0.12, 0.24, 1), giltFrame);
+      pelmet.position.set(wx, WIN.sill + WIN.h + 0.43, Z0 + 0.12); add(pelmet);
     }
 
     // ================================================================ rug
@@ -367,13 +437,14 @@ export default {
     }
 
     // ================================================================ the grand piano + bench + ghost
-    const piano = buildPiano(ctx, { ebony, brass, gold: plateGold });
+    const piano = buildPiano(ctx, { ebony: pianoLacquer, brass, gold: plateGold });
     piano.position.copy(PIANO_POS);
     piano.rotation.y = PIANO_ROT;
     add(piano);
     const keys = piano.userData.keys;
     const bench = buildBench(ctx, { ebony, velvet: seatVelvet });
     bench.position.set(0, 0, 0.58);
+    bench.scale.y = 0.92;   // seat top ~0.515: Kessler sits ON the cushion, his thighs clear of it
     piano.add(bench);
     const ghost = await buildGhostPianist(ctx);
     piano.add(ghost.group);
@@ -395,6 +466,13 @@ export default {
     torchLight.shadow.camera.far = 7;
     add(torchLight);
 
+    // a cool moonlit fill over the keyboard (window side): the ivory reads ivory rather than
+    // candle-pink; brighter while the puzzle is up close
+    const keyFill = new THREE.SpotLight(0xb4c6ff, 0.5, 4, 0.55, 1.0, 2);
+    keyFill.position.copy(pianoToWorld(0.25, 2.3, -0.6));
+    keyFill.target.position.copy(pianoToWorld(0.03, 0.74, 0.08));
+    add(keyFill); add(keyFill.target);
+
     // ================================================================ harp, cello, stand, chair (right side, by the windows)
     const harp = buildHarp(ctx, { gilt: giltFluted, giltPlain, wood: giltPlain, box: harpWood });
     harp.position.set(2.65, 0, -3.2); harp.rotation.y = -0.75;
@@ -406,16 +484,24 @@ export default {
     harpKey.target.position.set(2.6, 1.0, -3.2);
     add(harpKey); add(harpKey.target);
     const chair = buildChair(ctx, { wood: mahogany, velvet: seatVelvet });
-    chair.position.set(2.55, 0, -1.45); chair.rotation.y = -1.9;
+    chair.position.set(1.55, 0, -2.85); chair.rotation.y = 2.62;
     add(chair);
+    // the cello leans against the pier beside the centre window, in the hero view between the
+    // candelabrum and the bay: moonlight on its shoulder, a warm candle rim down its varnish
     const cello = buildCello(ctx, { wood: celloWood, ebony, giltPlain });
-    cello.position.set(2.95, 0.12, -0.95); cello.rotation.set(-0.0, -2.2, 0.28);
+    cello.position.set(0.86, 0.115, -4.02); cello.rotation.set(-0.2, -0.3, 0.05);
     cello.userData.dynamic = true;
     add(cello);
     const bow = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.005, 0.72, 6), mahogany);
-    bow.position.set(2.62, 0.52, -1.42); bow.rotation.set(Math.PI / 2, 0, 0.4); add(bow);
+    bow.position.set(1.16, 0.36, -4.18); bow.rotation.set(-0.15, 0, -0.32); add(bow);
+    const bowHair = new THREE.Mesh(new THREE.CylinderGeometry(0.0025, 0.0025, 0.66, 4), new THREE.MeshStandardMaterial({ color: 0xd8d0c0, roughness: 0.8 }));
+    bowHair.position.set(1.175, 0.36, -4.17); bowHair.rotation.copy(bow.rotation); add(bowHair);
+    const celloKey = new THREE.SpotLight(0xffb070, 2.6, 5, 0.32, 0.8, 2);
+    celloKey.position.set(0.1, 1.9, -2.7);
+    celloKey.target.position.set(0.86, 0.65, -4.02);
+    add(celloKey); add(celloKey.target);
     const stand = buildMusicStand(ctx, { brass, seed: 12 });
-    stand.position.set(2.2, 0, -1.05); stand.rotation.y = 1.5;
+    stand.position.set(1.95, 0, -3.55); stand.rotation.y = -0.52;
     add(stand);
 
     // ================================================================ fireplace wall (left)
@@ -433,8 +519,14 @@ export default {
     {
       const pw = 0.95, ph = 1.25;
       let ptex;
-      try { ptex = await new THREE.TextureLoader().loadAsync(ctx.assetUrl('portrait.jpg')); ptex.colorSpace = THREE.SRGBColorSpace; ptex.anisotropy = 8; } catch (e) { ptex = portraitTexture(ctx.textures); }
-      portrait.add(new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshPhysicalMaterial({ map: ptex, roughness: 0.55, clearcoat: 0.7, clearcoatRoughness: 0.22 })));
+      const loader = new THREE.TextureLoader();
+      let pbump = null, prough = null;
+      try {
+        [ptex, pbump, prough] = await Promise.all(['portrait.jpg', 'portrait_bump.png', 'portrait_rough.png'].map((f) => loader.loadAsync(ctx.assetUrl(f))));
+        ptex.colorSpace = THREE.SRGBColorSpace; ptex.anisotropy = 8;
+      } catch (e) { ptex = portraitTexture(ctx.textures); pbump = prough = null; }
+      // aged oil on canvas: satin varnish broken up by the craquelure + weave (bump), duller in the grime
+      portrait.add(new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshPhysicalMaterial({ map: ptex, bumpMap: pbump, bumpScale: 1.2, roughnessMap: prough, roughness: 1.0, clearcoat: 0.3, clearcoatRoughness: 0.35, envMapIntensity: 0.35 })));
       portrait.add(new THREE.Mesh(G.frameGeometry(pw, ph, { width: 0.13, depth: 0.07, uvScale: 1 }), giltFrame));
       portrait.position.set(X0 + 0.04, 2.45, FIRE.z); portrait.rotation.y = Math.PI / 2;
       portrait.userData.dynamic = true;
@@ -445,9 +537,11 @@ export default {
       add(lampArm);
       const lampGlow = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.012), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.8, 0.5).multiplyScalar(3), toneMapped: false }));
       lampGlow.rotation.x = Math.PI / 2; lampGlow.rotation.z = Math.PI / 2; lampGlow.position.set(X0 + 0.2, 3.215, FIRE.z); add(lampGlow);
-      const picLight = new THREE.SpotLight(0xffc890, 2.4, 3, 0.75, 0.7, 2);
-      picLight.position.set(X0 + 0.22, 3.2, FIRE.z);
-      picLight.target.position.set(X0 + 0.02, 2.35, FIRE.z);
+      // the picture light grazes down the canvas from close above: bright along the top of the
+      // frame and the brow, falling away toward the coat (not a flat spotlight on the face)
+      const picLight = new THREE.SpotLight(0xffc890, 1.5, 2.4, 0.9, 0.85, 2);
+      picLight.position.set(X0 + 0.24, 3.22, FIRE.z);
+      picLight.target.position.set(X0 + 0.0, 1.95, FIRE.z);
       add(picLight); add(picLight.target);
     }
     // mantel garniture: clock + candlesticks
@@ -474,8 +568,8 @@ export default {
       const sc = buildSconce(ctx, { brass });
       sc.position.set(X0 + 0.01, 2.05, FIRE.z + s * 1.35); sc.rotation.y = Math.PI / 2;
       add(sc);
-      const pl = new THREE.PointLight(0xffa860, 4.5, 8, 2);
-      pl.position.set(X0 + 0.25, 2.18, FIRE.z + s * 1.35);
+      const pl = new THREE.PointLight(0xffa860, 3.6, 8, 2);
+      pl.position.set(X0 + 0.34, 2.2, FIRE.z + s * 1.35);
       add(pl); sconceLights.push(pl);
     }
 
@@ -501,14 +595,14 @@ export default {
       const sc = buildSconce(ctx, { brass });
       sc.position.set(X1 - 0.01, 2.05, -1.55); sc.rotation.y = -Math.PI / 2; add(sc);
       const pl = new THREE.PointLight(0xffa860, 2.6, 8, 2);
-      pl.position.set(X1 - 0.25, 2.18, -1.55); add(pl); sconceLights.push(pl);
+      pl.position.set(X1 - 0.34, 2.2, -1.55); add(pl); sconceLights.push(pl);
     }
     // front wall: gas sconces flanking the doors (they graze the panels and the damask)
     for (const sx of [-1, 1]) {
       const sc = buildSconce(ctx, { brass });
       sc.position.set(sx * 1.32, 2.0, Z1 - 0.01); sc.rotation.y = Math.PI; add(sc);
       const pl = new THREE.PointLight(0xffa860, 2.4, 7, 2);
-      pl.position.set(sx * 1.32, 2.13, Z1 - 0.24); add(pl); sconceLights.push(pl);
+      pl.position.set(sx * 1.32, 2.15, Z1 - 0.32); add(pl); sconceLights.push(pl);
     }
     // front wall: two small paintings flanking the door + a settee
     for (const s of [-1, 1]) {
@@ -536,12 +630,26 @@ export default {
     moon.target.position.set(0.2, 0, -0.4);
     moon.castShadow = ctx.quality.shadows;
     moon.shadow.mapSize.set(ctx.quality.shadowMapSize, ctx.quality.shadowMapSize);
-    moon.shadow.bias = -0.0004; moon.shadow.normalBias = 0.02; moon.shadow.radius = ctx.quality.shadowRadius;
-    moon.shadow.camera.near = 2; moon.shadow.camera.far = 20;
+    moon.shadow.bias = -0.0004; moon.shadow.normalBias = 0.035; moon.shadow.radius = ctx.quality.shadowRadius;
+    moon.shadow.camera.near = 3; moon.shadow.camera.far = 17;
     add(moon); add(moon.target);
 
-    add(new THREE.HemisphereLight(0x5068a8, 0x2a1a10, 1.25));
-    for (const wx of WIN.xs) add(fx.areaLight({ center: [wx, WIN.sill + 1.3, Z0 + 0.05], normal: [0, -0.35, 1], width: WIN.w, height: WIN.h, color: 0x9aaee0, intensity: 0.3 }));
+    // a lower, cooler sky fill (deeper shadows) with a warm floor bounce so the lower walls hold detail
+    add(new THREE.HemisphereLight(0x4a62a4, 0x3a2414, 0.85));
+    // opaque shadow blockers behind the bay wall: the wainscot board and the wall plane are thin,
+    // so without these the moon leaks through the panel joints as bright slits
+    {
+      const blk = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 1 });
+      const box = (x0, x1, y0, y1) => { const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, 0.3), blk); m.position.set((x0 + x1) / 2, (y0 + y1) / 2, Z0 - 0.16 - WIN.depth * 0 - 0.0); m.name = 'shadowWall'; add(m); };
+      box(X0 - 0.3, X1 + 0.3, -0.05, WIN.sill - 0.02);                                // under the sills
+      box(X0 - 0.3, X1 + 0.3, WIN.sill + WIN.h + 0.06, H + 0.3);                       // over the arches
+      const r = WIN.w / 2 + 0.035;
+      const xs = [X0 - 0.3, ...WIN.xs.flatMap((wx) => [wx - r, wx + r]), X1 + 0.3];
+      for (let i = 0; i < xs.length; i += 2) box(xs[i], xs[i + 1], WIN.sill - 0.03, WIN.sill + WIN.h + 0.07);   // piers
+    }
+    // window glow: the rect spans exactly the glazing (sill to arch); it used to hang below the sill
+    // and lit the wainscot bevels from point-blank range, which read as light leaks
+    for (const wx of WIN.xs) add(fx.areaLight({ center: [wx, WIN.sill + WIN.h / 2 + 0.05, Z0 - 0.05], normal: [0, -0.3, 1], width: WIN.w * 0.95, height: WIN.h * 0.92, color: 0x9aaee0, intensity: 0.28 }));
 
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
     const shafts = [];
@@ -569,8 +677,10 @@ export default {
     };
     const nocturne = createPianoPuzzle({ keys, ghost, desk: piano.userData.desk, onSolvedScene: solvedScene });
     const puzzleCam = (() => {
-      const pos = pianoToWorld(0.03, 1.16, 0.5), tgt = pianoToWorld(0.03, 0.829, -0.15);
-      return { position: pos.toArray(), target: tgt.toArray(), fov: 52 };
+      // low and close over the keys: the keyboard fills the lower third, the lacquered fallboard
+      // is a thin band with the decal, the lower half of the score fills the top
+      const pos = pianoToWorld(0.03, 1.12, 0.36), tgt = pianoToWorld(0.03, 0.789, -0.014);
+      return { position: pos.toArray(), target: tgt.toArray(), fov: 44 };
     })();
     // the engine reads `camera` as the puzzle starts (before the camera flight): the ghost
     // gives up his seat right then, so the camera never passes through him
@@ -584,7 +694,7 @@ export default {
     const nodes = {
       main: { position: [1.75, 1.6, 2.35], target: [-1.75, 1.32, -1.8], fov: 56, label: 'The music room', look: { yaw: [-50, 50], pitch: [-25, 30] } },
       piano: { position: pianoToWorld(2.0, 1.66, 0.25).toArray(), target: pianoToWorld(-0.3, 0.98, -0.05).toArray(), fov: 50, label: 'The piano' },
-      harp: { position: [1.05, 1.58, -0.55], target: [3.0, 1.2, -3.25], fov: 54, label: 'The harp and the windows', look: { yaw: [-60, 60], pitch: [-25, 30] } },
+      harp: { position: [0.45, 1.5, -0.7], target: [1.85, 1.05, -3.8], fov: 54, label: 'The harp, the cello and the windows', look: { yaw: [-60, 60], pitch: [-25, 30] }, grade: { exposure: 0.95, bloomThreshold: 1.4 } },
       hearth: { position: [0.9, 1.6, 1.4], target: [-4.0, 1.45, 0.45], fov: 54, label: 'The fireplace' },
       door: { position: [0.6, 1.62, 0.9], target: [0.0, 1.45, 5.5], fov: 56, label: 'The doors' },
     };
@@ -636,8 +746,8 @@ export default {
         },
       },
       {
-        id: 'cello', nodes: ['harp'], object: cello, cursor: 'examine', label: 'The cello',
-        onActivate: () => { celloNote(ctx.audio, 38, { length: 2.6 }); ctx.ui.caption('A cello resting against the chair, its bow beside it — as if the player only stepped out.', { title: 'The Cello' }); },
+        id: 'cello', nodes: ['harp', 'main'], object: cello, cursor: 'examine', label: 'The cello',
+        onActivate: () => { celloNote(ctx.audio, 38, { length: 2.6 }); ctx.ui.caption('A cello leaning by the window, its bow beside it — as if the player only stepped out.', { title: 'The Cello' }); },
       },
       {
         id: 'portrait', nodes: ['hearth'], object: portrait, cursor: 'talk', label: 'The composer',
@@ -683,7 +793,8 @@ export default {
       fire.userData.bedMat.emissiveIntensity = 1.6 + 0.3 * Math.sin(t * 0.9 + 0.5);
       fire.userData.logMat.emissiveIntensity = 1.8 + 0.4 * Math.sin(t * 1.7 + 2.0);
       dust.visible = window.__game?.mode !== 'puzzle';
-      for (const [i, pl] of sconceLights.entries()) pl.intensity = (i < 2 ? 4.5 : i === 2 ? 2.6 : 2.4) * (0.97 + 0.03 * Math.sin(t * 9.1 + i) * Math.sin(t * 3.7));
+      for (const [i, pl] of sconceLights.entries()) pl.intensity = (i < 2 ? 3.6 : i === 2 ? 2.6 : 2.4) * (0.97 + 0.03 * Math.sin(t * 9.1 + i) * Math.sin(t * 3.7));
+      keyFill.intensity += ((window.__game?.mode === 'puzzle' ? 2.2 : 0.5) - keyFill.intensity) * Math.min(1, dt * 3);
       torchLight.intensity = 7.0 * (0.94 + 0.06 * Math.sin(t * 8.3) * Math.sin(t * 2.9 + 0.4));
     });
 
@@ -725,7 +836,8 @@ export default {
       scene: root,
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
-      grade: { exposure: 1.4, contrast: 1.2, saturation: 0.95, shadowTint: [0.8, 0.94, 1.22], highlightTint: [1.16, 1.0, 0.8], splitAmount: 0.7, bloomStrength: 0.4, bloomThreshold: 1.1, godRayWeight: 0.5, godRayThreshold: 2.2, vignette: 0.45, aoIntensity: 1.15, aoRadius: 0.4 },
+      // restrained navy-and-gold grade: less saturation and split-toning than a game trailer, a gentle toe, grain + soft vignette
+      grade: { exposure: 1.36, contrast: 1.14, saturation: 0.84, shadowTint: [0.86, 0.95, 1.14], highlightTint: [1.1, 1.0, 0.86], splitAmount: 0.42, bloomStrength: 0.38, bloomThreshold: 1.1, godRayWeight: 0.5, godRayThreshold: 2.2, vignette: 0.5, grain: 0.04, aoIntensity: 1.15, aoRadius: 0.4 },
       environment: { position: [0.8, 1.7, 1.2], intensity: 0.85 },
       onEnter() {
         if (!ctx.state.has('music.greeted')) {

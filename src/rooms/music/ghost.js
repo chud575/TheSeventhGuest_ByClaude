@@ -40,11 +40,13 @@ async function loadParts(url) {
 
 
 /*
- * Ghost shader for Kessler: a pale, milky, softly *lit* apparition rather than an
- * x-ray rim. A depth pre-pass means only the front-most surface is shaded, so the
- * dense sculpt never stacks into line-art. Wrap lighting from a cool key (the
- * windows) plus per-vertex cavity occlusion lets the face, folds and hands read;
- * a low-power fresnel gives a soft halo, and the lower legs dissolve into wisps.
+ * Ghost shader for Kessler: a fresnel-rim-dominant apparition. A depth pre-pass means only the
+ * front-most skin is shaded, so the dense sculpt never stacks into line-art. Surfaces facing the
+ * viewer are nearly clear (alpha ~0.15) and grazing ones glow (alpha ~0.8, cool 0x9fb8ff rim), so
+ * the silhouette, the brow / nose / beard planes and the folds all carve out as bright contours;
+ * a cool key from the windows plus baked cavity occlusion models the forms inside them, a faint
+ * volumetric noise drifts through, the hands (nearest the keys) are the most solid, and the legs
+ * dissolve into wisps.
  */
 const VERT = /* glsl */ `
 uniform float uTime;
@@ -79,6 +81,7 @@ uniform float uOpacity;
 uniform float uIntensity;
 uniform float uDissolveY;
 uniform float uDissolveSoft;
+uniform float uHandBoost;
 varying vec3 vN;
 varying vec3 vW;
 varying vec3 vLocal;
@@ -88,38 +91,48 @@ ${FX_NOISE}
 void main() {
   vec3 n = normalize(vN);
   vec3 v = normalize(cameraPosition - vW);
+  if (dot(n, v) < 0.0) n = -n;
   float ndv = clamp(dot(n, v), 0.0, 1.0);
-  float wrap = clamp(dot(n, uKey) * 0.6 + 0.4, 0.0, 1.0);
-  float occ = pow(vOcc, 1.4);
-  float fres = pow(1.0 - ndv, 1.2);
-  float flow = 0.65 * fxNoise(vLocal * 5.0 + vec3(0.0, -uTime * 0.35, uTime * 0.1)) + 0.35 * fxNoise(vLocal * 13.0 + vec3(0.0, -uTime * 0.6, 0.0));
+  float fres = pow(1.0 - ndv, 2.2);
+  float key = clamp(dot(n, uKey), 0.0, 1.0);
+  float wrap = clamp(dot(n, uKey) * 0.5 + 0.5, 0.0, 1.0);
+  float occ = pow(vOcc, 1.6);
+  // slow inner "smoke" drifting upward through the body
+  float flow = 0.6 * fxNoise(vLocal * 6.0 + vec3(0.0, -uTime * 0.35, uTime * 0.1)) + 0.4 * fxNoise(vLocal * 15.0 + vec3(0.0, -uTime * 0.7, 0.0));
   float d0 = (vLocal.y - uDissolveY) / max(uDissolveSoft, 1e-3);
   float mist = 0.5;
   if (d0 < 2.0) mist = fxFbm(vLocal * vec3(9.0, 3.0, 9.0) + vec3(0.0, -uTime * 0.8, 0.0));
-  float val = mix(0.55, 1.2, vTint);
-  vec3 col = mix(uShadow, uColor * val, wrap * wrap * occ);
-  col += uRim * fres * 0.35;
-  col *= 0.88 + 0.24 * flow;
-  float a = (0.26 + 0.42 * wrap * occ * mix(0.8, 1.15, vTint) + 0.3 * fres) * (0.82 + 0.3 * flow);
+  // linen + skin (tint 1) read paler than the black coat (tint ~0.2)
+  float val = mix(0.45, 1.15, vTint);
+  vec3 body = mix(uShadow, uColor * val, (0.12 + 0.88 * key * key) * occ);
+  vec3 col = body * (0.55 + 0.45 * occ) + uRim * fres * (1.1 + 0.4 * vTint);
+  col *= 0.85 + 0.3 * flow;
+  // hands nearest the keys are the most solid part of him
+  float hands = uHandBoost * smoothstep(0.3, 0.17, vLocal.z) * step(vLocal.y, 0.86);
+  // facing planes stay mostly clear, but the moonlit ones (brow, cheekbones, nose, beard, hands)
+  // gain body so the face reads as a face rather than a hollow mask
+  float a = mix(0.17, 0.8, fres) + (0.12 + 0.4 * key) * occ * mix(0.55, 1.25, vTint) + hands;
+  a *= (0.8 + 0.35 * flow) * mix(0.6, 1.0, occ);
   // dissolve below uDissolveY into drifting wisps
   float d = d0 + (mist - 0.5) * 1.8;
   a *= smoothstep(0.0, 1.0, d);
-  a *= uOpacity;
+  a = clamp(a, 0.0, 0.95) * uOpacity;
   gl_FragColor = vec4(col * uIntensity, a);
 }`;
 
-function ghostMaterials(ctx, { dissolveY = -10, dissolveSoft = 0.25, wobble = 0.003, localMatrix = new THREE.Matrix4() } = {}) {
+function ghostMaterials(ctx, { dissolveY = -10, dissolveSoft = 0.25, wobble = 0.003, handBoost = 0, localMatrix = new THREE.Matrix4() } = {}) {
   const uniforms = {
     uTime: ctx.time,
     uWobble: { value: wobble },
-    uColor: { value: new THREE.Color(0xdfe8ff) },
-    uShadow: { value: new THREE.Color(0x222c52) },
-    uRim: { value: new THREE.Color(0xc8d8ff) },
-    uKey: { value: new THREE.Vector3(-0.35, 0.55, -0.75).normalize() },
+    uColor: { value: new THREE.Color(0xd6e2ff) },
+    uShadow: { value: new THREE.Color(0x1a2346) },
+    uRim: { value: new THREE.Color(0x9fb8ff) },
+    uKey: { value: new THREE.Vector3(0.5, 0.55, -0.67).normalize() },
     uOpacity: { value: 0.8 },
     uIntensity: { value: 1.0 },
     uDissolveY: { value: dissolveY },
     uDissolveSoft: { value: dissolveSoft },
+    uHandBoost: { value: handBoost },
     uLocalMatrix: { value: localMatrix },
   };
   const defs = 'uniform mat4 uLocalMatrix;\n';
@@ -157,7 +170,7 @@ export async function buildGhostPianist(ctx) {
   };
   addPart(parts.body, { dissolveY: 0.4, dissolveSoft: 0.22, wobble: 0.003 }, null, 6);
   const head = addPart(parts.head, { wobble: 0.0012 }, header.head, 8);
-  const arms = ['L', 'R'].map((k) => addPart(parts['arm' + k], { wobble: 0.002 }, header.shoulders[k], 10));
+  const arms = ['L', 'R'].map((k) => addPart(parts['arm' + k], { wobble: 0.0015, handBoost: 0.3 }, header.shoulders[k], 10));
   // a faint cold aura behind him, and a light that he casts on the keys and music desk
   const glowTex = ctx.textures.canvas('music:ghostglow', 128, 128, (g, w, h) => {
     const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);

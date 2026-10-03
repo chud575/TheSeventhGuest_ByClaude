@@ -323,17 +323,78 @@ export function buildGasolier(ctx, { brass, crystal }) {
   return g;
 }
 
-/** Gas sconce (wall at -Z behind it, faces +Z). Returns group; light added by caller. */
+/** Gas sconce (wall at -Z behind it, faces +Z). Returns group; light added by caller.
+ *  A cast-brass back-plate and swan-neck arm carry a gas cock and a tulip of frosted, acid-etched
+ *  glass (a smooth 64-segment lathe with real wall thickness), a small gas flame burning inside
+ *  it; a soft IES-style scallop of light fans up and down the wallpaper behind. */
 export function buildSconce(ctx, { brass }) {
   const { geometry: G } = ctx;
   const g = new THREE.Group();
   g.name = 'sconce';
-  const plate = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.06, 0], [0.05, 0.02], [0.02, 0.03], [0, 0.035]], 20), brass);
+  const plate = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.062, 0], [0.06, 0.008], [0.048, 0.018], [0.05, 0.024], [0.03, 0.03], [0.018, 0.04], [0, 0.042]], 32), brass);
   plate.rotation.x = Math.PI / 2; g.add(plate);
-  const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0.02), new THREE.Vector3(0, -0.06, 0.1), new THREE.Vector3(0, 0.0, 0.18), new THREE.Vector3(0, 0.06, 0.2)]);
-  g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.008, 8), brass));
-  const shade = new THREE.Mesh(G.latheFromProfile([[0.02, 0], [0.055, 0.03], [0.07, 0.09], [0.06, 0.14], [0.035, 0.16]], 20), new THREE.MeshStandardMaterial({ color: 0x241a10, emissive: new THREE.Color(1.0, 0.66, 0.36), emissiveIntensity: 1.5, roughness: 0.4, transparent: true, opacity: 0.94 }));
-  shade.position.set(0, 0.06, 0.2); g.add(shade);
+  const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0.03), new THREE.Vector3(0, -0.07, 0.1), new THREE.Vector3(0, -0.02, 0.18), new THREE.Vector3(0, 0.04, 0.2)]);
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.0075, 10), brass));
+  // gas cock + gallery ring that holds the glass
+  const cock = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.012, 0], [0.014, 0.012], [0.01, 0.02], [0.016, 0.03], [0, 0.034]], 16), brass);
+  cock.position.set(0, 0.035, 0.2); g.add(cock);
+  const gallery = new THREE.Mesh(G.latheFromProfile([[0.02, 0], [0.034, 0.004], [0.036, 0.016], [0.03, 0.02], [0.028, 0.012], [0.018, 0.008]], 48), brass);
+  gallery.position.set(0, 0.062, 0.2); g.add(gallery);
+  // frosted tulip: outer and inner skins (3 mm glass), scalloped rim
+  const etch = ctx.textures.canvas('music:sconce-etch', 256, 128, (c, w, h) => {
+    c.fillStyle = '#9a9a9a'; c.fillRect(0, 0, w, h);
+    c.strokeStyle = '#ffffff'; c.lineWidth = 2.2;
+    for (let i = 0; i < 12; i++) {                         // etched festoons and a fern band
+      const x = (i / 12) * w;
+      c.beginPath(); c.arc(x + w / 24, h * 0.42, w / 26, 0, Math.PI); c.stroke();
+      c.beginPath(); c.moveTo(x + w / 24, h * 0.55); c.lineTo(x + w / 24, h * 0.85); c.stroke();
+      for (let k = 0; k < 4; k++) { c.beginPath(); c.moveTo(x + w / 24, h * (0.6 + k * 0.06)); c.lineTo(x + w / 24 + 5, h * (0.57 + k * 0.06)); c.moveTo(x + w / 24, h * (0.6 + k * 0.06)); c.lineTo(x + w / 24 - 5, h * (0.57 + k * 0.06)); c.stroke(); }
+    }
+    c.fillStyle = 'rgba(255,255,255,0.9)'; c.fillRect(0, h * 0.18, w, 3); c.fillRect(0, h * 0.92, w, 3);
+  });
+  etch.wrapS = THREE.RepeatWrapping;
+  const prof = [];
+  for (let i = 0; i <= 24; i++) {
+    const t = i / 24;
+    const r = 0.022 + 0.05 * Math.sin(Math.min(1, t * 1.25) * Math.PI * 0.62) - 0.012 * Math.max(0, t - 0.8) / 0.2 + (t > 0.96 ? 0.006 : 0);
+    prof.push([r, t * 0.15]);
+  }
+  const outer = G.latheFromProfile(prof, 64);
+  const inner = G.latheFromProfile(prof.map(([r, y]) => [Math.max(0.001, r - 0.003), y + 0.001]).reverse(), 64);
+  const glassMat = new THREE.MeshPhysicalMaterial({
+    color: 0xfff1dc, roughness: 0.5, metalness: 0, transparent: true, opacity: 0.9, side: THREE.DoubleSide,
+    emissive: new THREE.Color(1.0, 0.68, 0.4), emissiveMap: etch, emissiveIntensity: 0.75, clearcoat: 0.6, clearcoatRoughness: 0.15, depthWrite: false,
+  });
+  glassMat.userData.noBake = true;
+  const shade = new THREE.Group();
+  const o = new THREE.Mesh(outer, glassMat); o.renderOrder = 3; shade.add(o);
+  const iMesh = new THREE.Mesh(inner, glassMat); iMesh.renderOrder = 2; shade.add(iMesh);
+  shade.position.set(0, 0.072, 0.2); g.add(shade);
+  // the gas flame inside: a small bright teardrop (it blooms through the frosting)
+  const flame = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.007, 0.006], [0.009, 0.016], [0.006, 0.028], [0, 0.04]], 16), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.3, 0.55), toneMapped: false }));
+  flame.position.set(0, 0.09, 0.2); g.add(flame);
+  // IES-like scallops on the wall: a fan of light up and a shorter one down, additive
+  const fan = ctx.textures.canvas('music:sconce-scallop', 128, 256, (c, w, h) => {
+    const img = c.createImageData(w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const u = (x / w - 0.5) * 2, v = 1 - y / h;                   // v: 0 bottom .. 1 top, source at v = 0.42
+      const dy = v - 0.42;
+      const spread = dy > 0 ? 0.12 + dy * 1.25 : 0.12 - dy * 0.9;
+      const across = Math.exp(-((u / spread) ** 2) * 1.6);
+      const along = dy > 0 ? Math.exp(-dy * 4.2) * (1 - Math.exp(-dy * 30)) : Math.exp(dy * 9.5) * (1 - Math.exp(dy * 40));
+      const edge = 1 + 0.6 * Math.exp(-(((Math.abs(u) - spread * 0.9) / 0.05) ** 2)) * (dy > 0 ? 1 : 0.5);   // brighter scallop rim
+      const core = 0.9 * Math.exp(-((u * u + dy * dy * 4) / 0.004));
+      const a = Math.min(1, across * along * edge * 0.75 + core);
+      const k = (y * w + x) * 4;
+      img.data[k] = 255; img.data[k + 1] = 190; img.data[k + 2] = 120; img.data[k + 3] = Math.round(a * 255);
+    }
+    c.putImageData(img, 0, 0);
+  }, { tile: false });
+  const fanMat = new THREE.MeshBasicMaterial({ map: fan, color: new THREE.Color(0.7, 0.52, 0.36), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: true, polygonOffset: true, polygonOffsetFactor: -4 });
+  const fanMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 1.1), fanMat);
+  fanMesh.position.set(0, 0.11 - 0.42 * 1.1 + 0.55, 0.004); fanMesh.renderOrder = 1; fanMesh.userData.noBake = true;
+  g.add(fanMesh);
+  g.userData.flame = flame;
   return g;
 }
 
