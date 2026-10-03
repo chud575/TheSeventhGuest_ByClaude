@@ -121,7 +121,7 @@ void surface(vec2 uv, inout Surface s) {
 
 /** Polished Belgian black marble: near-black ground, sparse thin grey-gold veins drifting one way. Tiles (1 tile ~ 0.6 m). */
 export function marbleNeroTexture(forge) {
-  return forge.generate('gameroom:nero', {
+  return forge.generate('gameroom:nero2', {
     size: 1024, normalStrength: 0.25,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
@@ -130,16 +130,17 @@ void surface(vec2 uv, inout Surface s) {
   float w2 = fbm(p + 4.1, vec2(5.0), 4);
   // veins: iso-lines of a warped field stretched along one direction
   float f1 = fbm(vec2(p.x * 1.0 + w * 0.35, p.y * 0.35 + w2 * 0.2), vec2(3.0, 1.0), 5);
-  float v1 = 1.0 - smoothstep(0.0, 0.012, abs(f1 - 0.05));
+  float v1 = 1.0 - smoothstep(0.0, 0.02, abs(f1 - 0.05));
+  float v3 = (1.0 - smoothstep(0.0, 0.05, abs(f1 - 0.05))) * 0.3;
   float f2 = fbm(vec2(p.x * 2.0 + w2 * 0.4 + 0.3, p.y * 0.7 + w * 0.3), vec2(6.0, 2.0), 5);
-  float v2 = (1.0 - smoothstep(0.0, 0.006, abs(f2 + 0.1))) * smoothstep(0.2, 0.6, fbmv(p + 2.0, vec2(4.0), 3));
+  float v2 = (1.0 - smoothstep(0.0, 0.01, abs(f2 + 0.1))) * smoothstep(0.2, 0.6, fbmv(p + 2.0, vec2(4.0), 3));
   float hair = (1.0 - smoothstep(0.0, 0.003, abs(fbm(p * 1.3 + 9.0, vec2(8.0), 5)))) * 0.5;
   float cloud = fbmv(p * 1.0 + 7.0, vec2(6.0), 5);
   vec3 base = vec3(0.047, 0.043, 0.05) * (0.85 + 0.35 * cloud);
-  vec3 vein = vec3(0.54, 0.5, 0.42);
-  float v = max(max(v1 * 0.75, v2 * 0.55), hair * 0.35);
-  v *= 0.6 + 0.4 * vnoise(p * 40.0, vec2(40.0));
-  vec3 col = mix(base, vein, v * 0.8);
+  vec3 vein = vec3(0.8, 0.77, 0.7);
+  float v = max(max(max(v1 * 0.95, v2 * 0.7), hair * 0.45), v3);
+  v *= 0.65 + 0.35 * vnoise(p * 40.0, vec2(40.0));
+  vec3 col = mix(base, vein, v * 0.85);
   s.albedo = col;
   s.height = 0.5 - v * 0.03;
   s.rough = 0.12 + 0.12 * v + 0.05 * cloud;
@@ -219,27 +220,58 @@ void surface(vec2 uv, inout Surface s) {
   });
 }
 
-/** Coffer panel: sunken plaster field with a moulded border and a faint acanthus wreath. uv 0..1 per panel. */
-export function cofferTexture(forge) {
-  return forge.generate('gameroom:coffer', {
-    size: 512, tile: false, normalStrength: 3.0,
+/** Coffer panel: a stepped, moulded border (bead, cove, gilt fillet), an embossed lincrusta field of quatrefoil
+ * diaper work, and a deep acanthus rosette in the centre with gilt-picked highlights. uv 0..1 per panel, aspect w/h. */
+export function cofferTexture(forge, aspect = 1) {
+  return forge.generate('gameroom:coffer2', {
+    size: 1024, aspect, tile: false, normalStrength: 3.2,
+    uniforms: { uAsp: aspect },
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
-  vec2 p = uv - 0.5;
-  float e = max(abs(p.x), abs(p.y));
-  float h = 0.5;
-  h += 0.25 * smoothstep(0.5, 0.47, e) * (1.0 - smoothstep(0.44, 0.42, e));    // border torus
-  h -= 0.15 * smoothstep(0.42, 0.40, e);                                        // sunken field
-  h += 0.08 * (1.0 - smoothstep(0.0, 0.01, abs(e - 0.38)));                   // fillet
-  // wreath of leaves
-  float r = length(p), a = atan(p.y, p.x);
-  float leaves = smoothstep(0.03, 0.0, abs(r - 0.22 - 0.02 * sin(a * 16.0))) * (0.6 + 0.4 * sin(a * 32.0));
-  h += leaves * 0.12;
-  vec3 c = vec3(0.07, 0.085, 0.14) * (0.85 + 0.3 * fbmv(uv, vec2(5.0), 4));
-  c = mix(c, vec3(0.42, 0.32, 0.16), smoothstep(0.003, 0.0, abs(e - 0.38)) * 0.8);
-  float stain = smoothstep(0.6, 0.85, fbmv(uv + 3.0, vec2(3.0), 5));
-  c *= 1.0 - stain * 0.3;
-  s.albedo = c; s.height = h; s.rough = 0.85; s.metal = 0.0; s.ao = 0.75 + 0.25 * smoothstep(0.3, 0.6, h);
+  vec2 p = (uv - 0.5) * vec2(uAsp, 1.0);                 // square units, short side = 1
+  vec2 hb = vec2(uAsp, 1.0) * 0.5;
+  float e = min(hb.x - abs(p.x), hb.y - abs(p.y));        // distance in from the panel edge
+  float h = 0.35; float gilt = 0.0;
+  // stepped border: outer ogee, bead row, cove, gilt fillet
+  h += 0.35 * smoothstep(0.0, 0.025, e) * (1.0 - smoothstep(0.035, 0.06, e));
+  float beadA = (hb.x - abs(p.x) < hb.y - abs(p.y)) ? p.y : p.x;
+  float bead = smoothstep(0.012, 0.0, abs(e - 0.07)) * (0.6 + 0.4 * cos(beadA * 260.0));
+  h += 0.22 * bead; gilt = max(gilt, step(0.5, bead));
+  h -= 0.12 * smoothstep(0.085, 0.1, e) * (1.0 - smoothstep(0.11, 0.13, e));
+  float fil = smoothstep(0.006, 0.0, abs(e - 0.14));
+  h += 0.15 * fil; gilt = max(gilt, fil);
+  if (e > 0.15) {
+    // lincrusta diaper: quatrefoils on a lozenge lattice
+    vec2 q = p * 9.0; vec2 id = floor(q + 0.5); vec2 f = q - id;
+    float lat = abs(abs(f.x) + abs(f.y) - 0.5);
+    float qa = atan(f.y, f.x);
+    float qf = length(f) - (0.22 + 0.07 * cos(qa * 4.0));
+    float dia = smoothstep(0.05, 0.0, lat) * 0.5 + smoothstep(0.03, -0.03, qf) * 0.7 + smoothstep(0.08, 0.0, length(f)) * 0.4;
+    h += 0.12 * dia * smoothstep(0.15, 0.19, e);
+    // central acanthus rosette, deep relief
+    float r = length(p), a = atan(p.y, p.x);
+    float ring = smoothstep(0.37, 0.36, r);
+    float leaf = 0.5 + 0.5 * cos(a * 16.0);
+    float leafEdge = pow(leaf, 0.6) * smoothstep(0.34, 0.08, r);
+    float ros = ring * (0.25 + 0.55 * leafEdge + 0.25 * smoothstep(0.1, 0.0, r));
+    float lobes = 0.5 + 0.5 * cos(a * 48.0 + r * 30.0);
+    ros += ring * 0.1 * lobes * smoothstep(0.1, 0.3, r);
+    h = mix(h, 0.45 + ros * 0.55, smoothstep(0.4, 0.36, r));
+    float boss = smoothstep(0.06, 0.04, r);
+    h += boss * 0.1; gilt = max(gilt, boss);
+    gilt = max(gilt, step(0.75, leafEdge) * ring * step(0.18, r));
+    float rim = smoothstep(0.012, 0.0, abs(r - 0.385)); h += rim * 0.12; gilt = max(gilt, rim);
+  }
+  float dirt = fbmv(uv * vec2(uAsp, 1.0) + 7.0, vec2(4.0), 5);
+  vec3 plaster = vec3(0.2, 0.215, 0.25) * (0.82 + 0.3 * dirt);
+  plaster *= 0.75 + 0.35 * smoothstep(0.3, 0.7, h);                 // raised parts catch more, hollows hold soot
+  vec3 gold = vec3(0.62, 0.46, 0.22) * (0.75 + 0.3 * dirt);
+  float g2 = gilt * (1.0 - smoothstep(0.55, 0.8, dirt) * 0.6);
+  s.albedo = mix(plaster, gold, g2);
+  s.height = h;
+  s.rough = mix(0.62, 0.38, g2);
+  s.metal = g2 * 0.85;
+  s.ao = 0.6 + 0.4 * smoothstep(0.25, 0.6, h);
 }`,
   });
 }
@@ -529,4 +561,255 @@ export function cardAtlas(forge) {
       g.restore();
     });
   }, { tile: false });
+}
+
+/** Turned ivory / boxwood for the chessmen: faint growth rings running around the piece (v = along the lathe
+ * profile), soft yellowing in the hollows, polish varying with handling. Albedo near-white (tint via material colour). */
+export function ivoryTexture(forge) {
+  return forge.generate('gameroom:ivory', {
+    size: 512, normalStrength: 0.35,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  float w = fbm(uv * vec2(1.0, 1.0), vec2(4.0), 3);
+  float rings = 0.5 + 0.5 * sin((uv.y * 90.0 + w * 6.0) * 3.14159);
+  float fine = vnoise(vec2(uv.x * 60.0, uv.y * 600.0 + w * 20.0), vec2(60.0, 600.0));
+  float yel = fbmv(uv + 1.7, vec2(3.0, 6.0), 4);
+  vec3 c = vec3(1.0, 0.985, 0.95);
+  c = mix(c, vec3(0.93, 0.85, 0.68), smoothstep(0.45, 0.85, yel) * 0.55);
+  c *= 0.965 + 0.035 * rings + 0.02 * fine;
+  s.albedo = c;
+  s.height = 0.5 + 0.08 * rings + 0.04 * fine;
+  s.rough = 0.26 + 0.12 * smoothstep(0.4, 0.8, yel) + 0.04 * fine;
+  s.metal = 0.0;
+  s.ao = 1.0;
+}`,
+  });
+}
+
+/** Heriz-style Persian carpet for under the billiard table (authored): a lobed indigo medallion with pendants on an
+ * oxblood field densely filled with a herati lattice, indigo corner spandrels, a vine-and-rosette main border between
+ * guard stripes, knotted at ~110 knots/m (stepped motif edges), abrash dye bands, a cut pile and worn, faded patches
+ * where the table legs stand. uv 0..1 over the rug, uSize = rug size in metres. Albedo sRGB, softly desaturated. */
+export function persianRugTexture(forge, { size = [3.0, 4.2], legs = [0.655, 1.225], key = 'gameroom:persianRug', scale = 1, runner = 0, px = 2048 } = {}) {
+  return forge.generate(key, {
+    size: px, aspect: size[0] / size[1], tile: false, normalStrength: 1.4,
+    uniforms: { uSize: size, uLegs: legs, uScale: scale, uRunner: runner },
+    glsl: /* glsl */ `
+const vec3 OX = vec3(0.36, 0.085, 0.07);
+const vec3 OX2 = vec3(0.27, 0.06, 0.055);
+const vec3 IND = vec3(0.075, 0.095, 0.2);
+const vec3 IND2 = vec3(0.11, 0.14, 0.27);
+const vec3 IVO = vec3(0.68, 0.6, 0.46);
+const vec3 OCH = vec3(0.6, 0.42, 0.18);
+const vec3 DRK = vec3(0.07, 0.045, 0.035);
+const vec3 TEA = vec3(0.18, 0.27, 0.24);
+const vec3 ROS = vec3(0.56, 0.24, 0.18);
+float lobed(vec2 m, float n, float amp) { float a = atan(m.y, m.x); return length(m) - (1.0 + amp * cos(a * n)); }
+// small 8-petal rosette, returns 0 outside, 1 petals, 2 centre
+float rosette(vec2 p, float r) {
+  float a = atan(p.y, p.x); float d = length(p);
+  float pet = d - r * (0.62 + 0.38 * abs(cos(a * 4.0)));
+  if (d < r * 0.32) return 2.0;
+  return pet < 0.0 ? 1.0 : 0.0;
+}
+// herati cell: rhombus lattice, central rosette, four lancet leaves
+vec3 herati(vec2 p, vec3 ground, vec3 line, vec3 leafC, vec3 rosC, vec3 eyeC, out float outline) {
+  float cs = 0.135;
+  vec2 c = p / cs; vec2 id = floor(c + 0.5); vec2 f = c - id;          // -0.5..0.5
+  vec3 col = ground; outline = 0.0;
+  float rh = sdRhombus(f, vec2(0.5, 0.5));
+  if (abs(rh) < 0.035) { col = line; outline = 1.0; }
+  // leaves on the four diagonals, tips curling
+  vec2 q = polarRep(f * rot2(0.785398), 4.0);
+  q = q - vec2(0.3, 0.0);
+  q = rot2(0.5 * q.x) * q;
+  float leaf = sdVesica(q.yx, 0.17, 0.12);
+  if (leaf < 0.0) { col = leafC; if (leaf > -0.025) { col = DRK; outline = 1.0; } }
+  float r = rosette(f, 0.17);
+  if (r > 0.5) { col = r > 1.5 ? eyeC : rosC; }
+  if (abs(length(f) - 0.17) < 0.022 && r < 0.5) { col = DRK; outline = 1.0; }
+  return col;
+}
+void surface(vec2 uv, inout Surface s) {
+  vec2 P = (uv - 0.5) * uSize / uScale;              // design units (metres at scale 1) from the centre
+  vec2 kn = (floor(P * 110.0) + 0.5) / 110.0;          // knot centre: the design is woven knot by knot
+  vec2 hw = uSize * 0.5 / uScale;
+  float e = min(hw.x - abs(kn.x), hw.y - abs(kn.y));   // distance in from the edge
+  float along = (hw.x - abs(kn.x) < hw.y - abs(kn.y)) ? kn.y : kn.x;
+  vec3 col = OX; float outline = 0.0;
+  if (e < 0.014) { col = DRK * 1.4; }
+  else if (e < 0.05) {                                  // outer guard: reciprocal tri-zigzag
+    float z = fract(along / 0.05); float tri = abs(z - 0.5) * 2.0;
+    float y = (e - 0.014) / 0.036;
+    col = y < tri ? IVO : ROS; if (abs(y - tri) < 0.12) { col = DRK; outline = 1.0; }
+  }
+  else if (e < 0.058) { col = DRK; outline = 1.0; }
+  else if (e < 0.29) {                                  // main border: indigo, meander vine with rosettes and palmettes
+    float y = (e - 0.058) / 0.232;                       // 0 outer .. 1 inner
+    float x = along / 0.26;
+    float vine = 0.5 + 0.28 * sin(x * 6.28318);
+    col = IND;
+    float dv = abs(y - vine);
+    vec2 cell = vec2(fract(x) - 0.5, y - 0.5);
+    float ros = rosette(vec2(cell.x * 0.26, (y - (0.5 + 0.28 * sin((floor(x) + 0.5) * 6.28318))) * 0.232), 0.05);
+    vec2 pq = vec2(fract(x + 0.5) - 0.5, y - 0.5) * vec2(0.26, 0.232);
+    float palm = lobed(pq / vec2(0.035, 0.05), 6.0, 0.18);
+    if (palm < 0.0) col = OCH;
+    if (palm < 0.0 && palm > -0.25) { col = DRK; outline = 1.0; }
+    if (dv < 0.03) { col = IVO; }
+    if (dv < 0.045 && dv >= 0.03) { col = DRK; outline = 1.0; }
+    float sprig = abs(fract(x * 4.0) - 0.5) < 0.08 && abs(y - vine) < 0.14 && abs(y - vine) > 0.05 ? 1.0 : 0.0;
+    if (sprig > 0.5) col = TEA;
+    if (ros > 0.5) { col = ros > 1.5 ? OCH : ROS; }
+    if (e > 0.27) { col = DRK; outline = 1.0; }
+  }
+  else if (e < 0.33) {                                  // inner guard: madder red with ivory flowerets
+    col = OX2;
+    vec2 fl = vec2(fract(along / 0.045) - 0.5, (e - 0.31) / 0.045);
+    if (length(fl) < 0.22) col = IVO;
+    if (length(fl) < 0.09) col = OCH;
+  }
+  else if (e < 0.338) { col = DRK; outline = 1.0; }
+  else if (e < 0.35) { col = IVO * 0.9; }
+  else if (e < 0.356) { col = DRK; outline = 1.0; }
+  else {
+    // field: all-over herati on oxblood
+    float ol;
+    col = herati(kn, OX, OCH * 0.85, TEA, IVO, OX2, ol); outline = ol;
+    vec2 fh = hw - 0.356;
+    // corner spandrels: quarter medallions in indigo
+    vec2 cq = (vec2(fh.x, fh.y) - abs(kn)) / vec2(0.62, 0.7);
+    float sp = uRunner > 0.5 ? 1.0 : lobed(cq, 18.0, 0.05);
+    if (sp < 0.0) {
+      vec3 hc = herati(kn, IND, IND2, OCH * 0.8, IVO * 0.9, ROS, ol);
+      col = hc; outline = ol;
+      if (sp > -0.07) { col = IVO; outline = 0.0; }
+      if (sp > -0.035) { col = DRK; outline = 1.0; }
+    }
+    // central medallion: 16-lobed indigo star with an ivory outline, red inner field, ivory rosette heart
+    vec2 kc = kn;
+    if (uRunner > 0.5) { kc.y = mod(kn.y + 0.8, 1.6) - 0.8; kc *= vec2(1.55, 1.55); }
+    vec2 m = kc / vec2(0.66, 0.88);
+    float md = lobed(m, 16.0, 0.06);
+    // pendants top and bottom
+    vec2 pm = vec2(kc.x, abs(kc.y) - 1.12) / vec2(0.2, 0.14);
+    float pd = uRunner > 0.5 ? 1.0 : lobed(pm, 8.0, 0.12);
+    float stem = (uRunner < 0.5 && abs(kn.x) < 0.02 && abs(kn.y) < 1.02 && abs(kn.y) > 0.8) ? -1.0 : 1.0;
+    float shape = min(min(md, pd), stem);
+    if (shape < 0.0) {
+      vec3 hc = herati(kn * 1.35, IND, IND2, ROS, IVO * 0.9, OCH, ol);
+      col = hc; outline = ol;
+      if (shape > -0.07) { col = IVO; outline = 0.0; }
+      if (shape > -0.035) { col = DRK; outline = 1.0; }
+      float inner = lobed(kc / vec2(0.36, 0.48), 8.0, 0.1);
+      if (inner < 0.0) {
+        col = OX;
+        float rr = rosette(kc, 0.17);
+        if (rr > 0.5) col = rr > 1.5 ? OCH : IVO;
+        if (abs(length(kc) - 0.17) < 0.012) { col = DRK; outline = 1.0; }
+        vec2 q = polarRep(kc, 8.0) - vec2(0.27, 0.0);
+        if (sdVesica(q.yx, 0.09, 0.06) < 0.0) col = TEA;
+        if (inner > -0.06) { col = IVO; outline = 0.0; }
+        if (inner > -0.03) { col = DRK; outline = 1.0; }
+      }
+    }
+  }
+  // per-knot dye variation and abrash (horizontal dye-lot bands)
+  vec3 kh = hash32(floor(P * 110.0));
+  col *= 0.9 + 0.16 * kh.x;
+  float abr = fbm(vec2(0.0, uv.y * 3.0) + vec2(uv.x * 0.2, 0.0), vec2(1.0, 6.0), 3);
+  col *= 0.93 + 0.12 * abr;
+  // age: overall fading, then worn patches (pile gone to the knots/warp) — heaviest round the table legs and the walkway
+  float leg = 0.0;
+  for (int i = 0; i < 6; i++) {
+    vec2 lp = vec2((i < 3) ? -uLegs.x : uLegs.x, (float(i - (i / 3) * 3) - 1.0) * uLegs.y);
+    leg = max(leg, exp(-pow(length(P * uScale - lp) / 0.16, 2.0)));
+  }
+  float walk = smoothstep(0.55, 0.95, 1.0 - abs(P.x + 1.1) / 0.6) * 0.0;
+  float wear = smoothstep(0.58, 0.82, fbmv(uv * vec2(1.0, 1.4) + 4.2, vec2(5.0), 5)) * 0.65 + leg * 0.8 + walk;
+  wear = clamp(wear, 0.0, 1.0);
+  vec3 warp = vec3(0.45, 0.39, 0.32);
+  float lum = dot(col, vec3(0.3, 0.55, 0.15));
+  col = mix(col, vec3(lum), 0.28);                       // fade
+  col = mix(col, mix(col * 1.25, warp, 0.55), wear * 0.85);
+  // knot-level pile: each knot a little tuft
+  vec2 kf = fract(P * 110.0) - 0.5;
+  float tuft = 1.0 - dot(kf, kf) * 1.6;
+  float pile = 0.62 + 0.12 * tuft + 0.1 * (kh.y - 0.5) + 0.06 * vnoise(P * 900.0, vec2(4096.0));
+  pile -= outline * 0.06;
+  pile -= wear * 0.3;
+  if (e < 0.014) pile = 0.5 + 0.1 * tuft;
+  s.albedo = col * (0.9 + 0.1 * tuft);
+  s.height = pile;
+  s.rough = 0.95;
+  s.metal = 0.0;
+  s.ao = 0.8 + 0.2 * tuft;
+}`,
+  });
+}
+
+/** Cast-iron register-grate insert: embossed anthemion-and-scroll relief, blacked and burnished on the high points. Tiles. */
+export function castIronTexture(forge) {
+  return forge.generate('gameroom:castiron', {
+    size: 512, normalStrength: 4.0,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 q = uv * 4.0; vec2 id = floor(q); vec2 f = fract(q) - 0.5;
+  // anthemion: fan of 7 lobes rising from a scroll pair
+  vec2 a = f - vec2(0.0, -0.18);
+  float ang = atan(a.x, a.y); float r = length(a);
+  float fan = smoothstep(0.02, 0.0, r - (0.26 + 0.06 * cos(ang * 7.0))) * step(abs(ang), 1.3);
+  float ribs = 0.5 + 0.5 * cos(ang * 14.0);
+  vec2 sc = vec2(abs(f.x) - 0.24, f.y + 0.28);
+  float scroll = smoothstep(0.02, 0.0, abs(length(sc) - 0.1 + 0.03 * atan(sc.y, sc.x)) - 0.018);
+  float bead = smoothstep(0.03, 0.0, abs(f.y + 0.47)) * (0.5 + 0.5 * cos(f.x * 40.0));
+  float h = 0.35 + fan * (0.25 + 0.2 * ribs) + scroll * 0.35 + bead * 0.3;
+  float pit = vnoise(uv * 300.0, vec2(1200.0));
+  h += 0.04 * pit;
+  float hi = smoothstep(0.55, 0.8, h);
+  vec3 c = mix(vec3(0.03, 0.03, 0.032), vec3(0.16, 0.15, 0.14), hi);
+  c *= 0.85 + 0.25 * fbmv(uv, vec2(6.0), 4);
+  s.albedo = c; s.height = h; s.rough = mix(0.7, 0.38, hi); s.metal = mix(0.45, 0.8, hi); s.ao = 0.6 + 0.4 * h;
+}`,
+  });
+}
+
+/** Glazed majolica tile slip (one tile per uv cell): a lily in relief on a deep green ground with a cream border,
+ * crackled glaze, slight per-tile variation via uv.y cell id. Tiles vertically. */
+export function majolicaTileTexture(forge) {
+  return forge.generate('gameroom:tile', {
+    size: 512, normalStrength: 2.5,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 f = fract(uv) - 0.5; float idy = floor(uv.y);
+  float e = 0.5 - max(abs(f.x), abs(f.y));
+  vec3 ground = vec3(0.07, 0.2, 0.15);
+  vec3 cream = vec3(0.72, 0.64, 0.48);
+  vec3 ox = vec3(0.42, 0.1, 0.07);
+  vec3 c = ground; float h = 0.5;
+  // bevelled tile edge + grout
+  if (e < 0.012) { c = vec3(0.12, 0.11, 0.1); h = 0.2; }
+  else {
+    h = 0.5 + 0.15 * smoothstep(0.012, 0.05, e);
+    if (e < 0.07 && e > 0.045) { c = cream; h += 0.04; }
+    // lily: three petals and two leaves rising from a stem
+    vec2 p = f * vec2(1.0, 1.0) + vec2(0.0, 0.05);
+    float stem = smoothstep(0.018, 0.0, abs(p.x + 0.03 * sin(p.y * 8.0))) * step(p.y, 0.05) * step(-0.36, p.y);
+    vec2 pl = p - vec2(0.0, 0.14);
+    float pet = 0.0;
+    for (int i = 0; i < 3; i++) { float ang = -0.7 + float(i) * 0.7; vec2 q = rot2(ang) * pl; pet = max(pet, smoothstep(0.01, -0.01, sdVesica(q - vec2(0.0, 0.1), 0.13, 0.095))); }
+    float lf = 0.0;
+    for (int i = 0; i < 2; i++) { float sx = i == 0 ? -1.0 : 1.0; vec2 q = rot2(sx * 0.9) * (p - vec2(sx * 0.05, -0.16)); lf = max(lf, smoothstep(0.01, -0.01, sdVesica(q - vec2(0.0, 0.1), 0.15, 0.12))); }
+    if (lf > 0.5) { c = vec3(0.2, 0.36, 0.2); h += 0.08; }
+    if (stem > 0.5) { c = vec3(0.2, 0.32, 0.18); h += 0.05; }
+    if (pet > 0.5) { c = mix(cream, ox, smoothstep(0.0, 0.3, length(pl)) * 0.6); h += 0.12; }
+    // pooled glaze: darker in the hollows
+    c *= 0.82 + 0.3 * smoothstep(0.45, 0.7, h);
+  }
+  float crack = 1.0 - smoothstep(0.0, 0.03, voronoiEdge(uv * 9.0 + idy * 3.1, vec2(4096.0), 1.0));
+  c *= 1.0 - crack * 0.18;
+  c *= 0.92 + 0.12 * hash12(vec2(idy, 3.0));
+  s.albedo = c; s.height = h; s.rough = 0.12 + crack * 0.2 + (e < 0.012 ? 0.7 : 0.0); s.metal = 0.0; s.ao = 0.7 + 0.3 * smoothstep(0.3, 0.6, h);
+}`,
+  });
 }

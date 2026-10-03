@@ -15,13 +15,21 @@ const SHOTS = {
   back: 'node=back',
   puzzle_mid: 'node=chess&queens=mid&ui=1&screen=puzzle',
   puzzle_solved: 'node=chess&queens=solved&ui=1&screen=puzzle',
+  // close-ups for self-review (not part of the standard set unless named)
+  c_queen: 'node=chess&queens=solved&pos=-1.47,0.93,-2.42&target=-1.66,0.79,-2.78&fov=34',
+  c_stag: 'node=hearth&pos=1.75,2.05,-1.25&target=3.2,2.25,-2.62&fov=42',
+  c_fire: 'node=hearth&pos=1.7,1.05,0.4&target=3.3,0.6,-0.45&fov=50',
+  c_drape: 'node=chess&pos=-0.2,1.7,-2.4&target=-1.45,1.8,-3.95&fov=50',
+  c_chair: 'node=chess&pos=-0.9,1.2,-1.6&target=-1.45,0.55,-2.15&fov=50',
+  c_chest: 'node=hearth&pos=0.6,1.3,-1.4&target=1.85,0.5,-2.85&fov=50',
 };
+const OPTIONAL = new Set(Object.keys(SHOTS).filter((k) => k.startsWith('c_')));
 const server = await startServer();
 const browser = await launch();
 fs.mkdirSync(path.resolve(ROOT, outdir), { recursive: true });
 try {
   for (const [name, qs] of Object.entries(SHOTS)) {
-    if (only.length && !only.includes(name)) continue;
+    if (only.length ? !only.includes(name) : OPTIONAL.has(name)) continue;
     const page = await browser.newPage({ viewport: { width: 1232, height: 928 }, deviceScaleFactor: 1 });
     const errs = [];
     page.on('pageerror', (e) => errs.push(e.message));

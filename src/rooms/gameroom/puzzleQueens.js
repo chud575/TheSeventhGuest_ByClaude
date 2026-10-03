@@ -26,64 +26,71 @@ export const SOLUTION = [0, 4, 7, 5, 2, 6, 1, 3];          // file for each rank
 const N = 8;
 
 /**
- * Carved Staunton-style queen: moulded plinth with two beads, a fluted waist, a
- * beaded collar, and a flared coronet notched into eight real points around a
- * domed cap and ball finial. ~0.097 * s tall, base radius 0.0215 * s.
+ * Carved Staunton queen (unit ~0.1 * s tall, base radius 0.0222 * s):
+ * a wide double-collared plinth with 0.5 mm bevel rings, a long concave skirt
+ * sweeping in to a slender waist (~35% of the base radius), a double collar, a
+ * flared bowl and a coronet of nine tall, thin, outward-flaring points each
+ * tipped with a ball finial, around a domed cap with a neck and ball on top.
  */
 export function queenGeometry(G, s = 1) {
   const prof = [
-    [0, 0], [0.0215, 0], [0.0219, 0.0025], [0.0212, 0.005], [0.0203, 0.006], [0.0211, 0.0078], [0.0203, 0.0098], [0.0185, 0.011],
-    [0.0166, 0.0128], [0.0174, 0.0148], [0.0166, 0.0166], [0.0146, 0.0182], [0.0128, 0.0215], [0.0114, 0.028], [0.0101, 0.037],
-    [0.0091, 0.046], [0.0084, 0.054], [0.0083, 0.0585], [0.0118, 0.0598], [0.0131, 0.0618], [0.0131, 0.0636], [0.0118, 0.0652],
-    [0.0088, 0.066], [0.0084, 0.0685], [0.0094, 0.0712], [0.0, 0.0712],
+    [0, 0], [0.0214, 0], [0.0222, 0.0005], [0.0222, 0.0032], [0.0217, 0.0037],          // foot ring + 0.5 mm bevels
+    [0.0206, 0.0043], [0.0199, 0.0056],                                                 // cove
+    [0.0204, 0.0064], [0.0210, 0.0075], [0.0208, 0.0086], [0.0199, 0.0094],            // torus
+    [0.0186, 0.0099], [0.0181, 0.0104],                                                 // fillet
+    [0.0185, 0.0110], [0.0189, 0.0119], [0.0186, 0.0128], [0.0177, 0.0134],            // second bead
+    [0.0166, 0.0138], [0.0163, 0.0143],
   ];
-  const RAD = 48;
+  // the concave skirt: flares out at the plinth, sweeps in to a slender waist
+  const y0 = 0.0143, y1 = 0.0575, r0 = 0.0163, r1 = 0.0076;
+  for (let i = 1; i <= 16; i++) { const u = i / 16; prof.push([r1 + (r0 - r1) * Math.pow(1 - u, 2.4), y0 + (y1 - y0) * u]); }
+  prof.push(
+    [0.0080, 0.0592], [0.0098, 0.0600], [0.0118, 0.0606], [0.0124, 0.0613], [0.0124, 0.0622], [0.0118, 0.0629],   // collar ring (bevelled)
+    [0.0090, 0.0636], [0.0084, 0.0642], [0.0096, 0.0650], [0.0098, 0.0657], [0.0086, 0.0664],                       // small upper collar
+    [0.0078, 0.0672], [0.0081, 0.0690], [0.0092, 0.0715], [0.0110, 0.0742], [0.0130, 0.0768], [0.0146, 0.0790],     // flared bowl
+    [0.0154, 0.0802], [0.0156, 0.0810],
+    [0.0, 0.0810],
+  );
+  const RAD = 64;
   const body = G.latheFromProfile(prof.map(([r, y]) => [r * s, y * s]), RAD);
-  // flutes on the waist
-  {
-    const p = body.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      const x = p.getX(i), y = p.getY(i) / s, z = p.getZ(i);
-      if (y < 0.022 || y > 0.0565) continue;
-      const a = Math.atan2(z, x);
-      const w = Math.sin(((y - 0.022) / 0.0345) * Math.PI);
-      const k = 1 - 0.07 * w * Math.pow(0.5 + 0.5 * Math.cos(a * 12), 2);
-      p.setX(i, x * k); p.setZ(i, z * k);
-    }
-    body.computeVertexNormals();
-  }
   const parts = [body];
-  // beaded collar
-  for (let i = 0; i < 20; i++) {
-    const a = (i / 20) * Math.PI * 2;
-    const b = new THREE.SphereGeometry(0.0021 * s, 8, 6);
-    b.translate(Math.cos(a) * 0.0133 * s, 0.0627 * s, Math.sin(a) * 0.0133 * s);
-    parts.push(b);
-  }
-  // coronet: per-angle profile (outer wall up to a point/notch, rim, inner wall)
+  // coronet: 9 tall thin points, flaring outward, notched V between them (outer wall, rim, inner wall)
+  const NP = 9;
   {
-    const N = 96, pos = [], idx = [];
-    const y0 = 0.0705, r0 = 0.0093, r1 = 0.0168, th = 0.0014;
-    const topY = (a) => { const c = Math.abs(Math.cos(a * 4)); return 0.0855 + 0.0075 * Math.pow(c, 4) - 0.0025 * Math.pow(1 - c, 2); };
-    const cols = 6;
+    const N = NP * 16, pos = [], idx = [], uv = [];
+    const yb = 0.0790, rb = 0.0146, th = 0.0011;
+    const peak = (a) => { const c = 0.5 + 0.5 * Math.cos(a * NP); return Math.pow(c, 5); };
+    const topY = (a) => 0.0815 + 0.0125 * peak(a);
+    const topR = (a) => 0.0157 + 0.0026 * peak(a);
+    const rows = 7;
     for (let i = 0; i <= N; i++) {
       const a = (i / N) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
-      const yt = topY(a);
-      const pts = [[r0, y0], [r0 + (r1 - r0) * 0.45, y0 + (yt - y0) * 0.55], [r1, yt], [r1 - th, yt], [r0 + (r1 - r0) * 0.45 - th, y0 + (yt - y0) * 0.55 + 0.0005], [r0 - th, y0 + 0.003]];
-      for (const [r, y] of pts) pos.push(ca * r * s, y * s, sa * r * s);
+      const yt = topY(a), rt = topR(a);
+      const ym = yb + (yt - yb) * 0.5, rm = rb + (rt - rb) * 0.42;
+      const pts = [[rb, yb], [rm, ym], [rt, yt], [rt - th * 0.6, yt + 0.0004], [rt - th, yt], [rm - th, ym], [rb - th * 1.4, yb + 0.0005]];
+      pts.forEach(([r, y], k) => { pos.push(ca * r * s, y * s, sa * r * s); uv.push(i / N, k / rows); });
     }
-    for (let i = 0; i < N; i++) for (let j = 0; j < cols - 1; j++) {
-      const a = i * cols + j, b = (i + 1) * cols + j;
+    for (let i = 0; i < N; i++) for (let j = 0; j < rows - 1; j++) {
+      const a = i * rows + j, b = (i + 1) * rows + j;
       idx.push(a, a + 1, b, b, a + 1, b + 1);
     }
     const cg = new THREE.BufferGeometry();
     cg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    cg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     cg.setIndex(idx); cg.computeVertexNormals();
     parts.push(cg);
+    // ball finials on every point
+    for (let k = 0; k < NP; k++) {
+      const a = (k / NP) * Math.PI * 2;
+      const b = new THREE.SphereGeometry(0.0019 * s, 12, 8);
+      b.translate(Math.cos(a) * 0.0177 * s, 0.0950 * s, Math.sin(a) * 0.0177 * s);
+      parts.push(b);
+    }
   }
-  const dome = new THREE.SphereGeometry(0.0118 * s, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2); dome.scale(1, 0.62, 1); dome.translate(0, 0.0815 * s, 0); parts.push(dome);
-  const stem = G.latheFromProfile([[0, 0.088], [0.0024, 0.088], [0.0034, 0.0895], [0.0018, 0.0915], [0, 0.0915]].map(([r, y]) => [r * s, y * s]), 16); parts.push(stem);
-  const ball = new THREE.SphereGeometry(0.0043 * s, 16, 12); ball.translate(0, 0.0955 * s, 0); parts.push(ball);
+  // domed cap inside the coronet, a turned neck and the ball finial
+  const cap = G.latheFromProfile([[0, 0.0812], [0.0136, 0.0808], [0.0132, 0.0835], [0.0115, 0.0862], [0.0085, 0.0885], [0.0045, 0.0902], [0.0030, 0.0912], [0.0040, 0.0921], [0.0026, 0.0930], [0, 0.0932]].map(([r, y]) => [r * s, y * s]), 40);
+  parts.push(cap);
+  const ball = new THREE.SphereGeometry(0.0046 * s, 20, 14); ball.translate(0, 0.0972 * s, 0); parts.push(ball);
   const g = G.mergeGeometries(parts.map((p) => {
     const q = p.index ? p.toNonIndexed() : p;
     for (const k of Object.keys(q.attributes)) if (!['position', 'normal', 'uv'].includes(k)) q.deleteAttribute(k);
@@ -94,7 +101,7 @@ export function queenGeometry(G, s = 1) {
   return g;
 }
 
-export function createQueensPuzzle(ctx, { parent, center, size, homeZ, mats, camera, onSolved, onChange, borderOuter }) {
+export function createQueensPuzzle(ctx, { parent, center, size, homeZ, homeY = 0, homeSpacing, mats, camera, onSolved, onChange, borderOuter }) {
   const { geometry: G } = ctx;
   const sq = size / N;
   const group = new THREE.Group(); group.name = 'queensPuzzle';
@@ -103,7 +110,7 @@ export function createQueensPuzzle(ctx, { parent, center, size, homeZ, mats, cam
   parent.add(group);
 
   const squarePos = (c, r) => new THREE.Vector3((c - 3.5) * sq, 0, (3.5 - r) * sq);
-  const homePos = (i) => new THREE.Vector3((i - 3.5) * sq, 0, homeZ);
+  const homePos = (i) => new THREE.Vector3((i - 3.5) * (homeSpacing ?? sq), homeY, homeZ);
 
   // ---------------------------------------------------------------- pieces
   const qg = queenGeometry(G, (sq / 0.057) * 1.12);
@@ -191,8 +198,8 @@ export function createQueensPuzzle(ctx, { parent, center, size, homeZ, mats, cam
       glowMat.uniforms.uAmt.value = amt;
       // the rim light sweeps slowly from one side of the board to the other and back, low and warm
       const u = Math.sin(t * 0.45);
-      sweep.position.set(u * size * 0.6, 0.11, -size * 0.7);
-      sweep.intensity = 1.1 * amt;
+      sweep.position.set(u * size * 0.6, 0.16, -size * 0.75);
+      sweep.intensity = 0.32 * amt;
       return;
     }
     sweep.intensity = 0;

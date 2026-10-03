@@ -76,7 +76,8 @@ export function antlerTube(curve, segs, r0, r1, radial, c0, c1, tipPow = 1.0) {
   const frames = curve.computeFrenetFrames(segs, false);
   const pos = [], nor = [], uv = [], col = [], idx = [];
   const len = curve.getLength();
-  const ca = new THREE.Color(), cb = new THREE.Color(c0), cc = new THREE.Color(c1);
+  const lin = (c) => (c && c.isColor ? c.clone() : new THREE.Color(c));
+  const ca = new THREE.Color(), cb = lin(c0), cc = lin(c1);
   for (let i = 0; i <= segs; i++) {
     const t = i / segs;
     const p = curve.getPointAt(t);
@@ -154,141 +155,295 @@ export function buildStag(ctx, mats) {
   }
 
   // -------------------------------------------------------------- head + neck loft
-  // spine from the shield (z ~ 0.06) out and up into the skull, then down the long face
+  // 12 stations: shoulder (at the shield) -> neck -> poll -> skull -> eyes -> long face -> muzzle -> nose.
+  // Station k sits at t = k / 11 along the loft, which the deformers below use to place features.
   const st = [
-    { p: [0, -0.06, 0.04], rx: 0.145, ry: 0.2, under: 0.0 },
-    { p: [0, -0.025, 0.13], rx: 0.115, ry: 0.16, under: 0.15 },
-    { p: [0, 0.03, 0.21], rx: 0.094, ry: 0.128, under: 0.3 },
-    { p: [0, 0.09, 0.28], rx: 0.084, ry: 0.1, under: 0.45, top: 0.2 },
-    { p: [0, 0.133, 0.34], rx: 0.079, ry: 0.08, under: 0.55, top: 0.5 },
-    { p: [0, 0.142, 0.4], rx: 0.067, ry: 0.066, under: 0.55, top: 0.6 },
-    { p: [0, 0.127, 0.47], rx: 0.05, ry: 0.056, under: 0.42, top: 0.5 },
-    { p: [0, 0.106, 0.54], rx: 0.042, ry: 0.05, under: 0.3, top: 0.4 },
-    { p: [0, 0.09, 0.6], rx: 0.039, ry: 0.046, under: 0.2, top: 0.3 },
-    { p: [0, 0.083, 0.633], rx: 0.033, ry: 0.038, under: 0.1 },
-    { p: [0, 0.079, 0.646], rx: 0.015, ry: 0.018 },
+    { p: [0, -0.085, 0.04], rx: 0.128, ry: 0.168, under: 0.0 },
+    { p: [0, -0.05, 0.125], rx: 0.104, ry: 0.138, under: 0.12 },
+    { p: [0, 0.005, 0.198], rx: 0.087, ry: 0.112, under: 0.28 },
+    { p: [0, 0.075, 0.258], rx: 0.081, ry: 0.094, under: 0.42, top: 0.2 },
+    { p: [0, 0.118, 0.308], rx: 0.081, ry: 0.08, under: 0.5, top: 0.5 },
+    { p: [0, 0.128, 0.36], rx: 0.071, ry: 0.068, under: 0.5, top: 0.65 },
+    { p: [0, 0.114, 0.418], rx: 0.053, ry: 0.059, under: 0.4, top: 0.55 },
+    { p: [0, 0.096, 0.474], rx: 0.044, ry: 0.053, under: 0.3, top: 0.45 },
+    { p: [0, 0.081, 0.524], rx: 0.04, ry: 0.049, under: 0.22, top: 0.3 },
+    { p: [0, 0.071, 0.56], rx: 0.037, ry: 0.043, under: 0.12, top: 0.15 },
+    { p: [0, 0.066, 0.582], rx: 0.029, ry: 0.033 },
+    { p: [0, 0.064, 0.591], rx: 0.012, ry: 0.014 },
   ];
-
+  const NS = st.length - 1;
+  const bump = (x, c, w) => Math.exp(-(((x - c) / w) ** 2));
   const deform = (p, t, a, c, X, Y) => {
-    const ca = Math.cos(a), sa = Math.sin(a);
-    // nostril dents on each side of the nose tip
-    if (t > 0.86 && t < 0.98) { const k = Math.exp(-(((t - 0.93) / 0.035) ** 2)) * Math.exp(-(((Math.abs(ca) - 0.8) / 0.18) ** 2)) * (sa > -0.3 ? 1 : 0); p.addScaledVector(X, -Math.sign(ca) * 0.008 * k); }
-    // eye sockets: brow ridge above, hollow below/in front
-    if (t > 0.45 && t < 0.66) {
-      const e = Math.exp(-(((t - 0.555) / 0.04) ** 2)) * Math.exp(-(((a % (Math.PI * 2)) - (ca > 0 ? 0.45 : Math.PI - 0.45)) ** 2 / 0.06));
-      p.addScaledVector(X, -Math.sign(ca) * 0.008 * e);
-    }
-    // pre-orbital hollows down the face
-    if (t > 0.62 && t < 0.85) { const k = Math.exp(-(((t - 0.72) / 0.06) ** 2)) * Math.exp(-((sa - 0.1) ** 2) / 0.05) * Math.abs(ca); p.addScaledVector(X, -Math.sign(ca) * 0.005 * k); }
-    // mouth crease low on the muzzle
-    if (t > 0.78 && t < 0.97) { const k = Math.exp(-((sa + 0.45) ** 2) / 0.006) * Math.abs(ca); p.addScaledVector(X, -Math.sign(ca) * 0.004 * k); }
-    // a mane ridge along the top of the neck
-    if (t < 0.4) { const k = Math.exp(-((sa - 1) ** 2) / 0.08) * (1 - t / 0.4); p.addScaledVector(Y, 0.012 * k); }
+    const f = t * NS, ca = Math.cos(a), sa = Math.sin(a), sx = Math.sign(ca) || 1, side = Math.abs(ca);
+    // throat notch: the jaw separates from the neck
+    p.addScaledVector(Y, 0.022 * bump(f, 3.15, 0.45) * Math.max(0, -sa) ** 2);
+    // masseter / cheek bulge on the lower sides under the eye
+    p.addScaledVector(X, sx * 0.014 * bump(f, 4.4, 0.7) * bump(sa, -0.45, 0.35) * side);
+    // brow ridge over the eye, then the socket hollow
+    p.addScaledVector(X, sx * 0.006 * bump(f, 4.75, 0.25) * bump(sa, 0.62, 0.18));
+    p.addScaledVector(X, -sx * 0.008 * bump(f, 5.05, 0.22) * bump(sa, 0.3, 0.16));
+    // pre-orbital hollow and gland groove down the face
+    p.addScaledVector(X, -sx * 0.005 * bump(f, 6.0, 0.5) * bump(sa, 0.05, 0.3) * side);
+    // flat bridge of the nose, slight roman curve
+    p.addScaledVector(Y, -0.004 * bump(f, 6.6, 0.8) * Math.max(0, sa) ** 4);
+    // flared nostrils: a raised rim with a dent behind it
+    p.addScaledVector(X, sx * 0.006 * bump(f, 9.75, 0.22) * bump(sa, 0.25, 0.3));
+    p.addScaledVector(X, -sx * 0.007 * bump(f, 9.4, 0.25) * bump(sa, 0.3, 0.25));
+    // mouth line and chin
+    p.addScaledVector(X, -sx * 0.005 * bump(f, 8.9, 0.9) * bump(sa, -0.5, 0.08) * side);
+    p.addScaledVector(Y, -0.006 * bump(f, 8.6, 0.5) * Math.max(0, -sa) ** 3);
+    // a ruff of mane along the top and down the front of the neck
+    p.addScaledVector(Y, 0.014 * Math.max(0, 1 - f / 3.2) * bump(sa, 1, 0.35));
+    p.addScaledVector(Y, -0.012 * Math.max(0, 1 - f / 2.6) * bump(sa, -1, 0.35));
   };
-  const headG = loft(st, { rings: 64, radial: 40, deform });
-  // vertex colours: dark mane on the neck, lighter face, pale throat, near-black nose and lips
+  const RADIAL = 48;
+  const headG = loft(st, { rings: 88, radial: RADIAL, deform });
+  // vertex colours: dark mane, grizzled neck, lighter face with a pale eye-ring and muzzle band, black nose and lips
   {
     const along = headG.attributes.along, pos = headG.attributes.position;
     const col = new Float32Array(pos.count * 3);
-    const radial = 41;
     for (let i = 0; i < pos.count; i++) {
-      const t = along.getX(i);
-      const j = i % radial; const a = (j / 40) * Math.PI * 2; const sa = Math.sin(a);
+      const t = along.getX(i), f = t * NS;
+      const j = i % (RADIAL + 1); const a = (j / RADIAL) * Math.PI * 2; const sa = Math.sin(a), side = Math.abs(Math.cos(a));
       let c = [1, 1, 1];
-      const mane = Math.max(0, 1 - t / 0.42);
-      c = c.map((v) => v * (1 - mane * 0.45));
-      const throat = Math.exp(-(((t - 0.42) / 0.12) ** 2)) * Math.max(0, -sa);
-      c = [c[0] + throat * 0.9, c[1] + throat * 0.85, c[2] + throat * 0.75];
-      const face = Math.max(0, Math.min(1, (t - 0.55) / 0.2));
-      c = [c[0] * (1 + face * 0.25), c[1] * (1 + face * 0.2), c[2] * (1 + face * 0.1)];
-      const nose = Math.max(0, Math.min(1, (t - 0.9) / 0.05)) * (sa > -0.6 ? 1 : 0.6);
-      c = c.map((v) => v * (1 - nose * 0.9));
-      const lip = Math.exp(-((sa + 0.5) ** 2) / 0.01) * Math.max(0, Math.min(1, (t - 0.75) / 0.1));
-      c = c.map((v) => v * (1 - lip * 0.6));
+      const mane = Math.max(0, 1 - f / 3.3);
+      c = c.map((v) => v * (1 - mane * 0.5));
+      const throat = bump(f, 2.8, 0.9) * Math.max(0, -sa);
+      c = [c[0] + throat * 0.55, c[1] + throat * 0.5, c[2] + throat * 0.4];
+      const face = Math.max(0, Math.min(1, (f - 5) / 2));
+      c = [c[0] * (1 + face * 0.28), c[1] * (1 + face * 0.22), c[2] * (1 + face * 0.12)];
+      const eyeRing = bump(f, 5.05, 0.35) * bump(sa, 0.3, 0.25) * side;
+      c = [c[0] + eyeRing * 0.5, c[1] + eyeRing * 0.45, c[2] + eyeRing * 0.35];
+      const gland = bump(f, 5.6, 0.35) * bump(sa, 0.12, 0.12) * side;
+      c = c.map((v) => v * (1 - gland * 0.7));
+      const band = bump(f, 8.95, 0.35) * Math.max(0.2, 0.5 + 0.5 * sa);
+      c = [c[0] + band * 0.55, c[1] + band * 0.52, c[2] + band * 0.45];
+      const nose = Math.max(0, Math.min(1, (f - 9.25) / 0.35)) * (sa > -0.55 ? 1 : 0.5);
+      c = c.map((v) => v * (1 - nose * 0.93));
+      const lip = bump(sa, -0.5, 0.12) * Math.max(0, Math.min(1, (f - 7.8) / 0.8));
+      c = c.map((v) => v * (1 - lip * 0.75));
+      const chin = Math.max(0, -sa) ** 2 * bump(f, 8.4, 0.6);
+      c = [c[0] + chin * 0.4, c[1] + chin * 0.38, c[2] + chin * 0.32];
       col.set(c, i * 3);
     }
     headG.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   }
   const head = new THREE.Mesh(headG, mats.fur);
   g.add(head);
+  {
+    const rnd = ctx.random.fork('stag-ruff');
+    const lockG = new THREE.ConeGeometry(0.0075, 1, 5, 1, true).rotateX(Math.PI).translate(0, -0.5, 0);
+    const N = 520;
+    const locks = new THREE.InstancedMesh(lockG, mats.ruff || mats.fur, N);
+    const pc = headG.attributes.position, al = headG.attributes.along, nn = headG.attributes.normal;
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), dn = V3(0, -1, 0), tmp = new THREE.Vector3(), nrm = new THREE.Vector3();
+    let k = 0, guard = 0;
+    while (k < N && guard++ < 40000) {
+      const i = Math.floor(rnd.next() * pc.count);
+      const t = al.getX(i);
+      if (t > 0.34) continue;
+      nrm.set(nn.getX(i), nn.getY(i), nn.getZ(i));
+      const under = nrm.y < -0.15, ridge = nrm.y > 0.75 && t < 0.25;
+      if (!under && !ridge) continue;
+      tmp.set(pc.getX(i), pc.getY(i), pc.getZ(i));
+      const len = (under ? 0.05 + 0.06 * rnd.next() * (1 - t / 0.34) : 0.025 + 0.02 * rnd.next());
+      // hang: mostly down (gravity) for the ruff, swept back along the neck for the crest
+      const dir = under ? dn.clone().addScaledVector(nrm, 0.55).add(V3(0, 0, -0.25)).normalize() : nrm.clone().add(V3(0, 0.2, -1.2)).normalize();
+      dir.x += (rnd.next() - 0.5) * 0.4; dir.normalize();
+      q.setFromUnitVectors(dn, dir);
+      const w = 0.7 + rnd.next() * 0.8;
+      m4.compose(tmp.addScaledVector(nrm, -0.004), q, V3(w, len, w));
+      locks.setMatrixAt(k++, m4);
+    }
+    locks.count = k;
+    g.add(locks);
+  }
+  // surface point on the (undeformed) loft at station-parameter f and angle a, pushed out by `out`
+  const curve = new THREE.CatmullRomCurve3(st.map((q) => V3(...q.p)), false, 'centripetal');
+  const surf = (f, a, out = 0) => {
+    const t = f / NS, i = Math.min(NS - 1, Math.floor(f)), u = f - i;
+    const rx = st[i].rx + (st[i + 1].rx - st[i].rx) * u, ry = st[i].ry + (st[i + 1].ry - st[i].ry) * u;
+    const c = curve.getPoint(t), T = curve.getTangent(t).normalize();
+    const X = new THREE.Vector3().crossVectors(V3(0, 1, 0), T).normalize(), Y = new THREE.Vector3().crossVectors(T, X).normalize();
+    return c.addScaledVector(X, Math.cos(a) * (rx + out)).addScaledVector(Y, Math.sin(a) * (ry + out));
+  };
 
-  // glossy nose leather + glass eyes with a lid ring
-  const noseG = new THREE.SphereGeometry(0.03, 24, 16); noseG.scale(1.2, 0.85, 0.7); noseG.translate(0, 0.086, 0.634);
+  // glossy nose leather (rhinarium): a flattened pad wrapped over the tip, nostril slits
+  const noseG = new THREE.SphereGeometry(0.026, 28, 18); noseG.scale(1.25, 0.95, 0.55);
+  const np = surf(10.4, Math.PI / 2, -0.012); noseG.translate(np.x, np.y, np.z + 0.008);
   g.add(new THREE.Mesh(noseG, mats.nose));
   for (const sx of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.0135, 20, 14), mats.eye);
-    eye.position.set(sx * 0.061, 0.158, 0.41); eye.scale.set(0.8, 1, 1.15); eye.rotation.y = sx * 0.4;
-    g.add(eye);
-    const lid = new THREE.Mesh(new THREE.TorusGeometry(0.0138, 0.0035, 8, 24), mats.nose);
-    lid.position.copy(eye.position); lid.rotation.y = sx * (Math.PI / 2 - 0.4); lid.scale.set(1.15, 0.85, 1);
-    g.add(lid);
-    // tear-duct (pre-orbital gland) slit
-    const gl = new THREE.Mesh(new THREE.CapsuleGeometry(0.003, 0.02, 4, 8), mats.nose);
-    gl.position.set(sx * 0.052, 0.142, 0.445); gl.rotation.set(1.2, 0, sx * 0.3); g.add(gl);
+    const ns = new THREE.CapsuleGeometry(0.0035, 0.012, 4, 8); ns.rotateZ(sx * 0.9); ns.rotateX(0.5);
+    const q = surf(10.25, Math.PI / 2 - sx * 0.75, -0.001); ns.translate(q.x, q.y, q.z);
+    g.add(new THREE.Mesh(ns, mats.eye));
   }
-  // cupped ears: a partial sphere shell, long and pointed, turned outward
+  // large glass eyes set under the brow, with a dark lid ring and a tear-gland slit in front
   for (const sx of [-1, 1]) {
-    const eg = new THREE.SphereGeometry(0.045, 20, 16, Math.PI * 0.15, Math.PI * 1.1, 0, Math.PI);
+    const a = sx > 0 ? 0.32 : Math.PI - 0.32;
+    const ep = surf(5.05, a, -0.004);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.0155, 24, 16), mats.eye);
+    eye.position.copy(ep); eye.scale.set(0.75, 0.95, 1.2); eye.rotation.y = sx * 0.45;
+    g.add(eye);
+    const lid = new THREE.Mesh(new THREE.TorusGeometry(0.0155, 0.004, 8, 28), mats.nose);
+    lid.position.copy(ep); lid.rotation.y = sx * (Math.PI / 2 - 0.45); lid.scale.set(1.2, 0.9, 1);
+    g.add(lid);
+    const gl = new THREE.Mesh(new THREE.CapsuleGeometry(0.003, 0.026, 4, 8), mats.nose);
+    gl.position.copy(surf(5.65, sx > 0 ? 0.12 : Math.PI - 0.12, -0.002)); gl.rotation.set(1.15, 0, sx * 0.35); g.add(gl);
+  }
+  // big cupped ears, swept out and back behind the antlers
+  for (const sx of [-1, 1]) {
+    const L = 0.15, Wd = 0.062;
+    const eg = new THREE.SphereGeometry(0.5, 24, 18, Math.PI * 0.92, Math.PI * 1.16, 0, Math.PI);
     const p = eg.attributes.position;
     for (let i = 0; i < p.count; i++) {
-      const y = p.getY(i) / 0.045;
-      const taper = 0.35 + 0.65 * Math.max(0, 1 - Math.max(0, y)) ** 1.5;
-      p.setXYZ(i, p.getX(i) * taper * 0.5, p.getY(i) * 1.35, p.getZ(i) * taper * 0.42);
+      const y = p.getY(i) / 0.5;                                  // -1 base .. 1 tip
+      const u = (y + 1) / 2;
+      const taper = Math.max(0.04, Math.sin(Math.min(1, u * 1.05) * Math.PI) ** 0.8 * (1 - 0.25 * u));
+      p.setXYZ(i, p.getX(i) * Wd * taper, (u * L), p.getZ(i) * Wd * 0.8 * taper);
     }
     eg.computeVertexNormals();
-    const c = new Float32Array(p.count * 3); for (let i = 0; i < p.count; i++) { const k = 0.6 + 0.4 * (p.getY(i) / 0.06 * 0.5 + 0.5); c.set([k, k, k], i * 3); }
+    const c = new Float32Array(p.count * 3); for (let i = 0; i < p.count; i++) { const u = p.getY(i) / L; const k = 0.55 + 0.45 * u; c.set([k, k * 0.97, k * 0.93], i * 3); }
     eg.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
     const ear = new THREE.Mesh(eg, mats.furDouble);
-    ear.position.set(sx * 0.098, 0.205, 0.33);
-    ear.rotation.set(-0.45, sx * 0.55, -sx * 0.95);
+    ear.position.copy(surf(3.7, sx > 0 ? 0.25 : Math.PI - 0.25, -0.012));
+    ear.rotation.set(-0.55, sx * 0.85, -sx * 1.15);
     g.add(ear);
   }
 
-  // -------------------------------------------------------------- antlers
-  const C0 = 0x6a5038, C1 = 0xfff6e4;
+  // -------------------------------------------------------------- antlers (a royal: brow, bez, trez and a crown of three)
+  // vertex colours multiply the antler map (already bone-brown): dark at the burr, bleached toward the tips
+  const LC = (r, g2, b) => new THREE.Color().setRGB(r, g2, b);
+  const C0 = LC(0.42, 0.36, 0.3), C1 = LC(1.7, 1.62, 1.45);
   const bone = [];
   for (const sx of [-1, 1]) {
-    const base = V3(sx * 0.042, 0.205, 0.36);
+    const base = surf(4.15, sx > 0 ? 1.05 : Math.PI - 1.05, -0.006);
     const beam = new THREE.CatmullRomCurve3([
-      base, V3(sx * 0.1, 0.27, 0.31), V3(sx * 0.19, 0.38, 0.25), V3(sx * 0.26, 0.52, 0.2),
-      V3(sx * 0.28, 0.66, 0.22), V3(sx * 0.25, 0.79, 0.28), V3(sx * 0.21, 0.88, 0.33),
+      base, base.clone().add(V3(sx * 0.06, 0.07, -0.05)), base.clone().add(V3(sx * 0.15, 0.19, -0.1)), base.clone().add(V3(sx * 0.23, 0.34, -0.12)),
+      base.clone().add(V3(sx * 0.26, 0.5, -0.08)), base.clone().add(V3(sx * 0.24, 0.64, -0.01)), base.clone().add(V3(sx * 0.19, 0.74, 0.05)),
     ], false, 'centripetal');
-    bone.push(antlerTube(beam, 48, 0.021, 0.008, 12, C0, 0xd8c4a0, 1.2));
-    // tines: brow (forward, low), bez, trez, then a three-point crown
+    bone.push(antlerTube(beam, 64, 0.026, 0.011, 14, C0, LC(1.15, 1.05, 0.9), 1.1));
     const tines = [
-      [0.07, V3(sx * 0.02, 0.05, 0.17), 0.012, 0.15],
-      [0.2, V3(sx * 0.02, 0.07, 0.15), 0.011, 0.13],
-      [0.45, V3(sx * 0.01, 0.1, 0.13), 0.01, 0.12],
-      [0.78, V3(-sx * 0.03, 0.12, 0.08), 0.0085, 0.11],
-      [0.9, V3(sx * 0.07, 0.1, 0.02), 0.008, 0.1],
-      [1.0, V3(sx * 0.0, 0.09, 0.05), 0.0075, 0.09],
+      [0.06, V3(sx * 0.03, 0.03, 0.2), 0.015, 0.012],
+      [0.17, V3(sx * 0.035, 0.06, 0.17), 0.013, 0.011],
+      [0.43, V3(sx * 0.02, 0.06, 0.16), 0.012, 0.01],
+      [0.78, V3(-sx * 0.05, 0.11, 0.09), 0.0105, 0.009],
+      [0.9, V3(sx * 0.08, 0.09, 0.03), 0.0095, 0.008],
+      [1.0, V3(sx * 0.0, 0.1, 0.06), 0.0095, 0.008],
     ];
     for (const [t, d, r] of tines) {
       const p = beam.getPointAt(t);
-      const c = new THREE.CatmullRomCurve3([p.clone().addScaledVector(d, -0.05), p.clone().add(V3(d.x * 0.45, d.y * 0.3, d.z * 0.55)), p.clone().add(d)]);
-      bone.push(antlerTube(c, 14, r, r * 0.25, 9, 0x9a8060, C1, 0.8));
+      const c = new THREE.CatmullRomCurve3([p.clone().addScaledVector(d, -0.08), p.clone().add(V3(d.x * 0.4, d.y * 0.2, d.z * 0.5)), p.clone().add(V3(d.x, d.y * 0.85, d.z)), p.clone().add(V3(d.x * 1.05, d.y * 1.2, d.z * 0.95))]);
+      bone.push(antlerTube(c, 20, r, r * 0.22, 10, LC(0.8, 0.72, 0.6), C1, 0.7));
     }
     // beaded burr (coronet) at the pedicle
-    const burr = new THREE.TorusGeometry(0.026, 0.009, 8, 24);
+    const burr = new THREE.TorusGeometry(0.029, 0.01, 10, 28);
     const bp = burr.attributes.position;
     for (let i = 0; i < bp.count; i++) {
       const x = bp.getX(i), y = bp.getY(i), z = bp.getZ(i);
       const a = Math.atan2(y, x);
-      const bump = 1 + 0.25 * Math.max(0, Math.sin(a * 11) * Math.cos(a * 5 + 1));
-      const r = Math.hypot(x, y); const k = (0.026 + (r - 0.026) * bump) / r;
-      bp.setXYZ(i, x * k, y * k, z * bump);
+      const bmp = 1 + 0.3 * Math.max(0, Math.sin(a * 13) * Math.cos(a * 5 + 1));
+      const r = Math.hypot(x, y); const k = (0.029 + (r - 0.029) * bmp) / r;
+      bp.setXYZ(i, x * k, y * k, z * bmp);
     }
     burr.computeVertexNormals();
-    const q = new THREE.Quaternion().setFromUnitVectors(V3(0, 0, 1), beam.getTangentAt(0.03));
-    burr.applyQuaternion(q); const bpos = beam.getPointAt(0.03); burr.translate(bpos.x, bpos.y, bpos.z);
-    const bc = new Float32Array(burr.attributes.position.count * 3); const cc = new THREE.Color(0x4a3522);
+    const q = new THREE.Quaternion().setFromUnitVectors(V3(0, 0, 1), beam.getTangentAt(0.025));
+    burr.applyQuaternion(q); const bpos = beam.getPointAt(0.025); burr.translate(bpos.x, bpos.y, bpos.z);
+    const bc = new Float32Array(burr.attributes.position.count * 3); const cc = LC(0.3, 0.25, 0.2);
     for (let i = 0; i < bc.length; i += 3) bc.set([cc.r, cc.g, cc.b], i);
     burr.setAttribute('color', new THREE.Float32BufferAttribute(bc, 3));
     bone.push(burr);
-    // pedicle stub hidden in the fur
-    const ped = new THREE.CylinderGeometry(0.02, 0.026, 0.06, 12); ped.applyQuaternion(q); ped.translate(base.x, base.y - 0.01, base.z);
+    const ped = new THREE.CylinderGeometry(0.022, 0.03, 0.06, 12); ped.applyQuaternion(q); ped.translate(base.x, base.y - 0.012, base.z);
     bone.push(ped);
   }
   g.add(new THREE.Mesh(G.mergeGeometries(bone.map(toNI)), mats.antler));
+  return g;
+}
+
+/**
+ * Wild boar's head on a shield: a lofted wedge of a head with a deep jowl, a
+ * flat leathery snout disc with nostrils, curling tusks, small pricked ears,
+ * glass eyes and a raised bristle crest (instanced). Faces +Z, shield at z = 0.
+ */
+export function buildBoar(ctx, mats) {
+  const { geometry: G } = ctx;
+  const g = new THREE.Group(); g.name = 'trophy:boar';
+  const pw = 0.2, ph = 0.31;
+  const sh = new THREE.Shape();
+  sh.moveTo(0, -ph / 2 - 0.04); sh.bezierCurveTo(pw * 0.6, -ph / 2 - 0.02, pw, -ph * 0.3, pw, 0); sh.bezierCurveTo(pw, ph * 0.32, pw * 0.8, ph / 2, pw * 0.45, ph / 2);
+  sh.bezierCurveTo(0.08, ph / 2, 0.03, ph / 2 + 0.02, 0, ph / 2 + 0.05); sh.bezierCurveTo(-0.03, ph / 2 + 0.02, -0.08, ph / 2, -pw * 0.45, ph / 2);
+  sh.bezierCurveTo(-pw * 0.8, ph / 2, -pw, ph * 0.32, -pw, 0); sh.bezierCurveTo(-pw, -ph * 0.3, -pw * 0.6, -ph / 2 - 0.02, 0, -ph / 2 - 0.04);
+  const back = new THREE.ExtrudeGeometry(sh, { depth: 0.02, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.014, bevelSegments: 4, curveSegments: 24 });
+  g.add(new THREE.Mesh(G.applyBoxUVs(back, 1.5), mats.shield));
+  const st = [
+    { p: [0, -0.02, 0.03], rx: 0.15, ry: 0.15 },
+    { p: [0, -0.005, 0.11], rx: 0.13, ry: 0.14, under: 0.1 },
+    { p: [0, 0.01, 0.18], rx: 0.108, ry: 0.118, under: 0.25, top: 0.2 },
+    { p: [0, 0.008, 0.24], rx: 0.088, ry: 0.098, under: 0.4, top: 0.45 },
+    { p: [0, -0.006, 0.3], rx: 0.064, ry: 0.074, under: 0.45, top: 0.5 },
+    { p: [0, -0.02, 0.355], rx: 0.05, ry: 0.058, under: 0.35, top: 0.4 },
+    { p: [0, -0.03, 0.4], rx: 0.044, ry: 0.048, under: 0.2 },
+    { p: [0, -0.034, 0.425], rx: 0.045, ry: 0.047 },
+    { p: [0, -0.035, 0.432], rx: 0.02, ry: 0.02 },
+  ];
+  const NS = st.length - 1;
+  const bump = (x, c, w) => Math.exp(-(((x - c) / w) ** 2));
+  const deform = (p, t, a, c, X, Y) => {
+    const f = t * NS, ca = Math.cos(a), sa = Math.sin(a), sx = Math.sign(ca) || 1, side = Math.abs(ca);
+    p.addScaledVector(X, sx * 0.016 * bump(f, 2.2, 0.8) * bump(sa, -0.5, 0.4) * side);     // heavy jowls
+    p.addScaledVector(X, -sx * 0.006 * bump(f, 3.0, 0.25) * bump(sa, 0.35, 0.2));          // eye socket
+    p.addScaledVector(X, -sx * 0.004 * bump(f, 5.3, 1.0) * bump(sa, -0.45, 0.08) * side);  // lip line
+    p.addScaledVector(Y, 0.02 * Math.max(0, 1 - f / 3) * bump(sa, 1, 0.3));                // crest ridge
+  };
+  const headG = loft(st, { rings: 60, radial: 40, deform });
+  {
+    const along = headG.attributes.along, pos = headG.attributes.position;
+    const col = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      const f = along.getX(i) * NS; const j = i % 41; const sa = Math.sin((j / 40) * Math.PI * 2);
+      let k = 1 - 0.35 * Math.max(0, 1 - f / 3) * Math.max(0, sa);
+      k *= 1 + 0.25 * bump(f, 4.5, 1.2);
+      k *= 1 - 0.8 * Math.max(0, Math.min(1, (f - 6.6) / 0.4));
+      col.set([k, k * 0.97, k * 0.94], i * 3);
+    }
+    headG.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  }
+  g.add(new THREE.Mesh(headG, mats.fur));
+  // snout disc + nostrils
+  const disc = new THREE.CylinderGeometry(0.046, 0.048, 0.016, 28).rotateX(Math.PI / 2); disc.scale(1, 0.92, 1); disc.translate(0, -0.035, 0.43);
+  g.add(new THREE.Mesh(disc, mats.nose));
+  for (const sx of [-1, 1]) {
+    const n = new THREE.SphereGeometry(0.009, 12, 8); n.scale(0.8, 1.2, 0.5); n.translate(sx * 0.016, -0.034, 0.439);
+    g.add(new THREE.Mesh(n, mats.eye));
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.011, 16, 12), mats.eye); eye.position.set(sx * 0.074, 0.03, 0.27); eye.scale.set(0.8, 0.9, 1.1); g.add(eye);
+    // pricked ears
+    const ear = new THREE.ConeGeometry(0.04, 0.12, 14, 1, true, 0, Math.PI * 1.3); ear.scale(1, 1, 0.5); ear.translate(0, 0.06, 0);
+    const em = new THREE.Mesh(ear, mats.furDouble); em.position.set(sx * 0.08, 0.1, 0.17); em.rotation.set(-0.5, sx * 0.6, -sx * 0.55); g.add(em);
+  }
+  // tusks
+  const bone = [];
+  for (const sx of [-1, 1]) {
+    const tusk = new THREE.CatmullRomCurve3([V3(sx * 0.036, -0.058, 0.36), V3(sx * 0.058, -0.052, 0.39), V3(sx * 0.07, -0.02, 0.405), V3(sx * 0.062, 0.012, 0.392), V3(sx * 0.05, 0.026, 0.375)]);
+    bone.push(antlerTube(tusk, 24, 0.0095, 0.0016, 10, new THREE.Color().setRGB(1.1, 1.0, 0.8), new THREE.Color().setRGB(1.8, 1.72, 1.5), 1.0));
+    const low = new THREE.CatmullRomCurve3([V3(sx * 0.03, -0.062, 0.385), V3(sx * 0.04, -0.05, 0.405), V3(sx * 0.045, -0.035, 0.41)]);
+    bone.push(antlerTube(low, 10, 0.005, 0.001, 8, new THREE.Color().setRGB(1.1, 1.0, 0.8), new THREE.Color().setRGB(1.8, 1.72, 1.5), 1.0));
+  }
+  g.add(new THREE.Mesh(G.mergeGeometries(bone.map(toNI)), mats.antler));
+  // bristle crest: instanced tapering spikes along the ridge of the neck and skull
+  const rnd = ctx.random.fork('boar-bristle');
+  const bg = new THREE.ConeGeometry(0.0022, 0.05, 4, 1).translate(0, 0.025, 0);
+  const n = 260;
+  const im = new THREE.InstancedMesh(bg, mats.bristle || mats.nose, n);
+  const curve = new THREE.CatmullRomCurve3(st.slice(0, 5).map((q) => V3(q.p[0], q.p[1] + q.ry * 0.96, q.p[2])));
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+  for (let i = 0; i < n; i++) {
+    const t = rnd.next() * 0.92;
+    const p = curve.getPoint(t);
+    p.x += (rnd.next() - 0.5) * 0.05 * (1 - t);
+    e.set(-0.9 - rnd.next() * 0.5 + t * 0.4, 0, (rnd.next() - 0.5) * 0.8); q.setFromEuler(e);
+    const sc = (0.6 + rnd.next() * 0.8) * (1.3 - t * 0.8);
+    m4.compose(p, q, V3(sc, sc, sc)); im.setMatrixAt(i, m4);
+  }
+  im.userData.keep = true;
+  g.add(im);
   return g;
 }
