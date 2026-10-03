@@ -496,8 +496,8 @@ def storm(W=2048, H=1280, seed=303, name='storm'):
         d.rectangle([px - 3, base - h * 0.1, px + 3, base + 10], fill=255)
     pm = blur(np.asarray(pines, np.float32) / 255, 1.0)
     img = lerp(img, col(10, 12, 11) * (0.8 + 0.4 * noise(H, W, 10, seed + 91))[..., None], pm)
-    # overall glaze
-    img = img * np.array([0.98, 0.98, 0.96], np.float32)
+    # overall glaze (lifted so the scene reads under candlelight)
+    img = np.clip(img * np.array([1.5, 1.48, 1.42], np.float32), 0, 1)
     img, bump = age_canvas(img, seed, crack_cell=80, varnish=1.0, grime=0.9, smear=5, kuw=1)
     save(name, img, bump)
 

@@ -494,3 +494,22 @@ void surface(vec2 uv, inout Surface s) {
 }`,
   });
 }
+
+/** Mirror foxing: silvering loss and brown spots, denser toward the edges (alpha overlay). */
+export function foxingTexture(forge) {
+  return forge.generate('dining:foxing', {
+    size: 512, aspect: 0.6, tile: false,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 e = min(uv, 1.0 - uv);
+  float edge = smoothstep(0.18, 0.0, min(e.x * 1.6, e.y));
+  float n = fbm(uv * vec2(5.0, 8.0), vec2(5.0, 8.0), 5) * 0.5 + 0.5;
+  vec4 v = voronoi(uv * vec2(14.0, 22.0), vec2(14.0, 22.0), 1.0);
+  float spot = smoothstep(0.16, 0.05, v.x) * step(0.72, hash12(v.zw + 3.0));
+  float a = clamp(edge * (0.4 + 0.8 * n) + spot * 0.7, 0.0, 0.9);
+  s.albedo = mix(vec3(0.16, 0.12, 0.08), vec3(0.3, 0.26, 0.2), n);
+  s.alpha = a;
+  s.height = 0.5; s.rough = 0.9; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+}

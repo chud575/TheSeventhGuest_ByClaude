@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { buildChair, webBackGeometry, buildTable, buildSideboard, buildCandelabrum, buildChandelier, buildPlaceSetting, plateGeometry, discUV, gobletGeometry, napkinGeometry, cutleryGeometries } from './furniture.js';
 import { nightGardenTexture, ganacheTexture, spongeTexture, chinaTexture, ceilingFieldTexture, tuftedTexture, flameMahoganyTexture, giltPlateTexture, tombTexture, laceTexture, frostTexture } from './textures.js';
 import { buildCurtain, buildSwagValance, buildTassel } from './drapery.js';
-import { treeLayerTexture, frostPaneTexture } from './textures.js';
+import { treeLayerTexture, frostPaneTexture, foxingTexture } from './textures.js';
 import { createCakePuzzle, cakeMeta, CAKE_ID } from './puzzleCake.js';
 import { mergeStatic } from './merge.js';
 
@@ -79,7 +79,7 @@ export default {
       frieze: M.create('gilded', { pattern: 2, repeats: 3, ground: 1, groundColor: [0.03, 0.04, 0.1], wear: 0.35, dirt: 0.5, repeat: [1 / 1.15, 1] }),
       gilt: M.create('gold', { wear: 0.45, dirt: 0.5, repeat: [2, 1] }),
       frame: M.create('gilded', { pattern: 1, repeats: 3, wear: 0.45, dirt: 0.65, repeat: [1 / 0.45, 1] }),
-      drape: M.create('velvet', { color: [0.05, 0.1, 0.36], crush: 0.45, repeat: [2.2, 2.2], side: THREE.DoubleSide, sheen: 1.0, sheenColor: [0.35, 0.5, 0.9], sheenRoughness: 0.5, roughness: 0.85 }),
+      drape: M.create('velvet', { color: [0.05, 0.1, 0.36], crush: 0.45, repeat: [2.2, 2.2], side: THREE.DoubleSide, sheen: 1.0, sheenColor: [0.35, 0.5, 0.9], sheenRoughness: 0.5, roughness: 0.85, normalScale: 0.25 }),
       seat: M.create('velvet', { color: [0.1, 0.19, 0.3], crush: 0.4, pattern: 1, repeat: [4, 4], sheenColor: [0.3, 0.45, 0.6] }),
       brass: M.create('brass', { tarnish: 0.3, polish: 0.75, repeat: [3, 3] }),
       glass: M.create('glass', { dirt: 0.55, transparent: true, opacity: 0.12 }),
@@ -93,7 +93,7 @@ export default {
       black: M.basic('black', { color: 0x0a0806 }),
       wine: new THREE.MeshPhysicalMaterial({ color: 0x3a0308, roughness: 0.12, transmission: 0, clearcoat: 1, clearcoatRoughness: 0.12, name: 'wine' }),
     };
-    mat.rosePlaster = M.create('plaster', { color: [0.42, 0.44, 0.5], cracks: 0.2, stains: 0.5, roughness: 0.9, repeat: [3, 3] });
+    mat.rosePlaster = M.create('plaster', { color: [0.22, 0.24, 0.3], cracks: 0.2, stains: 0.5, roughness: 0.9, repeat: [3, 3] });
     mat.tassel = M.create('velvet', { color: [0.5, 0.36, 0.16], crush: 0.2, repeat: [6, 6], sheen: 1, sheenColor: [0.9, 0.7, 0.35] });
     mat.giltDark = M.create('gold', { wear: 0.6, dirt: 0.8, repeat: [2, 1], color: [0.45, 0.4, 0.36] });
     mat.standSilver = M.basic('silver', { roughness: 0.32, envMapIntensity: 0.55, color: 0x9a9a9e });
@@ -316,8 +316,8 @@ export default {
       card.position.set(wx + 0.4, WIN.sill + 1.0, -7.5); s.grp.add(card);
       const trees = treeLayerTexture(ctx.textures);
       const treeMat = new THREE.MeshBasicMaterial({ map: trees.map, color: new THREE.Color(0.55, 0.62, 0.85), alphaTest: 0.5, toneMapped: false, name: 'treesMid', side: THREE.DoubleSide });
-      const tl = new THREE.Mesh(new THREE.PlaneGeometry(5.2, 3.6), treeMat);
-      tl.position.set(wx - 0.3, 1.4, -3.4); tl.userData.noShadow = true; s.grp.add(tl);
+      const tl = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 3.9), treeMat);
+      tl.position.set(wx - 0.6, 1.1, -5.6); tl.userData.noShadow = true; s.grp.add(tl);
       const snowMat = new THREE.MeshStandardMaterial({ color: 0x8c96b0, roughness: 0.9, metalness: 0, emissive: new THREE.Color(0.1, 0.13, 0.22), name: 'snow' });
       const snowG = new THREE.PlaneGeometry(10, 8, 20, 16);
       { const pp = snowG.attributes.position; for (let i = 0; i < pp.count; i++) pp.setZ(i, 0.12 * Math.sin(pp.getX(i) * 1.3) * Math.cos(pp.getY(i) * 0.9)); snowG.computeVertexNormals(); }
@@ -442,14 +442,26 @@ export default {
         for (const [y, hh] of rows) { const p = new THREE.Mesh(G.raisedPanel(w - 0.16, hh, { border: 0.05, bevel: 0.025 }), mat.panel); p.position.set(0, y, 0.025); g.add(p); }
         return g;
       };
+      // brass knob on a rose, with a keyhole escutcheon below
+      const knobG = G.latheFromProfile([[0, 0], [0.012, 0], [0.01, 0.025], [0.022, 0.04], [0.028, 0.055], [0.022, 0.068], [0, 0.072]], 20).rotateX(Math.PI / 2);
+      const roseG = G.latheFromProfile([[0, 0], [0.032, 0], [0.034, 0.004], [0.026, 0.01], [0.012, 0.012], [0, 0.012]], 24).rotateX(Math.PI / 2);
+      const escG = (() => { const sh = new THREE.Shape(); sh.moveTo(-0.018, -0.045); sh.quadraticCurveTo(0, -0.06, 0.018, -0.045); sh.lineTo(0.018, 0.035); sh.quadraticCurveTo(0, 0.055, -0.018, 0.035); sh.lineTo(-0.018, -0.045);
+        const kh = new THREE.Path(); kh.absarc(0, 0.008, 0.0055, 0, Math.PI * 2, false); sh.holes.push(kh);
+        const kh2 = new THREE.Path(); kh2.moveTo(-0.0025, 0.004); kh2.lineTo(-0.004, -0.018); kh2.lineTo(0.004, -0.018); kh2.lineTo(0.0025, 0.004); sh.holes.push(kh2);
+        return new THREE.ExtrudeGeometry(sh, { depth: 0.003, bevelEnabled: true, bevelThickness: 0.0015, bevelSize: 0.0015, bevelSegments: 2 }); })();
+      const hardware = (g, x, y) => {
+        const r = new THREE.Mesh(roseG, mat.brass); r.position.set(x, y, 0.025); g.add(r);
+        const k = new THREE.Mesh(knobG, mat.brass); k.position.set(x, y, 0.035); g.add(k);
+        const e = new THREE.Mesh(escG, mat.brass); e.position.set(x, y - 0.13, 0.026); g.add(e);
+      };
       for (const [key, d] of Object.entries(DOORS)) {
         const g = new THREE.Group();
         g.position.set(lx.front(d.x), 0, -0.04);
         if (key === 'foyer') {
-          for (const sd of [-1, 1]) { const l = leaf(d.w / 2 - 0.01, d.h - 0.01); l.position.x = sd * d.w / 4; g.add(l); const k = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 12), mat.brass); k.position.set(sd * 0.07, 1.02, 0.06); g.add(k); }
+          for (const sd of [-1, 1]) { const l = leaf(d.w / 2 - 0.01, d.h - 0.01); l.position.x = sd * d.w / 4; g.add(l); hardware(g, sd * 0.07, 1.02); }
         } else {
           g.add(leaf(d.w - 0.02, d.h - 0.01));
-          const k = new THREE.Mesh(new THREE.SphereGeometry(0.028, 16, 12), mat.brass); k.position.set(d.w / 2 - 0.1, 1.0, 0.06); g.add(k);
+          hardware(g, d.w / 2 - 0.1, 1.0);
         }
         const cas = new THREE.Mesh(G.sweepProfile(G.PROFILES.chairRail(0.12, 0.035), [V3(-d.w / 2 - 0.06, 0, 0), V3(-d.w / 2 - 0.06, d.h + 0.06, 0), V3(d.w / 2 + 0.06, d.h + 0.06, 0), V3(d.w / 2 + 0.06, 0, 0)], { up: V3(0, 0, 1), uvScale: 1, flipOutward: true }), mat.panel);
         cas.position.z = 0.04; g.add(cas);
@@ -468,10 +480,22 @@ export default {
       const s = S.front;
       const sconce = (x) => {
         const g = new THREE.Group();
-        g.add(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.07, 0], [0.06, 0.02], [0.02, 0.035], [0, 0.04]], 20).rotateX(Math.PI / 2), mat.brass));
-        const arm = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V3(0, 0, 0.03), V3(0, -0.06, 0.12), V3(0, 0.0, 0.2), V3(0, 0.06, 0.2)]), 12, 0.009, 6), mat.brass); g.add(arm);
-        const cup = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.03, 0], [0.04, 0.02], [0.02, 0.03], [0, 0.03]], 14), mat.brass); cup.position.set(0, 0.06, 0.2); g.add(cup);
-        const shade = new THREE.Mesh(G.latheFromProfile([[0.025, 0], [0.06, 0.04], [0.075, 0.1], [0.06, 0.16], [0.035, 0.18]], 20), mat.globe); shade.position.set(0, 0.09, 0.2); g.add(shade);
+        // oval brass backplate with a cast scroll crest and a drop below
+        const bp = G.latheFromProfile([[0, 0], [0.06, 0], [0.065, 0.006], [0.055, 0.014], [0.03, 0.02], [0, 0.022]], 28).rotateX(Math.PI / 2); bp.scale(0.75, 1.5, 1);
+        g.add(new THREE.Mesh(bp, mat.brass));
+        for (const sx of [-1, 1]) { const sc = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.005, 6, 14, Math.PI * 1.4), mat.brass); sc.position.set(sx * 0.022, 0.1, 0.012); sc.rotation.z = sx > 0 ? -0.4 : Math.PI + 0.4 - Math.PI * 0.4; g.add(sc); }
+        const drop = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.014, -0.01], [0.009, -0.03], [0.012, -0.045], [0, -0.06]], 12), mat.brass); drop.position.set(0, -0.09, 0.012); g.add(drop);
+        // S-curved gas arm with a leaf collar and the burner cup
+        const arm = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V3(0, 0, 0.02), V3(0, -0.05, 0.1), V3(0, -0.01, 0.18), V3(0, 0.05, 0.2)]), 16, 0.009, 8), mat.brass); g.add(arm);
+        const col = new THREE.Mesh(G.latheFromProfile([[0, -0.01], [0.016, -0.01], [0.02, 0.0], [0.014, 0.01], [0, 0.012]], 12).rotateX(Math.PI / 2 - 0.6), mat.brass); col.position.set(0, -0.035, 0.08); g.add(col);
+        const cup = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.018, 0], [0.034, 0.012], [0.038, 0.022], [0.03, 0.028], [0, 0.028]], 16), mat.brass); cup.position.set(0, 0.05, 0.2); g.add(cup);
+        // frosted tulip shade, open at the top with a crimped lip
+        const tulip = G.latheFromProfile([[0.022, 0], [0.03, 0.012], [0.048, 0.04], [0.058, 0.08], [0.062, 0.12], [0.07, 0.15], [0.078, 0.158]], 28);
+        const tp = tulip.attributes.position;
+        for (let i = 0; i < tp.count; i++) { const y = tp.getY(i); if (y > 0.13) { const a = Math.atan2(tp.getZ(i), tp.getX(i)); const k = 1 + 0.08 * Math.sin(a * 8) * (y - 0.13) / 0.03; tp.setX(i, tp.getX(i) * k); tp.setZ(i, tp.getZ(i) * k); } }
+        tulip.computeVertexNormals();
+        const shade = new THREE.Mesh(tulip, mat.globe); shade.position.set(0, 0.075, 0.2); g.add(shade);
+        const fl = fx.flame({ height: 0.035, width: 0.01, intensity: 3 }); fl.position.set(0, 0.085, 0.2); fl.userData.keep = true; g.add(fl);
         g.position.set(lx.front(x), 1.95, 0.0); s.grp.add(g);
         const wp = new THREE.Vector3(x, 2.15, Z1 - 0.25);
         const l = new THREE.PointLight(0xffa860, 2.2, 6, 2); l.position.copy(wp); root.add(l); sconceLights.push(l);
@@ -479,8 +503,23 @@ export default {
       sconce(-1.12); sconce(1.12);
       const mg = new THREE.Group();
       const mw = 0.9, mh = 1.5;
-      const glassM = new THREE.MeshPhysicalMaterial({ color: 0x9aa0a8, metalness: 1, roughness: 0.08, envMapIntensity: 1.0, name: 'mirror' });
-      mg.add(new THREE.Mesh(new THREE.PlaneGeometry(mw, mh), glassM));
+      const glassM = new THREE.MeshPhysicalMaterial({ color: 0x8a9098, metalness: 1, roughness: 0.04, envMapIntensity: 1.0, name: 'mirror' });
+      const mirror = new THREE.Mesh(new THREE.PlaneGeometry(mw, mh), glassM); mirror.userData.keep = true; mirror.userData.noBake = true;
+      mg.add(mirror);
+      const fox = foxingTexture(ctx.textures);
+      const foxM = new THREE.MeshStandardMaterial({ map: fox.map, transparent: true, depthWrite: false, roughness: 0.9, metalness: 0, name: 'foxing' });
+      const fp = new THREE.Mesh(new THREE.PlaneGeometry(mw, mh), foxM); fp.position.z = 0.002; fp.userData.noBake = true; fp.userData.noShadow = true; mg.add(fp);
+      // one-off cube capture of the room from the mirror (after the room is in the scene)
+      const cubeRT = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType });
+      const cubeCam = new THREE.CubeCamera(0.05, 20, cubeRT);
+      let mirrorFrames = 0;
+      ctx.onUpdate(() => {
+        if (mirrorFrames++ !== 2) return;
+        mirror.getWorldPosition(cubeCam.position); cubeCam.position.z -= 0.6;
+        mirror.visible = false; fp.visible = false;
+        try { cubeCam.update(ctx.renderer, ctx.scene); glassM.envMap = cubeRT.texture; glassM.envMapIntensity = 0.9; glassM.needsUpdate = true; } catch (e) { console.warn(e); }
+        mirror.visible = true; fp.visible = true;
+      });
       mg.add(new THREE.Mesh(G.frameGeometry(mw, mh, { width: 0.12, depth: 0.07, uvScale: 1 }), mat.frame));
       const crest = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 10), mat.gilt); crest.scale.set(2.2, 0.9, 0.35); crest.position.set(0, mh / 2 + 0.14, 0.04); mg.add(crest);
       mg.position.set(lx.front(-2.0), 1.95, 0.035); s.grp.add(mg);
@@ -640,7 +679,7 @@ export default {
     // volumetric moon beam + dust + low mist
     const winCenter = V3(0, WIN.sill + WIN.h / 2, Z0 - 0.05);
     const beamDir = new THREE.Vector3().subVectors(moonTarget, moonPos).normalize();
-    const shaft = fx.shaft({ center: winCenter, right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h / 2, 0), direction: beamDir, length: 5.2, color: 0x9fb6ff, intensity: 0.38, softness: 0.3, falloff: 1.0, panes: [2, 4], mullion: 0.03, noise: 0.7 });
+    const shaft = fx.shaft({ center: winCenter, right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h / 2, 0), direction: beamDir, length: 5.2, color: 0x9fb6ff, intensity: 0.32, softness: 0.3, falloff: 1.0, panes: [2, 4], mullion: 0.03, noise: 0.35 });
     root.add(shaft);
     root.add(fx.dust({ box: new THREE.Box3(V3(-1.5, 0.15, Z0 + 0.2), V3(0.7, 2.6, 0.6)), count: 520, shafts: [shaft], size: 0.009, intensity: 2.0, ambient: 0.0 }));
     root.add(fx.fog({ box: new THREE.Box3(V3(X0 + 0.1, 0, Z0 + 0.1), V3(X1 - 0.1, 0.5, Z1 - 0.3)), color: 0x0b111e, litColor: 0x33425f, density: 0.45, heightFalloff: 4 }));
