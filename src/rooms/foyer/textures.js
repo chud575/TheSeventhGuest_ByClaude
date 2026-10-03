@@ -240,7 +240,7 @@ void surface(vec2 uv, inout Surface s) {
  * pointsR = radius (normalised) of the eight star points.
  */
 export function medallionTexture(forge, pointsR) {
-  return forge.generate('foyer:medallion', {
+  return forge.generate('foyer:medallion2', {
     size: 2048, aspect: 1, tile: false, uniforms: { uPR: pointsR },
     normalStrength: 0.8,
     glsl: /* glsl */ `
@@ -259,10 +259,21 @@ void surface(vec2 uv, inout Surface s) {
   vec2 p = uv * 2.0 - 1.0;
   float r = length(p);
   float a = atan(p.y, p.x);
-  vec3 nero = marbleCol(p, vec3(0.035, 0.035, 0.04), vec3(0.62, 0.6, 0.58), 1.0, 3.0);
-  vec3 rosso = marbleCol(p, vec3(0.42, 0.09, 0.07), vec3(0.85, 0.7, 0.62), 4.0, 4.0);
-  vec3 verde = marbleCol(p, vec3(0.05, 0.16, 0.11), vec3(0.62, 0.75, 0.68), 9.0, 4.0);
-  vec3 carrara = marbleCol(p, vec3(0.86, 0.85, 0.82), vec3(0.42, 0.43, 0.46), 13.0, 2.5);
+  // field: polished lapis -- deep ultramarine clouds, soft low-frequency veining, a few pyrite flecks
+  vec2 lw = vec2(fbm(p * 1.3 + 2.0, vec2(64.0), 4), fbm(p * 1.3 + 9.0, vec2(64.0), 4));
+  float lc = fbm(p * 1.6 + lw * 0.8, vec2(64.0), 5) * 0.5 + 0.5;
+  float lv = 1.0 - smoothstep(0.0, 0.06, abs(fbm(p * 1.1 + lw * 1.2 + 5.0, vec2(64.0), 4)));
+  vec3 nero = mix(vec3(0.02, 0.03, 0.085), vec3(0.06, 0.09, 0.24), smoothstep(0.3, 0.8, lc));
+  nero = mix(nero, vec3(0.32, 0.36, 0.44), lv * 0.35);
+  float pyr = smoothstep(0.93, 0.98, vnoise(p * 70.0, vec2(1e4))) * smoothstep(0.45, 0.7, lc);
+  nero = mix(nero, vec3(0.7, 0.58, 0.3), pyr * 0.6);
+  vec3 rosso = marbleCol(p, vec3(0.24, 0.045, 0.04), vec3(0.55, 0.36, 0.3), 4.0, 1.6);
+  // malachite heart: concentric botryoidal banding
+  float mb = sin((length(p - vec2(0.02, -0.03)) + 0.04 * fbm(p * 6.0, vec2(64.0), 3)) * 160.0) * 0.5 + 0.5;
+  vec3 verde = mix(vec3(0.01, 0.08, 0.045), vec3(0.08, 0.36, 0.2), pow(mb, 1.6));
+  verde = mix(verde, vec3(0.02, 0.14, 0.08), smoothstep(0.6, 0.9, fbm(p * 3.0 + 1.0, vec2(64.0), 3) * 0.5 + 0.5) * 0.5);
+  // the border ring uses the hall's own aged ivory Carrara (same albedo, veins and polish as the floor)
+  vec3 carrara = marbleCol(p, vec3(0.6, 0.58, 0.53), vec3(0.3, 0.31, 0.33), 13.0, 1.4);
   vec3 brassC = vec3(0.86, 0.66, 0.34);
   vec3 col = nero;
   float metal = 0.0;
@@ -325,12 +336,12 @@ void surface(vec2 uv, inout Surface s) {
   vec3 b = brassC * (0.75 + 0.35 * wear);
   col = mix(col, b, inl);
   metal = inl;
-  rough = mix(0.24 + 0.12 * wear, 0.3 + 0.15 * wear, inl);
+  rough = mix(0.07 + 0.05 * wear, 0.3 + 0.12 * wear, inl);
   col = mix(col, vec3(0.08, 0.07, 0.06), joint * 0.8);
   h = 0.6 - joint * 0.3 - inl * 0.03;
   // scuffs & dull traffic patina
   float scuff = smoothstep(0.55, 0.8, fbm(p * 2.2 + 3.0, vec2(64.0), 5) * 0.5 + 0.5);
-  rough = mix(rough, rough + 0.18, scuff);
+  rough = mix(rough, rough + 0.12, scuff);
   s.albedo = col;
   s.alpha = step(r, 1.0);
   s.height = h; s.rough = rough; s.metal = metal; s.ao = 1.0 - joint * 0.4;
@@ -340,15 +351,15 @@ void surface(vec2 uv, inout Surface s) {
 
 /** Stair runner: crimson Wilton carpet with gold guilloche borders. u across (1.2 m), v along (period 0.6 m). */
 export function carpetTexture(forge) {
-  return forge.generate('foyer:carpet2', {
+  return forge.generate('foyer:carpet3', {
     size: 1024, aspect: 2, tile: true, normalStrength: 1.6,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   float u = uv.x;                    // 0..1 across
   float v = uv.y;                    // 0..1 along (one period)
-  vec3 crimson = vec3(0.3, 0.03, 0.06);     // oxblood-plum Wilton
-  vec3 deep = vec3(0.12, 0.012, 0.035);
-  vec3 gold = vec3(0.62, 0.44, 0.16);
+  vec3 crimson = vec3(0.2, 0.025, 0.03);     // oxblood Wilton
+  vec3 deep = vec3(0.08, 0.012, 0.018);
+  vec3 gold = vec3(0.46, 0.33, 0.13);
   vec3 navy = vec3(0.03, 0.04, 0.1);
   float e = min(u, 1.0 - u);
   vec3 col;
@@ -377,13 +388,21 @@ void surface(vec2 uv, inout Surface s) {
     col = mix(col, gold * 0.8, motif * 0.7);
     col = mix(col, navy * 2.0, (1.0 - smoothstep(0.0, 0.05, length(f))) * 0.9);
   }
-  // worn tread centre
-  float wear = smoothstep(0.4, 0.0, abs(u - 0.5)) * 0.15;
-  col *= (0.82 + 0.3 * pile) * (1.0 - wear * 0.5);
-  col = mix(col, col * vec3(1.1, 1.0, 0.9) + 0.02, wear);
+  // pile: tufted rows plus a soft tonal mottle; the pattern bleeds into the nap
+  float tuft = vnoise(uv * vec2(160.0, 80.0), vec2(160.0, 80.0));
+  float mott = fbm(uv * vec2(3.0, 1.5), vec2(3.0, 1.5), 4) * 0.5 + 0.5;
+  // traffic wear: down the centre of each tread (the nosing, v ~ 0.5 of the period, takes the most), threadbare in patches
+  float centre = smoothstep(0.36, 0.05, abs(u - 0.5));
+  float nose = 0.55 + 0.45 * smoothstep(0.35, 0.0, abs(fract(v * 2.0) - 0.5));
+  float wear = centre * nose * (0.45 + 0.55 * smoothstep(0.35, 0.75, mott));
+  vec3 lum = vec3(dot(col, vec3(0.3, 0.59, 0.11)));
+  col *= (0.78 + 0.28 * pile) * (0.85 + 0.25 * tuft) * (0.9 + 0.2 * mott);
+  col = mix(col, mix(col, lum * 1.4 + vec3(0.05, 0.035, 0.03), 0.6), wear * 0.55);   // crushed, greyed, dusty nap
+  float bare = smoothstep(0.75, 0.95, wear + (tuft - 0.5) * 0.4);
+  col = mix(col, vec3(0.16, 0.12, 0.09) * (0.8 + 0.4 * tuft), bare * 0.5);          // the jute backing shows through
   s.albedo = col;
-  s.height = 0.5 + pile * 0.35 - step(0.12, e) * 0.0;
-  s.rough = 0.95; s.metal = 0.0; s.ao = 0.85 + 0.15 * pile;
+  s.height = 0.5 + pile * 0.25 + tuft * 0.2 - wear * 0.2;
+  s.rough = 0.95; s.metal = 0.0; s.ao = (0.8 + 0.2 * pile) * (0.9 + 0.1 * tuft);
 }`,
   });
 }
@@ -460,60 +479,155 @@ export function clockDialTexture(forge) {
 
 /**
  * Portrait of Henry Stauf, toymaker: a gaunt, bald old man in a wing collar and black silk
- * stock, turned three-quarters, lit by a single high key from the left. The head and bust
- * are a raymarched sculpted SDF (real form, soft shadow, occlusion) so the light models the
- * skull, the sockets and the hooked nose; the result is then "painted": brush-warped,
- * stroke-modulated, varnished and finely crazed. A storm window shows the house behind him.
+ * bow, turned three-quarters, lit by a single high key from the left. Two passes:
+ *  1. the head and bust are a raymarched sculpted SDF (real form, soft shadow, occlusion) so the
+ *     light models the skull, the sockets and the hooked nose ("the underpainting");
+ *  2. paintCanvas() repaints that image with oriented brush strokes that follow the form
+ *     (structure-tensor flow), quantised values, bristle streaks, impasto, canvas weave,
+ *     craquelure and a yellowed varnish.
  */
 export function staufPortraitTexture(forge, aspect) {
-  return forge.generate('foyer:stauf3', {
-    size: 1280, aspect, tile: false, uniforms: { uAsp: aspect, uV: 0, uCoat: [0.028, 0.026, 0.03] }, normalStrength: 0.25,
+  const raw = forge.generate('foyer:stauf5raw', {
+    size: 1280, aspect, tile: false, uniforms: { uAsp: aspect, uV: 0, uCoat: [0.028, 0.026, 0.03] }, normalStrength: 0.0,
     glsl: PORTRAIT_SDF + /* glsl */ `
 vec3 background(vec2 p, vec2 uv) {
-  vec3 col = mix(vec3(0.025, 0.018, 0.014), vec3(0.2, 0.13, 0.075), exp(-length((p - vec2(-0.16, 0.12)) * vec2(1.0, 0.75)) * 3.2));
-  col *= 0.75 + 0.4 * fb2(uv * 4.0 + 2.0, 4);
+  // warm umber ground glowing behind the head, falling to near-black at the edges (soft, painted, never a hard oval)
+  vec3 col = mix(vec3(0.03, 0.022, 0.016), vec3(0.24, 0.15, 0.08), exp(-length((p - vec2(-0.14, 0.13)) * vec2(1.0, 0.72)) * 2.6));
+  col *= 0.7 + 0.5 * fb2(uv * 3.0 + 2.0, 4);
+  col = mix(col, col * vec3(0.7, 0.75, 0.9), smoothstep(0.1, 0.45, length(p)) * 0.5);
   // storm window, upper right: moon, clouds, the house on its hill
   vec2 w = p - vec2(0.21, 0.25);
   float win = sdBox(w, vec2(0.08, 0.12));
   float winArch = length(w - vec2(0.0, 0.12)) - 0.08;
   float inWin = min(win, max(winArch, -(w.y - 0.12)));
   if (inWin < 0.0) {
-    vec3 sky = mix(vec3(0.04, 0.05, 0.08), vec3(0.22, 0.24, 0.28), smoothstep(-0.12, 0.2, w.y));
+    vec3 sky = mix(vec3(0.03, 0.04, 0.07), vec3(0.2, 0.22, 0.27), smoothstep(-0.12, 0.2, w.y));
     float cl = fb2(w * vec2(9.0, 18.0) + 3.0, 5);
-    sky = mix(sky, vec3(0.06, 0.06, 0.08), smoothstep(0.45, 0.7, cl));
-    sky += vec3(0.85, 0.82, 0.7) * smoothstep(0.02, 0.014, length(w - vec2(0.03, 0.11)));
+    sky = mix(sky, vec3(0.05, 0.05, 0.07), smoothstep(0.45, 0.7, cl));
+    sky += vec3(0.8, 0.78, 0.66) * smoothstep(0.02, 0.012, length(w - vec2(0.03, 0.11)));
     float hill = w.y + 0.07 - 0.03 * sin(w.x * 30.0);
     float house = sdBox(w - vec2(-0.015, -0.045), vec2(0.035, 0.03));
     house = min(house, sdBox(w - vec2(-0.03, -0.01), vec2(0.008, 0.03)));
-    vec3 c = mix(sky, vec3(0.012, 0.012, 0.016), smoothstep(0.002, -0.002, min(hill, house)));
-    c += vec3(0.9, 0.6, 0.2) * smoothstep(0.004, 0.0, sdBox(w - vec2(-0.005, -0.045), vec2(0.004, 0.004)));
+    vec3 c = mix(sky, vec3(0.012, 0.012, 0.016), smoothstep(0.003, -0.003, min(hill, house)));
+    c += vec3(0.9, 0.6, 0.2) * smoothstep(0.005, 0.0, sdBox(w - vec2(-0.005, -0.045), vec2(0.004, 0.004)));
     col = c;
   }
-  col = mix(col, vec3(0.05, 0.035, 0.022), smoothstep(0.006, 0.0, abs(inWin) - 0.004));
-  // a faint red drape at the left edge
-  float dr = smoothstep(-0.2, -0.32, p.x + 0.04 * sin(p.y * 30.0)) * 0.6;
-  col = mix(col, vec3(0.14, 0.02, 0.02) * (0.4 + 0.8 * fb2(vec2(p.x * 40.0, p.y * 3.0), 3)), dr);
+  col = mix(col, vec3(0.05, 0.035, 0.022), smoothstep(0.008, 0.0, abs(inWin) - 0.004));
+  // a heavy oxblood drape at the left edge
+  float dr = smoothstep(-0.2, -0.34, p.x + 0.04 * sin(p.y * 30.0)) * 0.75;
+  float fold = 0.35 + 0.9 * pow(0.5 + 0.5 * sin(p.x * 140.0 + 3.0 * fb2(vec2(p.y * 4.0, 1.0), 2)), 2.0);
+  col = mix(col, vec3(0.16, 0.025, 0.02) * fold * (0.6 + 0.6 * smoothstep(-0.4, 0.3, p.y)), dr);
   return col;
 }
 void surface(vec2 uv, inout Surface s) {
-  vec2 b = uv + (vec2(fb2(uv * 11.0, 3), fb2(uv * 11.0 + 5.0, 3)) - 0.5) * 0.0045;
-  vec2 p = (b - 0.5) * vec2(uAsp, 1.0);
-  vec3 col = renderSitter(p, b, background(p, b), 0.0);
-  float strokes = fb2(rot2(fb2(uv * 3.0, 2) * 3.0) * uv * vec2(90.0, 26.0), 3);
-  col *= 0.92 + 0.14 * strokes;
-  col = mix(col, col * vec3(1.0, 0.84, 0.58), 0.45);
-  float edge = min(min(uv.x, 1.0 - uv.x) * uAsp, min(uv.y, 1.0 - uv.y));
-  col *= mix(0.55, 1.0, smoothstep(0.0, 0.09, edge));
-  float oval = sdEllipse(p, vec2(0.47 * uAsp, 0.48));
-  col = mix(col, vec3(0.02, 0.015, 0.012), smoothstep(-0.02, 0.03, oval) * 0.8);
-  vec2 cq = uv * vec2(uAsp, 1.0) * 150.0;
-  float cr = voronoiEdge(cq + (vec2(fb2(uv * 9.0, 3), fb2(uv * 9.0 + 3.0, 3)) - 0.5) * 1.2, vec2(1e4), 1.0);
-  float crack = (1.0 - smoothstep(0.0, 0.04, cr)) * (0.4 + 0.6 * fb2(uv * 6.0, 3));
-  col *= 1.0 - crack * 0.12;
+  vec2 p = (uv - 0.5) * vec2(uAsp, 1.0);
+  vec3 col = renderSitter(p, uv, background(p, uv), 0.0);
   s.albedo = col;
-  s.height = 0.5 + strokes * 0.12 - crack * 0.15;
-  s.rough = 0.3 + strokes * 0.15 + crack * 0.25;
-  s.metal = 0.0; s.ao = 1.0 - crack * 0.2;
+  s.height = 0.5; s.rough = 0.5; s.ao = 1.0;
+  s.metal = gDetail;
+}`,
+  });
+  return paintCanvas(forge, 'foyer:stauf5', raw, aspect, 1280, { varnish: 0.62 });
+}
+
+/**
+ * Oil-painting pass over a raw (underpainting) TextureSet: two layers of oriented brush strokes
+ * (coarse everywhere, fine where the raw's detail mask -- metal channel -- is set), each stroke a
+ * tapered dab whose colour is smeared along its axis and modulated by bristle streaks; soft value
+ * quantisation; impasto height; canvas weave; craquelure; yellowed varnish; darkened edges.
+ */
+export function paintCanvas(forge, key, raw, aspect, size, { varnish = 0.6, coarse = 15, fine = 6 } = {}) {
+  return forge.generate(key, {
+    size, aspect, tile: false, normalStrength: 0.07,
+    uniforms: { tRaw: raw.map, tDet: raw.ormMap, uAsp: aspect, uVarn: varnish, uCoarse: coarse, uFine: fine },
+    glsl: /* glsl */ `
+vec3 l2s(vec3 c) { c = max(c, 0.0); return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
+vec3 rawAt(vec2 uv, float lod) { return l2s(textureLod(tRaw, clamp(uv, 0.0, 1.0), lod).rgb); }
+float lumAt(vec2 uv, float lod) { return sqrt(dot(textureLod(tRaw, clamp(uv, 0.0, 1.0), lod).rgb, vec3(0.3, 0.59, 0.11))); }
+float detAt(vec2 uv) { return textureLod(tDet, clamp(uv, 0.0, 1.0), 2.0).b; }
+// stroke direction: along the isophotes of the (blurred) underpainting, so strokes wrap the form
+vec2 flowAt(vec2 uv, float rpx) {
+  vec2 o = rpx / uResolution;
+  float lod = log2(max(rpx * 0.6, 1.0));
+  vec2 g = vec2(lumAt(uv + vec2(o.x, 0.0), lod) - lumAt(uv - vec2(o.x, 0.0), lod), lumAt(uv + vec2(0.0, o.y), lod) - lumAt(uv - vec2(0.0, o.y), lod));
+  float m = length(g);
+  vec2 def = normalize(vec2(0.55, 0.83));
+  vec2 t = m > 1e-5 ? vec2(-g.y, g.x) / m : def;
+  if (dot(t, def) < 0.0) t = -t;
+  return normalize(mix(def, t, smoothstep(0.004, 0.04, m)) + 1e-4);
+}
+// one layer of dabs on a jittered grid; returns (colour, coverage); h += impasto
+vec4 dabs(vec2 uv, float cellPx, float lenK, float widK, float seed, float lod, float gate, inout float h) {
+  vec2 pix = uv * uResolution;
+  vec2 cell = floor(pix / cellPx);
+  float best = 0.0; vec3 bc = vec3(0.0); float bh = 0.0;
+  for (int j = -2; j <= 2; j++) for (int i = -2; i <= 2; i++) {
+    vec2 cid = cell + vec2(float(i), float(j));
+    vec2 hh = hash22(cid * 1.17 + seed);
+    vec2 cpx = (cid + 0.15 + 0.7 * hh) * cellPx;
+    vec2 cuv = cpx / uResolution;
+    if (gate > 0.5 && detAt(cuv) < 0.5) continue;
+    vec2 t = flowAt(cuv, cellPx * 0.8);
+    t = rot2((hash12(cid * 1.31 + seed) - 0.5) * 0.4) * t;
+    vec2 d = pix - cpx;
+    float a = dot(d, t), b = dot(d, vec2(-t.y, t.x));
+    float L = cellPx * lenK * (0.7 + 0.6 * hash12(cid + 7.1 + seed));
+    float W = cellPx * widK * (0.75 + 0.5 * hash12(cid + 3.3 + seed));
+    float an = clamp(a / L, -1.0, 1.0);
+    float Wt = W * (1.0 - 0.45 * an * an) * (1.0 + 0.15 * an);           // tapered at both ends, loaded at the start
+    float wob = (vnoise(vec2(a * 0.35, cid.x * 3.1 + cid.y), vec2(1e4)) - 0.5) * W * 0.5;   // ragged edges
+    float e = (a * a) / (L * L) + ((b + wob) * (b + wob)) / (Wt * Wt);
+    float cov = 1.0 - smoothstep(0.7, 1.0, e);
+    float pri = cov * (0.35 + hash12(cid * 2.71 + seed + 1.0));
+    if (pri > best) {
+      best = pri;
+      vec3 c = rawAt((cpx + t * a * 0.85) / uResolution, lod);
+      float bristle = vnoise(vec2(a * 0.18, b * 1.9) + cid * 13.7, vec2(1e4));
+      float dry = smoothstep(0.55, 1.0, abs(an)) * (0.5 + 0.5 * bristle);          // dry-brush tail breaks up
+      c *= 0.9 + 0.2 * bristle;
+      bc = c; bh = cov * (0.55 + 0.45 * bristle) - dry * 0.3;
+      best = pri * (1.0 - dry * 0.6);
+    }
+  }
+  float covOut = clamp(best * 1.6, 0.0, 1.0);
+  h = mix(h, 0.5 + bh * 0.5, covOut);
+  return vec4(bc, covOut);
+}
+void surface(vec2 uv, inout Surface s) {
+  float h = 0.45;
+  vec3 col = rawAt(uv, 2.5);                                   // scumbled ground
+  vec4 c1 = dabs(uv, uCoarse, 1.7, 0.42, 1.0, 1.2, 0.0, h);
+  col = mix(col, c1.rgb, c1.a);
+  vec4 c2 = dabs(uv, uFine, 1.6, 0.4, 9.0, 0.0, 1.0, h);
+  float det = detAt(uv);
+  col = mix(col, c2.rgb, c2.a * smoothstep(0.3, 0.7, det));
+  // let the sharpest accents (catch-lights, lid creases) survive the brush
+  vec3 sharp = rawAt(uv, 0.0);
+  float acc = smoothstep(0.08, 0.25, abs(dot(sharp - col, vec3(0.33)))) * smoothstep(0.6, 0.9, det);
+  col = mix(col, sharp, acc * 0.6);
+  // soft value quantisation (painters' value steps), hue preserved
+  float lum = dot(col, vec3(0.3, 0.59, 0.11));
+  float q = (floor(lum * 6.0) + smoothstep(0.3, 0.7, fract(lum * 6.0))) / 6.0;
+  col *= mix(1.0, q / max(lum, 1e-3), 0.4);
+  // canvas weave shows through the thin passages
+  vec2 wv = uv * vec2(uAsp, 1.0) * 260.0;
+  float weave = (sin(wv.x * TAU) * 0.5 + 0.5) * (sin(wv.y * TAU + step(0.5, fract(wv.x * 0.5)) * PI) * 0.5 + 0.5);
+  float thin = 1.0 - smoothstep(0.55, 0.8, h);
+  col *= 1.0 - weave * 0.07 * thin;
+  // craquelure
+  vec2 cq = uv * vec2(uAsp, 1.0) * 120.0;
+  float cr = voronoiEdge(cq + (vec2(fbm(uv * 9.0, vec2(64.0), 3), fbm(uv * 9.0 + 3.0, vec2(64.0), 3))) * 0.6, vec2(1e4), 1.0);
+  float crack = (1.0 - smoothstep(0.0, 0.035, cr)) * (0.35 + 0.65 * (fbm(uv * 6.0, vec2(64.0), 3) * 0.5 + 0.5));
+  col *= 1.0 - crack * 0.22;
+  // yellowed, unevenly cleaned varnish
+  float vn = fbm(uv * 2.5 + 4.0, vec2(64.0), 4) * 0.5 + 0.5;
+  col = mix(col, col * vec3(0.85, 0.72, 0.5), uVarn * (0.75 + 0.5 * vn));
+  float edge = min(min(uv.x, 1.0 - uv.x) * uAsp, min(uv.y, 1.0 - uv.y));
+  col *= mix(0.5, 1.0, smoothstep(0.0, 0.12, edge));
+  s.albedo = col;
+  s.height = h + weave * 0.04 * thin - crack * 0.18;
+  s.rough = 0.4 + (1.0 - h) * 0.15 + crack * 0.3;
+  s.metal = 0.0; s.ao = 1.0 - crack * 0.25;
 }`,
   });
 }
@@ -521,6 +635,7 @@ void surface(vec2 uv, inout Surface s) {
 // Raymarched sitter: sculpted head & bust. renderSitter(p, uv, bg, variant)
 const PORTRAIT_SDF = /* glsl */ `
 float fb2(vec2 p, int o) { return fbm(p, vec2(64.0), o) * 0.5 + 0.5; }
+float gDetail = 0.0;   // detail mask for the paint pass (face = 1, linen/silk = 0.6)
 float sdEll(vec3 p, vec3 r) { float k0 = length(p / r); float k1 = length(p / (r * r)); return k0 * (k0 - 1.0) / max(k1, 1e-6); }
 float sdCap(vec3 p, vec3 a, vec3 b, float r) { vec3 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h) - r; }
 float smin3(float a, float b, float k) { float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0); return mix(b, a, h) - k * h * (1.0 - h); }
@@ -554,6 +669,12 @@ float headSDF(vec3 q, out float mat) {
   d = smin3(d, sdCap(q, vec3(0.0, 0.006, 0.086), vec3(0.0, -0.03 * nz, 0.086 + 0.022 * nz), 0.0085 * nz), 0.012); // nose bridge
   d = smin3(d, length(q - vec3(0.0, -0.033 * nz, 0.083 + 0.021 * nz)) - 0.011 * nz, 0.008);                  // tip
   d = smin3(d, length(m - vec3(0.012, -0.036, 0.09)) - 0.0085, 0.008);                // wings
+  if (uV < 0.5) {
+    d = smin3(d, length(q - vec3(0.0, -0.012, 0.1)) - 0.0072, 0.01);                     // the hook on the bridge
+    d = smin3(d, length(q - vec3(0.0, -0.04, 0.104)) - 0.0075, 0.008);                   // a tip that droops over the lip
+    d = smin3(d, sdCap(q, vec3(-0.03, 0.022, 0.082), vec3(-0.008, 0.012, 0.09), 0.006), 0.008);   // knotted brows, pulled down
+    d = smin3(d, sdCap(q, vec3(0.03, 0.024, 0.082), vec3(0.008, 0.013, 0.09), 0.006), 0.008);
+  }
   d = smin3(d, sdEll(q - vec3(0.002, -0.061, 0.087), vec3(0.021, 0.0055, 0.009)), 0.006);  // thin lips
   d = smax3(d, -sdCap(q, vec3(-0.022, -0.061, 0.093), vec3(0.024, -0.056, 0.093), 0.0022), 0.003); // the mouth line, lifted at his left
   d = smin3(d, sdEll(q - vec3(0.0, -0.096, 0.06), vec3(0.02, 0.016, 0.017)), 0.016);  // pointed chin
@@ -584,8 +705,9 @@ float headSDF(vec3 q, out float mat) {
     if (hair < d) { d = hair; mat = 5.0; }
   }
   // heavy hooded upper lids and a lower lid roll (skin), drawn over the eyeballs
-  d = smin3(d, sdEll(m - vec3(0.029, 0.007, 0.075), vec3(0.016, 0.0065, 0.009)), 0.004);
-  d = smin3(d, sdEll(m - vec3(0.029, -0.011, 0.074), vec3(0.014, 0.004, 0.007)), 0.004);
+  float nar = uV < 0.5 ? 1.0 : 0.0;     // Stauf narrows his eyes
+  d = smin3(d, sdEll(m - vec3(0.029, 0.007 - 0.0018 * nar, 0.075 + 0.0012 * nar), vec3(0.016, 0.0065 + 0.0008 * nar, 0.009)), 0.004);
+  d = smin3(d, sdEll(m - vec3(0.029, -0.011 + 0.0012 * nar, 0.074), vec3(0.014, 0.004 + 0.0005 * nar, 0.007)), 0.004);
   float eye = length(m - vec3(0.029, -0.001, 0.0675)) - 0.0105;
   if (eye < d) { d = eye; mat = 1.0; }
   return d;
@@ -599,10 +721,12 @@ float bodySDF(vec3 p, out float mat) {
   // wing collar: a short tube round the neck, open at the front
   vec3 c = toHead(p);
   float ring = max(abs(length(c.xz - vec2(0.0, -0.012)) - (uV > 1.5 ? 0.038 : 0.041)) - 0.003, abs(c.y + 0.155) - (uV > 1.5 ? 0.03 : 0.022));
-  float wings = sdEll(vec3(abs(c.x), c.y, c.z) - vec3(0.016, -0.17, 0.035), vec3(0.016, 0.008, 0.006));
+  float wings = sdEll(vec3(abs(c.x), c.y, c.z) - vec3(0.014, -0.168, 0.033), vec3(0.011, 0.006, 0.005));
   float collar = min(ring, wings);
   if (collar < coat) { coat = collar; mat = 3.0; }
-  float stock = uV > 1.5 ? length(c - vec3(0.0, -0.19, 0.04)) - 0.012 : sdEll(c - vec3(0.0, -0.183, 0.03), vec3(0.03, 0.02, 0.014));
+  vec3 cb = c - vec3(0.0, -0.184, 0.034);
+  float bow = min(sdEll(vec3(abs(cb.x) - 0.017, cb.y + abs(cb.x) * 0.0 , cb.z), vec3(0.017, 0.012 + abs(cb.x) * 0.25, 0.008)), length(cb) - 0.0075);
+  float stock = uV > 1.5 ? length(c - vec3(0.0, -0.19, 0.04)) - 0.012 : bow;
   if (stock < coat) { coat = stock; mat = uV > 1.5 ? 6.0 : 4.0; }
   return coat;
 }
@@ -660,6 +784,7 @@ vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
   float rim = pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 3.0) * clamp(dot(n, normalize(vec3(0.9, 0.3, -0.2))), 0.0, 1.0);
   vec3 alb; float sp = 0.0;
   vec3 hp = toHead(pos);
+  gDetail = mat < 1.5 || mat > 4.5 ? 1.0 : (mat > 2.5 ? 0.6 : 0.0);
   if (mat < 0.5) {
     alb = uV > 1.5 ? vec3(0.74, 0.6, 0.52) : vec3(0.64, 0.5, 0.41);
     alb *= 0.9 + 0.2 * fb2(uv * 70.0, 3);                                     // mottled old skin
@@ -678,8 +803,8 @@ vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
   } else if (mat < 2.5) {
     alb = uCoat * (0.85 + 0.3 * fb2(uv * 30.0, 3));
     sp = uV > 1.5 ? 0.5 : 0.08;
-  } else if (mat < 3.5) { alb = vec3(0.78, 0.75, 0.66) * (uV > 1.5 ? 0.85 + 0.25 * sin(atan(hp.z, hp.x) * 40.0) : 1.0); sp = 0.1; }
-  else if (mat < 4.5) { alb = vec3(0.02, 0.018, 0.022); sp = 0.5; }
+  } else if (mat < 3.5) { alb = vec3(0.42, 0.39, 0.33) * (uV > 1.5 ? 0.85 + 0.25 * sin(atan(hp.z, hp.x) * 40.0) : 1.0); sp = 0.1; }
+  else if (mat < 4.5) { alb = vec3(0.012, 0.011, 0.014) * (0.8 + 0.4 * fb2(uv * 90.0, 2)); sp = 0.2; }
   else if (mat < 5.5) {
     float str = fb2(vec2(atan(hp.z, hp.x) * 30.0, hp.y * 60.0), 3);
     alb = (uV < 1.5 ? vec3(0.55, 0.53, 0.5) : vec3(0.1, 0.065, 0.04)) * (0.7 + 0.6 * str);
@@ -688,15 +813,24 @@ vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
   vec3 key = vec3(1.0, 0.86, 0.66) * 2.1;
   vec3 col = alb * (key * mix(wrap * 0.25, dif, 0.8) * mix(0.12, 1.0, sh) + vec3(0.1, 0.12, 0.16) * fill * 0.6 + vec3(0.05, 0.04, 0.035)) * ao;
   col += key * spec * sp * sh * 0.25;
+  // a single hard catch-light in each eye
+  if (mat > 0.5 && mat < 1.5) col += vec3(1.0, 0.92, 0.8) * pow(clamp(dot(n, H), 0.0, 1.0), 900.0) * 2.5 * sh;
   col += vec3(0.25, 0.3, 0.4) * rim * 0.25 * ao;
   // the shirt front V under the stock
   if (mat > 1.5 && mat < 2.5 && uV < 1.5) {
     vec3 b = pos;
     float vee = max(abs(b.x + 0.025) - (b.y + 0.27) * 0.32, b.y + 0.085);
-    col = mix(col, vec3(0.5, 0.47, 0.41) * (key * mix(0.3, 1.0, dif) * mix(0.25, 1.0, sh) * (0.6 + 0.6 * smoothstep(0.05, -0.08, b.x)) + 0.04) * ao, smoothstep(0.004, -0.004, vee) * step(-0.36, b.y));
+    // a pleated, rumpled shirt-front: greyed linen, folds and creases, falling into shadow
+    float pleat = 0.9 + 0.1 * sin((b.x + 0.025) * 520.0 + fb2(b.xy * 40.0, 2) * 3.0);
+    float crease = 0.8 + 0.35 * fb2(vec2(b.x * 60.0, b.y * 22.0), 3);
+    vec3 shirt = vec3(0.36, 0.33, 0.28) * pleat * crease;
+    float inV = smoothstep(0.004, -0.004, vee) * step(-0.36, b.y);
+    col = mix(col, shirt * (key * mix(0.2, 1.0, dif) * mix(0.2, 1.0, sh) * (0.45 + 0.6 * smoothstep(0.05, -0.08, b.x)) * smoothstep(-0.36, -0.12, b.y) + 0.03) * ao, inV);
+    gDetail = max(gDetail, inV * 0.7);
     // lapel edges catch the key
     float lap = min(abs(b.x + 0.025 - (b.y + 0.27) * 0.32 - 0.012), abs(b.x + 0.025 + (b.y + 0.27) * 0.32 + 0.012)) - 0.002;
-    col += vec3(0.05, 0.045, 0.04) * smoothstep(0.004, 0.0, lap) * step(b.y, -0.09) * dif;
+    col += vec3(0.07, 0.065, 0.06) * smoothstep(0.005, 0.0, lap) * step(b.y, -0.09) * (dif + 0.2);   // satin lapel facings catch the key
+    col += key * 0.03 * pow(clamp(dot(n, H), 0.0, 1.0), 12.0) * sh * (1.0 - inV);                        // sheen on the black broadcloth
     // a gold watch chain looping from a waistcoat button (lower arc only)
     float ch = abs(length((b.xy - vec2(0.07, -0.27)) * vec2(1.0, 2.4)) - 0.06) - 0.0014;
     col += vec3(0.9, 0.62, 0.22) * 0.5 * smoothstep(0.002, 0.0, ch) * step(0.03, b.x) * step(b.x, 0.12) * step(b.y, -0.27) * dif;
@@ -770,31 +904,20 @@ void surface(vec2 uv, inout Surface s) {
  * sitter + brushwork + varnish): o = { v: 1 bearded patriarch | 2 lady, ground:[r,g,b], coat:[r,g,b] }
  */
 export function ancestorPortraitTexture(forge, aspect, o = {}) {
-  return forge.generate(`foyer:ancestor2:${JSON.stringify(o)}:${aspect.toFixed(3)}`, {
-    size: 1024, aspect, tile: false, normalStrength: 0.25,
+  const key = `foyer:ancestor3:${JSON.stringify(o)}:${aspect.toFixed(3)}`;
+  const raw = forge.generate(key + ':raw', {
+    size: 1024, aspect, tile: false, normalStrength: 0.0,
     uniforms: { uAsp: aspect, uV: o.v ?? 1, uCoat: o.coat || [0.03, 0.028, 0.032], uGround: o.ground || [0.16, 0.12, 0.07] },
     glsl: PORTRAIT_SDF + /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
-  vec2 b = uv + (vec2(fb2(uv * 11.0, 3), fb2(uv * 11.0 + 5.0, 3)) - 0.5) * 0.0045;
-  vec2 p = (b - 0.5) * vec2(uAsp, 1.0);
-  vec3 bg = mix(uGround * 0.15, uGround, exp(-length((p - vec2(-0.12, 0.12)) * vec2(1.0, 0.8)) * 3.0));
-  bg *= 0.75 + 0.4 * fb2(b * 4.0 + uV, 4);
-  vec3 col = renderSitter(p + vec2(0.0, -0.02), b, bg, uV);
-  float strokes = fb2(rot2(fb2(uv * 3.0, 2) * 3.0) * uv * vec2(90.0, 26.0), 3);
-  col *= 0.92 + 0.14 * strokes;
-  col = mix(col, col * vec3(1.0, 0.84, 0.58), 0.45);
-  float edge = min(min(uv.x, 1.0 - uv.x) * uAsp, min(uv.y, 1.0 - uv.y));
-  col *= mix(0.55, 1.0, smoothstep(0.0, 0.09, edge));
-  float oval = sdEllipse(p, vec2(0.46 * uAsp, 0.47));
-  col = mix(col, uGround * 0.1, smoothstep(-0.02, 0.03, oval) * 0.85);
-  vec2 cq = uv * vec2(uAsp, 1.0) * 130.0;
-  float cr = voronoiEdge(cq + (vec2(fb2(uv * 9.0, 3), fb2(uv * 9.0 + 3.0, 3)) - 0.5) * 1.2, vec2(1e4), 1.0);
-  float crack = (1.0 - smoothstep(0.0, 0.04, cr)) * (0.4 + 0.6 * fb2(uv * 6.0, 3));
-  col *= 1.0 - crack * 0.12;
+  vec2 p = (uv - 0.5) * vec2(uAsp, 1.0);
+  vec3 bg = mix(uGround * 0.12, uGround, exp(-length((p - vec2(-0.12, 0.12)) * vec2(1.0, 0.8)) * 2.6));
+  bg *= 0.7 + 0.5 * fb2(uv * 3.0 + uV, 4);
+  vec3 col = renderSitter(p + vec2(0.0, -0.02), uv, bg, uV);
   s.albedo = col;
-  s.height = 0.5 + strokes * 0.12 - crack * 0.15;
-  s.rough = 0.3 + strokes * 0.15 + crack * 0.25;
-  s.metal = 0.0; s.ao = 1.0 - crack * 0.2;
+  s.height = 0.5; s.rough = 0.5; s.ao = 1.0;
+  s.metal = gDetail;
 }`,
   });
+  return paintCanvas(forge, key, raw, aspect, 1024, { varnish: 0.7, coarse: 13, fine: 5 });
 }

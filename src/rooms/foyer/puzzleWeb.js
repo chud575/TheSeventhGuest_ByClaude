@@ -84,15 +84,18 @@ export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials,
   const spiders = [];
   const home = [];
   for (let k = 0; k < SP; k++) {
-    const a = -Math.PI / 2 + (k - (SP - 1) / 2) * 0.22;  // texture angle near -90deg = world +z (near side)
-    const r = radius * 0.875;
+    // loosely scattered round the near rim, each at its own angle -- a nest, not a parade
+    const jit = [[0.03, 0.0], [-0.05, 0.05], [0.06, -0.06], [-0.02, 0.03], [0.05, 0.07], [-0.06, -0.04], [0.02, 0.06]][k];
+    const a = -Math.PI / 2 + (k - (SP - 1) / 2) * 0.33 + jit[0] * 2.0;   // texture angle near -90deg = world +z (near side)
+    const r = radius * (0.875 + jit[1]);
     home.push(new THREE.Vector3(center.x + Math.cos(a) * r, center.y + 0.004, center.z - Math.sin(a) * r));
     const sp = new THREE.Group();
     const body = new THREE.Mesh(spiderGeo.body, materials.spider); body.castShadow = true; sp.add(body);
     const legs = new THREE.Mesh(spiderGeo.legs, materials.spiderLeg || materials.spider); legs.castShadow = true; sp.add(legs);
     const m = new THREE.Mesh(spiderGeo.hourglass, materials.mark); sp.add(m);
     sp.position.copy(home[k]);
-    sp.rotation.y = Math.PI + (k - 3) * 0.12;   // face the board centre
+    const restYaw = (kk) => Math.PI + (kk - 3) * 0.16 + [0.5, -0.9, 0.3, 1.4, -0.4, 0.8, -1.2][kk];
+    sp.rotation.y = restYaw(k);
     sp.scale.setScalar(2.1);
     group.add(sp);
     spiders.push(sp);
@@ -114,7 +117,7 @@ export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials,
   }
   function resetState() {
     occ = new Array(N).fill(false); placed = 0; selected = -1; anim = null; moves.length = 0;
-    spiders.forEach((sp, k) => { sp.position.copy(home[k]); sp.rotation.y = Math.PI + (k - 3) * 0.12; });
+    spiders.forEach((sp, k) => { sp.position.copy(home[k]); sp.rotation.y = Math.PI + (k - 3) * 0.16 + [0.5, -0.9, 0.3, 1.4, -0.4, 0.8, -1.2][k]; });
     refreshRings();
   }
   function applySolved() {

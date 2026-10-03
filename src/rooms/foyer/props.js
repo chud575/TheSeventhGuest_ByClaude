@@ -441,6 +441,25 @@ export function spiderGeometry(G) {
     c.applyQuaternion(q); c.translate(a.x, a.y, a.z);
     legs.push(c);
     const j = new THREE.SphereGeometry(r0 * 1.15, 6, 4); j.translate(a.x, a.y, a.z); legs.push(j);
+    // bristles: fine setae splayed off every segment (they catch the rim light)
+    const nH = Math.max(4, Math.round(len / 0.004));
+    const dn = d.clone();
+    const side = new THREE.Vector3(0, 1, 0).cross(dn).normalize();
+    if (side.lengthSq() < 1e-6) side.set(1, 0, 0);
+    const up = dn.clone().cross(side).normalize();
+    for (let k = 0; k < nH; k++) {
+      const t = (k + 0.5) / nH;
+      const ang = k * 2.39996 + len * 100;
+      const out = side.clone().multiplyScalar(Math.cos(ang)).addScaledVector(up, Math.sin(ang));
+      const hl = 0.004 + 0.003 * ((k * 7) % 3) / 2;
+      const hdir = out.clone().multiplyScalar(0.8).addScaledVector(dn, 0.6).normalize();
+      const hc = new THREE.ConeGeometry(0.00045, hl, 3, 1);
+      hc.translate(0, hl / 2, 0);
+      hc.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), hdir));
+      const base = a.clone().addScaledVector(dn, len * t).addScaledVector(out, (r0 + (r1 - r0) * t) * 0.8);
+      hc.translate(base.x, base.y, base.z);
+      legs.push(hc);
+    }
   };
   for (let side = -1; side <= 1; side += 2) {
     for (let i = 0; i < 4; i++) {
