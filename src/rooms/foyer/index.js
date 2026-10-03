@@ -419,7 +419,7 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
       doorObjs.front.add(back);
     }
     // one leaf of each double door stands well open, the other barely off the latch
-    for (const k of ['dining', 'library', 'music']) { const lv = doorObjs[k].userData.leaves; if (lv?.length === 2) { lv[0].rotation.y = -0.06; lv[1].rotation.y = k === 'music' ? 0.45 : 0.55; } }
+    for (const k of ['dining', 'library', 'music']) { const lv = doorObjs[k].userData.leaves; if (lv?.length === 2) { lv[0].rotation.y = -0.08; lv[1].rotation.y = k === 'music' ? 0.75 : 1.05; } }
     // light from the rooms beyond pours through every ajar door: a lit void behind the leaves + a soft spill into the hall
     const spill = (key, wall, along, d, color, gain, areaI, flick) => {
       const obj = doorObjs[key];
@@ -648,7 +648,7 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
     gutter(false);
     // one shadowed key hung just below the crystal cascade: far enough from the brass that nothing blows out
     const chandLight = new THREE.PointLight(0xffc088, 16, 16, 2);
-    chandLight.position.copy(chand.lightAnchor).add(chand.group.position).add(V3(0, -0.92, 0));
+    chandLight.position.copy(chand.lightAnchor).add(chand.group.position).add(V3(0, -1.15, 0));
     chandLight.castShadow = Q.shadows; chandLight.name = 'chand';
     chandLight.shadow.mapSize.set(512, 512);
     chandLight.shadow.bias = -0.004; chandLight.shadow.normalBias = 0.04; chandLight.shadow.radius = 5;
@@ -710,7 +710,7 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
       tube.rotation.z = Math.PI / 2; tube.position.set(DOORS.music.x, top - 0.155, Z0 + 0.36); tube.userData.noBake = true; add(tube, { cast: false });
       // the picture light washes the whole canvas, its falloff centred on the face rather than parked on the top rail
       // high and well forward, so the varnish glare reflects down onto the gallery floor, never back at the viewer
-      const pLight = new THREE.SpotLight(0xffb878, 34, 10, 0.55, 0.95, 2);
+      const pLight = new THREE.SpotLight(0xffb878, 55, 10, 0.55, 0.95, 2);
       pLight.position.set(DOORS.music.x - 0.25, PY + 1.3, Z0 + 1.6);
       pLight.target.position.set(DOORS.music.x, PY - 0.45, Z0);
       root.add(pLight, pLight.target);
@@ -889,6 +889,34 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
       s2.position.set(lx.right(sz), y, 0.02); walls.right.group.add(s2);
       const l = new THREE.PointLight(0xffa860, 3.5, 4, 2); l.position.set(X1 - 0.32, y + 0.12, sz); root.add(l); sconceLights.push(l);
     }
+    // the clock: a warm grazing light from the sconce side models the hood, trunk door and plinth
+    {
+      const gl = new THREE.SpotLight(0xffaa66, 7, 6, 0.38, 0.75, 2);
+      gl.position.set(X0 + 1.6, 2.7, -2.5); gl.target.position.set(X0 + 0.2, 1.25, -3.75);
+      gl.name = 'clockGraze';
+      root.add(gl, gl.target);
+      // ebony-and-boxwood stringing / crossbanding round the trunk door and the base panel
+      const band = (w, h, y, z) => {
+        const f = new THREE.Mesh(G.frameGeometry(w, h, { width: 0.018, depth: 0.004, uvScale: 1 }), mat.dark);
+        f.position.set(0, y, z); clock.add(f);
+        const f2 = new THREE.Mesh(G.frameGeometry(w + 0.05, h + 0.05, { width: 0.008, depth: 0.003, uvScale: 1 }), mat.gilt);
+        f2.position.set(0, y, z); clock.add(f2);
+      };
+      band(0.33, 0.74, 1.08, 0.127); band(0.46, 0.32, 0.32, 0.157);
+      // a brass break-arch moulding over the dial
+      const arc = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.012, 8, 32, Math.PI), mat.brass);
+      arc.position.set(0, 2.0, 0.155); clock.add(arc);
+    }
+    for (const lv of doorObjs.front.userData.leaves || []) {
+      const leaf = lv.children[0];
+      const side = leaf.position.x > 0 ? 1 : -1;
+      const kn = new THREE.Group();
+      const boss = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.045, 0], [0.05, 0.01], [0.035, 0.022], [0.0, 0.03]], 24), mat.brass); boss.rotation.x = Math.PI / 2; kn.add(boss);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.011, 10, 32), mat.brass); ring.position.set(0, -0.075, 0.035); kn.add(ring);
+      void side;
+      kn.position.set(0, 1.62, 0.03);
+      leaf.add(kn);
+    }
     // the clock face catches the sconce beside it
     {
       const cs = new THREE.SpotLight(0xffb070, 5, 4, 0.32, 0.6, 2);
@@ -901,7 +929,9 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
     // ================================================================ chandelier crystal, halos, caustics
     {
       // cut lead crystal: clear, high-IOR, flat facets; a whisper of warm self-glow (candlelight trapped in the glass)
-      const cut = new THREE.MeshPhysicalMaterial({ color: 0xe8eeff, roughness: 0.08, metalness: 0.0, ior: 2.1, specularIntensity: 1, specularColor: new THREE.Color(1, 0.95, 0.9), clearcoat: 1, clearcoatRoughness: 0.02, iridescence: 0.6, iridescenceIOR: 1.7, envMapIntensity: 2.4, flatShading: true, emissive: new THREE.Color(1.0, 0.62, 0.3), emissiveIntensity: 0.12 });
+      const cut = new THREE.MeshPhysicalMaterial({ color: 0xe8eeff, roughness: 0.08, metalness: 0.0, ior: 2.1, specularIntensity: 1, specularColor: new THREE.Color(1, 0.95, 0.9), clearcoat: 1, clearcoatRoughness: 0.02, iridescence: 0.6, iridescenceIOR: 1.7, envMapIntensity: 1.5, flatShading: true, emissive: new THREE.Color(1.0, 0.62, 0.3), emissiveIntensity: 0.03 });
+      // the cut glass is mostly dark: only facets that face a flame or the key flash (no milky blown-out core)
+      cut.color.setRGB(0.55, 0.58, 0.64);
       const bead = new THREE.OctahedronGeometry(0.014, 0); bead.scale(1, 1.3, 1);
       const prism = new THREE.OctahedronGeometry(0.03, 0); prism.scale(0.55, 2.4, 0.3);     // pendalogue
       const ball = new THREE.IcosahedronGeometry(0.022, 0);
@@ -952,7 +982,7 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
       const haloMat = new THREE.SpriteMaterial({ map: haloTex, color: new THREE.Color(1.2, 0.9, 0.6), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
       const halos = [];
       const addHalo = (parent, y, s) => { const sp = new THREE.Sprite(haloMat); sp.scale.setScalar(s); sp.position.y = y; sp.renderOrder = 8; sp.userData.noBake = true; parent.add(sp); halos.push(sp); return sp; };
-      chand.candles.forEach((c) => { const f = c.userData.flame; if (f) { const h = addHalo(c, f.position.y + 0.02, 0.16); h.userData.flame = f; } });
+      chand.candles.forEach((c) => { const f = c.userData.flame; if (f) { const h = addHalo(c, f.position.y + 0.02, 0.26); h.userData.flame = f; } });
       ctx.onUpdate(() => halos.forEach((h) => { if (h.userData.flame) h.visible = h.userData.flame.visible; }));
       ctx._addHalo = addHalo;
       // caustic dapple: light scattered by the prisms onto the rose and the coffers
@@ -1109,9 +1139,9 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
     const fill = new THREE.HemisphereLight(0x2a3a5a, 0x1a120c, Number(ctx.params.get('hemi') || 0.16));
     root.add(fill);
     // moon bounce off the marble onto the long side walls: wide, low, cool washes so the damask, pictures and doors hold
-    root.add(fx.areaLight({ center: [X0 + 0.25, 2.2, 0.5], normal: [1, 0.15, 0], width: 11.0, height: 3.4, color: 0x5a7ab8, intensity: 0.55 }));
+    root.add(fx.areaLight({ center: [X0 + 0.25, 2.2, 0.5], normal: [1, 0.15, 0], width: 11.0, height: 3.4, color: 0x5a7ab8, intensity: 1.0 }));
     root.add(fx.areaLight({ center: [X1 - 0.25, 2.2, 4.4], normal: [-1, 0.15, 0], width: 5.0, height: 3.4, color: 0x5a7ab8, intensity: 0.5 }));
-    root.add(fx.areaLight({ center: [-2.4, UF + 1.6, -4.0], normal: [0, -0.1, -1], width: 6.0, height: 2.6, color: 0x5a7ab8, intensity: 0.45 }));
+    root.add(fx.areaLight({ center: [-2.4, UF + 1.6, -4.0], normal: [0, -0.1, -1], width: 6.0, height: 2.6, color: 0x5a7ab8, intensity: 1.3 }));
     const AREA = Number(ctx.params.get('area') || 8);   // the great window and the clerestories are the cool key on the walls
     root.add(fx.areaLight({ center: [0, WIN.great.y + 1.3, Z1 - 0.05], normal: [0, -0.35, -1], width: WIN.great.w, height: WIN.great.h, color: 0x84a8e6, intensity: 2.6 * AREA }));
     root.add(fx.areaLight({ center: [0, 1.6, Z1 - 0.05], normal: [0, -0.1, -1], width: 3.0, height: 3.2, color: 0x7c9ad8, intensity: 0.25 }));

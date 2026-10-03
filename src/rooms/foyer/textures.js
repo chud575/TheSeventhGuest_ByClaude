@@ -11,12 +11,15 @@
 // interior surface (oxidised lead came, near-black glass) with a came relief normal.
 const GLASS_COMMON = /* glsl */ `
 // seedy, streaky antique glass: returns a brightness modulation around 1
+float gLeadJit = 0.0;   // hand-cut cames wander a little (set per fragment by antique())
 float antique(vec2 uv, float k) {
+  gLeadJit = (vnoise(uv * 37.0 + k, vec2(37.0)) - 0.5) * 0.007 + (vnoise(uv * 113.0 + k, vec2(113.0)) - 0.5) * 0.002;
   float s = fbm(uv * vec2(2.0, 11.0) + k, vec2(2.0, 11.0), 4) * 0.5 + 0.5;      // vertical draw streaks
   float w = fbm(uv * 5.0 + k * 3.1, vec2(5.0), 3) * 0.5 + 0.5;                  // broad thickness waves
   float b = vnoise(uv * 160.0 + k * 7.0, vec2(160.0));                         // seeds (bubbles)
   float b2 = vnoise(uv * 90.0 + k * 3.0, vec2(90.0));
-  return (0.7 + 0.38 * s) * (0.82 + 0.3 * w) - 0.07 * smoothstep(0.86, 0.97, b) + 0.04 * smoothstep(0.9, 0.99, b2);
+  float ring = smoothstep(0.93, 0.975, b) - smoothstep(0.975, 0.99, b);           // bubbles: dark rim, bright core
+  return (0.66 + 0.44 * s) * (0.78 + 0.36 * w) - 0.16 * ring + 0.1 * smoothstep(0.985, 0.995, b) + 0.06 * smoothstep(0.9, 0.99, b2);
 }
 // per-pane value + slight hue jitter (each piece of glass was cut from a different sheet)
 vec3 paneJitter(vec3 c, vec2 id) {
@@ -38,7 +41,7 @@ vec3 glassPal(float i) {
   if (i < 6.5) return vec3(0.7, 0.52, 0.2);
   return vec3(0.62, 0.58, 0.46);
 }
-float leadLine(float d, float w) { return 1.0 - smoothstep(w * 0.55, w, abs(d)); }
+float leadLine(float d, float w) { float ww = w * (0.85 + 60.0 * abs(gLeadJit)); return 1.0 - smoothstep(ww * 0.55, ww, abs(d + gLeadJit * 0.6)); }
 void glassOut(inout Surface s, vec2 uv, vec3 col, float lead, float alpha) {
   lead = clamp(lead, 0.0, 1.0);
   if (uMode < 0.5) {
@@ -61,7 +64,7 @@ void glassOut(inout Surface s, vec2 uv, vec3 col, float lead, float alpha) {
 
 /** Fanlight over the front door: a half sunburst. UV covers the bounding rect (aspect 2:1). */
 export function fanlightTexture(forge, mode = 0) {
-  return forge.generate(`foyer:fanlight2:${mode}`, {
+  return forge.generate(`foyer:fanlight3:${mode}`, {
     size: 1024, aspect: 2, tile: false, uniforms: { uMode: mode }, normalStrength: 2.5,
     glsl: GLASS_COMMON + /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
@@ -853,7 +856,6 @@ vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
       alb = mix(alb, vec3(0.66, 0.36, 0.3), smoothstep(0.035, 0.0, length(vec2(abs(hp.x) - 0.042, hp.y + 0.03))) * 0.3);
       alb = mix(alb, alb * vec3(0.84, 0.9, 0.92), smoothstep(-0.05, -0.09, hp.y) * 0.6);
       alb = mix(alb, vec3(0.38, 0.26, 0.18), smoothstep(0.66, 0.8, fb2(hp.xz * 70.0 + 3.0, 3)) * smoothstep(0.04, 0.09, hp.y) * 0.55);
-      alb = mix(alb, vec3(0.6, 0.38, 0.4), smoothstep(0.016, 0.0, length(vec2(abs(hp.x) - 0.03, hp.y + 0.016))) * 0.25);   // raw lower lids
     }
     alb = mix(alb, alb * vec3(0.8, 0.75, 0.85), smoothstep(0.0, 0.02, -hp.y - 0.06) * 0.3);  // stubble shadow
     // grey wisps of hair over the ears and the back of the skull
@@ -935,8 +937,8 @@ float warpedVein(vec2 q, float k, out float halo) {
   vec2 w1 = vec2(fbm(q * 1.1 + k, vec2(1e3), 5), fbm(q * 1.1 + k + 5.2, vec2(1e3), 5));
   vec2 w2 = vec2(fbm(q * 2.3 + w1 * 1.6 + k * 1.7, vec2(1e3), 4), fbm(q * 2.3 + w1 * 1.6 + k * 2.3 + 1.3, vec2(1e3), 4));
   float v = fbm(q * 0.9 + w2 * 0.9 + k * 0.3, vec2(1e3), 6);
-  halo = 1.0 - smoothstep(0.0, 0.16, abs(v));
-  return 1.0 - smoothstep(0.004, 0.028, abs(v));
+  halo = 1.0 - smoothstep(0.0, 0.2, abs(v));
+  return 1.0 - smoothstep(0.006, 0.045, abs(v));
 }
 void surface(vec2 uv, inout Surface s) {
   const float T = 4.0;
@@ -960,8 +962,8 @@ void surface(vec2 uv, inout Surface s) {
     // aged Carrara: ivory with grey drifts, the odd grey vein; never paper white
     vec3 base = vec3(0.6, 0.58, 0.53) * (0.9 + 0.14 * h1) * vec3(1.0 + (h2 - 0.5) * 0.05, 1.0, 1.0 - (h2 - 0.5) * 0.09);
     col = base * (0.86 + 0.2 * cloud);
-    col = mix(col, vec3(0.42, 0.42, 0.43), halo * 0.22);
-    col = mix(col, vec3(0.3, 0.31, 0.33), vein * (0.35 + 0.3 * h3));
+    col = mix(col, vec3(0.4, 0.4, 0.41), halo * 0.32);
+    col = mix(col, vec3(0.26, 0.27, 0.29), vein * (0.45 + 0.3 * h3));
     col = mix(col, vec3(0.45, 0.45, 0.45), (halo2 * 0.12 + vein2 * 0.2) * step(0.4, h4));
     col = mix(col, col * vec3(0.95, 0.88, 0.74), smoothstep(0.6, 0.95, cloud) * 0.45);
     col = mix(col, vec3(0.5, 0.5, 0.5), crackle * 0.08);
