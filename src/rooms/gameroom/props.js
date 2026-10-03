@@ -461,25 +461,26 @@ export function buildFireplace(ctx, mats, { seed = 3 } = {}) {
   const under = new THREE.Mesh(G.sweepProfile(G.PROFILES.crown(0.07, 0.05).map((p) => V2(p.x, p.y)), [V3(-W / 2 + 0.04, 0, 0), V3(-W / 2 + 0.04, 0, D + 0.04), V3(W / 2 - 0.04, 0, D + 0.04), V3(W / 2 - 0.04, 0, 0)].map((p) => V3(p.x, p.y, -p.z)), { uvScale: 2 }), mats.marble);
   under.scale.z = -1; under.position.set(0, Hm - 0.13, 0); g.add(under);
   // firebox: sooty brick back + cheeks, cast-iron arched insert
+  const inner = new THREE.Group(); inner.position.z = 0.17; g.add(inner);
   const box = new THREE.Group();
   const back = new THREE.Mesh(G.planeUV(openW, openH, 1), mats.brick); back.position.set(0, openH / 2, -0.16); box.add(back);
-  for (const sx of [-1, 1]) { const c = new THREE.Mesh(G.planeUV(0.4, openH, 1), mats.brick); c.rotation.y = -sx * Math.PI / 2 + sx * 0.25; c.position.set(sx * (openW / 2 - 0.06), openH / 2, 0.0); box.add(c); }
+  for (const sx of [-1, 1]) { const c = new THREE.Mesh(G.planeUV(0.3, openH, 1), mats.brick); c.rotation.y = -sx * Math.PI / 2 + sx * 0.25; c.position.set(sx * (openW / 2 - 0.06), openH / 2, -0.02); box.add(c); }
   const roofP = new THREE.Mesh(G.planeUV(openW, 0.42, 1), mats.iron); roofP.rotation.x = Math.PI / 2 + 0.3; roofP.position.set(0, openH - 0.01, 0.02); box.add(roofP);
-  g.add(box);
+  inner.add(box);
   const ins = new THREE.Shape(); ins.moveTo(-openW / 2 - 0.02, 0); ins.lineTo(openW / 2 + 0.02, 0); ins.lineTo(openW / 2 + 0.02, openH + 0.02); ins.lineTo(-openW / 2 - 0.02, openH + 0.02); ins.lineTo(-openW / 2 - 0.02, 0);
   const ih = new THREE.Path(); ih.moveTo(-openW / 2 + 0.05, 0); ih.lineTo(-openW / 2 + 0.05, openH - 0.2); ih.quadraticCurveTo(0, openH - 0.02, openW / 2 - 0.05, openH - 0.2); ih.lineTo(openW / 2 - 0.05, 0); ih.lineTo(-openW / 2 + 0.05, 0);
   ins.holes.push(ih);
-  g.add(at(new THREE.Mesh(G.applyBoxUVs(new THREE.ExtrudeGeometry(ins, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 2, curveSegments: 16 }), 2), mats.iron), 0, 0, 0.07));
+  g.add(at(new THREE.Mesh(G.applyBoxUVs(new THREE.ExtrudeGeometry(ins, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 2, curveSegments: 16 }), 2), mats.iron), 0, 0, 0.245));
   // hearth slab
-  g.add(at(new THREE.Mesh(new G.RoundedBoxGeometry(W + 0.1, 0.05, 0.55, 2, 0.01), mats.marbleDark), 0, 0.025, 0.27));
+  g.add(at(new THREE.Mesh(new G.RoundedBoxGeometry(W + 0.1, 0.05, 0.75, 2, 0.01), mats.marbleDark), 0, 0.025, 0.37));
   // grate, coals, logs, flames
   const grate = new THREE.Group();
   for (let i = 0; i < 8; i++) grate.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.2, 0.012), mats.iron), -0.24 + i * 0.068, 0.15, 0.05));
   for (const y of [0.08, 0.24]) grate.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.014, 0.018), mats.iron), 0, y, 0.05));
   for (const sx of [-1, 1]) grate.add(at(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.02, 0], [0.02, 0.2], [0.03, 0.24], [0.0, 0.3]], 10), mats.brass), sx * 0.3, 0.05, 0.08));
-  g.add(grate);
+  inner.add(grate);
   const rnd = ctx.random.fork('gr-fire');
-  const coalMat = new THREE.MeshStandardMaterial({ color: 0x120a06, roughness: 0.9, emissive: new THREE.Color(1.0, 0.3, 0.07), emissiveIntensity: 2.4, name: 'coal' });
+  const coalMat = new THREE.MeshStandardMaterial({ color: 0x120a06, roughness: 0.9, emissive: new THREE.Color(1.0, 0.28, 0.05), emissiveIntensity: 1.3, name: 'coal' });
   const coals = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.03, 0), coalMat, 34);
   const m4 = new THREE.Matrix4();
   for (let i = 0; i < 34; i++) {
@@ -489,25 +490,25 @@ export function buildFireplace(ctx, mats, { seed = 3 } = {}) {
     coals.setMatrixAt(i, m4);
   }
   coals.userData.noBake = true; coals.userData.keep = true;
-  g.add(coals);
+  inner.add(coals);
   const logMat = new THREE.MeshStandardMaterial({ color: 0x1a120c, roughness: 0.95, emissive: new THREE.Color(0.9, 0.22, 0.04), emissiveIntensity: 0.3, name: 'log' });
   for (const [x, ry, y] of [[-0.06, 0.3, 0.2], [0.09, -0.35, 0.21], [0.0, 0.05, 0.28]]) {
     const log = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.052, 0.5, 10), logMat);
-    log.rotation.z = Math.PI / 2; log.rotation.y = ry; log.position.set(x, y, -0.06); g.add(log);
+    log.rotation.z = Math.PI / 2; log.rotation.y = ry; log.position.set(x, y, -0.06); inner.add(log);
   }
   const flames = [];
   for (let i = 0; i < 12; i++) {
     const big = i % 3 === 1;
-    const f = fx.flame({ height: (big ? 0.26 : 0.12) + rnd.next() * 0.1, width: (big ? 0.06 : 0.04) + rnd.next() * 0.02, intensity: big ? 0.7 : 0.45, seed: seed * 10 + i * 7, core: [1.0, 0.75, 0.38], outer: [1.0, 0.3, 0.05], base: [0.6, 0.12, 0.02] });
+    const f = fx.flame({ height: (big ? 0.26 : 0.12) + rnd.next() * 0.1, width: (big ? 0.06 : 0.04) + rnd.next() * 0.02, intensity: big ? 2.6 : 1.8, seed: seed * 10 + i * 7, core: [1.0, 0.75, 0.38], outer: [1.0, 0.3, 0.05], base: [0.6, 0.12, 0.02] });
     f.position.set(-0.24 + (i / 11) * 0.48 + (rnd.next() - 0.5) * 0.03, 0.2 + rnd.next() * 0.05, -0.1 + rnd.next() * 0.1);
-    g.add(f); flames.push(f);
+    inner.add(f); flames.push(f);
   }
   // brass fender + fire irons
   const fprof = [V2(0, 0), V2(0.01, 0), V2(0.012, 0.04), V2(0.006, 0.07), V2(0.012, 0.08), V2(0, 0.085)];
-  g.add(new THREE.Mesh(G.sweepProfile(fprof, [V3(-0.68, 0.05, 0.08), V3(-0.68, 0.05, 0.5), V3(0.68, 0.05, 0.5), V3(0.68, 0.05, 0.08)], { uvScale: 2 }), mats.brass));
+  g.add(new THREE.Mesh(G.sweepProfile(fprof, [V3(-0.68, 0.05, 0.3), V3(-0.68, 0.05, 0.62), V3(0.68, 0.05, 0.62), V3(0.68, 0.05, 0.3)], { uvScale: 2 }), mats.brass));
   for (let i = 0; i < 3; i++) {
     const tool = new THREE.Mesh(G.latheFromProfile([[0.006, 0], [0.006, 0.62], [0.014, 0.64], [0.01, 0.68], [0.016, 0.72], [0.0, 0.74]], 10), mats.brass);
-    tool.position.set(-0.78 - i * 0.03, 0.05, 0.42); tool.rotation.z = -0.1 + i * 0.05; g.add(tool);
+    tool.position.set(-0.78 - i * 0.03, 0.05, 0.55); tool.rotation.z = -0.1 + i * 0.05; g.add(tool);
   }
   g.userData = { flames, coals, coalMat, Hm, openW, openH, W, D };
   return g;

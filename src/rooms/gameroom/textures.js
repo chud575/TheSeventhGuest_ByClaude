@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 
 /** Worsted billiard cloth: fine directional nap, faint chalk smudges and wear. Tiles (1 tile = 0.5 m). */
-export function baizeTexture(forge, { color = [0.035, 0.24, 0.13] } = {}) {
+export function baizeTexture(forge, { color = [0.03, 0.2, 0.1] } = {}) {
   return forge.generate('gameroom:baize', {
     size: 1024, normalStrength: 0.6,
     uniforms: { uColor: color },

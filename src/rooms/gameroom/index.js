@@ -29,7 +29,7 @@ const FRIEZE_Y = H - CROWN_H - FRIEZE_H;
 const WIN = { w: 1.05, sill: WAINS, h: 2.0, depth: 0.36, xs: [-1.45, 1.45] };
 const DOOR = { x: -1.7, w: 1.1, h: 2.55 };
 const T = new THREE.Vector3(0.25, 0, -0.3);        // billiard table centre
-const C = new THREE.Vector3(-2.3, 0, -2.75);       // games table (chessboard) centre
+const C = new THREE.Vector3(-1.6, 0, -2.85);       // games table (chessboard) centre
 const FIRE_Z = -0.45;
 const CARD = new THREE.Vector3(2.05, 0, 2.55);
 const BOARD = 0.6, FIELD = BOARD * 0.76;
@@ -76,7 +76,7 @@ export default {
     const mat = {
       wall: M.create('damask', { repeat: [1 / 0.62, 1 / 0.62], base: [0.04, 0.085, 0.16], motif: [0.075, 0.14, 0.24], sheen: 0.55, variant: 1 }),
       ceiling: M.create('plaster', { color: [0.06, 0.08, 0.15], cracks: 0.25, stains: 0.45, repeat: [0.5, 0.5] }),
-      floor: M.create('parquet', { species: 'oak', ratio: 5, planksAcross: 2, repeat: [1.0, 1.0], polish: 0.6, wear: 0.5, color: [0.7, 0.62, 0.55] }),
+      floor: M.create('parquet', { species: 'oak', ratio: 5, planksAcross: 2, repeat: [1.0, 1.0], polish: 0.35, wear: 0.6, color: [0.62, 0.55, 0.5] }),
       wood: M.create('mahogany', { repeat: [1.4, 1.4], color: [0.6, 0.4, 0.34] }),
       panel: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.75, repeat: [1.1, 1.1], clearcoat: 0.5, clearcoatRoughness: 0.25, color: [0.34, 0.22, 0.19] }),
       tableWood: M.create('mahogany', { repeat: [1.6, 1.6], color: [0.5, 0.31, 0.26] }),
@@ -91,7 +91,7 @@ export default {
       rug: M.create('rug', { palette: 'tabriz', colors: { field: [0.08, 0.1, 0.24], border: [0.32, 0.04, 0.05], ivory: [0.62, 0.53, 0.4], gold: [0.5, 0.33, 0.14] }, aspect: 3.0 / 4.2, knots: 300, wear: 0.5, fringe: 0.03, seed: 41, size: big }),
       marble: M.create('marble', { type: 'nero', polish: 0.85, repeat: [1.5, 1.5] }),
       marbleDark: M.create('marble', { type: 'nero', polish: 0.7, repeat: [2, 2], color: [0.6, 0.6, 0.6] }),
-      brick: M.create('brick', { rows: 10, cols: 4, soot: 1.0, repeat: [1.2, 1.2], color: [0.35, 0.3, 0.28] }),
+      brick: M.create('brick', { rows: 10, cols: 4, soot: 1.0, repeat: [1.2, 1.2], color: [0.14, 0.11, 0.1] }),
       leather: M.create('leather', { color: [0.24, 0.05, 0.035], wear: 0.55, buttons: 1, repeat: [2.5, 2.5] }),
       seat: M.create('leather', { color: [0.2, 0.06, 0.04], wear: 0.4, repeat: [3, 3] }),
       baize: mkBaize(baizeSet),
@@ -111,10 +111,10 @@ export default {
       furBoar: furMat(boarSet),
       eye: new THREE.MeshPhysicalMaterial({ color: 0x080504, roughness: 0.05, clearcoat: 1, name: 'glassEye' }),
       antler: new THREE.MeshStandardMaterial({ color: 0x8a7458, roughness: 0.6, name: 'antler' }),
-      globe: new THREE.MeshStandardMaterial({ color: 0x2a2018, emissive: new THREE.Color(1.0, 0.72, 0.42), emissiveIntensity: 1.3, roughness: 0.4, name: 'sconceGlobe' }),
+      globe: new THREE.MeshStandardMaterial({ color: 0x2a2018, emissive: new THREE.Color(1.0, 0.72, 0.42), emissiveIntensity: 0.9, roughness: 0.4, name: 'sconceGlobe' }),
       shadeOuter: new THREE.MeshPhysicalMaterial({ color: 0x0c3a1c, roughness: 0.12, clearcoat: 1, clearcoatRoughness: 0.05, emissive: new THREE.Color(0.05, 0.3, 0.12), emissiveIntensity: 0.25, side: THREE.FrontSide, envMapIntensity: 1.2, name: 'shadeGreen' }),
-      shadeInner: new THREE.MeshStandardMaterial({ color: 0xf0e6d0, emissive: new THREE.Color(1.0, 0.82, 0.55), emissiveIntensity: 2.2, roughness: 0.5, side: THREE.DoubleSide, name: 'shadeOpal' }),
-      bulb: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.8, 0.5).multiplyScalar(6), toneMapped: false, name: 'bulb' }),
+      shadeInner: new THREE.MeshStandardMaterial({ color: 0xf0e6d0, emissive: new THREE.Color(1.0, 0.82, 0.55), emissiveIntensity: 1.1, roughness: 0.5, side: THREE.DoubleSide, name: 'shadeOpal' }),
+      bulb: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.8, 0.5).multiplyScalar(3), toneMapped: false, name: 'bulb' }),
     };
     mat.leatherDark = M.create('leather', { color: [0.1, 0.02, 0.015], wear: 0.3, repeat: [4, 4] });
 
@@ -419,7 +419,7 @@ export default {
     // ================================================================ back wall trophy (between the windows)
     {
       const ant = buildTrophy(ctx, mat, 'antelope');
-      ant.position.set(lx.back(0), 2.4, 0.04); ant.scale.setScalar(1.25); S.back.grp.add(ant);
+      ant.position.set(lx.back(0), 2.3, 0.04); ant.scale.setScalar(1.5); S.back.grp.add(ant);
     }
 
     // ================================================================ card table by the door, Chesterfield by the fire
@@ -504,8 +504,8 @@ export default {
     }
 
     // ================================================================ lights
-    const moonPos = V3(1.95, 7.75, Z0 - 5.0), moonTarget = V3(-0.6, 0, -2.0);
-    const moon = new THREE.SpotLight(0xa9bfff, 2600, 26, 0.36, 0.3, 2);
+    const moonPos = V3(-0.7, 8.65, Z0 - 5.0), moonTarget = V3(-0.3, 0, -2.5);
+    const moon = new THREE.SpotLight(0xa9bfff, 1900, 26, 0.36, 0.3, 2);
     moon.position.copy(moonPos); moon.target.position.copy(moonTarget);
     moon.castShadow = Q.shadows;
     moon.shadow.mapSize.set(Q.shadowMapSize, Q.shadowMapSize);
@@ -516,9 +516,9 @@ export default {
     for (const wx of WIN.xs) root.add(fx.areaLight({ center: [wx, WIN.sill + WIN.h / 2, Z0 - 0.1], normal: [0, -0.3, 1], width: WIN.w - 0.1, height: WIN.h - 0.1, color: 0x8ea6ff, intensity: 3.5 }));
     // the billiard lamp: three downward spots (centre one shadowed) + a soft glow in the shades
     const lampY = H - LAMP_DROP - 0.16;
-    let lampBase = 26;
+    let lampBase = 13;
     const lampSpots = lamp.userData.bulbs.map((b, i) => {
-      const sp = new THREE.SpotLight(0xffc27a, lampBase, 6, 0.95, 0.55, 2);
+      const sp = new THREE.SpotLight(0xffc27a, lampBase, 6, 0.66, 0.6, 2);
       sp.position.set(T.x, lampY, T.z + b.z); sp.target.position.set(T.x, 0, T.z + b.z);
       if (i === 1) {
         sp.castShadow = Q.shadows;
@@ -527,9 +527,9 @@ export default {
       root.add(sp, sp.target);
       return sp;
     });
-    const lampGlow = new THREE.PointLight(0xffb066, 1.6, 5, 2); lampGlow.position.set(T.x, lampY + 0.3, T.z); root.add(lampGlow);
+    const lampGlow = new THREE.PointLight(0xffb066, 1.6, 5, 2); lampGlow.position.set(T.x, lampY + 0.75, T.z); root.add(lampGlow);
     // fire
-    const fireLight = new THREE.PointLight(0xff7a30, 6, 7, 2); fireLight.position.set(X1 - 0.55, 0.45, FIRE_Z); root.add(fireLight);
+    const fireLight = new THREE.PointLight(0xff7a30, 6, 7, 2); fireLight.position.set(X1 - 0.85, 0.5, FIRE_Z); root.add(fireLight);
     // card table oil lamp
     const oilLight = new THREE.PointLight(0xffa04a, 1.5, 4, 2); oilLight.position.set(CARD.x - 0.05, 1.0, CARD.z - 0.3); root.add(oilLight);
     // warm spill from the gallery beyond the door
@@ -539,8 +539,8 @@ export default {
       lampSpots.forEach((s) => { s.intensity = lampBase * f; });
       lampGlow.intensity = 1.6 * f;
       const ff = 0.8 + 0.12 * Math.sin(t * 9.1) * Math.sin(t * 3.7 + 1) + 0.08 * Math.sin(t * 17.3);
-      fireLight.intensity = 6 * ff;
-      fire.userData.coalMat.emissiveIntensity = 2.4 * (0.85 + 0.15 * ff);
+      fireLight.intensity = 4.5 * ff;
+      fire.userData.coalMat.emissiveIntensity = 1.3 * (0.85 + 0.15 * ff);
       oilLight.intensity = 1.5 * (0.92 + 0.08 * Math.sin(t * 8.3) * Math.sin(t * 3.3 + 2));
     });
 
@@ -599,7 +599,7 @@ export default {
       main: { position: [-1.75, 1.63, 3.4], target: [0.4, 1.18, -3.2], fov: 60, label: 'The game room', look: { yaw: [-50, 50], pitch: [-28, 24] } },
       door: { position: [-1.7, 1.63, 3.25], target: [-1.7, 1.35, 8.0], fov: 58, label: 'The way out' },
       billiards: { position: [1.62, 1.58, 1.95], target: [-0.25, 0.8, -1.05], fov: 55, label: 'The billiard table', look: { yaw: [-55, 55], pitch: [-35, 25] } },
-      chess: { position: [-1.3, 1.52, -1.4], target: [C.x, 0.78, C.z], fov: 54, label: 'The games table', look: { yaw: [-60, 60], pitch: [-35, 25] } },
+      chess: { position: [-0.65, 1.52, -1.45], target: [C.x, 0.78, C.z], fov: 54, label: 'The games table', look: { yaw: [-60, 60], pitch: [-35, 25] } },
       hearth: { position: [1.55, 1.6, 1.0], target: [X1, 1.5, FIRE_Z - 0.3], fov: 56, label: 'The fireplace', look: { yaw: [-60, 60], pitch: [-25, 30] } },
       back: { position: [0.05, 1.62, -3.05], target: [-0.9, 1.3, 4.0], fov: 58, label: 'Looking back' },
     };
@@ -643,7 +643,7 @@ export default {
       { id: 'billiard-table', nodes: ['billiards', 'main', 'back'], box: { min: [T.x - 0.75, 0.2, T.z - 1.3], max: [T.x + 0.75, BH + 0.05, T.z + 1.3] }, cursor: 'examine', label: 'The billiard table', onActivate: cap('The Billiard Table', 'Green baize gone grey at the cushions. Someone was halfway through a game — the score on the wall stops at thirteen to seven.') },
       {
         id: 'lamp', nodes: ['billiards', 'main', 'back'], box: { min: [T.x - 0.25, lampY - 0.05, T.z - 1.0], max: [T.x + 0.25, lampY + 0.3, T.z + 1.0] }, cursor: 'examine', label: 'The billiard lamp',
-        onActivate: async () => { lampBase = 8; await new Promise((r) => setTimeout(r, 300)); lampBase = 26; ctx.ui.caption('The green shades sway, though nothing touched them. Tobacco smoke hangs under them that no one has breathed for years.', { title: 'The Lamp' }); },
+        onActivate: async () => { lampBase = 4; await new Promise((r) => setTimeout(r, 300)); lampBase = 13; ctx.ui.caption('The green shades sway, though nothing touched them. Tobacco smoke hangs under them that no one has breathed for years.', { title: 'The Lamp' }); },
       },
       {
         id: 'stag', nodes: ['hearth', 'main', 'billiards'], sphere: { center: [X1 - 0.35, fire.userData.Hm + 0.75, FIRE_Z], radius: 0.42 }, cursor: 'talk', label: 'A stag\'s head',
@@ -702,7 +702,7 @@ export default {
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
       grade: { exposure: 1.8, contrast: 1.08, saturation: 1.0, bloomStrength: 0.35, bloomThreshold: 1.1, godRayWeight: 0.3, godRayThreshold: 3.0, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4 },
-      environment: { position: [-0.6, 1.9, 1.6], intensity: 0.8 },
+      environment: { position: [-0.6, 1.9, 1.6], intensity: 0.6 },
       onEnter() {
         if (!ctx.state.has('gameroom.greeted')) {
           ctx.state.set('gameroom.greeted', true);
