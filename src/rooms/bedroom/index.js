@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { mergeStatic } from './merge.js';
-import { nightSky, tornDrape, quilt, linen, knightsBoard, crackedMirror, coals, dollFace, clockFace, cobweb } from './textures.js';
+import { boneGrain, ebonyGrain, laceTex, nightSky, tornDrape, quilt, linen, knightsBoard, crackedMirror, coals, dollFace, clockFace, cobweb } from './textures.js';
 import {
-  rbox, curtain, buildBed, buildChest, buildFireplace, buildVanity, buildStool, buildNightstand, buildOilLamp, buildDoll, buildDollShelf,
-  buildRockingChair, buildWardrobe, buildWingChair, buildMantelClock, buildCandlestick, buildBook,
+  rbox, curtain, velvetCurtain, buildBed, buildChest, buildFireplace, buildVanity, buildStool, buildNightstand, buildOilLamp, buildDoll, buildDollShelf,
+  buildRockingChair, buildWardrobe, buildAtticStair, buildWingChair, buildMantelClock, buildCandlestick, buildBook,
 } from './furniture.js';
 import { createKnightsPuzzle, knightsMeta, KNIGHTS_ID } from './puzzleKnights.js';
 
@@ -24,6 +24,7 @@ import { createKnightsPuzzle, knightsMeta, KNIGHTS_ID } from './puzzleKnights.js
 const W = 6.4, D = 7.2, H = 3.75;
 const X0 = -W / 2, X1 = W / 2, Z0 = -D / 2, Z1 = D / 2;
 const DADO = 0.98;
+const DOOR_DADO = 0.95;
 const WIN = { x: 0.35, w: 1.3, sill: 0.68, h: 2.45, depth: 0.42 };
 const DOOR = { x: 1.75, w: 1.05, h: 2.42 };
 const BED = { z: -1.35, W: 1.78, L: 2.22 };            // headboard against the left wall
@@ -31,6 +32,32 @@ const FIRE = { z: -1.05 };
 const CHEST = { x: X0 + 0.06 + BED.L + 0.48, z: BED.z };
 const WARD = { x: -1.55 };
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+
+/**
+ * Settle a layer of dust on the upward-facing surfaces of a material (lighter, desaturated
+ * albedo and rougher where the world normal points up). Patched into the standard shader.
+ */
+function addDust(mat, amount = 0.4, color = [0.33, 0.31, 0.29]) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => {
+    prev?.(sh, r);
+    sh.uniforms.uDustAmt = { value: amount };
+    sh.uniforms.uDustCol = { value: new THREE.Color(...color) };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vDustUp;')
+      .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvDustUp = normalize(mat3(modelMatrix) * objectNormal).y;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vDustUp;\nuniform float uDustAmt;\nuniform vec3 uDustCol;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        float dustK = uDustAmt * smoothstep(0.35, 0.95, vDustUp);
+        float dustL = dot(diffuseColor.rgb, vec3(0.333));
+        diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(dustL), uDustCol, 0.7), dustK);`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.95, uDustAmt * smoothstep(0.35, 0.95, vDustUp));');
+  };
+  mat.customProgramCacheKey = () => `dust${amount}`;
+  return mat;
+}
+const ROOM_GRADE = { exposure: 2.0, contrast: 1.08, saturation: 0.98, bloomStrength: 0.38, bloomThreshold: 1.0, godRayWeight: 0.35, godRayThreshold: 2.5, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4 };
+const DOOR_EXPOSURE = 3.0;     // +0.6 EV on the door / wardrobe view
+const PUZZLE_EXPOSURE = 1.45;
 
 export default {
   id: 'bedroom',
@@ -63,7 +90,8 @@ export default {
     const mirrorSet = crackedMirror(ctx, { aspect: 0.65 / 0.87 });
     const coalSet = coals(ctx).withRepeat(2, 2);
     const drapeMat = (set) => {
-      const m = new THREE.MeshPhysicalMaterial({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, roughness: 1, metalness: 0, alphaTest: 0.5, side: THREE.DoubleSide, sheen: 0.8, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.75, 0.35, 0.4), envMapIntensity: 0.35, name: 'drape' });
+      const m = new THREE.MeshPhysicalMaterial({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, roughness: 1, metalness: 0, alphaTest: 0.4, side: THREE.DoubleSide, sheen: 0.4, sheenRoughness: 0.55, sheenColor: new THREE.Color(0.6, 0.35, 0.38), envMapIntensity: 0.3, name: 'drape' });
+      addDust(m, 0.45);
       m.shadowSide = THREE.DoubleSide;
       return m;
     };
@@ -107,21 +135,52 @@ export default {
       lampGlobe: new THREE.MeshStandardMaterial({ color: 0x3a2a18, emissive: new THREE.Color(1.0, 0.62, 0.3), emissiveIntensity: 3.0, roughness: 0.4, transparent: true, opacity: 0.94, name: 'lampGlobe' }),
       velvetRose: M.create('velvet', { color: [0.3, 0.08, 0.1], crush: 0.5, repeat: [3, 3] }),
       velvetChair: M.create('velvet', { color: [0.06, 0.1, 0.22], crush: 0.6, repeat: [2.5, 2.5] }),
-      curtain: M.create('velvet', { color: [0.05, 0.075, 0.2], crush: 0.55, repeat: [2, 2], side: THREE.DoubleSide }),
+      curtain: M.create('velvet', { color: [0.055, 0.08, 0.21], crush: 0.85, repeat: [1.4, 1.4], side: THREE.DoubleSide, sheen: 0.45, sheenRoughness: 0.4, sheenColor: [0.3, 0.36, 0.6], envMapIntensity: 0.25 }),
       buttons: M.basic('black', { color: 0x0a0a12, roughness: 0.4 }),
       clockFace: new THREE.MeshStandardMaterial({ map: clockFace(ctx), roughness: 0.4 }),
       glass: new THREE.MeshBasicMaterial({ color: 0x0a1020, transparent: true, opacity: 0.18, depthWrite: false, name: 'winGlass' }),
+      atticBoard: M.create('wood', { species: 'oak', boards: 3, boardLength: 1.2, polish: 0.1, wear: 0.9, tint: [0.55, 0.5, 0.46], repeat: [1, 1], side: THREE.DoubleSide, clearcoat: 0 }),
+      atticBeam: M.create('wood', { species: 'oak', boards: 0, polish: 0.05, wear: 0.8, tint: [0.42, 0.36, 0.32], repeat: [1.5, 1.5], clearcoat: 0 }),
+      atticPlaster: M.create('plaster', { color: [0.42, 0.42, 0.44], cracks: 0.8, stains: 0.8, repeat: [0.8, 0.8], side: THREE.DoubleSide }),
       rug: M.create('rug', { palette: 'faded', aspect: 3.0 / 4.0, knots: 220, wear: 0.65, fringe: 0.04, seed: 11, size: hiQ ? 2048 : 1536 }),
     };
     const clothCache = new Map();
     mats.dollCloth = (hex) => { if (!clothCache.has(hex)) clothCache.set(hex, M.basic('cloth', { color: new THREE.Color(hex), sheenColor: new THREE.Color(hex).lerp(new THREE.Color(1, 1, 1), 0.5) })); return clothCache.get(hex); };
     mats.dollHair = (hex) => { const k = `h${hex}`; if (!clothCache.has(k)) clothCache.set(k, new THREE.MeshStandardMaterial({ color: hex, roughness: 0.55 })); return clothCache.get(k); };
-    const skin = new THREE.MeshPhysicalMaterial({ color: 0xe9dccb, roughness: 0.32, clearcoat: 0.6, clearcoatRoughness: 0.2 });
+    const skin = new THREE.MeshPhysicalMaterial({ color: 0xead9c6, roughness: 0.34, clearcoat: 0.55, clearcoatRoughness: 0.22, sheen: 0.2, sheenColor: new THREE.Color(1, 0.85, 0.8) });
+    const eyeCache = new Map();
+    const eyeMat = (hex) => {
+      if (!eyeCache.has(hex)) {
+        const tex = ctx.textures.canvas(`bedroom:eye${hex}`, 256, 128, (g2, w, h) => {
+          g2.fillStyle = '#efe9dc'; g2.fillRect(0, 0, w, h);
+          const cx = w * 0.25, cy = h * 0.5;
+          const gr = g2.createRadialGradient(cx, cy, 2, cx, cy, 22);
+          gr.addColorStop(0, '#000'); gr.addColorStop(0.32, '#000'); gr.addColorStop(0.36, hex); gr.addColorStop(0.85, hex); gr.addColorStop(1, '#120c08');
+          g2.fillStyle = gr; g2.beginPath(); g2.arc(cx, cy, 22, 0, 7); g2.fill();
+          g2.strokeStyle = 'rgba(255,255,255,0.18)'; g2.lineWidth = 1;
+          for (let k = 0; k < 24; k++) { const a = (k / 24) * 6.283; g2.beginPath(); g2.moveTo(cx + Math.cos(a) * 9, cy + Math.sin(a) * 9); g2.lineTo(cx + Math.cos(a) * 20, cy + Math.sin(a) * 20); g2.stroke(); }
+        }, { tile: false });
+        eyeCache.set(hex, new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1.6 }));
+      }
+      return eyeCache.get(hex);
+    };
     mats.dollFace = (o) => {
       const k = `${o.seed}${o.cracked}`;
-      if (!faceCache.has(k)) faceCache.set(k, { mat: new THREE.MeshPhysicalMaterial({ map: dollFace(ctx, o), roughness: 0.32, clearcoat: 0.6, clearcoatRoughness: 0.2 }), skin });
+      if (!faceCache.has(k)) faceCache.set(k, { mat: new THREE.MeshPhysicalMaterial({ map: dollFace(ctx, o), roughness: 0.34, clearcoat: 0.55, clearcoatRoughness: 0.22, sheen: 0.2, sheenColor: new THREE.Color(1, 0.85, 0.8) }), skin, glass: eyeMat(o.eyes || '#3a5a8a') });
       return faceCache.get(k);
     };
+    const velCache = new Map();
+    mats.dollVelvet = (hex) => {
+      if (!velCache.has(hex)) {
+        const c = new THREE.Color(hex);
+        velCache.set(hex, M.create('velvet', { color: [c.r, c.g, c.b], crush: 0.7, repeat: [9, 9], sheen: 0.6, sheenRoughness: 0.5, sheenColor: [Math.min(1, c.r * 2 + 0.15), Math.min(1, c.g * 2 + 0.15), Math.min(1, c.b * 2 + 0.15)], envMapIntensity: 0.3 }));
+      }
+      return velCache.get(hex);
+    };
+    mats.laceFrill = new THREE.MeshPhysicalMaterial({ map: laceTex(ctx), color: 0xe4dccb, roughness: 0.85, alphaTest: 0.4, side: THREE.DoubleSide, sheen: 0.5, sheenColor: new THREE.Color(1, 1, 1), name: 'lace' });
+    mats.laceFrill.map.repeat.set(1, 1);
+    mats.dollSash = new THREE.MeshPhysicalMaterial({ color: 0x5a1820, roughness: 0.35, sheen: 0.8, sheenColor: new THREE.Color(0.9, 0.5, 0.55), name: 'sash' });
+    mats.shoe = new THREE.MeshPhysicalMaterial({ color: 0x080606, roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.1, name: 'shoe' });
     const bookCache = new Map();
     mats.bookCover = (hex) => { if (!bookCache.has(hex)) bookCache.set(hex, M.create('leather', { color: new THREE.Color(hex).multiplyScalar(2.2), wear: 0.6, repeat: [4, 4] })); return bookCache.get(hex); };
 
@@ -134,12 +193,32 @@ export default {
       back.position.set(X0, 0, Z0); add(back);
       const left = new THREE.Mesh(G.planeUV(D, H, 1), mats.wall); left.rotation.y = Math.PI / 2; left.position.set(X0, H / 2, 0); add(left);
       const right = new THREE.Mesh(G.planeUV(D, H, 1), mats.wall); right.rotation.y = -Math.PI / 2; right.position.set(X1, H / 2, 0); add(right);
-      const front = new THREE.Mesh(G.wallWithOpenings(W, H, [{ x: W / 2 - DOOR.x - DOOR.w / 2, y: -0.01, w: DOOR.w, h: DOOR.h + 0.01 }], { uvScale: 1 }), mats.wall);
-      front.rotation.y = Math.PI; front.position.set(X1, 0, Z1); add(front);
+      const front = new THREE.Mesh(G.wallWithOpenings(W, H, [
+        { x: W / 2 - DOOR.x - DOOR.w / 2, y: 0.0005, w: DOOR.w, h: DOOR.h },     // (a hole must stay inside the outline or earcut fills it)
+        { x: X1 - (WARD.x + 0.59), y: 0.15, w: 1.18, h: 2.02 },                  // hidden stair, behind the wardrobe
+      ], { uvScale: 1 }), mats.wall);
+      front.rotation.y = Math.PI; front.position.set(X1, 0, Z1); front.name = 'frontWall'; add(front);
       // dark landing beyond the door
       const land = new THREE.Mesh(G.planeUV(DOOR.w + 1.4, DOOR.h + 0.3, 1), mats.wall); land.rotation.y = Math.PI; land.position.set(DOOR.x, DOOR.h / 2, Z1 + 1.1); add(land);
       // the gallery's gaslight beyond the half-open door
-      const hall = new THREE.PointLight(0xffa860, 8, 4, 2); hall.position.set(DOOR.x + 0.3, 2.0, Z1 + 0.75); add(hall);
+      const hall = new THREE.PointLight(0xffa860, 3, 7, 2); hall.position.set(DOOR.x + 0.12, 1.98, Z1 + 0.95); add(hall);
+      // the gas sconce on the gallery wall that the light comes from
+      const hs = new THREE.Group();
+      hs.add(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.055, 0], [0.045, 0.02], [0, 0.03]], 20).rotateX(-Math.PI / 2), mats.brass));
+      const harm = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.008, 8, 20, Math.PI / 2), mats.brass); harm.position.set(0, -0.09, 0); harm.rotation.y = Math.PI / 2; hs.add(harm);
+      const hsh = new THREE.Mesh(G.latheFromProfile([[0.02, 0], [0.05, 0.03], [0.06, 0.08], [0.045, 0.13], [0.028, 0.14]], 20), mats.lampGlobe); hsh.position.set(0, 0.0, -0.09); hsh.userData.noShadow = true; hs.add(hsh);
+      hs.position.set(DOOR.x + 0.12, 1.9, Z1 + 1.09); add(hs);
+      // landing side walls, ceiling, skirting and a dado rail, a picture in shadow
+      for (const sx of [-1, 1]) {
+        const sw = new THREE.Mesh(G.planeUV(1.15, DOOR.h + 0.3, 1), mats.wall); sw.rotation.y = -sx * Math.PI / 2; sw.position.set(DOOR.x + sx * 1.22, (DOOR.h + 0.3) / 2, Z1 + 0.55); add(sw);
+      }
+      const lc = new THREE.Mesh(G.planeUV(DOOR.w + 1.4, 1.2, 1), mats.ceiling); lc.rotation.x = Math.PI / 2; lc.position.set(DOOR.x, DOOR.h + 0.3, Z1 + 0.55); add(lc);
+      const lsk = new THREE.Mesh(G.boxUV(DOOR.w + 1.4, 0.2, 0.025, 1), mats.panel); lsk.position.set(DOOR.x, 0.1, Z1 + 1.085); add(lsk);
+      const ldr = new THREE.Mesh(G.boxUV(DOOR.w + 1.4, 0.05, 0.03, 1), mats.panel); ldr.position.set(DOOR.x, DOOR_DADO, Z1 + 1.08); add(ldr);
+      const lpic = new THREE.Group();
+      lpic.add(new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.44), M.create('painting', { subject: 0, seed: 23, aspect: 0.34 / 0.44, size: 512, cracks: 0.5 })));
+      lpic.add(new THREE.Mesh(G.frameGeometry(0.34, 0.44, { width: 0.05, depth: 0.03, uvScale: 1 }), mats.giltFrame));
+      lpic.position.set(DOOR.x - 0.42, 1.55, Z1 + 1.085); lpic.rotation.y = Math.PI; add(lpic);
       const hfl = new THREE.Mesh(G.planeUV(DOOR.w + 1.4, 1.2, 1), mats.floor); hfl.rotation.x = -Math.PI / 2; hfl.position.set(DOOR.x, 0.001, Z1 + 0.55); add(hfl);
     }
 
@@ -180,13 +259,27 @@ export default {
       const skyTex = nightSky(ctx);
       const skyMat = new THREE.MeshBasicMaterial({ map: skyTex.map, color: new THREE.Color(1, 1, 1).multiplyScalar(3.2), toneMapped: false, name: 'sky' });
       const sky = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 5.5), skyMat); sky.position.set(WIN.x - 0.4, WIN.sill + 1.1, Z0 - 2.6); sky.userData.noShadow = true; add(sky);
-      // velvet curtains with tie-backs, pelmet
+      // heavy velvet curtains, gathered into tasselled tie-backs, pooling on the boards
+      const top = WIN.sill + WIN.h + 0.32;
       for (const side of [-1, 1]) {
-        const c = new THREE.Mesh(curtain(G, { width: 0.95, height: 3.05, folds: 8, depth: 0.08, tieback: 0.75, pool: 0.12, seed: side + 7 }), mats.curtain);
-        c.position.set(WIN.x + side * (WIN.w / 2 + 0.28), WIN.sill + WIN.h + 0.32, Z0 + 0.12);
-        if (side > 0) c.scale.x = -1;
+        const cw = 1.0;
+        const cg = velvetCurtain({ width: cw, height: top, folds: 9, depth: 0.075, tieback: 0.78, tiebackV: 0.6, waist: 0.2, flare: 0.8, pool: 0.2, seed: side + 7 });
+        const c = new THREE.Mesh(cg, mats.curtain);
+        // outer edge sits beside the casing; the inner edge reaches over the glass
+        c.position.set(WIN.x + side * (WIN.w / 2 + 0.42), top, Z0 + 0.14);
+        c.scale.x = -side;
         c.name = 'cloth'; add(c);
+        // tie-back: a twisted gilt cord round the waist with a hanging tassel
+        const wi = cg.userData.waist;
+        const cord = new THREE.Mesh(new THREE.TorusGeometry(1, 0.012, 8, 32), mats.gilt);
+        cord.scale.set(wi.w * 0.55, 0.06, 0.1); cord.rotation.x = Math.PI / 2;
+        cord.position.set(c.position.x - side * wi.x, top + wi.y, Z0 + 0.15); add(cord);
+        const tassel = new THREE.Mesh(G.latheFromProfile([[0, 0.12], [0.018, 0.11], [0.022, 0.085], [0.014, 0.07], [0.03, 0.05], [0.038, 0.0], [0, -0.005]], 16), mats.gilt);
+        tassel.position.set(c.position.x - side * (wi.x + wi.w * 0.45), top + wi.y - 0.2, Z0 + 0.22); add(tassel);
+        const hook = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.04, 0], [0.035, 0.02], [0.015, 0.03], [0, 0.05]], 16).rotateX(Math.PI / 2), mats.brass);
+        hook.position.set(c.position.x - side * 0.02, top + wi.y, Z0 + 0.005); add(hook);
       }
+      // swagged valance across the top
       const val = new THREE.Mesh(curtain(G, { width: WIN.w + 1.25, height: 0.45, folds: 12, depth: 0.05, gather: 1, seed: 19 }), mats.curtain);
       val.position.set(WIN.x, WIN.sill + WIN.h + 0.4, Z0 + 0.17); val.name = 'cloth'; add(val);
       const pel = new THREE.Mesh(rbox(G, WIN.w + 1.4, 0.09, 0.14, 0.01), mats.gilt); pel.position.set(WIN.x, WIN.sill + WIN.h + 0.44, Z0 + 0.1); add(pel);
@@ -201,9 +294,13 @@ export default {
       add(new THREE.Mesh(G.sweepProfile(G.PROFILES.chairRail(0.035, 0.02), loop(H - crownH - friezeH - 0.035), { closed: true, uvScale: 2 }), mats.gilt));
       // chair rail + baseboard: open path from the door's right jamb round to its left jamb
       const dl = DOOR.x + DOOR.w / 2 + 0.11, dr = DOOR.x - DOOR.w / 2 - 0.11;
-      const path = (y) => [V3(dr, y, Z1), V3(X0, y, Z1), V3(X0, y, Z0), V3(X1, y, Z0), V3(X1, y, Z1), V3(dl, y, Z1)];
-      add(new THREE.Mesh(G.sweepProfile(G.PROFILES.chairRail(0.075, 0.035), path(DADO - 0.05), { uvScale: 1 }), mats.panel));
-      add(new THREE.Mesh(G.sweepProfile(G.PROFILES.baseboard(0.24, 0.03), path(0), { uvScale: 1 }), mats.panel));
+      const wl = WARD.x - 0.7, wr = WARD.x + 0.7;      // the wardrobe hides the wall (and the stair hole) between these
+      const path = (y) => [V3(wl, y, Z1), V3(X0, y, Z1), V3(X0, y, Z0), V3(X1, y, Z0), V3(X1, y, Z1), V3(dl, y, Z1)];
+      const path2 = (y) => [V3(dr, y, Z1), V3(wr, y, Z1)];
+      for (const pth of [path, path2]) {
+        add(new THREE.Mesh(G.sweepProfile(G.PROFILES.chairRail(0.075, 0.035), pth(DADO - 0.05), { uvScale: 1 }), mats.panel));
+        add(new THREE.Mesh(G.sweepProfile(G.PROFILES.baseboard(0.24, 0.03), pth(0), { uvScale: 1 }), mats.panel));
+      }
       // wainscot backing + raised panels
       const panelGeo = G.raisedPanel(0.6, 0.58, { border: 0.07, bevel: 0.03 });
       const run = (x0, z0, x1, z1, skip = []) => {
@@ -226,7 +323,7 @@ export default {
       run(X0, Z1, X0, Z0);                         // left wall (front -> back)
       run(X0, Z0, X1, Z0, [[WIN.x - 0.5, WIN.x + 0.5]]);
       run(X1, Z0, X1, Z1, [[FIRE.z - 1.0, FIRE.z + 1.0]]);
-      run(X1, Z1, dl, Z1); run(dr, Z1, X0, Z1);
+      run(X1, Z1, dl, Z1); run(dr, Z1, wr, Z1); run(wl, Z1, X0, Z1);
       // ceiling rose + bare gas pendant
       const rose = new THREE.Mesh(G.latheFromProfile([[0.0, 0], [0.5, 0], [0.5, -0.02], [0.44, -0.035], [0.36, -0.03], [0.26, -0.055], [0.14, -0.065], [0.06, -0.1], [0.0, -0.11]], 48), mats.gilt);
       rose.position.set(0, H, 0); add(rose);
@@ -269,7 +366,7 @@ export default {
     bed.position.set(X0 + 0.06 + BED.L / 2, 0, BED.z); bed.rotation.y = Math.PI / 2; add(bed);
     // a doll left sitting against the pillows
     {
-      const d = buildDoll(ctx, mats, { size: 0.36, seed: 9, dress: 0xd8d0c0, hair: 0x6a4a20, eyes: '#2a3a5a', bonnet: true, tilt: 0.18 });
+      const d = buildDoll(ctx, mats, { size: 0.36, seed: 9, dress: 0xcfc4b0, hair: 0x6a4a20, eyes: '#2a3a5a', bonnet: true, tilt: 0.18, pose: 'limp' });
       d.position.set(X0 + 0.62, 0.86, BED.z + 0.25); d.rotation.y = Math.PI / 2 + 0.2; d.rotation.x = -0.15; add(d);
     }
 
@@ -291,13 +388,15 @@ export default {
     const chest = buildChest(ctx, mats, { w: 1.18, d: 0.58 });
     chest.position.set(CHEST.x, 0, CHEST.z); chest.rotation.y = Math.PI / 2; add(chest);
     const boardField = 0.82 * 0.61 * (5 / 6);     // field size in metres (matches the board texture)
-    const puzzleCam = { position: [CHEST.x + 0.52, 1.4, CHEST.z], target: [CHEST.x + 0.03, 0.5, CHEST.z], fov: 42 };
+    const puzzleCam = { position: [CHEST.x + 0.74, 1.2, CHEST.z], target: [CHEST.x + 0.02, 0.5, CHEST.z], fov: 40 };
+    const boneSet = boneGrain(ctx).withRepeat(3, 3);
+    const ebonySet = ebonyGrain(ctx).withRepeat(3, 3);
     const wardrobe = buildWardrobe(ctx, mats);
     const knights = createKnightsPuzzle(ctx, {
       parent: chest, center: V3(0, chest.userData.boardTop, 0), size: boardField,
       mats: {
-        bone: new THREE.MeshPhysicalMaterial({ color: 0xc4b698, roughness: 0.38, clearcoat: 0.6, clearcoatRoughness: 0.25, sheen: 0.2, name: 'bone' }),
-        ebony: new THREE.MeshPhysicalMaterial({ color: 0x0b0806, roughness: 0.28, clearcoat: 1, clearcoatRoughness: 0.12, name: 'ebonyPiece' }),
+        bone: new THREE.MeshPhysicalMaterial({ color: 0xe6dac2, map: boneSet.map, roughness: 1, roughnessMap: boneSet.ormMap, normalMap: boneSet.normalMap, normalScale: new THREE.Vector2(0.4, 0.4), clearcoat: 0.4, clearcoatRoughness: 0.3, sheen: 0.3, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.9, 0.86, 0.78), envMapIntensity: 0.8, name: 'bone' }),
+        ebony: new THREE.MeshPhysicalMaterial({ color: 0x0e0a08, map: ebonySet.map, roughness: 0.22, normalMap: ebonySet.normalMap, normalScale: new THREE.Vector2(0.25, 0.25), clearcoat: 0.9, clearcoatRoughness: 0.15, envMapIntensity: 1.2, name: 'ebonyPiece' }),
       },
       camera: puzzleCam,
       onSolved: async () => { openWardrobe(false); },
@@ -336,21 +435,36 @@ export default {
     {
       const shelf = buildDollShelf(ctx, mats, { w: 1.12, levels: [1.2, 1.63, 2.06] });
       shelf.position.set(2.15, 0, Z0); add(shelf);
+      // [shelfY, x, opts, extra]  — deliberately uneven: heights differ, one has toppled onto
+      // her side, one has turned her head to watch the room, one place is empty (a clean
+      // ring in the dust shows where she sat)
       const specs = [
-        [1.2, -0.36, { dress: 0x6a2a34, hair: 0x2a1408, seed: 1 }], [1.2, 0.04, { dress: 0x2a3a5a, hair: 0x8a6a30, seed: 2, cracked: true, bonnet: true }], [1.2, 0.36, { dress: 0xc8bca8, hair: 0x1a0c06, seed: 3 }],
-        [1.63, -0.3, { dress: 0x1a1a1e, hair: 0x5a3a1a, seed: 4, eyes: '#5a3a20' }], [1.63, 0.22, { dress: 0x7a5a70, hair: 0x3a2010, seed: 5, bonnet: true, tilt: -0.3 }],
-        [2.06, -0.36, { dress: 0x8a6a4a, hair: 0x2a1a0c, seed: 6 }], [2.06, 0.0, { dress: 0x4a5a3a, hair: 0x9a7a40, seed: 7, cracked: true }], [2.06, 0.34, { dress: 0x5a1a1a, hair: 0x1a0c06, seed: 8, tilt: 0.25 }],
+        [1.2, -0.38, { size: 0.3, dress: 0x5a1a26, hair: 0x2a1408, seed: 1, pose: 'lap' }],
+        [1.2, -0.02, { size: 0.36, dress: 0x1e2a48, hair: 0x8a6a30, seed: 2, cracked: true, bonnet: true, pose: 'reach', headYaw: 0.5, tilt: 0.12 }],
+        [1.2, 0.36, { size: 0.28, dress: 0xb8ac98, hair: 0x1a0c06, seed: 3, pose: 'limp', tilt: 0.35 }],
+        [1.63, -0.34, { size: 0.33, dress: 0x161518, hair: 0x5a3a1a, seed: 4, eyes: '#5a3a20', pose: 'lap', headYaw: -0.55 }],
+        [1.63, 0.3, { size: 0.31, dress: 0x6a4a62, hair: 0x3a2010, seed: 5, bonnet: true, tilt: -0.3, pose: 'lap' }, { toppled: true }],
+        [2.06, -0.36, { size: 0.35, dress: 0x7a5a3a, hair: 0x2a1a0c, seed: 6, pose: 'reach' }],
+        [2.06, 0.34, { size: 0.29, dress: 0x4a1414, hair: 0x1a0c06, seed: 8, tilt: 0.25, pose: 'limp', headYaw: 0.25 }],
       ];
-      for (const [y, x, o] of specs) {
-        const d = buildDoll(ctx, mats, { size: 0.34, ...o });
-        d.position.set(2.15 + x, y, Z0 + 0.1); d.rotation.y = (o.seed * 0.37) % 0.5 - 0.25; dollGroup.add(d);
+      for (const [y, x, o, extra] of specs) {
+        const d = buildDoll(ctx, mats, o);
+        d.position.set(2.15 + x, y, Z0 + 0.1); d.rotation.y = (o.seed * 0.37) % 0.5 - 0.25;
+        if (extra?.toppled) { d.rotation.set(0, -0.3, -1.45); d.position.set(2.15 + x - 0.02, y + 0.065, Z0 + 0.11); }
+        dollGroup.add(d);
       }
+      // the empty place on the top shelf: a ring of clean wood in the dust
+      const ringG = new THREE.RingGeometry(0.075, 0.13, 40).rotateX(-Math.PI / 2);
+      const dustRing = new THREE.Mesh(ringG, new THREE.MeshStandardMaterial({ color: 0x8a8580, roughness: 1, transparent: true, opacity: 0.4, depthWrite: false, name: 'dust' }));
+      dustRing.scale.set(1, 1, 0.75); dustRing.position.set(2.15, 2.06 + 0.002, Z0 + 0.11); dustRing.renderOrder = 2; add(dustRing);
+      const dustFilm = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.18).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x77726c, roughness: 1, transparent: true, opacity: 0.22, depthWrite: false, name: 'dustFilm' }));
+      for (const yy of [1.2, 1.63]) { const f = dustFilm.clone(); f.position.set(2.15, yy + 0.0015, Z0 + 0.11); f.renderOrder = 1; add(f); }
       // a vigil candle on the middle shelf
       const vc = buildCandlestick(ctx, mats, { h: 0.12 }); vc.position.set(2.15 - 0.04, 1.63, Z0 + 0.12); add(vc);
       const vcan = fx.candle({ height: 0.08, radius: 0.013, light: true, lightIntensity: 1.1, lightDistance: 3.5, seed: 91, burn: 0.95 });
       vcan.position.set(2.15 - 0.04, 1.63 + 0.12, Z0 + 0.12); add(vcan);
       const rc = buildRockingChair(ctx, mats); rc.position.set(2.45, 0, Z0 + 0.75); rc.rotation.y = -0.55; add(rc);
-      const big = buildDoll(ctx, mats, { size: 0.62, seed: 12, dress: 0x9a8a9a, hair: 0xb08a50, eyes: '#4a6a9a', bonnet: false, tilt: -0.22 });
+      const big = buildDoll(ctx, mats, { size: 0.62, seed: 12, dress: 0x6e5a72, hair: 0xb08a50, eyes: '#4a6a9a', bonnet: true, tilt: -0.28, headYaw: 0.35, pose: 'lap' });
       big.position.set(0, 0.42, 0.0); rc.add(big);
     }
 
@@ -366,10 +480,26 @@ export default {
 
     // ================================================================ wardrobe (front wall, left) -> attic once the knights are solved
     wardrobe.position.set(WARD.x, 0, Z1); wardrobe.rotation.y = Math.PI; add(wardrobe);
+    const stair = buildAtticStair(ctx, mats, { w: 1.18, y0: 0.16 });
+    stair.position.set(WARD.x, 0, Z1); stair.rotation.y = Math.PI; add(stair);
+    const stairLights = [stair.userData.light, stair.userData.fill];
+    for (const l of stairLights) l.visible = false;
+    // the cold shaft from the attic skylight, with dust hanging in it (shown once the stair is revealed)
+    {
+      const su = stair.userData;
+      const sc = V3(WARD.x - 0.28, su.roofY + 0.6, Z1 - (su.endZ - 0.15));
+      const sd = new THREE.Vector3(WARD.x, 0.2, Z1 + 0.2).sub(sc).normalize();
+      const stairShaft = fx.shaft({ center: sc, right: V3(0.2, 0, 0), up: V3(0, 0.12, 0.25), direction: sd, length: 4.6, color: 0x9fb4ff, intensity: 0.55, softness: 0.4, falloff: 0.8, panes: [1, 2], mullion: 0.02, noise: 0.8 });
+      stairShaft.visible = false; stairShaft.userData.keep = true; root.add(stairShaft);
+      const stairDust = fx.dust({ box: new THREE.Box3(V3(WARD.x - 0.55, 0.2, Z1 + 0.05), V3(WARD.x + 0.55, 3.2, Z1 + 2.9)), count: 700, shafts: [stairShaft], size: 0.009, intensity: 2.0, ambient: 0.25 });
+      stairDust.visible = false; stairDust.userData.keep = true; root.add(stairDust);
+      stairLights.push(stairShaft, stairDust);
+    }
     let wardrobeOpen = false;
     function openWardrobe(instant) {
       wardrobeOpen = true;
-      wardrobe.userData.inner.visible = true;
+      wardrobe.userData.back.visible = false;
+      for (const l of stairLights) l.visible = true;
       const [l, r] = wardrobe.userData.doors;
       if (instant) { l.rotation.y = -1.6; r.rotation.y = 1.6; return; }
       const t0 = performance.now();
@@ -441,6 +571,8 @@ export default {
     moon.shadow.camera.near = 1.5; moon.shadow.camera.far = 16;
     root.add(moon, moon.target);
     root.add(new THREE.HemisphereLight(0x4a62b0, 0x22140c, 0.9));
+    // moonlight bounced off the floor and the bed: a soft cold fill on the front (door / wardrobe) wall
+    const frontFill = new THREE.PointLight(0x8094d0, 1.6, 5.5, 2); frontFill.position.set(-0.3, 2.6, 1.6); root.add(frontFill);
     root.add(fx.areaLight({ center: [WIN.x, WIN.sill + 1.2, Z0 + 0.04], normal: [0, -0.35, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 5 }));
 
     const winCenter = V3(WIN.x, WIN.sill + WIN.h * 0.47, Z0 - 0.02);
@@ -478,7 +610,7 @@ export default {
       hearth: { position: [0.3, 1.6, 0.55], target: [X1, 1.15, FIRE.z - 0.35], fov: 56, label: 'The fireplace', look: { yaw: [-60, 60], pitch: [-25, 30] } },
       dolls: { position: [0.95, 1.6, -0.9], target: [2.25, 1.45, Z0], fov: 54, label: 'The doll shelf' },
       vanity: { position: [-0.85, 1.6, 0.95], target: [X0, 1.35, 1.95], fov: 54, label: 'The dressing table' },
-      door: { position: [0.1, 1.62, 0.5], target: [0.1, 1.3, Z1], fov: 66, label: 'The door' },
+      door: { position: [0.1, 1.62, 0.5], target: [0.1, 1.3, Z1], fov: 66, label: 'The door', grade: { exposure: DOOR_EXPOSURE } },
     };
     const edges = [
       ['main', 'chest', [[1.4, 1.6, 0.9]]],
@@ -581,13 +713,21 @@ export default {
     });
     root.userData.mergedCount = mergeStatic(root);
 
+    // the puzzle close-up sits in the moon beam: pull the exposure down while it is open so the
+    // bone pieces keep their detail (and nothing blooms), and restore the room grade afterwards
+    {
+      const pz = knights.puzzle, su = pz.setup, td = pz.teardown;
+      pz.setup = (p) => { ctx.post.set({ exposure: PUZZLE_EXPOSURE, bloomThreshold: 1.6 }, ctx.shot ? 0 : 0.8); su(p); };
+      pz.teardown = (p) => { ctx.post.set({ exposure: ROOM_GRADE.exposure, bloomThreshold: ROOM_GRADE.bloomThreshold }, ctx.shot ? 0 : 0.8); td(p); };
+    }
     const godRays = [{ position: V3(WIN.x - 0.3, WIN.sill + 1.4, Z0 - 2.0), color: new THREE.Color(0.72, 0.8, 1.0), strength: 0.8, radius: 0.2 }];
 
     return {
       scene: root,
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
-      grade: { exposure: 2.0, contrast: 1.08, saturation: 0.98, bloomStrength: 0.38, bloomThreshold: 1.0, godRayWeight: 0.35, godRayThreshold: 2.5, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4 },
+      // in shot mode the engine does not blend node grades in (dt = 0), so apply the door lift directly
+      grade: { ...ROOM_GRADE, ...(ctx.shot && ctx.params.get('node') === 'door' ? { exposure: DOOR_EXPOSURE } : {}) },
       environment: { position: [0.4, 1.7, 0.6], intensity: 0.5 },
       onEnter() {
         if (!ctx.state.has('bedroom.greeted')) {

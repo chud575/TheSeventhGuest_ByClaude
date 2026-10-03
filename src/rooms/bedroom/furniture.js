@@ -27,6 +27,85 @@ export function curtain(G, opts) {
   return g;
 }
 
+/**
+ * Heavy velvet curtain hanging from a heading at y = 0 down to y = -height (+ pool on the floor).
+ * Local: x from 0 (outer edge, the side the tie-back pulls toward) to +width, z toward the room.
+ * Folds have seeded ±35% jitter in period and depth and wander slowly down the drop; the
+ * heading is pinch-pleated, the fabric is gathered into a narrow waist at the tie-back
+ * (tiebackV = fraction of the drop), then flares out and pools on the floor.
+ * Returns geometry; geometry.userData.waist = { x, y, w } (for the tie-back cord).
+ */
+export function velvetCurtain({ width = 1.0, height = 3.0, folds = 9, depth = 0.09, tieback = 0.7, tiebackV = 0.62, waist = 0.22, flare = 0.85, pool = 0.15, seed = 1, segX = 160, segY = 120 } = {}) {
+  const rnd = (i) => { const x = Math.sin(i * 127.1 + seed * 311.7) * 43758.5453; return x - Math.floor(x); };
+  // jittered fold boundaries in strand space u (0..1): 2 half-folds per fold
+  const nh = folds * 2;
+  const bounds = [0];
+  for (let k = 0; k < nh; k++) bounds.push(bounds[k] + (1 + (rnd(k + 1) - 0.5) * 0.7));
+  const total = bounds[nh];
+  for (let k = 0; k <= nh; k++) bounds[k] /= total;
+  const amps = []; for (let k = 0; k < nh; k++) amps.push((k % 2 ? -1 : 1) * (1 + (rnd(k + 40) - 0.5) * 0.7));
+  const wander = []; for (let k = 0; k < nh; k++) wander.push(rnd(k + 80) * 6.28);
+  const total2 = height + pool;
+  const g = new THREE.PlaneGeometry(1, 1, segX, segY);
+  const pos = g.attributes.position, uv = g.attributes.uv;
+  const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  let waistInfo = null;
+  for (let i = 0; i < pos.count; i++) {
+    const u = pos.getX(i) + 0.5;           // 0 outer .. 1 inner
+    const s = 0.5 - pos.getY(i);           // 0 top .. 1 end of fabric (incl. pool)
+    const yLen = s * total2;               // metres of fabric from the heading
+    const v = Math.min(1, yLen / height);  // 0..1 over the drop
+    // ---- across: heading -> waist -> flare
+    const xTop = u * width;
+    const xTie = (1 - tieback) * xTop + tieback * (u * width * waist);
+    const xBot = u * width * flare + (1 - flare) * width * 0.15 * u;
+    let x, gatherW;
+    if (v < tiebackV) {
+      const k = Math.pow(v / tiebackV, 1.35);
+      const e = k * k * (3 - 2 * k);
+      x = xTop + (xTie - xTop) * e;
+      gatherW = 1 + ((1 - tieback) + tieback * waist - 1) * e;
+    } else {
+      const k = (v - tiebackV) / (1 - tiebackV);
+      const e = 1 - (1 - k) * (1 - k);
+      x = xTie + (xBot - xTie) * e;
+      const wb = flare;
+      const wt = (1 - tieback) + tieback * waist;
+      gatherW = wt + (wb - wt) * e;
+    }
+    // ---- folds: find the half-fold this strand belongs to (folds wander slowly down the drop)
+    let uu = u + 0.012 * Math.sin(v * 5.0 + u * 9.0 + seed);
+    uu = Math.min(0.99999, Math.max(0, uu));
+    let k = 0; while (k < nh - 1 && bounds[k + 1] < uu) k++;
+    const t = (uu - bounds[k]) / Math.max(1e-6, bounds[k + 1] - bounds[k]);
+    const shapeF = Math.sin(Math.PI * t);
+    // heading: tight pinch pleats (sharper profile); body: soft round folds
+    const headK = sm(0.0, 0.12, v);
+    const prof = (1 - headK) * Math.sign(shapeF) * Math.pow(Math.abs(shapeF), 0.5) + headK * shapeF;
+    const vary = 1 + 0.25 * Math.sin(v * 4.0 + wander[k]);
+    // fabric compressed into the waist bunches out deeper
+    const comp = Math.sqrt(1 / Math.max(0.2, gatherW));
+    let amp = depth * (0.45 + 0.55 * headK) * comp * vary;
+    let z = amps[k] * prof * amp;
+    // the whole curtain bellies a little toward the room below the tie-back
+    z += depth * 0.6 * sm(tiebackV, 1, v) * Math.sin(Math.PI * u);
+    let y = -yLen;
+    // pool: fabric past the drop folds forward onto the floor
+    if (yLen > height) {
+      const p = yLen - height;
+      y = -height + Math.min(p, 0.04) * 0.5;
+      z += p * 0.9 + 0.02;
+      x += (u - 0.5) * p * 0.4;
+    }
+    pos.setXYZ(i, x, y, z);
+    uv.setXY(i, u * width * 1.6, -y);
+    if (!waistInfo && Math.abs(v - tiebackV) < 0.5 / segY) waistInfo = { y: -tiebackV * height };
+  }
+  g.computeVertexNormals();
+  g.userData.waist = { x: width * waist * 0.5 * tieback + (1 - tieback) * width * 0.5, y: -tiebackV * height, w: width * ((1 - tieback) + tieback * waist) };
+  return g;
+}
+
 export function rbox(G, w, h, d, r = 0.008, seg = 2, uv = 1) {
   return G.applyBoxUVs(new G.RoundedBoxGeometry(w, h, d, seg, Math.min(r, w / 2 - 1e-4, h / 2 - 1e-4, d / 2 - 1e-4)), uv);
 }
@@ -203,26 +282,56 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
     const path2 = path.map((v) => V3(v.x * 1.0, ty + 0.115, v.z));
     mesh(G.sweepProfile(G.PROFILES.chairRail(0.03, 0.018), path2, { closed: true, uvScale: 2 }), mats.gilt, 0, 0, 0, g);
   }
-  // ---- hangings: torn valance all round, torn corner curtains, back cloth
+  // ---- hangings: sagging torn valance all round, rotted corner curtains (one half-fallen), back cloth
   {
     const drape = mats.drapeA, drape2 = mats.drapeB;
-    const val = (len, x, z, ry, sd) => {
-      const vg = curtain(G, { width: len, height: 0.42, folds: Math.round(len * 7), depth: 0.04, gather: 1, seed: sd, segX: 90, segY: 16 });
+    const sag = (geo, amount, len) => {
+      const p = geo.attributes.position;
+      for (let i = 0; i < p.count; i++) { const x = p.getX(i) / (len / 2); p.setY(i, p.getY(i) - amount * (1 - x * x)); }
+      geo.computeVertexNormals();
+      return geo;
+    };
+    const val = (len, x, z, ry, sd, droop) => {
+      const vg = sag(curtain(G, { width: len, height: 0.46, folds: Math.round(len * 7), depth: 0.045, gather: 1, seed: sd, segX: 90, segY: 20 }), droop, len);
       const m = mesh(vg, drape2, x, ty - 0.02, z, g); m.rotation.y = ry; m.name = 'cloth';
     };
-    val(W + 0.12, 0, hl + 0.06, 0, 11); val(L + 0.12, -hw - 0.06, 0, -Math.PI / 2, 12); val(L + 0.12, hw + 0.06, 0, Math.PI / 2, 13);
+    val(W + 0.12, 0, hl + 0.06, 0, 11, 0.07); val(L + 0.12, -hw - 0.06, 0, -Math.PI / 2, 12, 0.11); val(L + 0.12, hw + 0.06, 0, Math.PI / 2, 13, 0.05);
     // back cloth behind the headboard
     const bc = mesh(curtain(G, { width: W, height: ty - 0.1, folds: 10, depth: 0.035, seed: 21, segX: 100, segY: 50 }), drape, 0, ty + 0.05, -hl - 0.05, g);
     bc.name = 'cloth';
-    // corner curtains (hang along the long sides, foot ones tied back to the posts)
+    // corner curtains: lengths differ (rotted away at different heights)
+    const specs = { '-1,-1': 1.0, '1,-1': 0.82, '1,1': 0.9 };
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
       const foot = sz > 0;
-      const cg = curtain(G, { width: foot ? 0.5 : 0.75, height: ty - 0.02, folds: foot ? 7 : 6, depth: 0.07, tieback: foot ? 1.0 : 0, seed: 30 + sx * 3 + sz, segX: 70, segY: 60 });
+      if (sx < 0 && sz > 0) continue;               // this one has come off its rail (below)
+      const lenK = specs[`${sx},${sz}`];
+      const cg = curtain(G, { width: foot ? 0.5 : 0.75, height: (ty - 0.02) * lenK, folds: foot ? 7 : 6, depth: 0.07, tieback: foot ? 1.0 : 0, seed: 30 + sx * 3 + sz, segX: 70, segY: 60 });
       const m = mesh(cg, sz > 0 ? drape : drape2, sx * (hw + 0.045), ty + 0.04, sz * (hl - (foot ? 0.3 : 0.36)), g);
-      // plane faces +z by default; rotate so it faces outward (±x); mirror so the tie-back gathers toward the post
       m.rotation.y = sx > 0 ? Math.PI / 2 : -Math.PI / 2;
       if ((sx > 0) !== (sz > 0)) m.scale.x = -1;
       m.name = 'cloth';
+    }
+    // half-fallen curtain at the near foot corner: still hooked at the post end, the rest of the
+    // heading torn off the rail so it hangs in a long diagonal and slumps onto the counterpane
+    {
+      const cw = 0.95, ch = ty - 0.15;
+      const fg = curtain(G, { width: cw, height: ch, folds: 8, depth: 0.08, seed: 37, segX: 80, segY: 70 });
+      const p = fg.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+        const u = x / cw + 0.5, v = -y / ch;          // u 0 = post end (still hooked)
+        // the torn-off heading drops progressively along the width
+        const drop = u * u * 0.85;
+        y -= drop * (1 - v * 0.6);
+        // it swings outward and in toward the bed as it falls
+        z += u * 0.25 * (1 - v) + Math.sin(v * Math.PI) * 0.06;
+        // the bottom piles on the floor
+        if (y < -ty + 0.02) { const over = -ty + 0.02 - y; y = -ty + 0.02 + over * 0.05; z += over * 0.6; }
+        p.setXYZ(i, x, y, z);
+      }
+      fg.computeVertexNormals();
+      const m = mesh(fg, drape, -hw - 0.05, ty + 0.04, hl - 0.05 - cw / 2, g);
+      m.rotation.y = -Math.PI / 2; m.scale.x = -1; m.name = 'cloth';
     }
   }
   g.userData = { mattressTop: mTop, L, W, postH };
@@ -469,48 +578,109 @@ export function buildOilLamp(ctx, mats) {
 }
 
 // ============================================================================ dolls
+/** lathe whose outer rim is ruffled: r(θ) *= 1 + ruffle * sin(n θ) weighted toward the hem (profile y below `ruffleTop`). */
+function ruffledLathe(G, pts, { seg = 64, n = 18, ruffle = 0.08, ruffleTop = 0.5, seed = 0 } = {}) {
+  const g = G.latheFromProfile(pts, seg);
+  const p = g.attributes.position;
+  const ys = pts.map((q) => q[1]);
+  const y0 = Math.min(...ys), y1 = Math.max(...ys);
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const r = Math.hypot(x, z); if (r < 1e-5) continue;
+    const a = Math.atan2(z, x);
+    const k = 1 - Math.min(1, Math.max(0, (y - y0) / ((y1 - y0) * ruffleTop)));
+    const f = 1 + ruffle * k * (Math.sin(a * n + seed) * 0.75 + Math.sin(a * n * 2.3 + seed * 2.0) * 0.25);
+    p.setX(i, x * f); p.setZ(i, z * f);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+/** scalloped lace collar / frill: a shallow cone ring whose outer edge is scalloped. */
+function frillGeometry(rIn, rOut, { n = 14, drop = 0.3, seg = 72 } = {}) {
+  const g = new THREE.RingGeometry(rIn, rOut, seg, 2);
+  const p = g.attributes.position, uv = g.attributes.uv;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i);
+    const r = Math.hypot(x, y), a = Math.atan2(y, x);
+    const t = (r - rIn) / (rOut - rIn);
+    const sc = 1 + t * 0.12 * Math.abs(Math.sin(a * n * 0.5));
+    const rr = rIn + (r - rIn) * sc;
+    // ripple up/down like a goffered frill
+    const zz = -t * (rOut - rIn) * drop + Math.sin(a * n) * t * (rOut - rIn) * 0.18;
+    p.setXYZ(i, Math.cos(a) * rr, zz, Math.sin(a) * rr);
+    uv.setXY(i, (a / (Math.PI * 2) + 0.5) * n, t);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
 /**
  * Seated bisque doll. Local: sitting on y = 0, facing +Z. size ≈ height of the seated doll.
+ * Options: pose 'lap' | 'reach' | 'limp'; headYaw / tilt (radians); bonnet; cracked face.
  */
-export function buildDoll(ctx, mats, { size = 0.3, seed = 0, dress = 0xb08080, hair = 0x3a2010, cracked = false, eyes = '#3a5a8a', bonnet = false, tilt = 0 } = {}) {
+export function buildDoll(ctx, mats, { size = 0.3, seed = 0, dress = 0xb08080, hair = 0x3a2010, cracked = false, eyes = '#3a5a8a', bonnet = false, tilt = 0, headYaw = 0, pose = 'lap', lace = true } = {}) {
   const G = ctx.geometry; const g = new THREE.Group(); g.name = 'doll';
   const s = size / 0.3;
-  const dressM = mats.dollCloth(dress);
+  const S = (pts) => pts.map(([r, y]) => [r * s, y * s]);
+  const dressM = mats.dollVelvet(dress);
   const hairM = mats.dollHair(hair);
   const face = mats.dollFace({ seed, cracked, eyes, hair: `#${new THREE.Color(hair).getHexString()}` });
-  // skirt (flattened bell) and bodice
-  const skirt = lathe(G, [[0, 0], [0.11, 0.0], [0.12, 0.02], [0.1, 0.06], [0.07, 0.1], [0.045, 0.13], [0.0, 0.13]].map(([r, y]) => [r * s, y * s]), 24);
+  // petticoat (lace) peeking under a ruffled skirt
+  const pet = mesh(ruffledLathe(G, S([[0, 0.004], [0.122, 0.004], [0.125, 0.012], [0.11, 0.03], [0.0, 0.03]]), { n: 26, ruffle: 0.06, ruffleTop: 1, seed }), mats.laceFrill, 0, 0, 0.004 * s, g);
+  pet.scale.set(1, 1, 1.12);
+  const skirt = ruffledLathe(G, S([[0, 0.012], [0.116, 0.012], [0.118, 0.022], [0.108, 0.05], [0.088, 0.08], [0.064, 0.108], [0.046, 0.128], [0.0, 0.13]]), { n: 15, ruffle: 0.1, ruffleTop: 0.55, seed: seed + 1 });
   const sk = mesh(skirt, dressM, 0, 0, 0, g); sk.scale.set(1, 1, 1.15);
-  mesh(lathe(G, [[0.0, 0.12], [0.045, 0.12], [0.05, 0.15], [0.042, 0.19], [0.03, 0.205], [0.0, 0.21]].map(([r, y]) => [r * s, y * s]), 20), dressM, 0, 0, 0, g);
-  // lace collar
-  const col = mesh(new THREE.TorusGeometry(0.032 * s, 0.009 * s, 8, 24), mats.lace, 0, 0.205 * s, 0, g); col.rotation.x = Math.PI / 2;
-  // legs sticking forward, white stockings + black shoes
+  // a sash at the waist
+  const sash = mesh(new THREE.TorusGeometry(0.047 * s, 0.008 * s, 8, 28), mats.dollSash, 0, 0.128 * s, 0, g); sash.rotation.x = Math.PI / 2; sash.scale.set(1, 1.1, 1);
+  // bodice with a pin-tucked front
+  mesh(G.latheFromProfile(S([[0.0, 0.12], [0.046, 0.12], [0.05, 0.145], [0.046, 0.18], [0.034, 0.2], [0.018, 0.208], [0.0, 0.21]]), 24), dressM, 0, 0, 0, g);
+  for (let i = 0; i < 4; i++) mesh(new THREE.SphereGeometry(0.004 * s, 8, 6), mats.pearl, 0, (0.14 + i * 0.016) * s, 0.048 * s - i * 0.0035 * s, g);
+  // goffered lace collar
+  if (lace) { const col = mesh(frillGeometry(0.018 * s, 0.05 * s, { n: 16, drop: 0.45 }), mats.laceFrill, 0, 0.207 * s, 0, g); col.rotation.y = seed; }
+  // legs forward: white stockings + strapped black shoes
   for (const sx of [-1, 1]) {
-    const leg = mesh(new THREE.CapsuleGeometry(0.014 * s, 0.09 * s, 4, 10), mats.stocking, sx * 0.035 * s, 0.022 * s, 0.1 * s, g); leg.rotation.x = Math.PI / 2 - 0.15;
-    const shoe = mesh(new THREE.SphereGeometry(0.019 * s, 12, 8), mats.black, sx * 0.035 * s, 0.03 * s, 0.165 * s, g); shoe.scale.set(0.9, 0.8, 1.4);
+    const leg = mesh(new THREE.CapsuleGeometry(0.0145 * s, 0.085 * s, 4, 10), mats.stocking, sx * 0.034 * s, 0.02 * s, 0.1 * s, g); leg.rotation.x = Math.PI / 2 - 0.12;
+    const shoe = mesh(new THREE.SphereGeometry(0.019 * s, 14, 10), mats.shoe, sx * 0.034 * s, 0.026 * s, 0.158 * s, g); shoe.scale.set(0.95, 0.85, 1.45);
+    const strap = mesh(new THREE.TorusGeometry(0.0155 * s, 0.0025 * s, 5, 16), mats.shoe, sx * 0.034 * s, 0.03 * s, 0.146 * s, g); strap.rotation.y = Math.PI / 2;
   }
-  // arms
+  // arms: puffed sleeve + bisque forearm + hand; posed
+  const arms = { lap: [0.95, 0.0, 0.35], reach: [1.45, 0.0, 0.18], limp: [0.15, 0.0, 0.12] }[pose] || [0.95, 0, 0.35];
   for (const sx of [-1, 1]) {
-    const arm = mesh(new THREE.CapsuleGeometry(0.012 * s, 0.075 * s, 4, 10), dressM, sx * 0.055 * s, 0.16 * s, 0.015 * s, g); arm.rotation.set(0.5, 0, sx * 0.25);
-    mesh(new THREE.SphereGeometry(0.012 * s, 10, 8), face.skin, sx * 0.068 * s, 0.12 * s, 0.045 * s, g);
+    const sh = new THREE.Group(); sh.position.set(sx * 0.05 * s, 0.19 * s, 0); g.add(sh);
+    sh.rotation.set(arms[0] + (pose === 'limp' && sx > 0 ? 0.25 : 0), 0, sx * arms[2]);
+    const puff = mesh(new THREE.SphereGeometry(0.022 * s, 14, 10), dressM, 0, -0.012 * s, 0, sh); puff.scale.set(1, 1.15, 1);
+    mesh(new THREE.TorusGeometry(0.015 * s, 0.004 * s, 6, 16), mats.laceFrill, 0, -0.03 * s, 0, sh).rotation.x = Math.PI / 2;
+    mesh(new THREE.CapsuleGeometry(0.0105 * s, 0.045 * s, 4, 10), face.skin, 0, -0.06 * s, 0, sh);
+    const hand = mesh(new THREE.SphereGeometry(0.0125 * s, 12, 8), face.skin, 0, -0.093 * s, 0.003 * s, sh); hand.scale.set(0.8, 1.15, 0.55);
+    const thumb = mesh(new THREE.CapsuleGeometry(0.0035 * s, 0.008 * s, 3, 6), face.skin, sx * -0.008 * s, -0.088 * s, 0.006 * s, sh); thumb.rotation.z = sx * 0.6;
   }
-  // head with painted face
-  const head = new THREE.Group(); head.position.set(0, 0.258 * s, 0); head.rotation.set(0.05, 0, tilt); g.add(head);
-  const hm = mesh(new THREE.SphereGeometry(0.05 * s, 32, 20), face.mat, 0, 0, 0, head); hm.scale.set(0.95, 1.02, 0.95);
-  mesh(new THREE.CylinderGeometry(0.016 * s, 0.02 * s, 0.03 * s, 12), face.skin, 0, -0.045 * s, 0, head);
-  // hair: cap + ringlets
-  const cap = mesh(new THREE.SphereGeometry(0.053 * s, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.55), hairM, 0, 0.004 * s, -0.006 * s, head); cap.rotation.x = -0.35;
-  const ring = new THREE.CapsuleGeometry(0.009 * s, 0.035 * s, 3, 8);
-  for (let i = 0; i < 9; i++) {
-    const a = Math.PI * 0.55 + (i / 8) * Math.PI * 0.9;
-    const r = mesh(ring, hairM, Math.cos(a) * 0.048 * s, -0.035 * s, Math.sin(-a) * 0.03 * s - 0.01 * s, head);
-    r.rotation.z = Math.cos(a) * 0.2;
-    void r;
+  // head: larger porcelain head with painted face and glass eyes
+  const head = new THREE.Group(); head.position.set(0, 0.268 * s, 0); head.rotation.set(0.04, headYaw, tilt); g.add(head);
+  const hr = 0.06 * s;
+  const hm = mesh(new THREE.SphereGeometry(hr, 40, 28), face.mat, 0, 0, 0, head); hm.scale.set(0.94, 1.03, 0.97);
+  hm.rotation.y = 0;
+  mesh(new THREE.CylinderGeometry(0.018 * s, 0.022 * s, 0.04 * s, 14), face.skin, 0, -0.055 * s, 0, head);
+  // glass eyeballs set into the painted sockets (catch the light from across the room)
+  for (const sx of [-1, 1]) {
+    const e = mesh(new THREE.SphereGeometry(0.0115 * s, 16, 12), face.glass, sx * 0.0215 * s, 0.004 * s, hr * 0.83, head);
+    e.scale.set(1, 0.78, 0.5);
+  }
+  // hair: cap + a fringe + long ringlets
+  const cap = mesh(new THREE.SphereGeometry(hr * 1.06, 28, 16, 0, Math.PI * 2, 0, Math.PI * 0.56), hairM, 0, 0.004 * s, -0.006 * s, head); cap.rotation.x = -0.42;
+  const fringe = mesh(new THREE.SphereGeometry(hr * 1.05, 20, 8, Math.PI * 0.25, Math.PI * 0.5, Math.PI * 0.18, Math.PI * 0.14), hairM, 0, 0.0, 0, head); fringe.rotation.y = -Math.PI * 0.5 - Math.PI * 0.25 + Math.PI * 0.25;
+  const ring = new THREE.CapsuleGeometry(0.0095 * s, 0.05 * s, 3, 8);
+  for (let i = 0; i < 11; i++) {
+    const a = Math.PI * 0.6 + (i / 10) * Math.PI * 0.8;
+    const r = mesh(ring, hairM, Math.cos(a) * hr * 0.92, -0.04 * s - (i % 3) * 0.006 * s, -Math.sin(a) * hr * 0.6 - 0.012 * s, head);
+    r.rotation.set(Math.sin(a) * 0.25, 0, Math.cos(a) * 0.3);
   }
   if (bonnet) {
-    const b = mesh(new THREE.SphereGeometry(0.062 * s, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), dressM, 0, 0.004 * s, -0.012 * s, head); b.rotation.x = -0.7; b.material = dressM;
-    const brim = mesh(new THREE.TorusGeometry(0.058 * s, 0.008 * s, 6, 28), mats.lace, 0, 0.02 * s, 0.01 * s, head); brim.rotation.x = -0.7 + Math.PI / 2;
+    const b = mesh(new THREE.SphereGeometry(0.074 * s, 28, 14, 0, Math.PI * 2, 0, Math.PI * 0.5), dressM, 0, 0.004 * s, -0.014 * s, head); b.rotation.x = -0.75;
+    const brim = mesh(frillGeometry(0.066 * s, 0.088 * s, { n: 22, drop: -0.2 }), mats.laceFrill, 0, 0.022 * s, 0.012 * s, head); brim.rotation.x = -0.75 + Math.PI / 2;
+    const tie = mesh(new THREE.TorusGeometry(0.012 * s, 0.004 * s, 6, 12), mats.dollSash, 0.0, -0.06 * s, 0.035 * s, head); tie.rotation.y = 0.4;
   }
+  g.userData.head = head;
   return g;
 }
 
@@ -552,17 +722,44 @@ export function buildRockingChair(ctx, mats) {
 }
 
 // ============================================================================ wardrobe
-/** Wardrobe. Local: back at z=0, faces +Z. userData.doors = [leftPivot, rightPivot] (groups hinged at the outer edges). */
+/**
+ * Wardrobe with a hollow carcass. Local: back at z=0, faces +Z. userData.doors = [leftPivot, rightPivot]
+ * (groups hinged at the outer edges); userData.back = the back panel (hidden once the knights are
+ * solved, revealing the attic stair behind it); userData.opening = { w, y0, y1 } of the hole in the back.
+ */
 export function buildWardrobe(ctx, mats, { w = 1.42, h = 2.32, d = 0.62 } = {}) {
   const G = ctx.geometry; const g = new THREE.Group(); g.name = 'wardrobe';
-  mesh(rbox(G, w + 0.04, 0.14, d + 0.03, 0.01), mats.mahogany, 0, 0.07, d / 2, g);
-  mesh(rbox(G, w, h - 0.14 - 0.12, d - 0.02, 0.01), mats.mahogany, 0, 0.14 + (h - 0.26) / 2, d / 2 - 0.01, g);
-  // dark interior (seen when the doors swing)
-  const inner = mesh(G.planeUV(w - 0.06, h - 0.32, 1), mats.soot, 0, 0.14 + (h - 0.26) / 2, d + 0.004, g); inner.visible = false; inner.name = 'wardrobeInner'; inner.userData.keep = true;
+  const t = 0.03, plinth = 0.14, top = h - 0.12;
+  mesh(rbox(G, w + 0.04, plinth, d + 0.03, 0.01), mats.mahogany, 0, plinth / 2, d / 2, g);
+  // carcass: sides, top, floor (open front + removable back)
+  for (const sx of [-1, 1]) mesh(rbox(G, t, top - plinth, d - 0.02, 0.006), mats.mahogany, sx * (w / 2 - t / 2), plinth + (top - plinth) / 2, d / 2 - 0.01, g);
+  mesh(rbox(G, w, t, d - 0.02, 0.006), mats.mahogany, 0, top - t / 2, d / 2 - 0.01, g);
+  mesh(rbox(G, w - 2 * t, 0.02, d - 0.04, 0.004), mats.walnut, 0, plinth + 0.01, d / 2, g);
+  // front stiles + rails round the doors
+  for (const sx of [-1, 1]) mesh(rbox(G, 0.04, top - plinth, 0.025, 0.006), mats.mahogany, sx * (w / 2 - 0.02), plinth + (top - plinth) / 2, d - 0.005, g);
+  mesh(rbox(G, w, 0.06, 0.025, 0.006), mats.mahogany, 0, top - 0.03, d - 0.005, g);
+  // interior: hanging rail with brass sockets and one forgotten wire hanger
+  const rail = mesh(new THREE.CylinderGeometry(0.012, 0.012, w - 2 * t, 12).rotateZ(Math.PI / 2), mats.brass, 0, top - 0.16, d * 0.5, g);
+  void rail;
+  const hanger = new THREE.Group();
+  const hk = new THREE.TorusGeometry(0.018, 0.0025, 6, 16, Math.PI * 1.3); mesh(hk, mats.iron, 0, 0.0, 0, hanger).rotation.z = -0.4;
+  const tri = []; for (const [x, y] of [[0, -0.02], [-0.2, -0.13], [0.2, -0.13], [0, -0.02]]) tri.push(V3(x, y, 0));
+  mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(tri, false, 'catmullrom', 0.1), 40, 0.0025, 5, false), mats.iron, 0, 0, 0, hanger);
+  hanger.position.set(0.38, top - 0.15, d * 0.5); hanger.rotation.set(0, 0.25, 0.18); g.add(hanger);
+  // back panel (with the opening behind it) — hidden when the stair is revealed
+  const ow = w - 0.24, oy0 = plinth + 0.02, oy1 = top - 0.04;
+  const backShape = new THREE.Shape();
+  backShape.moveTo(-w / 2 + t, plinth); backShape.lineTo(w / 2 - t, plinth); backShape.lineTo(w / 2 - t, top - t); backShape.lineTo(-w / 2 + t, top - t); backShape.lineTo(-w / 2 + t, plinth);
+  const hole = new THREE.Path();
+  hole.moveTo(-ow / 2, oy0); hole.lineTo(-ow / 2, oy1); hole.lineTo(ow / 2, oy1); hole.lineTo(ow / 2, oy0); hole.lineTo(-ow / 2, oy0);
+  backShape.holes.push(hole);
+  mesh(G.applyBoxUVs(new THREE.ExtrudeGeometry(backShape, { depth: 0.02, bevelEnabled: false }), 1), mats.walnut, 0, 0, 0.0, g);
+  const back = mesh(G.boxUV(ow + 0.02, oy1 - oy0 + 0.02, 0.018, 1), mats.walnut, 0, (oy0 + oy1) / 2, 0.03, g);
+  back.name = 'wardrobeBack'; back.userData.keep = true;
+  // vertical boarding lines on the back panel
+  for (let i = 1; i < 5; i++) mesh(new THREE.BoxGeometry(0.004, oy1 - oy0, 0.004), mats.soot, -ow / 2 + (i * ow) / 5, (oy0 + oy1) / 2, 0.04, back.parent === g ? back : g).position.set(-ow / 2 + (i * ow) / 5, 0, 0.011);
   // cornice
   const cw = w / 2 + 0.03;
-  const path = [V3(cw, h - 0.12, 0), V3(cw, h - 0.12, d + 0.02), V3(-cw, h - 0.12, d + 0.02), V3(-cw, h - 0.12, 0)];
-  void path;
   mesh(rbox(G, w + 0.12, 0.05, d + 0.08, 0.012), mats.mahogany, 0, h - 0.025, d / 2 + 0.01, g);
   mesh(G.sweepProfile(G.PROFILES.crown(0.1, 0.06), [V3(-cw, h - 0.12, 0), V3(-cw, h - 0.12, d), V3(cw, h - 0.12, d), V3(cw, h - 0.12, 0)], { uvScale: 1 }), mats.mahogany, 0, 0, 0, g);
   // broken pediment
@@ -581,10 +778,97 @@ export function buildWardrobe(ctx, mats, { w = 1.42, h = 2.32, d = 0.62 } = {}) 
     mesh(rbox(G, dw - 0.005, dh, 0.03, 0.006), mats.mahogany, 0, dh / 2, 0, leaf);
     mesh(G.raisedPanel(dw - 0.12, dh * 0.62, { border: 0.05, bevel: 0.04 }), mats.panel, 0, dh * 0.62, 0.015, leaf);
     mesh(G.raisedPanel(dw - 0.12, dh * 0.25, { border: 0.04, bevel: 0.03 }), mats.panel, 0, dh * 0.16, 0.015, leaf);
+    // inside face of the leaf
+    mesh(G.raisedPanel(dw - 0.12, dh * 0.8, { border: 0.05, bevel: 0.03 }), mats.walnut, 0, dh * 0.5, -0.015, leaf).rotation.y = Math.PI;
     mesh(lathe(G, [[0, 0], [0.012, 0], [0.016, 0.02], [0.008, 0.035], [0, 0.04]], 12).rotateX(Math.PI / 2), mats.brass, -sx * (dw / 2 - 0.05), dh * 0.48, 0.015, leaf);
     g.add(pivot); doors.push(pivot);
   }
-  g.userData = { doors, inner };
+  g.userData = { doors, back, opening: { w: ow, y0: oy0, y1: oy1 } };
+  return g;
+}
+
+/**
+ * The hidden attic stair behind the wardrobe. Local frame: x across (centred), the stair climbs
+ * toward -Z from z = 0 (the wall plane), floor at y = `y0`. Returns a Group; userData.light is the
+ * cold skylight spot (target included), userData.shaftInfo describes the skylight for fx.shaft.
+ */
+export function buildAtticStair(ctx, mats, { w = 1.1, y0 = 0.16, steps = 8, rise = 0.235, going = 0.3 } = {}) {
+  const G = ctx.geometry; const g = new THREE.Group(); g.name = 'atticStair';
+  const z0 = -0.3;                                   // first riser (a short landing behind the wall)
+  const runL = steps * going;
+  const topY = y0 + steps * rise;
+  const endZ = z0 - runL;
+  const deep = endZ - 1.6;                           // the attic floor runs on beyond the stair head
+  // landing floor
+  mesh(G.boxUV(w, 0.04, -z0 + 0.05, 1), mats.atticBoard, 0, y0 - 0.02, z0 / 2, g);
+  // treads + risers, worn in the middle, the odd tread split
+  for (let i = 0; i < steps; i++) {
+    const y = y0 + (i + 1) * rise, z = z0 - i * going;
+    const tread = mesh(rbox(G, w - 0.06, 0.035, going + 0.03, 0.008), mats.atticBoard, 0, y - 0.0175, z - going / 2 + 0.015, g);
+    tread.rotation.z = ((i * 7) % 5 - 2) * 0.004;
+    mesh(G.boxUV(w - 0.08, rise, 0.02, 1), mats.atticBoard, 0, y - rise / 2, z + 0.005, g);
+    // nosing
+    mesh(new THREE.CylinderGeometry(0.018, 0.018, w - 0.06, 10).rotateZ(Math.PI / 2), mats.atticBoard, 0, y - 0.018, z + 0.01, g);
+  }
+  // stringers both sides, following the pitch
+  const pitch = Math.atan2(steps * rise, runL);
+  const strL = Math.hypot(runL, steps * rise) + 0.5;
+  for (const sx of [-1, 1]) {
+    const st = mesh(rbox(G, 0.05, 0.28, strL, 0.01), mats.atticBeam, sx * (w / 2 - 0.025), y0 + (steps * rise) / 2 - 0.05, z0 - runL / 2, g);
+    st.rotation.x = pitch;
+  }
+  // handrail on posts along the left side
+  {
+    const hx = -w / 2 + 0.07;
+    const rl = mesh(new THREE.CylinderGeometry(0.022, 0.022, strL - 0.3, 10), mats.atticBeam, hx, y0 + 0.9 + (steps * rise) / 2, z0 - runL / 2, g);
+    rl.rotation.x = Math.PI / 2 - pitch;
+    for (let i = 0; i <= steps; i += 2) {
+      const y = y0 + i * rise, z = z0 - i * going;
+      mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.9, 8), mats.atticBeam, hx, y + 0.45, z - going / 2, g);
+    }
+  }
+  // side walls: rough limewashed plaster, and a sloped ceiling that opens into the attic
+  const wallH = topY + 1.9;
+  for (const sx of [-1, 1]) {
+    const wl = mesh(G.planeUV(-deep + 0.05, wallH, 1), mats.atticPlaster, sx * w / 2, wallH / 2, deep / 2, g);
+    wl.rotation.y = -sx * Math.PI / 2;
+  }
+  const ceilL = Math.hypot(runL * 0.55, steps * rise * 0.55);
+  const ceil = mesh(G.planeUV(w, ceilL, 1), mats.atticPlaster, 0, y0 + 2.15 + (steps * rise) * 0.27, z0 - runL * 0.27, g);
+  ceil.rotation.x = Math.PI / 2 + pitch;
+  // attic floor, back wall far away
+  mesh(G.boxUV(w, 0.04, -deep + endZ + 0.02, 1), mats.atticBoard, 0, topY - 0.02, (endZ + deep) / 2, g);
+  const bw = mesh(G.planeUV(w, wallH, 1), mats.atticPlaster, 0, wallH / 2, deep, g); void bw;
+  // rafters and a ridge beam above the stair head, festooned with cobwebs
+  const roofY = topY + 1.15;
+  for (let k = 0; k < 5; k++) {
+    const z = endZ + 0.9 - k * 0.55;
+    for (const sx of [-1, 1]) {
+      const rf = mesh(rbox(G, 0.07, 0.12, 1.3, 0.006), mats.atticBeam, sx * 0.3, roofY + 0.25, z, g);
+      rf.rotation.set(0, Math.PI / 2, sx * 0.6);
+    }
+    mesh(rbox(G, w, 0.1, 0.07, 0.006), mats.atticBeam, 0, roofY, z, g);
+  }
+  mesh(rbox(G, 0.08, 0.1, 3.0, 0.006), mats.atticBeam, 0, roofY + 0.55, endZ - 0.3, g);
+  // roof boarding between the rafters
+  for (const sx of [-1, 1]) {
+    const rbg = G.planeUV(0.9, 3.0, 1).rotateX(Math.PI / 2).rotateZ(-sx * 0.6);
+    mesh(rbg, mats.atticBoard, sx * 0.32, roofY + 0.33, endZ - 0.3, g);
+  }
+  // skylight in the roof (moonlit), the source of the cold shaft down the stair
+  const sky = mesh(new THREE.PlaneGeometry(0.42, 0.6), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 0.65, 1.0).multiplyScalar(2.2), toneMapped: true, name: 'atticSky' }), 0.28, roofY + 0.62, endZ - 0.15, g);
+  sky.rotation.set(-Math.PI / 2, 0, 0); sky.rotateY(0.95); sky.userData.noShadow = true;
+  // cold light pouring down the stair from the skylight
+  const spot = new THREE.SpotLight(0x9fb4ff, 60, 9, 0.5, 0.6, 1.6);
+  spot.position.set(0.2, roofY + 0.5, endZ - 0.2);
+  spot.target.position.set(0, y0, z0 + 0.2);
+  spot.castShadow = ctx.quality.shadows;
+  spot.shadow.mapSize.set(512, 512); spot.shadow.bias = -0.002; spot.shadow.normalBias = 0.02; spot.shadow.radius = 4;
+  spot.shadow.camera.near = 0.3; spot.shadow.camera.far = 9;
+  g.add(spot, spot.target);
+  // soft cold fill so the stairwell is not a black hole
+  const fill = new THREE.PointLight(0x7f95d8, 2.2, 4.5, 2); fill.position.set(0, topY - 0.3, endZ + 1.0); g.add(fill);
+  g.userData = { light: spot, fill, topY, endZ, roofY, z0 };
   return g;
 }
 

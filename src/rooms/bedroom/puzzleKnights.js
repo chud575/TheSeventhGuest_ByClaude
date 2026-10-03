@@ -19,7 +19,7 @@ export const knightsMeta = {
   title: 'The Knights',
   description: 'Bone and ebony face each other across the carved board. A knight may leap only as a knight leaps, and only into the empty square. Exchange the two armies.',
   hints: [
-    'Only a knight standing an L-shaped leap away from the empty square can move — two squares one way and one square to the side. Hover the board: the knights that may leap glow faintly.',
+    'Only a knight standing an L-shaped leap away from the empty square can move — two squares one way and one square to the side. Hover the board: the squares of the knights that may leap are ringed in faint gold.',
     'Do not try to march one army across. Work around the rim: bring the corner knights out early, and keep returning the empty square to the centre to change direction. The fewest leaps that will do it is thirty-six.',
     'Rows top to bottom are 1-5, columns left to right A-E. Leap from: D5, B4, D3, E1, C2, E3, D1, C3, A4, C5, B3, D2, E4, C3, B5, A3, C4, A5, B3, A1, C2, D4, B3, D2, B1, C3, A2, B4, D3, E5, C4, B2, D3, C1, E2, C3.',
   ],
@@ -68,14 +68,17 @@ export function createKnightsPuzzle(ctx, { parent, center, size, mats, camera, o
   const boardIdx = new Array(N * N).fill(-1); // square -> piece index
   grid.forEach((ch, i) => {
     if (ch === '.') return;
-    const m = new THREE.Mesh(geo, (ch === 'W' ? mats.bone : mats.ebony).clone());
-    m.material.emissive = new THREE.Color(0, 0, 0);
+    // pieces never glow: the hover cue is a ring decal on the square (see overlays)
+    const m = new THREE.Mesh(geo, ch === 'W' ? mats.bone : mats.ebony);
     m.castShadow = true; m.receiveShadow = true;
     m.position.copy(posOf(i));
-    // bone knights face away from the player (toward the ebony host), ebony toward
-    const jitter = ((i * 37) % 11 - 5) * 0.025;
-    m.rotation.y = (ch === 'W' ? Math.PI : 0) + jitter;
+    // side-on to the player so the horse-head silhouettes read: ebony looks toward the
+    // bone host (screen right), bone toward the ebony (screen left); each piece turned a
+    // little toward the camera, with a per-piece 10-20 degree variation.
+    const jitter = (((i * 37) % 11) / 10 - 0.5) * 0.34;
+    m.rotation.y = (ch === 'W' ? -Math.PI / 2 + 0.32 : Math.PI / 2 - 0.32) + jitter;
     m.userData.piece = pieces.length;
+    m.userData.noBloom = true;
     boardIdx[i] = pieces.length;
     group.add(m);
     pieces.push({ mesh: m, color: ch, sq: i, baseRot: m.rotation.y });
@@ -86,10 +89,19 @@ export function createKnightsPuzzle(ctx, { parent, center, size, mats, camera, o
   const pick = new THREE.Mesh(new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2), pickMat);
   pick.position.y = 0.001; pick.userData.noBake = true; pick.userData.noShadow = true;
   group.add(pick);
-  const ovG = new THREE.PlaneGeometry(sq * 0.9, sq * 0.9).rotateX(-Math.PI / 2);
+  const ovG = new THREE.PlaneGeometry(sq * 0.96, sq * 0.96).rotateX(-Math.PI / 2);
+  // thin inlaid ring (additive, tone-mapped so it never blooms)
+  const ringTex = ctx.textures.canvas('bedroom:knightRing', 128, 128, (g2, w) => {
+    g2.clearRect(0, 0, w, w);
+    const c = w / 2;
+    const gr = g2.createRadialGradient(c, c, w * 0.3, c, c, w * 0.48);
+    gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.55, 'rgba(255,255,255,0.12)');
+    gr.addColorStop(0.8, 'rgba(255,255,255,1)'); gr.addColorStop(0.9, 'rgba(255,255,255,0.5)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g2.fillStyle = gr; g2.beginPath(); g2.arc(c, c, w * 0.48, 0, 7); g2.fill();
+  }, { tile: false });
   const overlays = [];
   for (let i = 0; i < N * N; i++) {
-    const o = new THREE.Mesh(ovG, new THREE.MeshBasicMaterial({ color: 0xffb050, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
+    const o = new THREE.Mesh(ovG, new THREE.MeshBasicMaterial({ map: ringTex, color: 0xffd9a0, transparent: true, opacity: 0, depthWrite: false, toneMapped: true, blending: THREE.AdditiveBlending }));
     o.position.copy(posOf(i)); o.position.y = 0.0015; o.visible = false; o.renderOrder = 5;
     o.userData.noBake = true; o.userData.noShadow = true;
     group.add(o); overlays.push(o);
@@ -140,24 +152,21 @@ export function createKnightsPuzzle(ctx, { parent, center, size, mats, camera, o
 
   function refresh(t = 0) {
     for (const o of overlays) { o.visible = false; o.material.opacity = 0; }
-    for (const p of pieces) {
-      const e = p.mesh.material.emissive;
-      if (solvedFlag) { e.setRGB(0.3, 0.18, 0.05).multiplyScalar(0.6 + 0.4 * Math.sin(t * 2 + p.sq)); continue; }
-      if (!active) { e.setRGB(0, 0, 0); continue; }
-      const mov = canMove(p.sq);
-      if (p.sq === hover && mov) e.setRGB(0.28, 0.16, 0.04);
-      else if (mov) e.setRGB(0.07, 0.04, 0.01).multiplyScalar(0.7 + 0.3 * Math.sin(t * 3));
-      else e.setRGB(0, 0, 0);
+    const show = (i, r, g2, b, op) => { const o = overlays[i]; o.visible = true; o.material.color.setRGB(r, g2, b); o.material.opacity = op; };
+    if (solvedFlag) {
+      if (active) for (let i = 0; i < N * N; i++) if (grid[i] !== '.') show(i, 1, 0.85, 0.55, 0.12 + 0.06 * Math.sin(t * 2 + i));
+      return;
     }
-    if (!active || solvedFlag) return;
+    if (!active) return;
     const em = empty();
-    const eo = overlays[em]; eo.visible = true; eo.material.color.setRGB(1, 0.7, 0.3); eo.material.opacity = 0.1 + 0.05 * Math.sin(t * 2.5);
-    if (hover >= 0 && canMove(hover)) {
-      eo.material.opacity = 0.32;
-      const ho = overlays[hover]; ho.visible = true; ho.material.color.setRGB(1, 0.75, 0.35); ho.material.opacity = 0.14;
-    } else if (hover >= 0 && grid[hover] !== '.') {
-      const ho = overlays[hover]; ho.visible = true; ho.material.color.setRGB(1, 0.15, 0.05); ho.material.opacity = 0.12;
+    show(em, 1, 0.85, 0.6, 0.22 + 0.08 * Math.sin(t * 2.5));
+    for (let i = 0; i < N * N; i++) {
+      if (!canMove(i)) continue;
+      if (i === hover) show(i, 1, 0.9, 0.65, 0.55);
+      else show(i, 1, 0.85, 0.55, 0.2 + 0.08 * Math.sin(t * 3 + i));
     }
+    if (hover >= 0 && canMove(hover)) show(em, 1, 0.9, 0.65, 0.5);
+    else if (hover >= 0 && grid[hover] !== '.') show(hover, 1, 0.25, 0.12, 0.35);
   }
 
   function status() {
@@ -223,7 +232,7 @@ export function createKnightsPuzzle(ctx, { parent, center, size, mats, camera, o
     setup(p) {
       active = true;
       if (ctx.state.isSolved(KNIGHTS_ID)) { solvedFlag = true; }
-      p.status(solvedFlag ? status() : 'Click a glowing knight to leap it into the empty square.   (Right-click or U: undo)');
+      p.status(solvedFlag ? status() : 'Click a ringed knight to leap it into the empty square.   (Right-click or U: undo)');
     },
     teardown() { active = false; hover = -1; },
     reset(p) {

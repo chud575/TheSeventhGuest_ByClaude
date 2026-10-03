@@ -79,19 +79,28 @@ export function tornDrape(ctx, { seed = 1, color = [0.3, 0.05, 0.07] } = {}) {
       vec2 p = uv;
       float n = fbm(p * vec2(4.0, 8.0) + uS, vec2(64.0), 6);
       float n2 = fbm(p * vec2(18.0, 30.0) + uS * 1.7, vec2(256.0), 4);
-      // ragged, shredded hem: long vertical tears hanging in strips
+      // ragged, shredded hem at an uneven height, hanging in strips
       float strip = fbm(vec2(p.x * 9.0 + uS, 0.5), vec2(64.0), 4);
-      float hem = 0.16 + 0.22 * strip + 0.06 * n;
-      float tearLine = abs(fract(p.x * 6.0 + strip * 1.5 + uS) - 0.5);
-      hem += smoothstep(0.06, 0.0, tearLine) * 0.35 * step(0.4, hash11(floor(p.x * 6.0 + strip * 1.5 + uS)));
-      float alpha = smoothstep(hem - 0.01, hem + 0.01, p.y + n2 * 0.03);
-      // moth holes and rot patches
-      vec4 v = voronoi(p * vec2(9.0, 18.0) + uS, vec2(256.0), 1.0);
-      float hole = smoothstep(0.17, 0.12, v.x + n2 * 0.12) * step(0.72, hash12(v.zw + uS));
-      float rot = smoothstep(0.6, 0.75, n + n2 * 0.25) * smoothstep(0.8, 0.3, p.y);
-      alpha *= 1.0 - max(hole, rot);
-      // frayed edge darkening
-      float edge = smoothstep(0.12, 0.0, p.y - hem) + smoothstep(0.22, 0.12, v.x) * step(0.72, hash12(v.zw + uS)) * 0.6;
+      float hem = 0.06 + 0.3 * strip * strip + 0.05 * n;
+      float sid = floor(p.x * 7.0 + strip * 1.5 + uS);
+      float tearLine = abs(fract(p.x * 7.0 + strip * 1.5 + uS) - 0.5);
+      // long rips running up from the hem (some reach two thirds of the way up)
+      float ripLen = step(0.45, hash11(sid)) * (0.2 + 0.5 * hash11(sid + 3.1));
+      float ripW = 0.035 * (1.0 - smoothstep(hem, hem + ripLen, p.y)) + 0.004;
+      float rip = smoothstep(ripW, ripW * 0.5, tearLine + n2 * 0.02) * step(p.y, hem + ripLen);
+      float alpha = smoothstep(hem - 0.01, hem + 0.01, p.y + n2 * 0.04) * (1.0 - rip);
+      // moth holes (many, ragged) and rotted-through patches
+      vec4 v = voronoi(p * vec2(10.0, 20.0) + uS, vec2(256.0), 1.0);
+      float holeSel = step(0.58, hash12(v.zw + uS));
+      float hole = smoothstep(0.2, 0.13, v.x + n2 * 0.16) * holeSel;
+      vec4 v2 = voronoi(p * vec2(3.0, 5.0) + uS * 1.3, vec2(256.0), 1.0);
+      float bigHole = smoothstep(0.26, 0.18, v2.x + n2 * 0.18 + n * 0.08) * step(0.7, hash12(v2.zw + uS * 2.0)) * smoothstep(0.95, 0.6, p.y);
+      float rot = smoothstep(0.58, 0.72, n + n2 * 0.3) * smoothstep(0.85, 0.25, p.y);
+      alpha *= 1.0 - max(max(hole, bigHole), rot);
+      // frayed edges darken (scorched/rotten rims round every hole and rip)
+      float edge = smoothstep(0.12, 0.0, p.y - hem) + smoothstep(0.28, 0.17, v.x) * holeSel * 0.7
+                 + smoothstep(0.34, 0.24, v2.x) * step(0.7, hash12(v2.zw + uS * 2.0)) * 0.6 + smoothstep(ripW * 3.0, ripW, tearLine) * step(p.y, hem + ripLen) * 0.6;
+      edge = clamp(edge, 0.0, 1.0);
       // velvet pile: vertical nap, crushed patches
       float nap = vnoise(vec2(p.x * 700.0, p.y * 90.0), vec2(700.0, 90.0));
       float crush = smoothstep(0.3, 0.7, fbm(p * vec2(3.0, 5.0) + uS * 2.0, vec2(64.0), 4));
@@ -367,54 +376,94 @@ export function wallpaper(ctx) {
   });
 }
 
-/** Painted bisque doll face (canvas). Face centred at u = 0.25 (SphereGeometry +Z). */
+/** Painted bisque doll face (canvas, 1024x512). Face centred at u = 0.25 (SphereGeometry +Z). */
 export function dollFace(ctx, { seed = 0, cracked = false, eyes = '#3a5a8a', hair = '#4a2a14' } = {}) {
-  return ctx.textures.canvas(`bedroom:doll${seed}${cracked ? 'c' : ''}`, 512, 256, (g, w, h) => {
+  return ctx.textures.canvas(`bedroom:doll2_${seed}${cracked ? 'c' : ''}`, 1024, 512, (g, w, h) => {
     const rnd = (i) => { const x = Math.sin(i * 91.7 + seed * 47.3) * 43758.5453; return x - Math.floor(x); };
-    g.fillStyle = '#e9dccb'; g.fillRect(0, 0, w, h);
-    // subtle bisque mottling
-    for (let i = 0; i < 400; i++) { g.fillStyle = `rgba(${150 + rnd(i) * 60},${120 + rnd(i + 1) * 40},${100},0.05)`; g.beginPath(); g.arc(rnd(i + 2) * w, rnd(i + 3) * h, 2 + rnd(i + 4) * 8, 0, 7); g.fill(); }
+    // bisque ground: warm ivory with a cooler, slightly grey shading toward the back
+    const base = g.createLinearGradient(0, 0, w, 0);
+    base.addColorStop(0, '#d9cdbd'); base.addColorStop(0.25, '#efe4d4'); base.addColorStop(0.5, '#d6c9b8'); base.addColorStop(1, '#d9cdbd');
+    g.fillStyle = base; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 700; i++) { g.fillStyle = `rgba(${150 + rnd(i) * 60},${120 + rnd(i + 1) * 40},100,0.035)`; g.beginPath(); g.arc(rnd(i + 2) * w, rnd(i + 3) * h, 3 + rnd(i + 4) * 14, 0, 7); g.fill(); }
     const cx = w * 0.25, cy = h * 0.52;
-    // hair cap (top + back)
-    g.fillStyle = hair;
-    g.fillRect(0, 0, w, h * 0.3);
-    g.beginPath(); g.ellipse(cx, h * 0.28, w * 0.12, h * 0.07, 0, 0, Math.PI); g.fill();
-    g.fillRect(w * 0.42, 0, w * 0.66, h * 0.62);
-    for (let i = 0; i < 60; i++) { g.strokeStyle = `rgba(20,10,4,${0.2 + rnd(i) * 0.3})`; g.lineWidth = 1; g.beginPath(); const x = rnd(i + 9) * w; g.moveTo(x, 0); g.lineTo(x + (rnd(i) - 0.5) * 20, h * 0.3); g.stroke(); }
-    // cheeks
-    for (const s of [-1, 1]) {
-      const gr = g.createRadialGradient(cx + s * 34, cy + 22, 2, cx + s * 34, cy + 22, 26);
-      gr.addColorStop(0, 'rgba(210,90,90,0.55)'); gr.addColorStop(1, 'rgba(210,90,90,0)');
-      g.fillStyle = gr; g.beginPath(); g.arc(cx + s * 34, cy + 22, 26, 0, 7); g.fill();
+    const S = 2.0;      // feature scale (px per old px)
+    // hair line (the hair cap covers the rest)
+    g.fillStyle = hair; g.fillRect(0, 0, w, h * 0.2);
+    // cheeks: strong, rouged blush that reads from across the room
+    for (const sd of [-1, 1]) {
+      const x = cx + sd * 40 * S, y = cy + 26 * S;
+      const gr = g.createRadialGradient(x, y, 2, x, y, 34 * S);
+      gr.addColorStop(0, 'rgba(214,82,86,0.75)'); gr.addColorStop(0.6, 'rgba(214,92,96,0.3)'); gr.addColorStop(1, 'rgba(214,92,96,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, 34 * S, 0, 7); g.fill();
     }
-    // eyes: almond whites, irises, heavy upper lid line, lashes
-    for (const s of [-1, 1]) {
-      const ex = cx + s * 22, ey = cy - 2;
-      g.fillStyle = '#f4f0e6'; g.beginPath(); g.ellipse(ex, ey, 11, 7, 0, 0, 7); g.fill();
-      g.fillStyle = eyes; g.beginPath(); g.arc(ex + s * 0.5, ey + 0.5, 6, 0, 7); g.fill();
-      g.fillStyle = '#080605'; g.beginPath(); g.arc(ex + s * 0.5, ey + 0.5, 2.8, 0, 7); g.fill();
-      g.fillStyle = 'rgba(255,255,255,0.9)'; g.beginPath(); g.arc(ex - 2, ey - 2, 1.4, 0, 7); g.fill();
-      g.strokeStyle = '#1a0f08'; g.lineWidth = 2.2; g.beginPath(); g.ellipse(ex, ey + 1, 11.5, 7.5, 0, Math.PI * 1.05, Math.PI * 1.95); g.stroke();
-      for (let k = 0; k < 6; k++) { const a = Math.PI * (1.15 + k * 0.13); g.lineWidth = 1; g.beginPath(); g.moveTo(ex + Math.cos(a) * 11, ey + 1 + Math.sin(a) * 7.5); g.lineTo(ex + Math.cos(a) * 15, ey + 1 + Math.sin(a) * 11); g.stroke(); }
-      // brows
-      g.strokeStyle = 'rgba(70,40,20,0.8)'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(ex - 10, ey - 13 + s * 0); g.quadraticCurveTo(ex, ey - 17, ex + 10, ey - 13); g.stroke();
+    // chin + nose-tip blush
+    for (const [x, y, r, a] of [[cx, cy + 48 * S, 14 * S, 0.35], [cx, cy + 16 * S, 8 * S, 0.3]]) {
+      const gr = g.createRadialGradient(x, y, 1, x, y, r); gr.addColorStop(0, `rgba(205,95,90,${a})`); gr.addColorStop(1, 'rgba(205,95,90,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
     }
-    // nose dots and rosebud mouth
-    g.fillStyle = 'rgba(160,80,70,0.6)'; g.beginPath(); g.arc(cx - 2.5, cy + 15, 1.3, 0, 7); g.arc(cx + 2.5, cy + 15, 1.3, 0, 7); g.fill();
-    g.fillStyle = '#9a2626'; g.beginPath(); g.moveTo(cx - 8, cy + 30); g.quadraticCurveTo(cx - 4, cy + 25, cx, cy + 28); g.quadraticCurveTo(cx + 4, cy + 25, cx + 8, cy + 30); g.quadraticCurveTo(cx, cy + 36, cx - 8, cy + 30); g.fill();
-    g.fillStyle = '#3a0c0c'; g.fillRect(cx - 6, cy + 29.5, 12, 1.2);
+    // eye sockets: dark, wide, painted lids; the glass eyeballs sit on top (see buildDoll)
+    for (const sd of [-1, 1]) {
+      const ex = cx + sd * 26 * S, ey = cy - 2 * S;
+      // eye shadow
+      const sh = g.createRadialGradient(ex, ey - 6 * S, 2, ex, ey - 4 * S, 22 * S);
+      sh.addColorStop(0, 'rgba(120,70,70,0.45)'); sh.addColorStop(1, 'rgba(120,70,70,0)');
+      g.fillStyle = sh; g.beginPath(); g.arc(ex, ey - 4 * S, 22 * S, 0, 7); g.fill();
+      g.fillStyle = '#efe9de'; g.beginPath(); g.ellipse(ex, ey, 15 * S, 10 * S, 0, 0, 7); g.fill();
+      g.fillStyle = eyes; g.beginPath(); g.arc(ex, ey + 1 * S, 8.5 * S, 0, 7); g.fill();
+      g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.arc(ex, ey + 1 * S, 8.5 * S, Math.PI, 0); g.fill();
+      g.fillStyle = '#050403'; g.beginPath(); g.arc(ex, ey + 1 * S, 4 * S, 0, 7); g.fill();
+      // heavy upper lid line + painted lashes (upper and lower)
+      g.strokeStyle = '#1a0f08'; g.lineWidth = 3.4 * S; g.beginPath(); g.ellipse(ex, ey + 1 * S, 15.5 * S, 10.5 * S, 0, Math.PI * 1.04, Math.PI * 1.96); g.stroke();
+      g.lineWidth = 1.4 * S;
+      for (let k = 0; k < 9; k++) { const a = Math.PI * (1.1 + k * 0.1); g.beginPath(); g.moveTo(ex + Math.cos(a) * 15 * S, ey + 1 * S + Math.sin(a) * 10 * S); g.lineTo(ex + Math.cos(a) * 21 * S, ey + 1 * S + Math.sin(a) * 16 * S); g.stroke(); }
+      g.lineWidth = 0.9 * S; g.strokeStyle = 'rgba(40,20,10,0.8)';
+      for (let k = 0; k < 7; k++) { const a = Math.PI * (0.2 + k * 0.1); g.beginPath(); g.moveTo(ex + Math.cos(a) * 14 * S, ey + 1 * S + Math.sin(a) * 9 * S); g.lineTo(ex + Math.cos(a) * 17 * S, ey + 1 * S + Math.sin(a) * 13 * S); g.stroke(); }
+      // feathered brows, high and thin (surprised)
+      g.strokeStyle = 'rgba(80,45,22,0.85)'; g.lineWidth = 1.2 * S;
+      for (let k = 0; k < 10; k++) { const t = k / 9; const bx = ex - 15 * S + t * 30 * S; const by = ey - 22 * S - Math.sin(t * Math.PI) * 6 * S; g.beginPath(); g.moveTo(bx, by + 2 * S); g.lineTo(bx + 4 * S, by - 1 * S); g.stroke(); }
+    }
+    // nostril dots and a tiny rosebud mouth, parted to show two painted teeth
+    g.fillStyle = 'rgba(150,70,60,0.75)'; g.beginPath(); g.arc(cx - 3.5 * S, cy + 19 * S, 1.8 * S, 0, 7); g.arc(cx + 3.5 * S, cy + 19 * S, 1.8 * S, 0, 7); g.fill();
+    g.fillStyle = '#a32a2c'; g.beginPath(); g.moveTo(cx - 11 * S, cy + 35 * S); g.quadraticCurveTo(cx - 5 * S, cy + 28 * S, cx, cy + 32 * S); g.quadraticCurveTo(cx + 5 * S, cy + 28 * S, cx + 11 * S, cy + 35 * S); g.quadraticCurveTo(cx, cy + 43 * S, cx - 11 * S, cy + 35 * S); g.fill();
+    g.fillStyle = '#2a0808'; g.beginPath(); g.ellipse(cx, cy + 35.5 * S, 6 * S, 1.8 * S, 0, 0, 7); g.fill();
+    g.fillStyle = '#f2ece0'; g.fillRect(cx - 3.2 * S, cy + 34 * S, 2.8 * S, 2.2 * S); g.fillRect(cx + 0.4 * S, cy + 34 * S, 2.8 * S, 2.2 * S);
     if (cracked) {
-      g.strokeStyle = 'rgba(30,20,14,0.85)'; g.lineWidth = 1.4;
-      let x = cx + 30, y = cy - 60; g.beginPath(); g.moveTo(x, y);
-      for (let i = 0; i < 9; i++) { x += (rnd(i + 30) - 0.6) * 14; y += 9 + rnd(i + 40) * 6; g.lineTo(x, y); }
+      g.strokeStyle = 'rgba(30,20,14,0.9)'; g.lineWidth = 1.8 * S;
+      let x = cx + 36 * S, y = cy - 70 * S; g.beginPath(); g.moveTo(x, y);
+      for (let i = 0; i < 11; i++) { x += (rnd(i + 30) - 0.62) * 16 * S; y += 10 * S + rnd(i + 40) * 6 * S; g.lineTo(x, y); }
       g.stroke();
-      g.beginPath(); g.moveTo(cx + 22, cy - 22); g.lineTo(cx + 34, cy - 8); g.lineTo(cx + 30, cy + 6); g.stroke();
-      // chipped piece showing dark interior
-      g.fillStyle = '#1a120c'; g.beginPath(); g.moveTo(cx + 28, cy - 38); g.lineTo(cx + 40, cy - 30); g.lineTo(cx + 33, cy - 22); g.closePath(); g.fill();
+      g.lineWidth = 1.2 * S; g.beginPath(); g.moveTo(cx + 26 * S, cy - 26 * S); g.lineTo(cx + 40 * S, cy - 10 * S); g.lineTo(cx + 34 * S, cy + 8 * S); g.stroke();
+      g.fillStyle = '#140d08'; g.beginPath(); g.moveTo(cx + 30 * S, cy - 44 * S); g.lineTo(cx + 46 * S, cy - 34 * S); g.lineTo(cx + 37 * S, cy - 24 * S); g.lineTo(cx + 33 * S, cy - 30 * S); g.closePath(); g.fill();
     }
-    // grime
-    for (let i = 0; i < 30; i++) { g.fillStyle = `rgba(60,45,30,${0.03 + rnd(i + 70) * 0.05})`; g.beginPath(); g.arc(rnd(i + 80) * w, rnd(i + 90) * h, 6 + rnd(i + 100) * 20, 0, 7); g.fill(); }
+    // grime in the creases + a brown tear stain under one eye
+    for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(60,45,30,${0.03 + rnd(i + 70) * 0.05})`; g.beginPath(); g.arc(rnd(i + 80) * w, rnd(i + 90) * h, 8 + rnd(i + 100) * 30, 0, 7); g.fill(); }
+    const tx = cx + (seed % 2 ? 26 : -26) * S;
+    const tg = g.createLinearGradient(tx, cy + 10 * S, tx, cy + 60 * S); tg.addColorStop(0, 'rgba(80,55,35,0.35)'); tg.addColorStop(1, 'rgba(80,55,35,0)');
+    g.fillStyle = tg; g.fillRect(tx - 2.5 * S, cy + 10 * S, 5 * S, 50 * S);
   }, { tile: false });
+}
+
+/** Machine lace (canvas, alpha): scalloped edge band with eyelets; u wraps, v = 0 inner .. 1 scalloped edge. */
+export function laceTex(ctx) {
+  return ctx.textures.canvas('bedroom:lace', 256, 128, (g, w, h) => {
+    g.clearRect(0, 0, w, h);
+    g.fillStyle = 'rgba(240,234,220,1)';
+    g.fillRect(0, 0, w, h * 0.22);
+    // scallops
+    const n = 4;
+    for (let i = 0; i < n; i++) {
+      const cx = (i + 0.5) * (w / n);
+      g.beginPath(); g.arc(cx, h * 0.22, w / n / 2, 0, Math.PI); g.fill();
+    }
+    // eyelets + net
+    g.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < n; i++) {
+      const cx = (i + 0.5) * (w / n);
+      for (const [dx, dy, r] of [[0, 0.45, 7], [-14, 0.35, 4], [14, 0.35, 4], [0, 0.6, 3]]) { g.beginPath(); g.arc(cx + dx, h * dy, r, 0, 7); g.fill(); }
+    }
+    for (let x = 4; x < w; x += 8) for (let y = 4; y < h * 0.2; y += 8) { g.beginPath(); g.arc(x, y, 1.8, 0, 7); g.fill(); }
+    g.globalCompositeOperation = 'source-over';
+  }, { tile: true });
 }
 
 /** Clock face for the mantel clock (canvas). */
@@ -467,4 +516,44 @@ export function cobweb(ctx, { seed = 0 } = {}) {
       g.fillStyle = 'rgba(200,198,190,0.35)'; g.beginPath(); g.arc(x, y, 3 + rnd(i + 70) * 6, 0, 7); g.fill();
     }
   }, { tile: false });
+}
+
+/** Carved bone for the light knights: faint longitudinal grain, Haversian pores, age-yellowing. tiles; 1 unit = piece height */
+export function boneGrain(ctx) {
+  return ctx.textures.generate('bedroom:bone', {
+    size: 512, tile: true, normalStrength: 0.6,
+    glsl: /* glsl */ `
+    void surface(vec2 uv, inout Surface s) {
+      float g = fbm(vec2(uv.x * 3.0, uv.y * 24.0), vec2(3.0, 24.0), 5);
+      float streak = smoothstep(0.1, 0.6, fbm(vec2(uv.x * 8.0, uv.y * 60.0), vec2(8.0, 60.0), 4));
+      vec4 v = voronoi(uv * vec2(30.0, 12.0), vec2(30.0, 12.0), 1.0);
+      float pore = smoothstep(0.08, 0.0, v.x) * step(0.6, hash12(v.zw));
+      float age = fbm(uv * 2.0 + 3.0, vec2(2.0), 4);
+      vec3 c = vec3(1.0);
+      c *= 0.94 + 0.06 * g;
+      c = mix(c, vec3(0.93, 0.86, 0.72), smoothstep(0.2, 0.8, age) * 0.5);
+      c = mix(c, vec3(0.75, 0.66, 0.52), streak * 0.18 + pore * 0.4);
+      s.albedo = c;
+      s.height = 0.5 + 0.1 * g - pore * 0.2;
+      s.rough = 0.34 + 0.12 * streak + pore * 0.3;
+      s.metal = 0.0; s.ao = 1.0 - pore * 0.3;
+    }`,
+  });
+}
+
+/** Ebony end-grain: near-black with faint brown figure (the colour comes from the material tint). */
+export function ebonyGrain(ctx) {
+  return ctx.textures.generate('bedroom:ebonyp', {
+    size: 512, tile: true, normalStrength: 0.4,
+    glsl: /* glsl */ `
+    void surface(vec2 uv, inout Surface s) {
+      float n = fbm(uv * vec2(2.0, 3.0), vec2(2.0, 3.0), 4);
+      float rings = 0.5 + 0.5 * sin((uv.y * 30.0 + n * 6.0) * 3.14159);
+      float fine = vnoise(vec2(uv.x * 200.0, uv.y * 12.0), vec2(200.0, 12.0));
+      vec3 c = mix(vec3(0.8), vec3(1.0, 0.82, 0.66), pow(rings, 6.0) * 0.7) * (0.88 + 0.12 * fine);
+      s.albedo = clamp(c, 0.0, 1.0);
+      s.height = 0.5 + 0.05 * fine;
+      s.rough = 0.25; s.metal = 0.0; s.ao = 1.0;
+    }`,
+  });
 }
