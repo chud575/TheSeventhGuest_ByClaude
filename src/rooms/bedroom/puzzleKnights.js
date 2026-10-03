@@ -62,7 +62,7 @@ export function createKnightsPuzzle(ctx, { parent, center, size, mats, camera, o
   const posOf = (i) => new THREE.Vector3((i % N - 2) * sq, 0, (Math.floor(i / N) - 2) * sq);
 
   // ---------------------------------------------------------------- pieces
-  const geo = knightGeometry(sq * 0.86);
+  const geo = knightGeometry(sq * 1.08);
   const pieces = [];      // { mesh, color: 'W'|'B', sq }
   let grid = startGrid();
   const boardIdx = new Array(N * N).fill(-1); // square -> piece index

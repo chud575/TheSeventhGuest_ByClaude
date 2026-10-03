@@ -434,3 +434,37 @@ export function clockFace(ctx) {
     g.fillStyle = 'rgba(80,60,30,0.15)'; for (let i = 0; i < 40; i++) { g.beginPath(); g.arc((i * 37) % w, (i * 53) % w, 8, 0, 7); g.fill(); }
   }, { tile: false });
 }
+
+/** Corner cobweb (canvas, alpha): radial threads + sagging spiral, anchored at the top-left corner. */
+export function cobweb(ctx, { seed = 0 } = {}) {
+  return ctx.textures.canvas(`bedroom:web${seed}`, 512, 512, (g, w, h) => {
+    const rnd = (i) => { const x = Math.sin(i * 63.7 + seed * 19.1) * 43758.5453; return x - Math.floor(x); };
+    g.clearRect(0, 0, w, h);
+    const n = 9;
+    const spokes = [];
+    for (let i = 0; i < n; i++) { const a = (i / (n - 1)) * Math.PI / 2 + (rnd(i) - 0.5) * 0.08; spokes.push({ a, len: w * (0.75 + rnd(i + 20) * 0.35) }); }
+    g.lineCap = 'round';
+    g.strokeStyle = 'rgba(235,235,240,0.75)';
+    g.lineWidth = 1.6;
+    for (const s of spokes) { g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(s.a) * s.len, Math.sin(s.a) * s.len); g.stroke(); }
+    g.lineWidth = 1.1;
+    for (let r = 30; r < w * 0.95; r += 16 + rnd(r) * 10) {
+      g.strokeStyle = `rgba(230,230,236,${0.35 + rnd(r + 3) * 0.35})`;
+      g.beginPath();
+      for (let i = 0; i < n; i++) {
+        const s = spokes[i]; if (r > s.len) break;
+        const x = Math.cos(s.a) * r, y = Math.sin(s.a) * r;
+        if (i === 0) g.moveTo(x, y);
+        else { const p = spokes[i - 1]; const mx = Math.cos((s.a + p.a) / 2) * r * 0.9, my = Math.sin((s.a + p.a) / 2) * r * 0.9; g.quadraticCurveTo(mx, my, x, y); }
+      }
+      g.stroke();
+    }
+    // broken, drooping strands and dust clumps
+    for (let i = 0; i < 6; i++) {
+      const s = spokes[Math.floor(rnd(i + 50) * n)]; const r = s.len * (0.4 + rnd(i + 60) * 0.5);
+      const x = Math.cos(s.a) * r, y = Math.sin(s.a) * r;
+      g.strokeStyle = 'rgba(220,220,225,0.5)'; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + 20, y + 60, x + 10 * rnd(i), y + 90 + rnd(i + 3) * 60); g.stroke();
+      g.fillStyle = 'rgba(200,198,190,0.35)'; g.beginPath(); g.arc(x, y, 3 + rnd(i + 70) * 6, 0, 7); g.fill();
+    }
+  }, { tile: false });
+}

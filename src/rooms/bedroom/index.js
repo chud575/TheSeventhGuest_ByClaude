@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeStatic } from './merge.js';
-import { nightSky, tornDrape, quilt, linen, knightsBoard, crackedMirror, coals, wallpaper, dollFace, clockFace } from './textures.js';
+import { nightSky, tornDrape, quilt, linen, knightsBoard, crackedMirror, coals, dollFace, clockFace, cobweb } from './textures.js';
 import {
   rbox, curtain, buildBed, buildChest, buildFireplace, buildVanity, buildStool, buildNightstand, buildOilLamp, buildDoll, buildDollShelf,
   buildRockingChair, buildWardrobe, buildWingChair, buildMantelClock, buildCandlestick, buildBook,
@@ -47,6 +47,7 @@ export default {
     const root = new THREE.Group();
     root.name = 'bedroom';
     const add = (o, parent = root) => { parent.add(o); return o; };
+    const at = (o, x, y, z) => { o.position.set(x, y, z); return o; };
     const hiQ = ctx.quality.textureSize >= 2048;
 
     // ================================================================ materials
@@ -54,25 +55,25 @@ export default {
       const C = physical ? THREE.MeshPhysicalMaterial : THREE.MeshStandardMaterial;
       return new C({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, metalnessMap: set.ormMap, aoMap: set.ormMap, roughness: 1, metalness: 1, ...opts });
     };
-    const wpSet = wallpaper(ctx).withRepeat(2, 2);
-    const drapeA = tornDrape(ctx, { seed: 1, color: [0.27, 0.045, 0.06] });
-    const drapeB = tornDrape(ctx, { seed: 2, color: [0.22, 0.04, 0.055] });
+    const drapeA = tornDrape(ctx, { seed: 1, color: [0.42, 0.07, 0.09] });
+    const drapeB = tornDrape(ctx, { seed: 2, color: [0.36, 0.06, 0.08] });
     const quiltSet = quilt(ctx).withRepeat(2.5, 2.5);
     const linenSet = linen(ctx).withRepeat(1.6, 1.6);
     const boardSet = knightsBoard(ctx, { aspect: 1.21 / 0.61, board: 0.82 });
     const mirrorSet = crackedMirror(ctx, { aspect: 0.65 / 0.87 });
     const coalSet = coals(ctx).withRepeat(2, 2);
     const drapeMat = (set) => {
-      const m = new THREE.MeshPhysicalMaterial({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, roughness: 1, metalness: 0, alphaTest: 0.5, side: THREE.DoubleSide, sheen: 0.8, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.5, 0.2, 0.25), envMapIntensity: 0.35, name: 'drape' });
+      const m = new THREE.MeshPhysicalMaterial({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, roughness: 1, metalness: 0, alphaTest: 0.5, side: THREE.DoubleSide, sheen: 0.8, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.75, 0.35, 0.4), envMapIntensity: 0.35, name: 'drape' });
       m.shadowSide = THREE.DoubleSide;
       return m;
     };
     const faceCache = new Map();
     const mats = {
-      wall: fromSet(wpSet, { metalness: 1, name: 'wallpaper' }),
+      wall: M.create('damask', { repeat: [1.9, 1.9], base: [0.07, 0.09, 0.22], motif: [0.13, 0.16, 0.36], sheen: 0.5, variant: 0 }),
       floor: M.create('floorboards', { species: 'walnut', boards: 6, boardLength: 0.34, polish: 0.6, wear: 0.6, tint: [0.55, 0.45, 0.4], repeat: [1 / 3.0, 1 / 1.0] }),
       ceiling: M.create('plaster', { color: [0.2, 0.22, 0.3], cracks: 0.6, stains: 0.6, repeat: [0.45, 0.45] }),
       mahogany: M.create('mahogany', { repeat: [1.6, 1.6] }),
+      canopyWood: M.create('mahogany', { repeat: [1.6, 1.6], clearcoat: 0.15, clearcoatRoughness: 0.5, envMapIntensity: 0.3 }),
       walnut: M.create('walnut', { repeat: [1.6, 1.6] }),
       panel: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.65, repeat: [1.3, 1.3], clearcoat: 0.45, clearcoatRoughness: 0.3 }),
       ebonyWood: M.create('ebony', { repeat: [2, 2] }),
@@ -102,14 +103,14 @@ export default {
       linen: fromSet(linenSet, { metalness: 0, name: 'linen' }),
       drapeA: drapeMat(drapeA), drapeB: drapeMat(drapeB),
       board: new THREE.MeshPhysicalMaterial({ map: boardSet.map, normalMap: boardSet.normalMap, roughnessMap: boardSet.ormMap, roughness: 1, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.25, name: 'board' }),
-      mirror: new THREE.MeshPhysicalMaterial({ map: mirrorSet.map, normalMap: mirrorSet.normalMap, normalScale: new THREE.Vector2(1, 1), roughnessMap: mirrorSet.ormMap, metalnessMap: mirrorSet.ormMap, roughness: 1, metalness: 1, envMapIntensity: 1.6, name: 'mirror' }),
+      mirror: new THREE.MeshPhysicalMaterial({ map: mirrorSet.map, normalMap: mirrorSet.normalMap, normalScale: new THREE.Vector2(1, 1), roughnessMap: mirrorSet.ormMap, metalnessMap: mirrorSet.ormMap, roughness: 1, metalness: 1, envMapIntensity: 0.7, color: new THREE.Color(0.75, 0.75, 0.78), name: 'mirror' }),
       lampGlobe: new THREE.MeshStandardMaterial({ color: 0x3a2a18, emissive: new THREE.Color(1.0, 0.62, 0.3), emissiveIntensity: 3.0, roughness: 0.4, transparent: true, opacity: 0.94, name: 'lampGlobe' }),
       velvetRose: M.create('velvet', { color: [0.3, 0.08, 0.1], crush: 0.5, repeat: [3, 3] }),
       velvetChair: M.create('velvet', { color: [0.06, 0.1, 0.22], crush: 0.6, repeat: [2.5, 2.5] }),
       curtain: M.create('velvet', { color: [0.05, 0.075, 0.2], crush: 0.55, repeat: [2, 2], side: THREE.DoubleSide }),
       buttons: M.basic('black', { color: 0x0a0a12, roughness: 0.4 }),
       clockFace: new THREE.MeshStandardMaterial({ map: clockFace(ctx), roughness: 0.4 }),
-      glass: M.create('glass', { dirt: 0.12, transparent: true, opacity: 0.06 }),
+      glass: new THREE.MeshBasicMaterial({ color: 0x0a1020, transparent: true, opacity: 0.18, depthWrite: false, name: 'winGlass' }),
       rug: M.create('rug', { palette: 'faded', aspect: 3.0 / 4.0, knots: 220, wear: 0.65, fringe: 0.04, seed: 11, size: hiQ ? 2048 : 1536 }),
     };
     const clothCache = new Map();
@@ -292,7 +293,7 @@ export default {
     const knights = createKnightsPuzzle(ctx, {
       parent: chest, center: V3(0, chest.userData.boardTop, 0), size: boardField,
       mats: {
-        bone: new THREE.MeshPhysicalMaterial({ color: 0xd9cdb2, roughness: 0.38, clearcoat: 0.6, clearcoatRoughness: 0.25, sheen: 0.2, name: 'bone' }),
+        bone: new THREE.MeshPhysicalMaterial({ color: 0xc4b698, roughness: 0.38, clearcoat: 0.6, clearcoatRoughness: 0.25, sheen: 0.2, name: 'bone' }),
         ebony: new THREE.MeshPhysicalMaterial({ color: 0x0b0806, roughness: 0.28, clearcoat: 1, clearcoatRoughness: 0.12, name: 'ebonyPiece' }),
       },
       camera: puzzleCam,
@@ -356,7 +357,7 @@ export default {
       vanity = buildVanity(ctx, mats);
       vanity.position.set(X0 + 0.02, 0, 1.75); vanity.rotation.y = Math.PI / 2; add(vanity);
       const st = buildStool(ctx, mats); st.position.set(X0 + 0.85, 0, 1.75); st.rotation.y = Math.PI / 2 + 0.25; add(st);
-      const vl = new THREE.PointLight(0xffa04a, 2.2, 5, 2); vl.position.set(X0 + 0.45, 1.15, 1.75); add(vl);
+      const vl = new THREE.PointLight(0xffa04a, 1.6, 5, 2); vl.position.set(X0 + 0.55, 1.12, 1.75 - 0.75); add(vl);
       vanity.userData.light = vl;
     }
 
@@ -395,6 +396,48 @@ export default {
       lsC.position.set(X1 - 0.025, 1.85, 2.4); lsC.rotation.y = -Math.PI / 2; add(lsC);
     }
 
+    // ================================================================ dressing: cobwebs, sconce, small props
+    {
+      const webMat = (seed) => new THREE.MeshStandardMaterial({ map: cobweb(ctx, { seed }), transparent: true, depthWrite: false, side: THREE.DoubleSide, color: 0xb8bcc8, roughness: 1, metalness: 0, name: 'cobweb' });
+      const web = (parent, size, pos, rotY, flipX, seed) => {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), webMat(seed));
+        m.geometry.translate(size / 2, -size / 2, 0);           // anchor = top-left corner
+        m.position.copy(pos); m.rotation.y = rotY; if (flipX) m.scale.x = -1;
+        m.userData.noShadow = true; m.renderOrder = 3; parent.add(m); return m;
+      };
+      const bw = BED.W / 2, bl = BED.L / 2, ty = bed.userData.postH;
+      // canopy: between the foot posts and the side rails
+      web(bed, 0.55, V3(bw + 0.05, ty - 0.02, bl - 0.03), Math.PI / 2, false, 1);
+      web(bed, 0.45, V3(-bw - 0.05, ty - 0.02, bl - 0.03), -Math.PI / 2, true, 2);
+      web(bed, 0.5, V3(bw - 0.03, ty - 0.02, bl + 0.05), 0, true, 3);
+      // room corners near the ceiling
+      web(root, 0.9, V3(X1 - 0.64, H - 0.46, Z0 + 0.01), Math.PI * 0.25, true, 4);
+      web(root, 0.8, V3(X0 + 0.01, H - 0.46, Z0 + 0.57), Math.PI * 0.25, false, 5);
+      // brass gas sconce between window and doll shelf (lit, warm)
+      const sc = new THREE.Group();
+      sc.add(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.06, 0], [0.05, 0.02], [0, 0.03]], 24).rotateX(Math.PI / 2), mats.brass));
+      const arm = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.008, 8, 24, Math.PI / 2), mats.brass); arm.position.set(0, -0.1, 0); arm.rotation.y = -Math.PI / 2; sc.add(arm);
+      const cup = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.025, 0.0], [0.03, 0.02], [0, 0.02]], 16), mats.brass); cup.position.set(0, 0.0, 0.1); sc.add(cup);
+      const shade = new THREE.Mesh(G.latheFromProfile([[0.025, 0], [0.055, 0.03], [0.065, 0.08], [0.05, 0.14], [0.03, 0.15]], 24), mats.lampGlobe); shade.position.set(0, 0.02, 0.1); shade.userData.noShadow = true; sc.add(shade);
+      sc.position.set(1.35, 1.95, Z0 + 0.01); add(sc);
+      const scl = new THREE.PointLight(0xffa860, 2.6, 6, 2); scl.position.set(1.35, 2.05, Z0 + 0.2); add(scl);
+      ctx.onUpdate((dt, t) => { scl.intensity = 2.6 * (0.95 + 0.05 * Math.sin(t * 7.7) * Math.sin(t * 2.9)); });
+      // velvet slippers by the bed, a hatbox by the wardrobe, a side table and cold tea by the chair
+      const slip = new THREE.SphereGeometry(0.06, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2); slip.scale(0.75, 0.5, 1.7);
+      for (const [x, z, r] of [[X0 + 2.5, BED.z + 1.18, 0.4], [X0 + 2.62, BED.z + 1.05, 0.15]]) { const m = new THREE.Mesh(slip, mats.velvetRose); m.position.set(x, 0.0, z); m.rotation.y = r; add(m); }
+      const hb = new THREE.Group();
+      hb.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.22, 32), mats.dollCloth(0x6a5a48)), 0, 0.11, 0));
+      hb.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.05, 32), mats.dollCloth(0x2a2a3a)), 0, 0.235, 0));
+      hb.position.set(WARD.x - 0.95, 0, Z1 - 0.35); add(hb);
+      const tbl = new THREE.Group();
+      tbl.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.025, 40), mats.mahogany), 0, 0.62, 0));
+      tbl.add(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.16, 0], [0.12, 0.03], [0.03, 0.08], [0.025, 0.3], [0.04, 0.4], [0.025, 0.5], [0.05, 0.6], [0, 0.61]], 24), mats.mahogany));
+      const cupG = G.latheFromProfile([[0, 0], [0.025, 0], [0.03, 0.01], [0.042, 0.05], [0.04, 0.052], [0.028, 0.012], [0, 0.012]], 24);
+      tbl.add(at(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.06, 0.0], [0.075, 0.012], [0.07, 0.014], [0, 0.006]], 28), mats.porcelain), 0.04, 0.633, 0.02));
+      tbl.add(at(new THREE.Mesh(cupG, mats.porcelain), 0.04, 0.64, 0.02));
+      tbl.position.set(2.75, 0, FIRE.z + 2.35); add(tbl);
+    }
+
     // ================================================================ lighting
     const moon = new THREE.SpotLight(0xa8bcff, 1500, 20, 0.28, 0.4, 2);
     moon.position.set(WIN.x + 1.6, 5.6, Z0 - 4.6);
@@ -409,7 +452,7 @@ export default {
 
     const winCenter = V3(WIN.x, WIN.sill + WIN.h * 0.47, Z0 - 0.02);
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
-    const shaft = fx.shaft({ center: winCenter, right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h * 0.5, 0), direction: beamDir, length: 4.2, color: 0x9fb6ff, intensity: 0.75, softness: 0.3, falloff: 1.0, panes: [3, 4], mullion: 0.03, noise: 0.75 });
+    const shaft = fx.shaft({ center: winCenter, right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h * 0.5, 0), direction: beamDir, length: 4.2, color: 0x9fb6ff, intensity: 0.3, softness: 0.3, falloff: 1.2, panes: [3, 4], mullion: 0.03, noise: 0.75 });
     root.add(shaft);
     root.add(fx.dust({ box: new THREE.Box3(V3(-1.6, 0.1, Z0 + 0.05), V3(2.0, 3.0, 1.2)), count: 2400, shafts: [shaft], size: 0.011, intensity: 2.2, ambient: 0.05 }));
     root.add(fx.fog({ box: new THREE.Box3(V3(X0 + 0.2, 0, Z0 + 0.1), V3(X1 - 0.2, 0.5, Z1 - 0.3)), color: 0x0a0f1c, litColor: 0x2e3a58, density: 0.45, heightFalloff: 4 }));
@@ -437,12 +480,12 @@ export default {
     // ================================================================ navigation
     const nodes = {
       main: { position: [0.45, 1.62, 2.95], target: [-0.15, 1.2, -3.0], fov: 60, label: 'The bedroom', look: { yaw: [-60, 60], pitch: [-30, 28] } },
-      chest: { position: [CHEST.x + 1.15, 1.5, CHEST.z + 0.75], target: [CHEST.x - 0.4, 0.62, CHEST.z - 0.15], fov: 52, label: 'The chest at the foot of the bed' },
+      chest: { position: [CHEST.x + 1.55, 1.68, CHEST.z + 1.2], target: [CHEST.x - 0.55, 0.62, CHEST.z - 0.3], fov: 54, label: 'The chest at the foot of the bed' },
       bed: { position: [0.2, 1.58, 0.75], target: [X0 + 0.4, 1.05, BED.z - 0.2], fov: 56, label: 'The bed' },
       hearth: { position: [0.3, 1.6, 0.55], target: [X1, 1.15, FIRE.z - 0.35], fov: 56, label: 'The fireplace', look: { yaw: [-60, 60], pitch: [-25, 30] } },
       dolls: { position: [0.95, 1.6, -0.9], target: [2.25, 1.45, Z0], fov: 54, label: 'The doll shelf' },
       vanity: { position: [-0.85, 1.6, 0.95], target: [X0, 1.35, 1.95], fov: 54, label: 'The dressing table' },
-      door: { position: [0.6, 1.62, 1.4], target: [0.2, 1.4, Z1 + 1.0], fov: 60, label: 'The door' },
+      door: { position: [0.1, 1.62, 0.7], target: [0.1, 1.35, Z1], fov: 64, label: 'The door' },
     };
     const edges = [
       ['main', 'chest', [[1.4, 1.6, 0.9]]],
@@ -548,7 +591,7 @@ export default {
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
       grade: { exposure: 2.0, contrast: 1.08, saturation: 0.98, bloomStrength: 0.38, bloomThreshold: 1.0, godRayWeight: 0.35, godRayThreshold: 2.5, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4 },
-      environment: { position: [0.4, 1.7, 0.6], intensity: 0.7 },
+      environment: { position: [0.4, 1.7, 0.6], intensity: 0.5 },
       onEnter() {
         if (!ctx.state.has('bedroom.greeted')) {
           ctx.state.set('bedroom.greeted', true);

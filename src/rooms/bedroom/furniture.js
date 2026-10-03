@@ -191,11 +191,14 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
   // ---- tester (canopy frame) with cornice
   const ty = postH;
   {
-    const rail = (len, x, z, ry) => { const m = mesh(rbox(G, len, 0.13, 0.05, 0.008), mats.mahogany, x, ty + 0.05, z, g); m.rotation.y = ry; };
+    const rail = (len, x, z, ry) => { const m = mesh(rbox(G, len, 0.13, 0.05, 0.008), mats.canopyWood, x, ty + 0.05, z, g); m.rotation.y = ry; };
     rail(W + 0.06, 0, -hl, 0); rail(W + 0.06, 0, hl, 0); rail(L + 0.06, -hw, 0, Math.PI / 2); rail(L + 0.06, hw, 0, Math.PI / 2);
+    // gilt anthemion frieze band round the tester
+    const fz = [V3(hw + 0.035, ty - 0.01, -hl - 0.035), V3(-hw - 0.035, ty - 0.01, -hl - 0.035), V3(-hw - 0.035, ty - 0.01, hl + 0.035), V3(hw + 0.035, ty - 0.01, hl + 0.035)];
+    mesh(G.sweepProfile([V2(0.003, 0), V2(0.003, 0.13)], fz, { closed: true, uvScale: 1 }), mats.frieze, 0, 0, 0, g);
     const cw2 = hw + 0.03, cl2 = hl + 0.03;
     const path = [V3(cw2, ty + 0.12, -cl2), V3(-cw2, ty + 0.12, -cl2), V3(-cw2, ty + 0.12, cl2), V3(cw2, ty + 0.12, cl2)];
-    mesh(G.sweepProfile(G.PROFILES.crown(0.16, 0.1), path, { closed: true, uvScale: 1 }), mats.mahogany, 0, 0, 0, g);
+    mesh(G.sweepProfile(G.PROFILES.crown(0.14, 0.09), path, { closed: true, uvScale: 1 }), mats.canopyWood, 0, 0, 0, g);
     // gilt bead on the cornice
     const path2 = path.map((v) => V3(v.x * 1.0, ty + 0.115, v.z));
     mesh(G.sweepProfile(G.PROFILES.chairRail(0.03, 0.018), path2, { closed: true, uvScale: 2 }), mats.gilt, 0, 0, 0, g);
@@ -204,8 +207,8 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
   {
     const drape = mats.drapeA, drape2 = mats.drapeB;
     const val = (len, x, z, ry, sd) => {
-      const vg = curtain(G, { width: len, height: 0.5, folds: Math.round(len * 7), depth: 0.04, gather: 1, seed: sd, segX: 90, segY: 16 });
-      const m = mesh(vg, drape2, x, ty + 0.12, z, g); m.rotation.y = ry; m.name = 'cloth';
+      const vg = curtain(G, { width: len, height: 0.42, folds: Math.round(len * 7), depth: 0.04, gather: 1, seed: sd, segX: 90, segY: 16 });
+      const m = mesh(vg, drape2, x, ty - 0.02, z, g); m.rotation.y = ry; m.name = 'cloth';
     };
     val(W + 0.12, 0, hl + 0.06, 0, 11); val(L + 0.12, -hw - 0.06, 0, -Math.PI / 2, 12); val(L + 0.12, hw + 0.06, 0, Math.PI / 2, 13);
     // back cloth behind the headboard
@@ -214,8 +217,8 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
     // corner curtains (hang along the long sides, foot ones tied back to the posts)
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
       const foot = sz > 0;
-      const cg = curtain(G, { width: foot ? 0.9 : 0.75, height: ty - 0.02, folds: foot ? 8 : 6, depth: 0.07, tieback: foot ? 0.85 : 0, seed: 30 + sx * 3 + sz, segX: 70, segY: 60 });
-      const m = mesh(cg, sz > 0 ? drape : drape2, sx * (hw + 0.045), ty + 0.04, sz * (hl - (foot ? 0.42 : 0.36)), g);
+      const cg = curtain(G, { width: foot ? 0.5 : 0.75, height: ty - 0.02, folds: foot ? 7 : 6, depth: 0.07, tieback: foot ? 1.0 : 0, seed: 30 + sx * 3 + sz, segX: 70, segY: 60 });
+      const m = mesh(cg, sz > 0 ? drape : drape2, sx * (hw + 0.045), ty + 0.04, sz * (hl - (foot ? 0.3 : 0.36)), g);
       // plane faces +z by default; rotate so it faces outward (±x); mirror so the tie-back gathers toward the post
       m.rotation.y = sx > 0 ? Math.PI / 2 : -Math.PI / 2;
       if ((sx > 0) !== (sz > 0)) m.scale.x = -1;
