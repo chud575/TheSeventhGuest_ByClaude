@@ -376,7 +376,7 @@ export function buildChest(ctx, mats, { w = 1.18, d = 0.58, h = 0.56, fieldSize 
     const px = (i - 1) * (w / 3);
     const p = mesh(G.raisedPanel(w / 3 - 0.08, bodyH - 0.08, { border: 0.035, bevel: 0.03, fieldDepth: 0.01 }), mats.walnut, px, bodyY0 + bodyH / 2, sz * (d / 2 + 0.002), g);
     if (sz < 0) p.rotation.y = Math.PI;
-    if (sz > 0 && i !== 1) { const r = mesh(rose, mats.walnut, px, bodyY0 + bodyH / 2, d / 2 + 0.014, g); r.rotation.x = Math.PI / 2; }
+    if (sz > 0 && i !== 1) { const r = mesh(rose, mats.walnut, px, bodyY0 + bodyH / 2, d / 2 + 0.012, g); r.rotation.x = Math.PI / 2; r.scale.set(1, 1.8, 1); }
   }
   for (const sx of [-1, 1]) {
     const p = mesh(G.raisedPanel(d - 0.1, bodyH - 0.08, { border: 0.035, bevel: 0.03 }), mats.walnut, sx * (w / 2 + 0.002), bodyY0 + bodyH / 2, 0, g);

@@ -412,8 +412,8 @@ export function crackedMirror(ctx, { aspect = 0.7, impact = [0.62, 0.58], angles
       if (uGlint > 0.5) { col = vec3(line * (1.0 - bad) * (0.6 + 0.4 * hash12(floor(p * 300.0)))) + vec3(crushed * 0.25); }
       s.albedo = col;
       s.metal = 1.0 - bad;
-      s.rough = 0.035 + halo * 0.25 + crushed * 0.5 + bad * 0.55;
-      s.height = 0.5 - line * 0.25 - halo * 0.08 - crushed * 0.2 + bad * 0.04;
+      s.rough = 0.035 + halo * 0.12 + crushed * 0.5 + bad * 0.85;
+      s.height = 0.5 - line * 0.25 - halo * 0.08 - crushed * 0.2;
       s.ao = 1.0 - halo * 0.3;
     }`,
   });
