@@ -731,7 +731,7 @@ export default {
       cf.target.position.set(X0 + 0.1, 1.45, DRESSER_Z + 0.2);
       add(cf); add(cf.target);
     }
-    const camDist = 1.27;
+    const camDist = 1.52;
     const shelfMidY = (dresser.shelves[2].y + dresser.shelves[0].y + 0.126) / 2;
     const cans = await createCansPuzzle(ctx, dresser.group, dresser.shelves, {
       tinMat: mat.tinPlate,
