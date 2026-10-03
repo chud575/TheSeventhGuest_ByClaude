@@ -1,0 +1,24 @@
+{
+  "candidate": "A",
+  "original": "B",
+  "candidateSrc": "review/library/hero.png",
+  "originalSrc": "reference/4.png",
+  "cropped": {
+    "candidate": {
+      "left": 0,
+      "top": 0,
+      "width": 1232,
+      "height": 928,
+      "srcW": 1232,
+      "srcH": 928
+    },
+    "original": {
+      "left": 0,
+      "top": 80,
+      "width": 640,
+      "height": 320,
+      "srcW": 640,
+      "srcH": 480
+    }
+  }
+}

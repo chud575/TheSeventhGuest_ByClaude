@@ -130,7 +130,7 @@ export function buildBilliardTable(ctx, mats, { seed = 7 } = {}) {
   }
   // mother-of-pearl sights
   {
-    const dg = new THREE.CylinderGeometry(0.006, 0.006, 0.0012, 4); dg.scale(1, 1, 1.9);
+    const dg = new THREE.CylinderGeometry(0.0075, 0.0075, 0.0012, 4); dg.scale(1, 1, 1.9);
     const railMid = CUSH + RAIL / 2 + 0.005;
     for (let i = 1; i < 8; i++) {
       if (i === 4) continue;

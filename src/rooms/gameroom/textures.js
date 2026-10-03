@@ -54,8 +54,8 @@ vec3 burl(vec2 p) {
   vec4 v = voronoi(p * 38.0 + w * 3.0, vec2(4096.0), 1.0);
   float eyes = smoothstep(0.12, 0.0, v.x);
   float sw = 0.5 + 0.5 * sin(w * 22.0 + v.x * 18.0);
-  vec3 c = mix(vec3(0.2, 0.09, 0.04), vec3(0.45, 0.24, 0.1), sw * 0.7);
-  return mix(c, vec3(0.07, 0.03, 0.015), eyes * 0.8);
+  vec3 c = mix(vec3(0.24, 0.11, 0.045), vec3(0.42, 0.22, 0.09), sw * 0.6);
+  return mix(c, vec3(0.12, 0.05, 0.02), eyes * 0.5);
 }
 void surface(vec2 uv, inout Surface s) {
   float b = (1.0 - uInner) * 0.5;
@@ -281,7 +281,7 @@ void surface(vec2 uv, inout Surface s) {
   vec2 p = vec2(uv.x * uPA, uv.y);
   // sky: amber dusk at the horizon into olive-umber dark
   float hz = 0.42;
-  vec3 sky = mix(vec3(0.62, 0.42, 0.18), vec3(0.08, 0.08, 0.06), smoothstep(hz, 1.0, uv.y));
+  vec3 sky = mix(vec3(0.55, 0.42, 0.24), vec3(0.12, 0.13, 0.12), smoothstep(hz, 0.95, uv.y));
   float cl = fbm(vec2(p.x * 0.8, uv.y * 2.0), vec2(4.0, 2.0), 5);
   sky = mix(sky, sky * 0.55 + vec3(0.04, 0.035, 0.03), smoothstep(-0.1, 0.4, cl) * smoothstep(hz + 0.05, 0.7, uv.y));
   sky += vec3(0.45, 0.3, 0.12) * exp(-length((p - vec2(uPA * 0.62, hz + 0.02)) * vec2(0.6, 3.0)) * 4.0) * 0.25;
@@ -296,7 +296,7 @@ void surface(vec2 uv, inout Surface s) {
   col = mix(col, grass, smoothstep(0.003, -0.003, hill + 0.02));
   // woods left and right: dark crowns
   float trees = fbm(p * vec2(3.0, 3.0), vec2(12.0, 3.0), 5);
-  float wl = smoothstep(0.55, 0.0, uv.x) * smoothstep(0.15, 0.4, uv.y) + smoothstep(0.75, 1.0, uv.x) * smoothstep(0.2, 0.45, uv.y);
+  float wl = smoothstep(0.32, 0.0, uv.x) + smoothstep(0.8, 1.0, uv.x);
   float crown = smoothstep(0.02, -0.02, uv.y - (0.35 + wl * 0.6 + trees * 0.25));
   col = mix(col, vec3(0.05, 0.05, 0.03) * (0.8 + 0.5 * trees), crown * smoothstep(0.1, 0.4, wl));
   // trunks
@@ -307,21 +307,21 @@ void surface(vec2 uv, inout Surface s) {
     col = mix(col, vec3(0.04, 0.035, 0.025), smoothstep(0.002, -0.002, tr) * smoothstep(0.75, 0.2, uv.y) * step(0.15, uv.y));
   }
   // the hunt: a rider and hounds crossing the meadow, catching the dusk light on their backs
-  vec2 hp = p - vec2(uPA * 0.42, 0.27);
-  float dh = horse(hp * 0.8) / 0.8;
+  vec2 hp = p - vec2(uPA * 0.38, 0.3);
+  float dh = horse(hp * 0.42) / 0.42;
   vec3 horseC = vec3(0.12, 0.06, 0.03);
   col = mix(col, horseC, smoothstep(0.002, -0.002, dh));
-  col = mix(col, vec3(0.45, 0.12, 0.06), smoothstep(0.002, -0.002, sdSegment(hp * 0.8, vec2(0.0, 0.035), vec2(0.012, 0.085)) / 0.8 - 0.009));  // red coat
+  col = mix(col, vec3(0.45, 0.12, 0.06), smoothstep(0.002, -0.002, sdSegment(hp * 0.42, vec2(0.0, 0.035), vec2(0.012, 0.085)) / 0.42 - 0.009 * 1.9));  // red coat
   for (int i = 0; i < 5; i++) {
     float fi = float(i);
-    vec2 q = p - vec2(uPA * (0.55 + fi * 0.06 + 0.02 * sin(fi * 3.0)), 0.18 + 0.03 * sin(fi * 1.7));
-    float d = hound(q, 1.4 + 0.3 * hash11(fi));
+    vec2 q = p - vec2(uPA * (0.55 + fi * 0.075 + 0.02 * sin(fi * 3.0)), 0.16 + 0.035 * sin(fi * 1.7));
+    float d = hound(q, 2.2 + 0.4 * hash11(fi));
     vec3 hc = mix(vec3(0.5, 0.42, 0.3), vec3(0.15, 0.09, 0.05), hash11(fi + 3.0));
     col = mix(col, hc, smoothstep(0.0015, -0.0015, d));
   }
   // the quarry: scraped away to the ground
-  vec2 sp = (p - vec2(uPA * 0.86, 0.22)) * vec2(1.0, 1.3);
-  float scr = smoothstep(0.06, 0.03, length(sp) + 0.02 * fbm(sp * 8.0, vec2(16.0), 3));
+  vec2 sp = (p - vec2(uPA * 0.9, 0.22)) * vec2(1.0, 1.3);
+  float scr = smoothstep(0.1, 0.06, length(sp) + 0.03 * fbm(sp * 8.0, vec2(16.0), 3));
   col = mix(col, vec3(0.55, 0.48, 0.36) * (0.8 + 0.3 * vnoise(p * 300.0, vec2(4096.0))), scr * 0.85);
   // brushwork, yellowed varnish, craquelure, darkened edges
   float brush = vnoise(vec2(p.x * 220.0 + fbm(p * 4.0, vec2(8.0), 2) * 20.0, uv.y * 60.0), vec2(4096.0));

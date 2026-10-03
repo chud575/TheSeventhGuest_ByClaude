@@ -202,7 +202,7 @@ export function knightsBoard(ctx, { aspect = 2.0, board = 0.82 } = {}) {
       float hb = uBoard * 0.5;
       float field = hb * (5.0 / 6.0);          // inner 5x5 area; the rest is the carved border
       vec3 col; float h = 0.5; float rough = 0.42;
-      vec3 walA = vec3(0.17, 0.09, 0.045), walB = vec3(0.08, 0.04, 0.02);
+      vec3 walA = vec3(0.32, 0.19, 0.1), walB = vec3(0.14, 0.075, 0.04);
       vec3 wal = grain(m * vec2(1.0, 6.0), walA, walB, 3.0, 18.0);
       float ax = max(abs(c.x), abs(c.y));
       if (ax < field) {
@@ -242,17 +242,12 @@ export function knightsBoard(ctx, { aspect = 2.0, board = 0.82 } = {}) {
         float groove = smoothstep(0.012, 0.0, abs(d - 0.97));
         col *= 1.0 - groove * 0.5;
         h = 0.5 - groove * 0.3;
-        // a carved rose in the left and right fields
-        vec2 r = vec2(abs(c.x) - (hb + (uAspect2 * 0.5 - hb) * 0.5), c.y);
-        float rr = length(r);
-        vec2 pr = polarRep(r, 8.0);
-        float petal = length(pr - vec2(0.09, 0.0)) - 0.05;
-        float petal2 = length(polarRep(rot2(0.39) * r, 8.0) - vec2(0.05, 0.0)) - 0.03;
-        float leafy = min(petal, petal2);
-        float carve = smoothstep(0.004, -0.004, leafy) * step(rr, 0.2);
-        col = mix(col, col * 1.35 + vec3(0.02, 0.01, 0.0), carve * 0.6);
-        h += carve * 0.25 - smoothstep(0.004, -0.004, abs(leafy) - 0.003) * 0.15;
-        col = mix(col, vec3(0.03, 0.02, 0.012), smoothstep(0.014, 0.0, rr) * 0.9);
+        // polish worn pale where hands lift the lid (front edge), grime collected round the board
+        float front = smoothstep(0.42, 0.5, -c.y) * 0.5;
+        col = mix(col, col * 1.45 + vec3(0.03, 0.02, 0.01), front);
+        float nearBoard = smoothstep(hb + 0.06, hb, ax);
+        col *= 1.0 - nearBoard * 0.35;
+        rough = 0.38 + nearBoard * 0.25 - front * 0.1;
       }
       // grime in the low spots, scratches
       float sc = smoothstep(0.985, 1.0, vnoise(rot2(0.5) * m * vec2(300.0, 6.0), vec2(4096.0)));
@@ -556,4 +551,72 @@ export function ebonyGrain(ctx) {
       s.rough = 0.25; s.metal = 0.0; s.ao = 1.0;
     }`,
   });
+}
+
+/** Nero marble with thin, low-contrast grey-gold veins (the stock nero reads as white lightning). tiles; 1 tile = 0.8 m */
+export function neroMarble(ctx) {
+  return ctx.textures.generate('bedroom:nero', {
+    size: 1024, tile: true, normalStrength: 0.25,
+    glsl: /* glsl */ `
+    void surface(vec2 uv, inout Surface s) {
+      vec2 per = vec2(2.0);
+      vec2 w = vec2(fbm(uv, per, 6), fbm(uv + 5.2, per, 6));
+      float v = fbm(uv * 1.0 + w * 0.35, per, 6);
+      float veins = 1.0 - smoothstep(0.0, 0.016, abs(v));
+      float v2 = fbm(uv * 2.0 + w * 0.5 + 3.3, per * 2.0, 5);
+      float fine = 1.0 - smoothstep(0.0, 0.006, abs(v2));
+      float cloud = fbm(uv * 3.0 + w, per * 3.0, 5) * 0.5 + 0.5;
+      vec3 col = vec3(0.035, 0.032, 0.034) * (0.85 + 0.3 * cloud);
+      col = mix(col, vec3(0.09, 0.08, 0.075), smoothstep(0.5, 0.95, cloud) * 0.5);
+      col = mix(col, vec3(0.5, 0.46, 0.4), veins * 0.62);
+      col = mix(col, vec3(0.3, 0.27, 0.24), fine * 0.45);
+      float pits = step(0.992, hash12(floor(uv * 700.0)));
+      s.albedo = col;
+      s.height = 0.5 - pits * 0.3;
+      s.rough = 0.12 + cloud * 0.06 + pits * 0.4 + veins * 0.05;
+      s.metal = 0.0; s.ao = 1.0;
+    }`,
+  });
+}
+
+/** Charred log bark: alligator-checked char with ash on the ridges; alpha channel unused.
+ *  The returned set's ORM blue (metal) channel is 0; glow mask is written into a second, emissive set. */
+export function charLog(ctx, { glow = false } = {}) {
+  return ctx.textures.generate(`bedroom:char${glow ? 'G' : ''}`, {
+    size: 512, tile: true, normalStrength: 3.0,
+    uniforms: { uGlow: glow ? 1 : 0 },
+    glsl: /* glsl */ `
+    void surface(vec2 uv, inout Surface s) {
+      vec4 v = voronoi(uv * vec2(6.0, 14.0), vec2(6.0, 14.0), 1.0);
+      float crack = 1.0 - smoothstep(0.0, 0.08, v.y - v.x);
+      float ridge = smoothstep(0.1, 0.45, v.y - v.x);
+      float n = fbm(uv * 8.0, vec2(8.0), 5);
+      float ash = smoothstep(0.55, 0.85, ridge * 0.6 + n * 0.6 + hash12(v.zw) * 0.3);
+      vec3 col = mix(vec3(0.018, 0.015, 0.013), vec3(0.06, 0.05, 0.045), ridge * hash12(v.zw));
+      col = mix(col, vec3(0.42, 0.4, 0.37), ash * 0.6);
+      float hot = crack * smoothstep(0.35, 0.75, fbm(uv * 3.0 + 1.7, vec2(3.0), 4) + 0.15);
+      if (uGlow > 0.5) { col = vec3(1.0, 0.36, 0.06) * hot + vec3(0.25, 0.04, 0.0) * crack * 0.3; }
+      s.albedo = col;
+      s.height = 0.25 + 0.6 * ridge - crack * 0.2;
+      s.rough = 0.9; s.metal = 0.0; s.ao = 0.5 + 0.5 * ridge;
+    }`,
+  });
+}
+
+/** Rug fringe strands (canvas, alpha): u across the rug end, v 0 = rug edge .. 1 = loose ends. */
+export function fringeTex(ctx) {
+  return ctx.textures.canvas('bedroom:fringe', 1024, 64, (g, w, h) => {
+    g.clearRect(0, 0, w, h);
+    const rnd = (i) => { const x = Math.sin(i * 12.9898) * 43758.5453; return x - Math.floor(x); };
+    for (let i = 0; i < 260; i++) {
+      const x = (i + 0.5) * (w / 260) + (rnd(i) - 0.5) * 2;
+      const len = h * (0.65 + rnd(i + 7) * 0.35) * (rnd(i + 11) < 0.06 ? 0.4 : 1);
+      const bend = (rnd(i + 3) - 0.5) * 8;
+      const c = 205 + rnd(i + 5) * 30;
+      g.strokeStyle = `rgb(${c},${c - 10},${c - 30})`; g.lineWidth = 2.2;
+      g.beginPath(); g.moveTo(x, 0); g.quadraticCurveTo(x + bend * 0.3, len * 0.5, x + bend, len); g.stroke();
+    }
+    // the knotted band where the warp threads leave the rug
+    g.fillStyle = 'rgb(200,188,160)'; g.fillRect(0, 0, w, 5);
+  }, { tile: true });
 }

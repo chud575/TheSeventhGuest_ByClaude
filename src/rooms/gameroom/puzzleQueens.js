@@ -145,13 +145,13 @@ export function createQueensPuzzle(ctx, { parent, center, size, homeZ, mats, cam
       void main(){ float e = max(abs(vP.x), abs(vP.y)); float t = (e - uIn) / (uOut - uIn);
         float band = smoothstep(0.0, 0.05, t) * (1.0 - smoothstep(0.35, 0.6, t));
         float a = atan(vP.y, vP.x); float run = 0.6 + 0.4 * sin(a * 2.0 - uTime * 1.5);
-        gl_FragColor = vec4(vec3(1.0, 0.68, 0.28) * band * run * uAmt * 0.55, 1.0); }`,
+        gl_FragColor = vec4(vec3(1.0, 0.66, 0.26) * band * run * uAmt * 1.6, 1.0); }`,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
   });
   const glow = new THREE.Mesh(new THREE.ShapeGeometry(glowShape).rotateX(-Math.PI / 2), glowMat);
   glow.position.y = 0.0012; glow.renderOrder = 5; glow.visible = false; glow.userData.noBake = true; glow.userData.noShadow = true;
   group.add(glow);
-  const sweep = new THREE.PointLight(0xffb060, 0, size * 1.2, 2);
+  const sweep = new THREE.PointLight(0xffb060, 0, size * 1.6, 2);
   sweep.position.set(0, 0.07, 0); group.add(sweep);
   let solvedT = 0;
 
@@ -179,7 +179,7 @@ export function createQueensPuzzle(ctx, { parent, center, size, homeZ, mats, cam
     const bad = conflicts();
     for (const q of queens) {
       const e = q.mesh.material.emissive;
-      if (solvedFlag) { const sx = Math.sin(t * 0.45) * size * 0.65; e.setRGB(0.3, 0.17, 0.04).multiplyScalar(0.18 + 0.6 * Math.exp(-(((q.mesh.position.x - sx) / (size * 0.22)) ** 2))); }
+      if (solvedFlag) { const sx = Math.sin(t * 0.45) * size * 0.65; e.setRGB(0.3, 0.17, 0.04).multiplyScalar(0.25 + 0.9 * Math.exp(-(((q.mesh.position.x - sx) / (size * 0.22)) ** 2))); }
       else if (bad.has(q.i)) e.setRGB(0.55, 0.03, 0.01).multiplyScalar(0.65 + 0.35 * Math.sin(t * 6));
       else if (q.i === hoverQueen) e.setRGB(0.12, 0.08, 0.02);
       else e.setRGB(0, 0, 0);
@@ -192,7 +192,7 @@ export function createQueensPuzzle(ctx, { parent, center, size, homeZ, mats, cam
       // the rim light sweeps slowly from one side of the board to the other and back, low and warm
       const u = Math.sin(t * 0.45);
       sweep.position.set(u * size * 0.65, 0.06, -size * 0.62);
-      sweep.intensity = 0.55 * amt;
+      sweep.intensity = 2.2 * amt;
       return;
     }
     sweep.intensity = 0;

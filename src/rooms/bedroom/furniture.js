@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /**
  * Bedroom furniture & props. Every builder returns a THREE.Group in a local frame
@@ -305,7 +306,7 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
       const foot = sz > 0;
       if (sx < 0 && sz > 0) continue;               // this one has come off its rail (below)
       const lenK = specs[`${sx},${sz}`];
-      const cg = curtain(G, { width: foot ? 0.5 : 0.75, height: (ty - 0.02) * lenK, folds: foot ? 7 : 6, depth: 0.07, tieback: foot ? 1.0 : 0, seed: 30 + sx * 3 + sz, segX: 70, segY: 60 });
+      const cg = curtain(G, { width: foot ? 0.5 : 0.6, height: (ty - 0.02) * lenK, folds: foot ? 7 : 6, depth: 0.07, tieback: foot ? 1.0 : 0, seed: 30 + sx * 3 + sz, segX: 70, segY: 60 });
       const m = mesh(cg, sz > 0 ? drape : drape2, sx * (hw + 0.045), ty + 0.04, sz * (hl - (foot ? 0.3 : 0.36)), g);
       m.rotation.y = sx > 0 ? Math.PI / 2 : -Math.PI / 2;
       if ((sx > 0) !== (sz > 0)) m.scale.x = -1;
@@ -314,7 +315,7 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
     // half-fallen curtain at the near foot corner: still hooked at the post end, the rest of the
     // heading torn off the rail so it hangs in a long diagonal and slumps onto the counterpane
     {
-      const cw = 0.95, ch = ty - 0.15;
+      const cw = 0.62, ch = ty - 0.15;
       const fg = curtain(G, { width: cw, height: ch, folds: 8, depth: 0.08, seed: 37, segX: 80, segY: 70 });
       const p = fg.attributes.position;
       for (let i = 0; i < p.count; i++) {
@@ -367,17 +368,70 @@ export function buildChest(ctx, mats, { w = 1.18, d = 0.58, h = 0.52 } = {}) {
   mesh(rbox(G, w + 0.05, 0.075, d + 0.05, 0.018, 3), mats.walnut, 0, lidY + 0.0375, 0, g);
   const top = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.03, d + 0.03).rotateX(-Math.PI / 2), mats.board);
   top.position.y = lidY + 0.0752; top.name = 'boardTop'; g.add(top);
+  // deep-carved rosettes in the lid fields either side of the board (bevelled petals + boss)
+  {
+    const roseX = 0.701 * (d + 0.03);
+    const rg = carvedRosette(0.085);
+    for (const sx of [-1, 1]) mesh(rg, mats.walnut, sx * roseX, lidY + 0.0752, 0, g);
+  }
+  // iron strap corners on the lid, and an escutcheon lock plate
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const L = new THREE.Shape(); const a = 0.11, t = 0.025;
+    L.moveTo(0, 0); L.lineTo(a, 0); L.lineTo(a, t); L.quadraticCurveTo(t * 1.2, t * 1.2, t, a); L.lineTo(0, a); L.lineTo(0, 0);
+    const lg = new THREE.ExtrudeGeometry(L, { depth: 0.004, bevelEnabled: true, bevelThickness: 0.0015, bevelSize: 0.0015, bevelSegments: 1 });
+    lg.rotateX(-Math.PI / 2);
+    const m = mesh(lg, mats.iron, sx * ((w + 0.05) / 2 - 0.004), lidY + 0.0755, sz * ((d + 0.05) / 2 - 0.004), g);
+    m.scale.set(-sx, 1, -sz);
+    for (const [dx, dz] of [[0.012, 0.085], [0.085, 0.012], [0.014, 0.014]]) mesh(new THREE.SphereGeometry(0.0055, 8, 6), mats.iron, sx * ((w + 0.05) / 2 - 0.004 - dx), lidY + 0.08, sz * ((d + 0.05) / 2 - 0.004 - dz), g);
+  }
+
   // iron strap corners and hasp
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
     const c = mesh(rbox(G, 0.09, bodyH + 0.07, 0.01, 0.003), mats.iron, sx * (w / 2 - 0.045), 0.07 + bodyH / 2 + 0.03, sz * (d / 2 + 0.006), g);
     for (let k = 0; k < 3; k++) mesh(new THREE.SphereGeometry(0.006, 8, 6), mats.iron, sx * (w / 2 - 0.045), 0.12 + k * bodyH * 0.38, sz * (d / 2 + 0.012), g);
     void c;
   }
-  mesh(rbox(G, 0.09, 0.12, 0.012, 0.004), mats.iron, 0, lidY - 0.02, d / 2 + 0.008, g);
-  mesh(rbox(G, 0.04, 0.06, 0.02, 0.004), mats.brass, 0, lidY - 0.05, d / 2 + 0.018, g);
-  const kh = new THREE.Mesh(new THREE.CircleGeometry(0.006, 12), mats.black); kh.position.set(0, lidY - 0.045, d / 2 + 0.029); g.add(kh);
+  // shaped escutcheon (cartouche) with a keyhole, and a hinged hasp dropping from the lid
+  {
+    const e = new THREE.Shape();
+    e.moveTo(0, 0.065); e.quadraticCurveTo(0.03, 0.065, 0.045, 0.04); e.quadraticCurveTo(0.065, 0.0, 0.045, -0.04); e.quadraticCurveTo(0.03, -0.065, 0, -0.07);
+    e.quadraticCurveTo(-0.03, -0.065, -0.045, -0.04); e.quadraticCurveTo(-0.065, 0.0, -0.045, 0.04); e.quadraticCurveTo(-0.03, 0.065, 0, 0.065);
+    const kh = new THREE.Path(); kh.absarc(0, 0.008, 0.007, 0, Math.PI * 2, true); e.holes.push(kh);
+    const eg = new THREE.ExtrudeGeometry(e, { depth: 0.004, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 2, curveSegments: 10 });
+    mesh(eg, mats.brass, 0, lidY - 0.06, d / 2 + 0.003, g);
+    const slot = mesh(new THREE.BoxGeometry(0.005, 0.016, 0.004), mats.black, 0, lidY - 0.062, d / 2 + 0.007, g); void slot;
+    const kd = mesh(new THREE.CircleGeometry(0.0072, 14), mats.black, 0, lidY - 0.052, d / 2 + 0.0052, g); void kd;
+    mesh(rbox(G, 0.035, 0.085, 0.008, 0.003), mats.iron, 0, lidY + 0.0, d / 2 + 0.03, g);
+    mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.04, 10).rotateZ(Math.PI / 2), mats.iron, 0, lidY + 0.045, d / 2 + 0.03, g);
+  }
   g.userData = { boardTop: lidY + 0.0755, w, d };
   return g;
+}
+
+/** Carved rosette (Tudor-style): 8 bevelled outer petals, 8 inner, a domed boss. Lies on y = 0, radius r. */
+function carvedRosette(r) {
+  const parts = [];
+  const petal = (len, wd) => {
+    const sh = new THREE.Shape();
+    sh.moveTo(0, 0); sh.bezierCurveTo(len * 0.3, wd, len * 0.85, wd * 1.1, len, 0); sh.bezierCurveTo(len * 0.85, -wd * 1.1, len * 0.3, -wd, 0, 0);
+    const g = new THREE.ExtrudeGeometry(sh, { depth: r * 0.08, bevelEnabled: true, bevelThickness: r * 0.1, bevelSize: wd * 0.35, bevelSegments: 4, curveSegments: 10 });
+    g.rotateX(-Math.PI / 2);
+    // cup the petal: tips rise, the midrib is a crease
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i); p.setY(i, p.getY(i) + (x / len) ** 2 * r * 0.12 - Math.abs(z) * 0.25); }
+    g.computeVertexNormals();
+    return g;
+  };
+  const outer = petal(r, r * 0.32), inner = petal(r * 0.6, r * 0.22);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const o = outer.clone(); o.rotateY(a); parts.push(o);
+    const n = inner.clone(); n.rotateY(a + Math.PI / 8); n.translate(0, r * 0.08, 0); parts.push(n);
+  }
+  const boss = new THREE.SphereGeometry(r * 0.2, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2); boss.scale(1, 0.7, 1); boss.translate(0, r * 0.12, 0); parts.push(boss);
+  const ring = new THREE.TorusGeometry(r * 1.02, r * 0.05, 6, 48); ring.rotateX(Math.PI / 2); ring.translate(0, r * 0.03, 0); parts.push(ring);
+  const norm = parts.map((q) => { let g = q.index ? q.toNonIndexed() : q; for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k); if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2)); return g; });
+  return mergeGeometries(norm);
 }
 
 // ============================================================================ fireplace
@@ -460,23 +514,132 @@ export function buildFireplace(ctx, mats, { H = 3.6, breastW = 2.1, depth = 0.42
     for (const sx of [-1, 1]) mesh(rbox(G, 0.03, 0.3, 0.03, 0.006), mats.castIron, sx * 0.3, 0.15, fz + 0.11, g);
     for (const sx of [-1, 1]) mesh(new THREE.SphereGeometry(0.025, 12, 8), mats.brass, sx * 0.3, 0.32, fz + 0.11, g);
   }
-  const coalG = new THREE.SphereGeometry(0.3, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+  const coalG = new THREE.SphereGeometry(0.3, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2);
   coalG.scale(0.95, 0.18, 0.4);
+  { // lumpy ember bed
+    const p = coalG.attributes.position;
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), y = p.getY(i); p.setY(i, y + (Math.sin(x * 61 + z * 37) * 0.5 + Math.sin(x * 23 - z * 71) * 0.5) * 0.008 * (y > 0.001 ? 1 : 0)); }
+    coalG.computeVertexNormals();
+  }
   const coalM = mesh(coalG, mats.coals, 0, 0.165, fz, g); coalM.name = 'coals';
-  // logs: bark cylinders with glowing ends
-  const logG = new THREE.CylinderGeometry(0.05, 0.055, 0.52, 12, 1);
-  for (const [x, y, z, rz, ry] of [[0, 0.24, fz + 0.02, Math.PI / 2, 0.15], [-0.05, 0.3, fz - 0.03, Math.PI / 2 - 0.25, -0.35], [0.08, 0.29, fz + 0.05, Math.PI / 2 + 0.3, 0.55]]) {
-    const l = mesh(logG, mats.log, x, y, z, g); l.rotation.set(0, ry, rz);
+  // logs: charred, split, checked bark with glowing cracks (emissive mask flickers with the fire)
+  const logG = (len, r) => {
+    const lg = new THREE.CylinderGeometry(r, r * 1.08, len, 18, 8, false);
+    const p = lg.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const a = Math.atan2(z, x), rr = Math.hypot(x, z);
+      if (rr < 1e-4) continue;
+      const k = 1 + 0.08 * Math.sin(a * 3 + y * 9) + 0.05 * Math.sin(a * 7 - y * 21) - 0.12 * Math.max(0, Math.sin(a + 0.6)) * (0.5 + 0.5 * Math.sin(y * 4));
+      p.setX(i, x * k); p.setZ(i, z * k);
+    }
+    lg.computeVertexNormals();
+    const uv = lg.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 1.0, uv.getY(i) * len * 2.0);
+    return lg;
+  };
+  for (const [x, y, z, rz, ry, len, r] of [[0, 0.235, fz + 0.03, Math.PI / 2, 0.12, 0.54, 0.052], [-0.06, 0.3, fz - 0.04, Math.PI / 2 - 0.28, -0.4, 0.46, 0.045], [0.09, 0.295, fz + 0.06, Math.PI / 2 + 0.32, 0.55, 0.42, 0.043]]) {
+    const l = mesh(logG(len, r), mats.log, x, y, z, g); l.rotation.set(0, ry, rz); l.name = 'log';
+    // glowing end grain on the burnt ends
+    for (const e of [-1, 1]) { const cap = mesh(new THREE.CircleGeometry(r * 0.95, 16), mats.logEnd, 0, e * (len / 2 + 0.001), 0, l); cap.rotation.x = e * -Math.PI / 2; }
   }
+  // ---- flames: noise-eroded fire shader on crossed vertical cards
   const flames = [];
-  const rnd = (k) => { const x = Math.sin(k * 45.1 + seed * 9.7) * 43758.5453; return x - Math.floor(x); };
-  for (let i = 0; i < 7; i++) {
-    const f = fx.flame({ height: 0.12 + rnd(i) * 0.18, width: 0.06 + rnd(i + 9) * 0.04, intensity: 1.6 + rnd(i + 3) * 1.6, seed: 10 + i * 3.3 });
-    f.position.set(-0.22 + (i / 6) * 0.44 + (rnd(i + 5) - 0.5) * 0.05, 0.26 + rnd(i + 7) * 0.04, fz - 0.02 + (rnd(i + 2) - 0.5) * 0.12);
-    g.add(f); flames.push(f);
+  const fireMat = fireMaterial(ctx.time);
+  const cardG = new THREE.PlaneGeometry(1, 1, 1, 1); cardG.translate(0, 0.5, 0);
+  const cards = [[0, 0.62, 0.5, 0.0, 0.0], [0.6, 0.5, 0.42, 0.04, 2.3], [-0.55, 0.52, 0.38, -0.05, 4.1], [1.57, 0.36, 0.34, 0.0, 6.0]];
+  for (const [ry, w, h, dx, sd] of cards) {
+    const m = new THREE.Mesh(cardG, fireMat.clone());
+    m.material.uniforms.uTime = ctx.time;
+    m.material.uniforms.uSeed.value = sd;
+    m.scale.set(w, h, 1); m.rotation.y = ry; m.position.set(dx, 0.2, fz);
+    m.renderOrder = 10; m.userData.noBake = true; m.userData.noShadow = true; m.frustumCulled = false;
+    g.add(m); flames.push(m);
   }
+  // a soft glow card on the firebox back + rising embers
+  const glowTex = ctx.textures.canvas('bedroom:fireglow', 128, 128, (c2, w) => {
+    const gr = c2.createRadialGradient(w / 2, w * 0.7, 2, w / 2, w * 0.7, w * 0.55);
+    gr.addColorStop(0, 'rgba(255,150,60,1)'); gr.addColorStop(0.4, 'rgba(255,90,20,0.45)'); gr.addColorStop(1, 'rgba(255,60,10,0)');
+    c2.fillStyle = gr; c2.fillRect(0, 0, w, w);
+  }, { tile: false });
+  const glow = mesh(new THREE.PlaneGeometry(0.85, 0.75), new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, color: new THREE.Color(0.9, 0.5, 0.25), name: 'fireGlow' }), 0, oy + 0.35, depth - fbD + 0.01, g);
+  glow.userData.noBake = true; glow.userData.noShadow = true; glow.renderOrder = 9; glow.userData.keep = true;
+  const embers = emberPoints(ctx, { count: 70, box: [0.46, 0.75, 0.2] });
+  embers.position.set(0, 0.22, fz); g.add(embers);
   g.userData = { flames, coalMat: mats.coals, mantelY: shelfY + 0.06, front: depth + 0.36, fireZ: fz };
   return g;
+}
+
+/** Fire shader: fbm-eroded flame sheet, white-yellow core -> orange -> deep red edges (HDR, additive). */
+export function fireMaterial(timeUniform) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uTime: timeUniform || { value: 0 }, uSeed: { value: 0 }, uIntensity: { value: 3.2 } },
+    vertexShader: /* glsl */ `varying vec2 vUv; varying float vFace;
+      void main() { vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vFace = abs(dot(normalize(normalMatrix * vec3(0.0, 0.0, 1.0)), normalize(-mv.xyz)));
+        gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: /* glsl */ `
+      uniform float uTime; uniform float uSeed; uniform float uIntensity; varying vec2 vUv; varying float vFace;
+      float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+      float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
+      float fbm(vec2 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * vn(p); p = p * 2.03 + 1.7; a *= 0.5; } return s; }
+      void main() {
+        vec2 p = vUv;
+        float t = uTime;
+        // flame tongues: several narrowing lobes along x
+        float x = (p.x - 0.5) * 2.0;
+        float lobes = 0.55 + 0.45 * sin(x * 7.0 + uSeed * 3.0 + sin(t * 2.0 + uSeed) * 0.6);
+        float body = 1.0 - smoothstep(0.55, 1.0, abs(x));          // fade at the card edges
+        float n = fbm(vec2(p.x * 4.0 + uSeed, p.y * 3.0 - t * 2.6));
+        float n2 = fbm(vec2(p.x * 9.0 - uSeed, p.y * 7.0 - t * 4.1));
+        // height field the noise erodes: tall in the lobes, shorter toward the sides
+        float hgt = (0.35 + 0.65 * lobes) * body;
+        float e = hgt - p.y * 1.05 - (n - 0.5) * 0.55 - (n2 - 0.5) * 0.25;
+        float a = smoothstep(0.0, 0.18, e);
+        float core = smoothstep(0.18, 0.55, e) * (1.0 - smoothstep(0.0, 0.7, p.y));
+        vec3 col = mix(vec3(0.55, 0.06, 0.01), vec3(1.0, 0.38, 0.06), smoothstep(0.0, 0.25, e));
+        col = mix(col, vec3(1.0, 0.86, 0.5), core);
+        col += vec3(1.0, 0.95, 0.8) * smoothstep(0.45, 0.8, e) * (1.0 - p.y) * 0.6;
+        // blue-ish roots right at the coals
+        col = mix(col, vec3(0.35, 0.3, 0.6), smoothstep(0.08, 0.0, p.y) * 0.5 * a);
+        float alpha = a * smoothstep(0.0, 0.05, p.y) * smoothstep(0.08, 0.45, vFace);
+        gl_FragColor = vec4(col * uIntensity * alpha, alpha);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide,
+  });
+}
+
+/** Deterministic rising embers (Points) driven by the shared time uniform. box = [w, h, d] above the origin. */
+export function emberPoints(ctx, { count = 60, box = [0.4, 0.7, 0.2] } = {}) {
+  const geo = new THREE.BufferGeometry();
+  const seeds = new Float32Array(count * 4);
+  const rnd = (i) => { const x = Math.sin(i * 78.233 + 12.9898) * 43758.5453; return x - Math.floor(x); };
+  for (let i = 0; i < count; i++) for (let k = 0; k < 4; k++) seeds[i * 4 + k] = rnd(i * 4 + k + 1);
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(count * 3), 3));
+  geo.setAttribute('aSeed', new THREE.Float32BufferAttribute(seeds, 4));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uTime: ctx.time, uBox: { value: new THREE.Vector3(...box) } },
+    vertexShader: /* glsl */ `
+      attribute vec4 aSeed; uniform float uTime; uniform vec3 uBox; varying float vA;
+      void main() {
+        float life = fract(uTime * (0.25 + aSeed.w * 0.35) + aSeed.x);
+        vec3 p = vec3((aSeed.y - 0.5) * uBox.x * (1.0 - life * 0.5), life * uBox.y, (aSeed.z - 0.5) * uBox.z);
+        p.x += sin(uTime * 3.0 + aSeed.x * 20.0) * 0.03 * life;
+        p.z += cos(uTime * 2.3 + aSeed.y * 20.0) * 0.02 * life;
+        vA = (1.0 - life) * smoothstep(0.0, 0.1, life);
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = (2.0 + aSeed.w * 2.5) * (300.0 / -mv.z) * 0.02;
+      }`,
+    fragmentShader: /* glsl */ `
+      varying float vA;
+      void main() { vec2 d = gl_PointCoord - 0.5; float r = dot(d, d); if (r > 0.25) discard;
+        gl_FragColor = vec4(vec3(1.0, 0.45, 0.1) * 4.0 * vA * (1.0 - r * 4.0), 1.0); }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false; pts.userData.noBake = true; pts.userData.noShadow = true; pts.renderOrder = 11;
+  return pts;
 }
 
 // ============================================================================ vanity
@@ -518,7 +681,7 @@ export function buildVanity(ctx, mats, { w = 1.15, d = 0.5 } = {}) {
   const stickG = lathe(G, [[0, 0], [0.055, 0], [0.05, 0.012], [0.02, 0.03], [0.014, 0.06], [0.022, 0.08], [0.012, 0.1], [0.011, 0.16], [0.026, 0.175], [0.03, 0.185], [0.014, 0.19], [0, 0.19]], 22);
   for (const [x, z, s] of [[-0.43, 0.28, 0], [0.45, 0.24, 1]]) {
     mesh(stickG, mats.brass, x, th + 0.017, z, g);
-    const c = ctx.fx.candle({ height: s ? 0.12 : 0.17, radius: 0.0115, light: false, seed: 60 + s * 7, burn: 0.8 });
+    const c = ctx.fx.candle({ height: s ? 0.12 : 0.17, radius: 0.0115, lit: s === 1, light: false, seed: 60 + s * 7, burn: 0.8 });
     c.position.set(x, th + 0.017 + 0.19, z); g.add(c); candles.push(c);
   }
   // perfume bottles, powder jar, brush, scattered pearls
@@ -641,8 +804,8 @@ export function buildDoll(ctx, mats, { size = 0.3, seed = 0, dress = 0xb08080, h
   // legs forward: white stockings + strapped black shoes
   for (const sx of [-1, 1]) {
     const leg = mesh(new THREE.CapsuleGeometry(0.0145 * s, 0.085 * s, 4, 10), mats.stocking, sx * 0.034 * s, 0.02 * s, 0.1 * s, g); leg.rotation.x = Math.PI / 2 - 0.12;
-    const shoe = mesh(new THREE.SphereGeometry(0.019 * s, 14, 10), mats.shoe, sx * 0.034 * s, 0.026 * s, 0.158 * s, g); shoe.scale.set(0.95, 0.85, 1.45);
-    const strap = mesh(new THREE.TorusGeometry(0.0155 * s, 0.0025 * s, 5, 16), mats.shoe, sx * 0.034 * s, 0.03 * s, 0.146 * s, g); strap.rotation.y = Math.PI / 2;
+    const shoe = mesh(new THREE.SphereGeometry(0.015 * s, 14, 10), mats.shoe, sx * 0.034 * s, 0.022 * s, 0.155 * s, g); shoe.scale.set(0.95, 0.8, 1.5);
+    const strap = mesh(new THREE.TorusGeometry(0.0125 * s, 0.002 * s, 5, 16), mats.shoe, sx * 0.034 * s, 0.025 * s, 0.146 * s, g); strap.rotation.y = Math.PI / 2;
   }
   // arms: puffed sleeve + bisque forearm + hand; posed
   const arms = { lap: [0.95, 0.0, 0.35], reach: [1.45, 0.0, 0.18], limp: [0.15, 0.0, 0.12] }[pose] || [0.95, 0, 0.35];
@@ -915,5 +1078,52 @@ export function buildBook(G, mats, { w = 0.14, h = 0.21, t = 0.035, color = 0x5a
   const g = new THREE.Group();
   mesh(rbox(G, w, t, h, 0.004), mats.bookCover(color), 0, t / 2, 0, g);
   mesh(new THREE.BoxGeometry(w - 0.01, t - 0.008, h - 0.008), mats.paper, 0.003, t / 2, 0, g);
+  return g;
+}
+
+// ============================================================================ ceiling
+/** Plaster ceiling rose: stepped rings, a bead, and a ring of acanthus leaves. Hangs from y = 0 downward. */
+export function buildCeilingRose(G) {
+  const parts = [];
+  parts.push(G.latheFromProfile([[0.0, 0], [0.56, 0], [0.56, -0.012], [0.53, -0.022], [0.5, -0.022], [0.49, -0.032], [0.44, -0.04], [0.4, -0.036],
+    [0.37, -0.05], [0.31, -0.058], [0.27, -0.054], [0.24, -0.07], [0.18, -0.085], [0.13, -0.09], [0.1, -0.11], [0.06, -0.125], [0.03, -0.15], [0.0, -0.155]], 64));
+  // bead-and-reel ring
+  for (let i = 0; i < 48; i++) { const a = (i / 48) * Math.PI * 2; const b = new THREE.SphereGeometry(0.011, 8, 6); b.scale(1, 0.7, 1.4); b.rotateY(-a); b.translate(Math.cos(a) * 0.47, -0.034, Math.sin(a) * 0.47); parts.push(b); }
+  // acanthus leaves radiating, curling down at the tips
+  const leaf = new THREE.Shape();
+  leaf.moveTo(0, -0.03); leaf.quadraticCurveTo(0.05, -0.04, 0.12, -0.012); leaf.quadraticCurveTo(0.16, 0.0, 0.2, 0.0);
+  leaf.quadraticCurveTo(0.16, 0.006, 0.12, 0.014); leaf.quadraticCurveTo(0.05, 0.04, 0, 0.03); leaf.lineTo(0, -0.03);
+  const lg0 = new THREE.ExtrudeGeometry(leaf, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 2, curveSegments: 6 });
+  lg0.rotateX(-Math.PI / 2);
+  { const p = lg0.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i); p.setY(i, p.getY(i) - x * x * 1.2 + Math.abs(p.getZ(i)) * 0.3); } lg0.computeVertexNormals(); }
+  for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; const l = lg0.clone(); l.rotateY(-a); l.translate(Math.cos(a) * 0.12, -0.075, Math.sin(a) * 0.12); parts.push(l); }
+  const norm = parts.map((q) => { let g = q.index ? q.toNonIndexed() : q; for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k); return g; });
+  return G.applyBoxUVs(G.mergeGeometries(norm), 1);
+}
+
+/** Heavy tarnished-brass gasolier: turned stem, bowl, four S-scroll arms with frosted tulip shades. Hangs from y = 0. */
+export function buildGasolier(ctx, mats) {
+  const G = ctx.geometry; const g = new THREE.Group(); g.name = 'gasolier';
+  const B = mats.brassOld;
+  mesh(G.latheFromProfile([[0, 0], [0.09, 0], [0.085, -0.02], [0.05, -0.04], [0.03, -0.07], [0.02, -0.08], [0, -0.08]], 32), B, 0, -0.155, 0, g);
+  mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.45, 12), B, 0, -0.46, 0, g);
+  // turned knops on the stem
+  for (const y of [-0.3, -0.5]) mesh(G.latheFromProfile([[0, 0.02], [0.03, 0.015], [0.035, 0], [0.03, -0.015], [0, -0.02]], 20), B, 0, y, 0, g);
+  // the body: bulb + bowl + pendant finial
+  mesh(G.latheFromProfile([[0, 0], [0.04, -0.01], [0.075, -0.05], [0.09, -0.1], [0.08, -0.14], [0.11, -0.16], [0.12, -0.18], [0.08, -0.2], [0.04, -0.24], [0.02, -0.3], [0.03, -0.33], [0.012, -0.38], [0, -0.4]], 40), B, 0, -0.68, 0, g);
+  // arms
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    const c = new THREE.CubicBezierCurve3(V3(0.08, -0.85, 0), V3(0.3, -0.98, 0), V3(0.36, -0.7, 0), V3(0.42, -0.78, 0));
+    const tg = new THREE.TubeGeometry(c, 40, 0.011, 8, false); tg.rotateY(-a);
+    mesh(tg, B, 0, 0, 0, g);
+    // decorative curl under the arm
+    const c2 = new THREE.CubicBezierCurve3(V3(0.16, -0.93, 0), V3(0.2, -1.02, 0), V3(0.28, -1.0, 0), V3(0.25, -0.95, 0));
+    const t2 = new THREE.TubeGeometry(c2, 20, 0.006, 6, false); t2.rotateY(-a); mesh(t2, B, 0, 0, 0, g);
+    const px = Math.cos(a) * 0.42, pz = Math.sin(a) * 0.42;
+    mesh(G.latheFromProfile([[0, 0], [0.03, 0], [0.034, 0.02], [0.022, 0.03], [0, 0.03]], 18), B, px, -0.79, pz, g);
+    const sh = mesh(G.latheFromProfile([[0.022, 0], [0.05, 0.03], [0.062, 0.08], [0.06, 0.12], [0.07, 0.15], [0.064, 0.152]], 24), mats.frostGlass, px, -0.77, pz, g);
+    sh.userData.noShadow = true;
+  }
   return g;
 }

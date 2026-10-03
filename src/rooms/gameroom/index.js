@@ -101,7 +101,7 @@ export default {
       cardBaize: mkBaize(baize.withRepeat(3, 3), 0.9),
       dark: M.basic('black', { color: 0x0b0806 }),
       hole: new THREE.MeshStandardMaterial({ color: 0x050403, roughness: 0.9, name: 'pocket' }),
-      pearl: new THREE.MeshPhysicalMaterial({ color: 0xe8e4dc, roughness: 0.2, iridescence: 0.8, clearcoat: 1, name: 'pearl' }),
+      pearl: new THREE.MeshPhysicalMaterial({ color: 0xb8b0a0, roughness: 0.25, iridescence: 0.8, clearcoat: 1, name: 'pearl' }),
       ivory: new THREE.MeshPhysicalMaterial({ color: 0xe6d8b8, roughness: 0.38, clearcoat: 0.5, clearcoatRoughness: 0.35, sheen: 0.3, sheenColor: new THREE.Color(1, 0.95, 0.85), name: 'ivory' }),
       ebony: M.create('ebony', { repeat: [2, 2] }),
       maple: new THREE.MeshPhysicalMaterial({ color: 0xc89a5e, roughness: 0.35, clearcoat: 0.5, name: 'maple' }),

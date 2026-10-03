@@ -30,7 +30,7 @@ try {
     await page.goto(`${server.url}?room=gameroom&shot=1&time=2&${qs}${extra ? '&' + extra : ''}`, { waitUntil: 'load', timeout: 300000 });
     await page.waitForFunction(() => window.__SHOT_READY === true, null, { timeout: 300000, polling: 250 });
     const out = path.resolve(ROOT, outdir, `${name}.png`);
-    await page.screenshot({ path: out });
+    await page.screenshot({ path: out, timeout: 180000 });
     const info = await page.evaluate(() => window.__SHOT_INFO || null);
     console.log(name, ((Date.now() - t0) / 1000).toFixed(1) + 's', JSON.stringify(info?.stats || info?.renderMs || ''), errs.filter((e) => !/GPU stall|swiftshader|INVALID_ENUM/i.test(e)).slice(0, 5).join(' | '));
     await page.close();
