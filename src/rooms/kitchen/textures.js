@@ -658,7 +658,7 @@ const FOOT_GLSL = /* glsl */ `
       p.x *= side;
       p /= 0.185;
       float heel = sdEllipse(p - vec2(0.03, -0.36), vec2(0.13, 0.15));
-      float ball = sdEllipse(p - vec2(-0.02, 0.12), vec2(0.19, 0.12));
+      float ball = sdEllipse(p - vec2(-0.02, 0.1), vec2(0.18, 0.11));
       float outer = sdEllipse(p - vec2(0.11, -0.1), vec2(0.075, 0.24));   // outside edge of the sole
       float sole = min(min(heel, ball), outer);
       sole = smin(sole, outer, 0.05);
@@ -671,7 +671,7 @@ const FOOT_GLSL = /* glsl */ `
       float press = 0.0;
       press = max(press, (1.0 - smoothstep(-0.01, 0.006, heel)) * (0.75 + 0.25 * smoothstep(0.0, -0.08, heel)));
       press = max(press, (1.0 - smoothstep(-0.01, 0.006, ball)) * (0.7 + 0.3 * smoothstep(0.0, -0.06, ball)));
-      press = max(press, (1.0 - smoothstep(-0.01, 0.006, outer)) * 0.45);
+      press = max(press, (1.0 - smoothstep(-0.01, 0.006, outer)) * 0.22);
       press = max(press, (1.0 - smoothstep(-0.008, 0.004, toes)) * 0.85);
       return press;
     }`;
@@ -734,8 +734,8 @@ export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 
       vec2 bc = w - vec2(-0.6, 0.3);
       float br = length(bc);
       float stroke1 = (sin(br * 55.0 + n2 * 3.0) * 0.5 + 0.5);
-      float sweepZone = smoothstep(1.4, 0.9, br) * smoothstep(0.5, 0.8, br) * smoothstep(0.35, 0.6, n1);
-      a *= 1.0 - sweepZone * 0.75 * stroke1;
+      float sweepZone = smoothstep(1.4, 0.9, br) * smoothstep(0.5, 0.8, br) * smoothstep(0.45, 0.7, n1) * smoothstep(0.2, 0.6, sin(atan(bc.y, bc.x) * 3.0 + n2 * 4.0) * 0.5 + 0.5);
+      a *= 1.0 - sweepZone * 0.45 * stroke1;
       vec2 dg = w - vec2(-1.55, -1.25);
       float drag = exp(-pow(dot(dg, vec2(0.86, 0.5)) / 0.05, 2.0)) * smoothstep(0.5, 0.0, abs(dot(dg, vec2(-0.5, 0.86)) - 0.25));
       a *= 1.0 - drag * 0.8;
@@ -805,8 +805,8 @@ export function flourPrintsTexture(forge, { size = 2048, rect = [0.0, -0.3, 3.2,
         fp = max(fp, pr * (0.35 + 0.65 * fade) * patchy);
       }
       float alpha = smoothstep(0.12, 0.45, fp) * smoothstep(0.2, 0.55, grain * 0.6 + fp * 0.6);
-      s.albedo = vec3(0.92, 0.9, 0.85) * (0.92 + 0.08 * grain);
-      s.alpha = saturate(alpha * 0.95);
+      s.albedo = vec3(0.8, 0.77, 0.7) * (0.92 + 0.08 * grain);
+      s.alpha = saturate(alpha * 0.48);
       s.height = 0.5 + alpha * 0.2;
       s.rough = 0.92; s.metal = 0.0; s.ao = 1.0;
     }`,

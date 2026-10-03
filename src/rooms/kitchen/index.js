@@ -116,7 +116,7 @@ export default {
     mat.dial = new THREE.MeshStandardMaterial({ map: CV.dial, roughness: 0.4, name: 'ovenDial' });
     mat.copper = matFrom(copperTexture(forge, 1024), { repeat: [3, 1], name: 'copper', metalness: 1, roughness: 1, envMapIntensity: 1.25, normalScale: new THREE.Vector2(0.6, 0.6) });
     mat.copperOld = mat.copper;
-    mat.tinLining = matFrom(tinLiningTexture(forge, 512), { repeat: [2, 1], name: 'tinLining', envMapIntensity: 1.1 });
+    mat.tinLining = matFrom(tinLiningTexture(forge, 512), { repeat: [2, 1], name: 'tinLining', envMapIntensity: 1.3, metalness: 0.55, color: new THREE.Color(1.25, 1.25, 1.25) });
     mat.butcher = matFrom(butcherBlockTexture(forge, { aspect: 1.5 / 0.78, size: 2048 }), { name: 'butcher' });
     mat.blockSide = matFrom(blockSideTexture(forge, 1024), { name: 'blockSide' });
     mat.blockBase = grime(matFrom(scrubbedPineTexture(forge, 1024), { repeat: [1, 1], name: 'blockBase' }), { floor: [0.3, 0.45], noise: 0.3, tag: 'blockbase' });
@@ -678,8 +678,8 @@ export default {
           for (let k = 0; k < 6; k++) {
             const x = 60 + k * 70;
             g2.save(); g2.translate(x, H2 * 0.32); g2.rotate(0.5);
-            const sg = g2.createLinearGradient(-10, 0, 10, 0); sg.addColorStop(0, 'rgba(60,30,10,0.9)'); sg.addColorStop(0.35, '#d9b27a'); sg.addColorStop(0.7, '#e8d2a6'); sg.addColorStop(1, 'rgba(90,50,20,0.9)');
-            g2.fillStyle = sg; g2.beginPath(); g2.ellipse(0, 0, 12, 60, 0, 0, Math.PI * 2); g2.fill();
+            const sg = g2.createLinearGradient(-7, 0, 7, 0); sg.addColorStop(0, 'rgba(50,25,8,0.85)'); sg.addColorStop(0.4, '#b98a50'); sg.addColorStop(0.75, '#cfa86e'); sg.addColorStop(1, 'rgba(80,45,18,0.8)');
+            g2.fillStyle = sg; g2.beginPath(); g2.ellipse(0, 0, 7, 46, 0, 0, Math.PI * 2); g2.fill();
             g2.restore();
           }
           // flour dusting
@@ -692,20 +692,20 @@ export default {
         }, { tile: false });
         const crust = new THREE.MeshPhysicalMaterial({ map: crustTex, roughness: 0.8, sheen: 0.4, sheenColor: new THREE.Color(0.6, 0.45, 0.3), name: 'loafCrust' });
         const lg = new THREE.SphereGeometry(0.1, 40, 24);
-        lg.scale(1.55, 0.55, 0.62);
+        lg.scale(1.45, 0.68, 0.62);
         const cut = 0.1;
         { const pp = lg.attributes.position; for (let k = 0; k < pp.count; k++) { const x = pp.getX(k); if (x > cut) pp.setX(k, cut); if (pp.getY(k) < 0) pp.setY(k, pp.getY(k) * 0.25); } lg.computeVertexNormals(); }
         const loaf = new THREE.Group();
         loaf.add(mk(lg, crust, 0, 0.014, 0));
         const face = new THREE.Mesh(new THREE.CircleGeometry(0.1, 32), new THREE.MeshStandardMaterial({ map: crumbTex, roughness: 0.95, name: 'crumb' }));
-        face.scale.set(0.62 * 0.98, 0.55 * 0.98, 1); face.rotation.y = Math.PI / 2; face.position.set(cut + 0.0005, 0.014 + 0.0, 0);
+        face.scale.set(0.62 * 0.98, 0.68 * 0.98, 1); face.rotation.y = Math.PI / 2; face.position.set(cut + 0.0005, 0.014 + 0.0, 0);
         { const fp = face.geometry.attributes.position; for (let k = 0; k < fp.count; k++) if (fp.getY(k) < 0) fp.setY(k, fp.getY(k) * 0.25); }
         loaf.add(face);
         add(mk(rbox(G, 0.42, 0.022, 0.26, 0.008), mat.counter, -0.25, dresser.BH + 0.011, 0.27, 0, 0.1, 0), dg);
-        loaf.position.set(-0.27, dresser.BH + 0.022, 0.27); loaf.rotation.y = 0.15;
+        loaf.position.set(-0.27, dresser.BH + 0.022, 0.27); loaf.rotation.y = Math.PI - 0.55;
         add(loaf, dg);
         // a slice lying beside it
-        const sl = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 24), new THREE.MeshStandardMaterial({ map: crumbTex, roughness: 0.95, name: 'slice' }));
+        const sl = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 24), new THREE.MeshStandardMaterial({ map: crumbTex, color: 0xb8a888, roughness: 0.95, name: 'slice' }));
         sl.scale.set(1, 1, 0.9); sl.position.set(-0.08, dresser.BH + 0.028, 0.3); sl.rotation.set(0.0, 0.4, 0.06);
         add(sl, dg);
       }
@@ -1033,7 +1033,7 @@ export default {
         g.add(mk(new THREE.CylinderGeometry(0.016, 0.016, H - 1.55, 16), mat.brass, X1 - 0.04, 1.55 + (H - 1.55) / 2, tz));
         for (const yy of [1.85, 2.5, 3.1]) g.add(mk(tube([[X1, yy, tz - 0.025], [X1 - 0.04, yy, tz - 0.022], [X1 - 0.04, yy, tz + 0.022], [X1, yy, tz + 0.025]], 0.004, 10, 6), mat.brass));
         g.add(mk(tube([[X1 - 0.04, 1.6, tz], [X1 - 0.045, 1.5, tz], [X1 - 0.08, 1.45, tz]], 0.016, 16, 12), mat.brass));
-        const mouth = lathe(G, [[0.016, 0], [0.018, 0.02], [0.028, 0.045], [0.031, 0.05], [0.026, 0.05], [0.012, 0.03]], 24);
+        const mouth = lathe(G, [[0.016, 0], [0.019, 0.025], [0.032, 0.06], [0.038, 0.068], [0.033, 0.07], [0.014, 0.04]], 24);
         g.add(mk(mouth, mat.brass, X1 - 0.085, 1.45, tz, 0, 0, Math.PI / 2 + 0.25));
         const cap = new THREE.Group();
         cap.add(mk(new THREE.CylinderGeometry(0.031, 0.031, 0.008, 24), mat.brass, 0, 0, 0));
@@ -1067,17 +1067,17 @@ export default {
         const engrave = (txt, y, font) => {
           g2.font = font;
           g2.fillStyle = 'rgba(255,240,190,0.55)'; g2.fillText(txt, W2 / 2 + 1.5, y + 1.5);
-          g2.fillStyle = '#1c1a10'; g2.fillText(txt, W2 / 2, y);
+          g2.fillStyle = '#0e0c06'; g2.fillText(txt, W2 / 2, y);
           g2.fillStyle = 'rgba(60,110,80,0.45)'; g2.fillText(txt, W2 / 2 - 0.5, y - 0.5);
         };
-        engrave('SERVICE  LIFT', 66, '600 54px Cinzel, Georgia, serif');
+        engrave('SERVICE  LIFT', 68, '700 64px Cinzel, Georgia, serif');
         engrave('— TO THE DINING ROOM —', 118, '600 24px Cinzel, Georgia, serif');
         // verdigris creeping from the screw holes and edges
         for (const [x, y] of [[34, 34], [W2 - 34, 34], [34, H2 - 34], [W2 - 34, H2 - 34]]) {
           const v = g2.createRadialGradient(x, y, 4, x, y, 30); v.addColorStop(0, 'rgba(70,130,100,0.55)'); v.addColorStop(1, 'rgba(70,130,100,0)'); g2.fillStyle = v; g2.fillRect(x - 30, y - 30, 60, 60);
         }
       }, { tile: false });
-      const pm = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.085), new THREE.MeshStandardMaterial({ map: plate, metalness: 0.85, roughness: 0.42, name: 'brassPlate' }));
+      const pm = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.085), new THREE.MeshStandardMaterial({ map: plate, metalness: 0.7, roughness: 0.5, name: 'brassPlate' }));
       pm.position.set(X1 - 0.006, y0 + h + 0.13, zc); pm.rotation.y = -Math.PI / 2;
       g.add(pm);
       g.add(mk(rbox(G, 0.004, 0.089, 0.344, 0.0015), mat.brass, X1 - 0.003, y0 + h + 0.13, zc));
@@ -1916,9 +1916,13 @@ export default {
         { p: [2.7, 2.15, Z1 - 0.35], r: 0.9, c: [0.26, 0.16, 0.07] },                              // gas, front wall
         { p: [2.95, 1.0, Z1 - 0.35], r: 0.9, c: [0.3, 0.18, 0.08] },                               // side-table lamp
         { p: [X1 - 0.3, DUMB.y + 0.4, DUMB.z], r: 0.7, c: [0.2, 0.12, 0.06] },                     // dumbwaiter spill
+        { p: [DOORS.foyer.x - 0.2, 1.2, Z1 - 0.35], r: 1.0, c: [0.22, 0.14, 0.07] },               // passage lamp through the foyer door
+        { p: [X1 - 0.35, 1.2, DOORS.dining.z], r: 1.0, c: [0.24, 0.15, 0.07] },                     // service passage light
+        { p: [-1.75, 2.3, 0.35], r: 0.9, c: [0.1, 0.09, 0.08] },                                    // pale linen on the airer
+        { p: [X0 + 0.4, 1.6, DRESSER_Z], r: 0.9, c: [0.16, 0.1, 0.05] },                            // tins & crocks catching the lamp
       ],
     });
-    gi.uniforms.kbGain.value = 1.45;
+    gi.uniforms.kbGain.value = 1.65;
     gi.applyTree(root);
     mergeStatic(root);
 
@@ -1928,7 +1932,7 @@ export default {
       scene: root,
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
-      grade: { exposure: 1.8, contrast: 1.05, saturation: 0.98, lift: [0.012, 0.014, 0.024], bloomStrength: 0.3, bloomThreshold: 1.6, godRayWeight: 0.3, godRayThreshold: 2.5, vignette: 0.42, aoIntensity: 1.0, aoRadius: 0.45 },
+      grade: { exposure: 1.8, contrast: 1.08, saturation: 0.98, lift: [0.007, 0.008, 0.016], bloomStrength: 0.3, bloomThreshold: 1.6, godRayWeight: 0.3, godRayThreshold: 2.5, vignette: 0.42, aoIntensity: 1.0, aoRadius: 0.45 },
       environment: { position: [0.2, 1.7, 1.2], intensity: 0.8 },
       onEnter() {
         if (!ctx.state.has('kitchen.greeted')) {

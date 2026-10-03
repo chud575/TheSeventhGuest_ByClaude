@@ -7,7 +7,7 @@ import * as THREE from 'three';
  * term (the one ambient occlusion and the material's AO map darken) receives:
  *   - a sky/ground ambient (cool from above, warm-brown from the floor) that falls off
  *     gradually into the room's corners and the wall/floor/ceiling junctions
- *   - up to 12 coloured "bounce emitters": soft spherical sources standing in for light
+ *   - up to 16 coloured "bounce emitters": soft spherical sources standing in for light
  *     thrown back off lit surfaces (the candle-lit block, the range hearth, the moon
  *     pool on the floor, each lamp's wall), normal-weighted and inverse-square-ish.
  * The scene's HemisphereLight should be removed (or kept tiny) when this is used.
@@ -15,9 +15,9 @@ import * as THREE from 'three';
  * room: { min: [x,y,z], max: [x,y,z] }  emitters: [{ p: [x,y,z], r, c: [r,g,b] }]
  */
 export function makeBounce({ room, sky = [0.1, 0.13, 0.24], ground = [0.07, 0.05, 0.04], emitters = [], cornerDark = 0.55 }) {
-  const E = emitters.slice(0, 12);
+  const E = emitters.slice(0, 16);
   const pos = [], col = [];
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 16; i++) {
     const e = E[i];
     pos.push(e ? new THREE.Vector4(e.p[0], e.p[1], e.p[2], e.r) : new THREE.Vector4(0, -99, 0, 0.01));
     col.push(e ? new THREE.Vector3(...e.c) : new THREE.Vector3());
@@ -54,8 +54,8 @@ export function makeBounce({ room, sky = [0.1, 0.13, 0.24], ground = [0.07, 0.05
         .replace('#include <common>', `#include <common>
 varying vec3 vKBW;
 uniform vec3 kbRoomMin, kbRoomMax, kbSky, kbGround;
-uniform vec4 kbPos[12];
-uniform vec3 kbCol[12];
+uniform vec4 kbPos[16];
+uniform vec3 kbCol[16];
 uniform float kbCorner, kbGain;
 vec3 kbIrradiance(vec3 p, vec3 n) {
   // distances to the six room planes; the smallest is the surface we sit on, the next two occlude
@@ -69,7 +69,7 @@ vec3 kbIrradiance(vec3 p, vec3 n) {
   float up = n.y * 0.5 + 0.5;
   vec3 amb = mix(kbGround, kbSky, up);
   vec3 acc = vec3(0.0);
-  for (int i = 0; i < 12; i++) {
+  for (int i = 0; i < 16; i++) {
     vec4 e = kbPos[i];
     vec3 L = e.xyz - p;
     float d = length(L);
