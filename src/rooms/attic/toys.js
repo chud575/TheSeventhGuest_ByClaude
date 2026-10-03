@@ -87,7 +87,9 @@ export function buildDoll(ctx, m, { dress, trim, seed = 1, eye = '#2a3a5a', lip 
   g.add(at(mesh(new THREE.CylinderGeometry(0.011, 0.013, 0.02, 12), m.porcelain), 0, 0.18, 0));
   const head = mesh(new THREE.SphereGeometry(0.037, 32, 24), face); head.scale.set(0.95, 1.05, 0.98); at(head, 0, 0.215, 0.003); g.add(head);
   // hair: cap, fringe, ringlets, bow
-  const cap = mesh(new THREE.SphereGeometry(0.0395, 28, 16, 0, Math.PI * 2, 0, Math.PI * 0.52), H); cap.scale.set(0.98, 1.05, 1.0); at(cap, 0, 0.217, -0.004); cap.rotation.x = -0.42; g.add(cap);
+  const cap = mesh(new THREE.SphereGeometry(0.0398, 32, 18, 0, Math.PI * 2, 0, Math.PI * 0.5), H); cap.scale.set(1.0, 1.06, 1.02); at(cap, 0, 0.218, -0.003); cap.rotation.x = -0.12; g.add(cap);
+  // centre-parted hair swept down over the temples
+  for (const s of [-1, 1]) { const sw = mesh(new THREE.SphereGeometry(0.024, 16, 12), H); sw.scale.set(0.8, 0.9, 0.9); at(sw, s * 0.026, 0.222, 0.012); g.add(sw); }
   for (let k = 0; k < 9; k++) {
     const a = Math.PI * (0.55 + k * 0.1);
     g.add(mesh(ringlet(V3(Math.cos(a) * 0.033, 0.21, -Math.abs(Math.sin(a)) * 0.022 - 0.008), 0.05 + (k % 3) * 0.008, 0.006, seed + k), H));

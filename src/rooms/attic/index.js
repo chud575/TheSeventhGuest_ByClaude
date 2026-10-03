@@ -110,8 +110,8 @@ export default {
     const timber = timberTexture(ctx.textures);
     const timberDark = timberTexture(ctx.textures, { key: 'timberDark', base: [0.17, 0.11, 0.068] });
     const linen = linenTexture(ctx.textures);
-    const brickTex = brickTexture(ctx.textures);
-    const brickDarkTex = brickTexture(ctx.textures, { key: 'brickDark', base: [0.3, 0.15, 0.11], mortar: [0.28, 0.26, 0.24], bloom: 0.25, missing: 0.006 });
+    const brickTex = brickTexture(ctx.textures, { missing: 0.02 });
+    const brickDarkTex = brickTexture(ctx.textures, { key: 'brickDark', base: [0.3, 0.15, 0.11], mortar: [0.28, 0.26, 0.24], bloom: 0.25, missing: 0.012 });
     const paint = (hex, o = {}) => new THREE.MeshPhysicalMaterial({ color: hex, roughness: 0.45, clearcoat: 0.6, clearcoatRoughness: 0.35, envMapIntensity: 0.6, ...o });
     const mat = {
       timber: pbr(timber.withRepeat(1 / 1.2, 1 / 0.3), { name: 'timber', envMapIntensity: 0.3 }),
@@ -462,8 +462,10 @@ export default {
         add(at(new THREE.Mesh(bevelBox(G, pw, 0.03, 0.3, 0.005), mat.benchFrame), cx, 0.18 * (i + 1), PZ - LAND - 0.15 - i * 0.26));
         add(at(new THREE.Mesh(new THREE.BoxGeometry(pw, 0.18, 0.02), mat.timberDark), cx, 0.18 * i + 0.09, PZ - LAND - i * 0.26));
       }
-      const hell = new THREE.MeshBasicMaterial({ map: hellGlowTexture(ctx.textures).map, color: new THREE.Color(1, 1, 1).multiplyScalar(5.0), toneMapped: false, name: 'hellglow' });
+      const hell = new THREE.MeshBasicMaterial({ map: hellGlowTexture(ctx.textures).map, color: new THREE.Color(1, 1, 1).multiplyScalar(3.4), toneMapped: false, name: 'hellglow' });
       const hg = add(new THREE.Mesh(new THREE.PlaneGeometry(pw, 3.2), hell)); hg.position.set(cx, 1.5, PZ - PL + 0.02); hg.userData.noShadow = true;
+      // furnace smoke hanging in the stairwell, so the glow has volume instead of ending on a card
+      add(fx.fog({ box: new THREE.Box3(V3(cx - pw / 2 + 0.02, 0.0, PZ - PL + 0.05), V3(cx + pw / 2 - 0.02, 2.9, PZ - 0.05)), color: 0x1a0603, litColor: 0x8a2a0c, density: 0.9, heightFalloff: 0.6 }));
       // someone waits on the landing: a tall, gaunt silhouette against the glow, beckoning
       const contactTex = ctx.textures.canvas('attic:contact', 128, 128, (g2, w, h) => {
         g2.fillStyle = '#000'; g2.fillRect(0, 0, w, h);
@@ -897,7 +899,7 @@ export default {
       const camB = new THREE.Vector3();
       const beams = shafts.map((sh) => ({ sh, i0: sh.material.uniforms.uIntensity.value }));
       // per-viewpoint haze: from the table the beam is seen down its length and would veil the bench behind it
-      const NODE_BEAM = { table: 0.5, back: 0.8 };
+      const NODE_BEAM = { table: 0.5, back: 0.22 };   // looking back down the room the beams would veil everything in blue
       let nodeMul = 1;
       ctx.onUpdate((dt) => {
         if (puzzleActive) return;
@@ -908,7 +910,7 @@ export default {
           camB.copy(ctx.camera.position).sub(u.uOrigin.value).applyMatrix3(u.uInv.value);
           const r = Math.hypot(camB.x, camB.y);
           const inside = camB.z > -0.05 && camB.z < 1.05 ? 1 - THREE.MathUtils.smoothstep(r, 0.9, 2.2) : 0;
-          u.uIntensity.value = b.i0 * (1 - 0.8 * inside) * (b === beams[0] ? nodeMul * moonK : (b === beams[1] ? 1 + climaxK * 1.2 : moonK));
+          u.uIntensity.value = b.i0 * (1 - 0.8 * inside) * (b === beams[1] ? 1 + climaxK * 1.2 : nodeMul * moonK);
         }
       });
     }
