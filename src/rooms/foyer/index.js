@@ -398,10 +398,20 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
     doorObjs.library = placeOnWall('right', lx.right(DOORS.library.z), buildDoorway(ctx, { ...doorMats, w: DOORS.library.w, h: DOORS.library.h, double: true, pediment: 'triangle', ajar: 0.2 }));
     doorObjs.gallery = placeOnWall('left', lx.left(DOORS.gallery.z), buildDoorway(ctx, { ...doorMats, w: DOORS.gallery.w, h: DOORS.gallery.h, head: false }), UF);
     doorObjs.front = placeOnWall('front', 6, buildDoorway(ctx, { ...doorMats, w: DOORS.front.w, h: DOORS.front.h, double: true, arch: true, depth: 0.42 }));
+    // one leaf of each double door stands well open, the other barely off the latch
+    for (const k of ['dining', 'library', 'music']) { const lv = doorObjs[k].userData.leaves; if (lv?.length === 2) { lv[0].rotation.y = -0.06; lv[1].rotation.y = k === 'music' ? 0.45 : 0.55; } }
     // light from the rooms beyond pours through every ajar door: a lit void behind the leaves + a soft spill into the hall
     const spill = (key, wall, along, d, color, gain, areaI, flick) => {
       const obj = doorObjs[key];
-      const glow = new THREE.Mesh(new THREE.PlaneGeometry(d.w + 0.2, d.h + 0.1), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(gain), toneMapped: false }));
+      // the room beyond, out of focus: a lamp-pool low and off to one side, falling to dark at the head and edges
+      const gtex = ctx.textures.canvas('foyer:doorglow', 128, 256, (g2, w2, h2) => {
+        g2.fillStyle = '#000'; g2.fillRect(0, 0, w2, h2);
+        const gr = g2.createRadialGradient(w2 * 0.6, h2 * 0.68, 4, w2 * 0.6, h2 * 0.68, h2 * 0.62);
+        gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(150,150,150,1)'); gr.addColorStop(1, 'rgba(10,10,10,1)');
+        g2.fillStyle = gr; g2.fillRect(0, 0, w2, h2);
+        g2.fillStyle = 'rgba(0,0,0,0.55)'; g2.fillRect(w2 * 0.18, h2 * 0.2, w2 * 0.1, h2 * 0.8);   // a dark door-jamb / furniture edge in the far room
+      }, { tile: false });
+      const glow = new THREE.Mesh(new THREE.PlaneGeometry(d.w + 0.2, d.h + 0.1), new THREE.MeshBasicMaterial({ map: gtex, color: new THREE.Color(color).multiplyScalar(gain), toneMapped: false }));
       glow.position.set(0, d.h / 2, -0.62); glow.userData.noBake = true; obj.add(glow);
       const grp = walls[wall].group;
       grp.updateMatrixWorld(true);
@@ -413,10 +423,10 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
       if (flick) ctx.onUpdate((dt, t) => { const f = 0.8 + 0.2 * Math.sin(t * 6.3) * Math.sin(t * 2.3 + 1.0) + 0.06 * Math.sin(t * 17.0); al.intensity = areaI * f; glow.material.color.setRGB(...new THREE.Color(color).multiplyScalar(gain * f).toArray()); });
     };
     walls.back.group.position && root.updateMatrixWorld(true);
-    spill('dining', 'left', lx.left(DOORS.dining.z), DOORS.dining, 0xffa060, 2.4, 7, false);     // the dining room's candles
-    spill('library', 'right', lx.right(DOORS.library.z), DOORS.library, 0xff8240, 2.4, 8, true);  // the library fire
-    spill('music', 'back', lx.back(DOORS.music.x), DOORS.music, 0x7f98d8, 1.1, 6, false);         // a moonlit music room
-    spill('kitchen', 'back', lx.back(DOORS.kitchen.x), DOORS.kitchen, 0xffb070, 1.2, 5, false);   // the range, banked low
+    spill('dining', 'left', lx.left(DOORS.dining.z), DOORS.dining, 0xffa060, 1.1, 7, false);     // the dining room's candles
+    spill('library', 'right', lx.right(DOORS.library.z), DOORS.library, 0xff8240, 1.25, 8, true);  // the library fire
+    spill('music', 'back', lx.back(DOORS.music.x), DOORS.music, 0x7f98d8, 0.8, 6, false);         // a moonlit music room
+    spill('kitchen', 'back', lx.back(DOORS.kitchen.x), DOORS.kitchen, 0xffb070, 0.8, 5, false);   // the range, banked low
 
     // ================================================================ windows (stained glass)
     const glassMats = [];
@@ -465,6 +475,12 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
       wg.add(new THREE.Mesh(reveal(w, h, 0.5), mat.soffit));
       const glass = glassMesh(shapeUV(new THREE.ShapeGeometry(archShape(w, h), 48), w, h), greatWindowTexture(ctx.textures, w / h, 0), greatWindowTexture(ctx.textures, w / h, 1), 1.3, [0.9, 0.95, 1.1], 2.2);
       glass.position.z = -0.3; glass.name = 'greatWindow';
+      // seen from inside it is only ever backlit: an unlit transmitted-colour surface, so the moon itself
+      // (just behind it) can never put specular glare on the panes
+      {
+        const em = glass.material;
+        glass.material = new THREE.MeshBasicMaterial({ map: em.emissiveMap, color: em.emissive.clone(), side: THREE.DoubleSide, alphaTest: 0.5 });
+      }
       wg.add(glass);
       wg.add(new THREE.Mesh(archCasing(w, h, 0.16), mat.crown));
       const sill = new THREE.Mesh(new G.RoundedBoxGeometry(w + 0.4, 0.07, 0.58, 2, 0.012), M.create('marble', { type: 'carrara', polish: 0.25, color: [0.6, 0.6, 0.62] })); sill.position.set(0, -0.035, -0.2); wg.add(sill);

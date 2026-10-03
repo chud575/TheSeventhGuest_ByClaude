@@ -269,7 +269,10 @@ void surface(vec2 uv, inout Surface s) {
   nero = mix(nero, vec3(0.7, 0.58, 0.3), pyr * 0.6);
   vec3 rosso = marbleCol(p, vec3(0.24, 0.045, 0.04), vec3(0.55, 0.36, 0.3), 4.0, 1.6);
   // malachite heart: concentric botryoidal banding
-  float mb = sin((length(p - vec2(0.02, -0.03)) + 0.04 * fbm(p * 6.0, vec2(64.0), 3)) * 160.0) * 0.5 + 0.5;
+  vec2 mw = p + 0.05 * vec2(fbm(p * 5.0 + 3.0, vec2(64.0), 4), fbm(p * 5.0 + 8.0, vec2(64.0), 4));
+  float md = min(min(length(mw - vec2(0.06, -0.05)), length(mw - vec2(-0.07, 0.04)) * 1.15), length(mw - vec2(0.02, 0.09)) * 1.3);
+  float mb = sin(md * 190.0 + fbm(p * 9.0, vec2(64.0), 3) * 5.0) * 0.5 + 0.5;
+  mb = mix(mb, smoothstep(0.2, 0.8, mb), 0.6);
   vec3 verde = mix(vec3(0.01, 0.08, 0.045), vec3(0.08, 0.36, 0.2), pow(mb, 1.6));
   verde = mix(verde, vec3(0.02, 0.14, 0.08), smoothstep(0.6, 0.9, fbm(p * 3.0 + 1.0, vec2(64.0), 3) * 0.5 + 0.5) * 0.5);
   // the border ring uses the hall's own aged ivory Carrara (same albedo, veins and polish as the floor)
