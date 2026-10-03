@@ -16,7 +16,7 @@ float antique(vec2 uv, float k) {
   float w = fbm(uv * 5.0 + k * 3.1, vec2(5.0), 3) * 0.5 + 0.5;                  // broad thickness waves
   float b = vnoise(uv * 160.0 + k * 7.0, vec2(160.0));                         // seeds (bubbles)
   float b2 = vnoise(uv * 90.0 + k * 3.0, vec2(90.0));
-  return (0.7 + 0.38 * s) * (0.82 + 0.3 * w) - 0.22 * smoothstep(0.86, 0.97, b) + 0.12 * smoothstep(0.9, 0.99, b2);
+  return (0.7 + 0.38 * s) * (0.82 + 0.3 * w) - 0.07 * smoothstep(0.86, 0.97, b) + 0.04 * smoothstep(0.9, 0.99, b2);
 }
 // per-pane value + slight hue jitter (each piece of glass was cut from a different sheet)
 vec3 paneJitter(vec3 c, vec2 id) {
@@ -693,13 +693,13 @@ vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
   if (mat > 1.5 && mat < 2.5 && uV < 1.5) {
     vec3 b = pos;
     float vee = max(abs(b.x + 0.025) - (b.y + 0.27) * 0.32, b.y + 0.085);
-    col = mix(col, vec3(0.72, 0.68, 0.6) * (key * dif * mix(0.15, 1.0, sh) + 0.05) * ao, smoothstep(0.004, -0.004, vee) * step(-0.36, b.y));
+    col = mix(col, vec3(0.5, 0.47, 0.41) * (key * mix(0.3, 1.0, dif) * mix(0.25, 1.0, sh) * (0.6 + 0.6 * smoothstep(0.05, -0.08, b.x)) + 0.04) * ao, smoothstep(0.004, -0.004, vee) * step(-0.36, b.y));
     // lapel edges catch the key
     float lap = min(abs(b.x + 0.025 - (b.y + 0.27) * 0.32 - 0.012), abs(b.x + 0.025 + (b.y + 0.27) * 0.32 + 0.012)) - 0.002;
     col += vec3(0.05, 0.045, 0.04) * smoothstep(0.004, 0.0, lap) * step(b.y, -0.09) * dif;
-    // a gold watch chain
-    float ch = abs(length((b.xy - vec2(0.06, -0.3)) * vec2(1.0, 2.4)) - 0.07) - 0.0016;
-    col += vec3(0.9, 0.62, 0.22) * 0.6 * smoothstep(0.002, 0.0, ch) * step(0.02, b.x) * step(b.x, 0.14) * dif;
+    // a gold watch chain looping from a waistcoat button (lower arc only)
+    float ch = abs(length((b.xy - vec2(0.07, -0.27)) * vec2(1.0, 2.4)) - 0.06) - 0.0014;
+    col += vec3(0.9, 0.62, 0.22) * 0.5 * smoothstep(0.002, 0.0, ch) * step(0.03, b.x) * step(b.x, 0.12) * step(b.y, -0.27) * dif;
   }
   return col;
 }
@@ -754,7 +754,7 @@ void surface(vec2 uv, inout Surface s) {
   // scuffs: short random arcs
   float sc = fbm(uv * vec2(9.0, 40.0) + off * 0.02, vec2(9.0, 40.0), 3) * 0.5 + 0.5;
   float scuff = smoothstep(0.7, 0.85, sc) * (0.5 + 0.5 * hash12(floor(uv * 60.0)));
-  float pits = step(0.988, hash12(floor(uv * 1100.0)));
+  float pits = step(0.996, hash12(floor(uv * 1100.0)));
   float polish = mix(0.07, 0.16, h2) + cloud * 0.04;
   s.albedo = col * (1.0 - scuff * 0.05);
   s.height = mix(0.45 + 0.1 * chamfer + cloud * 0.02 - pits * 0.2, 0.2, groutM);

@@ -69,20 +69,22 @@ export default {
     const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
     const big = Q.textureSize >= 2048 ? 2048 : 1024;
     const ROOM_GRADE = {
-      exposure: 1.1, contrast: 1.2, saturation: 0.92, lift: [0.0, 0.001, 0.004], gamma: [1.0, 1.0, 0.98], blackPoint: 0.006,
-      shadowTint: [0.78, 1.0, 1.12], highlightTint: [1.1, 1.0, 0.86], splitAmount: 0.5,
+      exposure: 1.1, contrast: 1.2, saturation: 0.86, lift: [0.0, 0.001, 0.004], gamma: [1.0, 1.0, 0.98], blackPoint: 0.006,
+      shadowTint: [0.64, 0.98, 1.06], highlightTint: [1.1, 1.0, 0.86], splitAmount: 0.6,
       bloomStrength: 0.3, bloomThreshold: 3.2, bloomRadius: 0.28, godRayWeight: 0.6, vignette: 0.46, aoIntensity: 1.2, aoRadius: 0.45, grain: 0.03,
     };
     // review knobs (stills only): &tm=agx &exp=1.2 &sat=1
     if (ctx.params.get('tm')) ROOM_GRADE.toneMapping = ctx.params.get('tm');
     if (ctx.params.get('exp')) ROOM_GRADE.exposure = Number(ctx.params.get('exp'));
     if (ctx.params.get('sat')) ROOM_GRADE.saturation = Number(ctx.params.get('sat'));
+    if (ctx.params.get('split')) ROOM_GRADE.splitAmount = Number(ctx.params.get('split'));
+    for (const k of ['gain', 'shadowTint', 'highlightTint', 'lift']) if (ctx.params.get(k)) ROOM_GRADE[k] = ctx.params.get(k).split(',').map(Number);
     // node grades always restate the keys any node overrides (the engine blends from whatever is current)
     const NODE_BASE = { exposure: ROOM_GRADE.exposure, godRayWeight: ROOM_GRADE.godRayWeight };
 
     // ================================================================ materials
     const mat = {
-      wall: M.create('damask', { repeat: [1.35, 1.35], base: [0.05, 0.085, 0.2], motif: [0.11, 0.15, 0.3], sheen: 0.7 }),
+      wall: M.create('damask', { repeat: [1.35, 1.35], base: [0.03, 0.085, 0.17], motif: [0.07, 0.145, 0.27], sheen: 0.7 }),
       // dark, aged walnut throughout (joinery + furniture) -- reads brown-black under moonlight, never pink
       panel: M.create('wood', { species: 'walnut', boards: 0, polish: 0.7, repeat: [1.1, 1.1], clearcoat: 0.55, clearcoatRoughness: 0.3, color: [0.6, 0.52, 0.47], roughness: 0.9 }),
       mahogany: M.create('walnut', { repeat: [1, 1], color: [0.58, 0.5, 0.46], clearcoat: 0.6, clearcoatRoughness: 0.22 }),
@@ -577,7 +579,8 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
       portrait = new THREE.Group();
       portrait.name = 'staufPortrait';
       const ps = staufPortraitTexture(ctx.textures, pw / ph);
-      const canvasMat = new THREE.MeshPhysicalMaterial({ map: ps.map, normalMap: ps.normalMap, normalScale: new THREE.Vector2(0.15, 0.15), roughnessMap: ps.ormMap, roughness: 1, metalness: 0, clearcoat: 0.45, clearcoatRoughness: 0.3, envMapIntensity: 0.5 });
+      // old varnish: a soft satin sheen that catches the picture light, not a mirror for the windows
+      const canvasMat = new THREE.MeshPhysicalMaterial({ map: ps.map, normalMap: ps.normalMap, normalScale: new THREE.Vector2(0.15, 0.15), roughness: 0.62, metalness: 0, clearcoat: 0.12, clearcoatRoughness: 0.55, envMapIntensity: 0.15, specularIntensity: 0.5 });
       const canvas = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), canvasMat);
       portrait.add(canvas);
       // inner gilt slip, main carved frame, outer bead
@@ -653,7 +656,7 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
         let cm;
         if (hp.p) {
           const ts = ancestorPortraitTexture(ctx.textures, hp.w / hp.h, hp.p);
-          cm = new THREE.MeshPhysicalMaterial({ map: ts.map, normalMap: ts.normalMap, normalScale: new THREE.Vector2(0.15, 0.15), roughnessMap: ts.ormMap, roughness: 1, metalness: 0, clearcoat: 0.4, clearcoatRoughness: 0.32, envMapIntensity: 0.5 });
+          cm = new THREE.MeshPhysicalMaterial({ map: ts.map, normalMap: ts.normalMap, normalScale: new THREE.Vector2(0.15, 0.15), roughness: 0.6, metalness: 0, clearcoat: 0.15, clearcoatRoughness: 0.5, envMapIntensity: 0.2, specularIntensity: 0.5 });
         } else cm = M.create('painting', { subject: hp.subj, seed: hp.seed, aspect: hp.w / hp.h, size: 1024, cracks: 0.6, varnish: 0.8, clearcoat: 0.4, clearcoatRoughness: 0.3 });
         g.add(new THREE.Mesh(new THREE.PlaneGeometry(hp.w, hp.h), cm));
         g.add(new THREE.Mesh(G.frameGeometry(hp.w, hp.h, { width: 0.025, depth: 0.025, uvScale: 1 }), mat.gilt));
@@ -857,7 +860,7 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
     const winC = V3(0, WIN.great.y + 1.4, Z1);
     // the moon is the key: one shadowed spot through the great window, fanlight and sidelights.
     // Its cookie is rendered from the glass itself (see buildCookie), so the leaded colours fall on the floor.
-    const moon = new THREE.SpotLight(0xb4c4ff, 26000, 44, 0.3, 0.12, 2);
+    const moon = new THREE.SpotLight(0xb4c4ff, 34000, 44, 0.3, 0.12, 2);
     moon.position.set(-1.6, 12.6, 15.6);
     moon.target.position.set(-0.25, 0, 1.4);
     moon.castShadow = Q.shadows;
@@ -866,18 +869,19 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
     moon.shadow.camera.near = 6; moon.shadow.camera.far = 40;
     root.add(moon, moon.target);
     // the faintest cool ambient so nothing is pure black, desaturated so it never tints the walnut pink
-    const fill = new THREE.HemisphereLight(0x2a3350, 0x0e0a07, 0.12);
+    const fill = new THREE.HemisphereLight(0x2a3a50, 0x0e0a07, 0.12);
     root.add(fill);
-    root.add(fx.areaLight({ center: [0, WIN.great.y + 1.3, Z1 - 0.05], normal: [0, -0.35, -1], width: WIN.great.w, height: WIN.great.h, color: 0x8ea6ff, intensity: 6.0 }));
-    root.add(fx.areaLight({ center: [0, 1.6, Z1 - 0.05], normal: [0, -0.1, -1], width: 3.0, height: 3.2, color: 0x7f95e8, intensity: 0.7 }));
-    root.add(fx.areaLight({ center: [X0 + 0.05, WIN.westY + 1.3, 0.8], normal: [1, -0.3, 0], width: 6.0, height: 2.4, color: 0x7d93e6, intensity: 2.4 }));
+    const AREA = Number(ctx.params.get('area') || 8);   // the great window and the clerestories are the cool key on the walls
+    root.add(fx.areaLight({ center: [0, WIN.great.y + 1.3, Z1 - 0.05], normal: [0, -0.35, -1], width: WIN.great.w, height: WIN.great.h, color: 0x84a8e6, intensity: 6.0 * AREA }));
+    root.add(fx.areaLight({ center: [0, 1.6, Z1 - 0.05], normal: [0, -0.1, -1], width: 3.0, height: 3.2, color: 0x7c9ad8, intensity: 0.7 }));
+    root.add(fx.areaLight({ center: [X0 + 0.05, WIN.westY + 1.3, 0.8], normal: [1, -0.3, 0], width: 6.0, height: 2.4, color: 0x7c9ad8, intensity: 2.4 * AREA }));
     // bounce off the moonlit pool on the marble: soft cool up-light on the gallery soffit, columns and stair string
-    root.add(fx.areaLight({ center: [0.2, 0.05, -0.4], normal: [0, 1, 0], width: 3.2, height: 3.0, color: 0x8c93b0, intensity: 2.4 }));
+    root.add(fx.areaLight({ center: [0.2, 0.05, -0.4], normal: [0, 1, 0], width: 3.2, height: 3.0, color: 0x8a9ab0, intensity: 2.4 }));
 
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
     const shaft = fx.shaft({
       center: V3(0, WIN.great.y + 1.25, Z1 - 0.02), right: V3(WIN.great.w / 2 - 0.05, 0, 0), up: V3(0, WIN.great.h / 2 - 0.05, 0),
-      direction: beamDir, length: 11.5, color: 0xa3b4ff, intensity: Number(ctx.params.get('shaft') || 0.09), softness: 0.35, falloff: 0.55, panes: [4, 5], mullion: 0.02, noise: 0.7,
+      direction: beamDir, length: 11.5, color: 0xa3b4ff, intensity: Number(ctx.params.get('shaft') || 0.04), softness: 0.35, falloff: 0.55, panes: [4, 5], mullion: 0.02, noise: 0.7,
     });
     root.add(shaft);
     const fanShaft = fx.shaft({
@@ -891,13 +895,13 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
     const westShafts = WIN.west.map((wi, wIdx) => {
       const sh = fx.shaft({
         center: V3(X0 + 0.02, WIN.westY + WIN.westH * 0.42, wi.z), right: V3(0, 0, -(WIN.westW / 2 - 0.05)), up: V3(0, WIN.westH * 0.42, 0),
-        direction: westDir, length: 9.5, color: 0x9fb2ff, intensity: Number(ctx.params.get('wshaft') || 0.13), softness: 0.3, falloff: 0.9, panes: [3, 4], mullion: 0.025, noise: 0.75,
+        direction: westDir, length: 9.5, color: 0x9fb2ff, intensity: Number(ctx.params.get('wshaft') || 0.07), softness: 0.3, falloff: 0.9, panes: [3, 4], mullion: 0.025, noise: 0.75,
       });
       root.add(sh);
       // matching unshadowed moon spot so the leaded panes land on the floor
       const c = V3(X0 - 0.3, WIN.westY + WIN.westH * 0.42, wi.z);
       // the southern clerestory throws a cool, leaded pool across the hall towards the stair (shadowed so the gallery blocks it)
-      const sp = new THREE.SpotLight(0xa3b6ff, 5200, 30, 0.27, 0.25, 2);
+      const sp = new THREE.SpotLight(0xb4c2e6, 3000, 30, 0.27, 0.25, 2);
       sp.position.copy(c).addScaledVector(westDir, -4);
       sp.target.position.copy(c).addScaledVector(westDir, 12);
       sp.map = westCookie;
