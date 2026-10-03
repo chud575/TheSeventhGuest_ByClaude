@@ -33,35 +33,52 @@ export function createSlidePuzzle(ctx, { material, backMaterial, edgeMaterial, t
 
   // ------------------------------------------------------------ tiles
   const tiles = [];
-  const bodyGeo = new RoundedBoxGeometry(tile, tile, 0.028, 3, 0.006);
+  // bevelled plaque: thin brass edge, painted face inset ~5 mm, soft contact shadow underneath
+  const bodyGeo = new RoundedBoxGeometry(tile, tile, 0.02, 3, 0.004);
+  const shadowTex = ctx.textures.canvas('gallery:tileShadow', 64, 64, (g, w, h) => {
+    const grd = g.createRadialGradient(w / 2, h / 2, w * 0.2, w / 2, h / 2, w * 0.5);
+    g.clearRect(0, 0, w, h);
+    for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(0,0,0,${0.12})`; const m = 4 + i * 3; g.fillRect(m, m, w - 2 * m, h - 2 * m); }
+    grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+  }, { tile: false });
+  const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: 0.85, name: 'tileShadow' });
+  const shadowGeo = new THREE.PlaneGeometry(tile * 1.18, tile * 1.18);
+  const faceW = tile - 0.011;
   for (let id = 0; id < N * N - 1; id++) {
     const r = Math.floor(id / N), c = id % N;
     const t = new THREE.Group();
     t.name = `tile${id}`;
     const body = new THREE.Mesh(bodyGeo, edgeMaterial);
-    body.position.z = 0.014;
+    body.position.z = 0.012;
     body.castShadow = true; body.receiveShadow = true;
     t.add(body);
     // painted face: plane with the tile's sub-rect of the whole image
-    const face = new THREE.PlaneGeometry(tile - 0.01, tile - 0.01);
+    const face = new THREE.PlaneGeometry(faceW, faceW);
     const uv = face.attributes.uv;
-    const inset = 0.005 / (pitch * N);
+    const inset = (pitch - faceW) / 2 / (pitch * N);
     const u0 = c / N + inset, u1 = (c + 1) / N - inset;
     const v0 = 1 - (r + 1) / N + inset, v1 = 1 - r / N - inset;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) < 0.5 ? u0 : u1, uv.getY(i) < 0.5 ? v0 : v1);
     const fm = new THREE.Mesh(face, material);
-    fm.position.z = 0.0285;
+    fm.position.z = 0.0225;
     fm.receiveShadow = true;
     t.add(fm);
+    const sh = new THREE.Mesh(shadowGeo, shadowMat);
+    sh.position.set(0.004, -0.006, 0.0015); sh.renderOrder = 1;
+    t.add(sh);
     t.userData.id = id;
     tiles.push(t);
     group.add(t);
   }
-  // recessed back board the tiles slide on
+  // recessed felt bed the tiles slide on, inside a walnut tray lip
   const back = new THREE.Mesh(new THREE.BoxGeometry(pitch * N + 0.02, pitch * N + 0.02, 0.012), backMaterial);
   back.position.z = -0.006;
   back.receiveShadow = true;
   group.add(back);
+  for (const [w, h, x, y] of [[pitch * N + 0.05, 0.016, 0, (pitch * N) / 2 + 0.017], [pitch * N + 0.05, 0.016, 0, -(pitch * N) / 2 - 0.017], [0.016, pitch * N + 0.05, (pitch * N) / 2 + 0.017, 0], [0.016, pitch * N + 0.05, -(pitch * N) / 2 - 0.017, 0]]) {
+    const lip = new THREE.Mesh(new RoundedBoxGeometry(w, h, 0.03, 2, 0.004), edgeMaterial);
+    lip.position.set(x, y, 0.009); group.add(lip);
+  }
 
   // ------------------------------------------------------------ state
   let board = SOLVED.slice();
@@ -113,7 +130,7 @@ export function createSlidePuzzle(ctx, { material, backMaterial, edgeMaterial, t
         moving++;
       } else { t.position.x = p.x; t.position.y = p.y; }
       // a slight lift while moving
-      t.position.z = d > 0.002 ? 0.006 : 0;
+      t.position.z = d > 0.002 ? 0.004 : 0;
     }
     animating = moving;
   }

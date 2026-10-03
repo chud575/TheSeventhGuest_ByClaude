@@ -1,73 +1,74 @@
 import * as THREE from 'three';
-import { portraitTexture, eyeLayout } from './textures.js';
+import DATA from './portraitData.json';
 
 /**
  * Portraits whose eyes follow the player.
  *
- * The canvas texture is painted with empty eye whites; the iris + pupil are drawn
- * in the material's fragment shader at a position driven by `uLook` (−1..1 in the
- * sclera's frame). Each frame the room computes where the camera is relative to the
- * canvas and eases the gaze toward it — slowly, with a small lag, so that you only
- * half-notice it happening.
+ * The canvases are painted offline (tools/genPortraits.py) with real painted eyes. We never
+ * draw a fake iris over them: instead, inside each eye opening the shader slides the texture
+ * lookup a few pixels toward the viewer, so the *painted* iris itself drifts within the
+ * socket while the lids stay put. Each frame the room computes where the camera is relative
+ * to the canvas and eases the gaze toward it, slowly, with a small lag.
  */
-export function makePortraitMaterial(ctx, name, aspect, { size = 1024 } = {}) {
-  const set = portraitTexture(ctx, name, aspect, size);
-  const eyes = eyeLayout(name, aspect);
+const cache = new Map();
+function loadTex(ctx, name, srgb) {
+  const url = ctx.assetUrl(`portraits/${name}`);
+  if (!cache.has(url)) {
+    cache.set(url, new THREE.TextureLoader().loadAsync(url).then((t) => {
+      t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+      t.anisotropy = 8;
+      return t;
+    }));
+  }
+  return cache.get(url);
+}
+
+export async function makePortraitMaterial(ctx, name) {
+  const d = DATA[name];
+  const [map, bump] = await Promise.all([loadTex(ctx, `${name}.jpg`, true), loadTex(ctx, `${name}_bump.png`, false)]);
   const mat = new THREE.MeshPhysicalMaterial({
-    map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, aoMap: set.ormMap,
-    roughness: 1, metalness: 0, clearcoat: 0.45, clearcoatRoughness: 0.22, envMapIntensity: 0.6,
-    emissiveMap: set.map, emissive: new THREE.Color(0.1, 0.09, 0.08), emissiveIntensity: 1,
+    map, bumpMap: bump, bumpScale: 1.2,
+    roughness: 0.62, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.35, envMapIntensity: 0.55,
+    emissiveMap: map, emissive: new THREE.Color(0.045, 0.04, 0.035), emissiveIntensity: 1,
     name: `portrait:${name}`,
   });
   const uniforms = {
-    uEyeL: { value: new THREE.Vector2(...eyes.left) },
-    uEyeR: { value: new THREE.Vector2(...eyes.right) },
-    uEyeRad: { value: new THREE.Vector2(...eyes.radius) },
-    uIris: { value: new THREE.Color(...eyes.iris) },
+    uEyeL: { value: new THREE.Vector2(...d.left) },
+    uEyeR: { value: new THREE.Vector2(...d.right) },
+    uEyeRad: { value: new THREE.Vector2(...d.radius) },
     uLook: { value: new THREE.Vector2(0, 0) },
     uGlow: { value: 0 },
   };
   mat.userData.eyes = uniforms;
+  mat.userData.aspect = d.aspect;
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', /* glsl */ `#include <common>
-uniform vec2 uEyeL; uniform vec2 uEyeR; uniform vec2 uEyeRad; uniform vec3 uIris; uniform vec2 uLook; uniform float uGlow;
-float gEye(vec2 uv, vec2 c, inout vec3 col, inout float glowOut) {
-  vec2 q = (uv - c) / uEyeRad;                    // sclera ellipse = unit circle
-  float inside = smoothstep(1.02, 0.86, length(q));
-  vec2 ic = uLook * vec2(0.55, 0.25);
-  vec2 d = (q - ic) * vec2(1.0, uEyeRad.y / uEyeRad.x);   // circular iris in canvas space
-  float r = length(d);
-  float irisR = 0.5;
-  float iris = smoothstep(irisR, irisR - 0.06, r);
-  float pupil = smoothstep(0.22, 0.17, r);
-  float ringD = smoothstep(irisR - 0.12, irisR, r);
-  vec3 ir = uIris * (0.55 + 0.6 * smoothstep(0.1, 0.5, r)) * (1.0 - 0.5 * ringD);
-  vec3 e = mix(col, ir, iris);
-  e = mix(e, vec3(0.01), pupil);
-  // catchlight from the upper left
-  e += vec3(0.9, 0.85, 0.75) * smoothstep(0.1, 0.04, length(d - vec2(-0.14, 0.14))) * 0.8;
-  // upper lid shadow on the eyeball
-  e *= 1.0 - 0.45 * smoothstep(0.1, 0.9, q.y);
-  glowOut = max(glowOut, iris * inside);
-  col = mix(col, e, inside);
-  return inside;
+uniform vec2 uEyeL; uniform vec2 uEyeR; uniform vec2 uEyeRad; uniform vec2 uLook; uniform float uGlow;
+float gEyeMask(vec2 uv, vec2 c) { vec2 q = (uv - c) / uEyeRad; return smoothstep(1.0, 0.45, length(q)); }
+vec2 gEyeWarp(vec2 uv, out float glow) {
+  float mL = gEyeMask(uv, uEyeL), mR = gEyeMask(uv, uEyeR);
+  float m = max(mL, mR);
+  glow = m;
+  // slide the lookup opposite to the gaze so the painted iris moves toward the viewer
+  return uv - uLook * vec2(uEyeRad.x * 0.36, uEyeRad.y * 0.28) * m;
 }`)
-      .replace('#include <map_fragment>', /* glsl */ `#include <map_fragment>
-float gEyeGlow = 0.0;
-{
-  vec3 ec = diffuseColor.rgb;
-  gEye(vMapUv, uEyeL, ec, gEyeGlow);
-  gEye(vMapUv, uEyeR, ec, gEyeGlow);
-  diffuseColor.rgb = ec;
-}`)
-      .replace('#include <emissivemap_fragment>', /* glsl */ `#include <emissivemap_fragment>
-totalEmissiveRadiance += vec3(1.0, 0.25, 0.08) * gEyeGlow * uGlow;`);
+      .replace('#include <map_fragment>', /* glsl */ `
+float gEyeM = 0.0;
+vec2 gUv = gEyeWarp(vMapUv, gEyeM);
+vec4 sampledDiffuseColor = texture2D(map, gUv);
+diffuseColor *= sampledDiffuseColor;
+float gIris = gEyeM * smoothstep(0.32, 0.12, dot(sampledDiffuseColor.rgb, vec3(0.3, 0.59, 0.11)));`)
+      .replace('#include <emissivemap_fragment>', /* glsl */ `
+totalEmissiveRadiance *= texture2D(emissiveMap, gUv).rgb;
+totalEmissiveRadiance += vec3(1.0, 0.22, 0.06) * gIris * uGlow * 3.0;`);
   };
-  mat.customProgramCacheKey = () => 'gallery-portrait-eyes';
+  mat.customProgramCacheKey = () => 'gallery-portrait-eyes2';
   return mat;
 }
+
+export function portraitAspect(name) { return DATA[name].aspect; }
 
 /**
  * Gaze controller for a set of portraits. Each entry = { mesh, mat, strength }.

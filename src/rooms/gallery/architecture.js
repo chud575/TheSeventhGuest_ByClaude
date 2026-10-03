@@ -91,7 +91,7 @@ export function buildShell(ctx, root, mat) {
     g.translate(0, 0, (zA + zB) / 2);
     const p = g.attributes.position, uv = g.attributes.uv;
     for (let i = 0; i < p.count; i++) uv.setXY(i, -p.getZ(i), p.getX(i));     // boards run along the hall (grain along U)
-    add(new THREE.Mesh(g, mat.floor), 'floor');
+    if (!mat.skipFloor) add(new THREE.Mesh(g, mat.floor), 'floor');
     const c = new THREE.PlaneGeometry(X1 - X0, Z1 - Z0);
     c.rotateX(Math.PI / 2);
     c.translate(0, H, (Z0 + Z1) / 2);
@@ -160,8 +160,26 @@ export function buildShell(ctx, root, mat) {
     cas.position.z = Z1 - 0.002; cas.rotation.y = Math.PI; add(cas, 'casing');
     // the hall-side face of the arch on the landing side too
     const cas2 = cas.clone(); cas2.position.z = Z1 + T + 0.1; cas2.rotation.y = 0; add(cas2);
+    cas.visible = false;
     const key = new THREE.Mesh(new G.RoundedBoxGeometry(0.18, 0.28, 0.08, 2, 0.01), mat.giltCap);
-    key.position.set(0, spring + r + 0.1, Z1 - 0.03); add(key, 'keystone');
+    key.visible = false;
+    // hall-side archivolt: wide stepped moulding, gilt bead, carved keystone and impost blocks
+    const AV = [[0, 0], [0.02, 0], [0.024, 0.012], [0.03, 0.02], [0.045, 0.024], [0.05, 0.05], [0.04, 0.06], [0.05, 0.075], [0.062, 0.09], [0.065, 0.12], [0.05, 0.13], [0.05, 0.16], [0.07, 0.175], [0.072, 0.2], [0.055, 0.22], [0, 0.22]].map(([x, y]) => V2(x, y));
+    const av = new THREE.Mesh(G.sweepProfile(AV, archPath(ARCH.w + 0.02, 0.32, spring, 0), { up: V3(0, 0, 1), uvScale: 2, flipOutward: true }), mat.mahogany);
+    av.position.z = Z1 - 0.003; av.rotation.y = Math.PI; add(av, 'archivolt');
+    const bead = new THREE.Mesh(G.sweepProfile([V2(0, 0), V2(0.012, 0.004), V2(0.016, 0.014), V2(0.012, 0.024), V2(0, 0.028)], archPath(ARCH.w + 0.48, 0.32, spring, 0), { up: V3(0, 0, 1), uvScale: 3, flipOutward: true }), mat.giltPlain);
+    bead.position.z = Z1 - 0.003; bead.rotation.y = Math.PI; add(bead, 'archBead');
+    const ks = new THREE.Shape();
+    ks.moveTo(-0.09, 0); ks.lineTo(0.09, 0); ks.lineTo(0.13, 0.34); ks.quadraticCurveTo(0.0, 0.38, -0.13, 0.34); ks.lineTo(-0.09, 0);
+    const kg = new THREE.ExtrudeGeometry(ks, { depth: 0.09, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.01, bevelSegments: 3, curveSegments: 10 });
+    const k2 = new THREE.Mesh(G.applyBoxUVs(kg, 1), mat.mahogany); k2.position.set(0, spring + r - 0.06, Z1 - 0.13); add(k2, 'keystone2');
+    const scroll = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.012, 8, 20), mat.giltCap); scroll.position.set(0, spring + r + 0.12, Z1 - 0.15); add(scroll);
+    for (const sx of [-1, 1]) {
+      const imp = new THREE.Mesh(new G.RoundedBoxGeometry(0.3, 0.14, 0.11, 2, 0.01), mat.mahogany);
+      imp.position.set(sx * (ARCH.w / 2 + 0.1), spring - 0.04, Z1 - 0.06); add(imp, 'impost');
+      const pl = new THREE.Mesh(new G.RoundedBoxGeometry(0.28, 0.32, 0.07, 2, 0.008), mat.mahogany);
+      pl.position.set(sx * (ARCH.w / 2 + 0.1), 0.16, Z1 - 0.04); add(pl, 'plinth');
+    }
   }
 
   // ---------------------------------------------------------------- mouldings (perimeter loop, CCW from above)
@@ -350,7 +368,7 @@ export function makeDoor(ctx, mat, { w, h, open = 0, name = 'door' }) {
   const jh = new THREE.Mesh(G.boxUV(w + 0.08, 0.04, T, 1), jm); jh.position.set(0, h + 0.02, -T / 2); grp.add(jh);
   // a black void behind (rooms beyond are other modules)
   const voidM = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.1, h + 0.1), mat.black);
-  voidM.position.set(0, h / 2, -T - 0.25); grp.add(voidM);
+  voidM.position.set(0, h / 2, -T - 0.25); voidM.name = 'void'; grp.add(voidM);
   // leaf on hinges (pivot at the left jamb)
   const hinge = new THREE.Group();
   hinge.position.set(-w / 2, 0, -T + 0.06);
@@ -378,9 +396,17 @@ export function makeDoor(ctx, mat, { w, h, open = 0, name = 'door' }) {
   knob.rotation.x = Math.PI / 2; knob.position.set(lw / 2 - 0.085, 1.03, 0.004); leaf.add(knob);
   const key = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.01, 10), mat.black);
   key.rotation.x = Math.PI / 2; key.position.set(lw / 2 - 0.085, 0.95, 0.009); leaf.add(key);
-  for (const y of [0.25, h - 0.3]) {
-    const hg = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.1, 10), mat.brass);
-    hg.position.set(-lw / 2 + 0.002, y, 0.0); leaf.add(hg);
+  // escutcheon with a keyhole below the knob
+  const esc = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.022, 0], [0.024, 0.003], [0.02, 0.006], [0, 0.007]], 20), mat.brass);
+  esc.rotation.x = Math.PI / 2; esc.scale.set(1, 1, 1.6); esc.position.set(lw / 2 - 0.085, 0.93, 0.004); leaf.add(esc);
+  const kh = new THREE.Mesh(new THREE.CircleGeometry(0.0045, 12), mat.black); kh.position.set(lw / 2 - 0.085, 0.936, 0.0115); leaf.add(kh);
+  const ks = new THREE.Mesh(new THREE.PlaneGeometry(0.004, 0.012), mat.black); ks.position.set(lw / 2 - 0.085, 0.927, 0.0115); leaf.add(ks);
+  // three brass butt hinges: leaf plate on the edge + knuckle barrel with finials
+  for (const y of [0.24, h / 2 + 0.05, h - 0.28]) {
+    const kn = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.008, 0], [0.009, 0.004], [0.009, 0.096], [0.008, 0.1], [0, 0.1]], 12), mat.brass);
+    kn.position.set(-lw / 2 - 0.004, y - 0.05, 0.004); leaf.add(kn);
+    for (const sgn of [1, -1]) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 6), mat.brass); f.position.set(-lw / 2 - 0.004, y + sgn * 0.056, 0.004); leaf.add(f); }
+    const pl = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.09, 0.003), mat.brass); pl.position.set(-lw / 2 + 0.014, y, 0.0015); leaf.add(pl);
   }
   // casing (architrave) on the wall face
   const cas = new THREE.Mesh(G.sweepProfile(ARCHITRAVE(0.14, 0.04), [V3(-w / 2 - 0.0, 0, 0), V3(-w / 2 - 0.0, h + 0.0, 0), V3(w / 2 + 0.0, h + 0.0, 0), V3(w / 2 + 0.0, 0, 0)], { up: V3(0, 0, 1), uvScale: 2, flipOutward: true }), mat.mahogany);
@@ -469,12 +495,35 @@ export function buildLanding(ctx, root, mat) {
   const xa = -2.4, xb = 2.4;
   // floor of the landing
   const f = new THREE.Mesh(G.planeUV(xb - xa, zB - zA + 0.2, 1), mat.floor);
-  f.rotation.x = -Math.PI / 2; f.position.set(0, 0.001, (zA + zB) / 2); f.name = 'floor'; root.add(f);
+  f.rotation.x = -Math.PI / 2; f.position.set(0, 0.001, (zA + zB) / 2); f.name = 'floor'; if (!mat.skipFloor) root.add(f);
   // walls left/right and the back of the hall wall
   root.add(new THREE.Mesh(vRect(xa, zB + 3, xa, zA, 0, H, 0), mat.wall));
   root.add(new THREE.Mesh(vRect(xb, zA, xb, zB + 3, 0, H, 0), mat.wall));
   // ceiling
   const c = new THREE.Mesh(G.planeUV(xb - xa, 6, 1), mat.ceiling); c.rotation.x = Math.PI / 2; c.position.set(0, H, zA + 3); root.add(c);
+  {
+    // coffer grid + plaster rose on the landing ceiling
+    const prof = [V2(0, 0), V2(0.03, -0.004), V2(0.04, -0.02), V2(0.03, -0.04), V2(0.012, -0.05), V2(0, -0.05)].map((v) => V2(v.x - 0.02, v.y));
+    const zc = zA + 1.3;
+    for (const [w2, l2] of [[3.6, 2.2], [2.4, 1.5]]) {
+      const path = [V3(-w2 / 2, H - 0.001, zc + l2 / 2), V3(w2 / 2, H - 0.001, zc + l2 / 2), V3(w2 / 2, H - 0.001, zc - l2 / 2), V3(-w2 / 2, H - 0.001, zc - l2 / 2)];
+      root.add(new THREE.Mesh(G.sweepProfile(prof, path, { closed: true, uvScale: 3 }), w2 > 3 ? mat.crownGilt : mat.giltPlain));
+    }
+    const rose = new THREE.Mesh(G.latheFromProfile([[0.0, 0], [0.4, 0], [0.4, -0.014], [0.36, -0.024], [0.33, -0.02], [0.3, -0.036], [0.25, -0.04], [0.2, -0.032], [0.16, -0.06], [0.1, -0.07], [0.0, -0.075]], 48), mat.beam);
+    rose.position.set(0, H, zc); root.add(rose);
+    const crownH = 0.2;
+    const loopL = [V3(xa, H - crownH, zA), V3(xa, H - crownH, zB + 0.2)];
+    root.add(new THREE.Mesh(G.sweepProfile(G.PROFILES.crown(crownH, 0.15), [V3(xb, H - crownH, zB + 0.2), V3(xb, H - crownH, zA)], { uvScale: 1 }), mat.crownGilt));
+    root.add(new THREE.Mesh(G.sweepProfile(G.PROFILES.crown(crownH, 0.15), loopL, { uvScale: 1 }), mat.crownGilt));
+    // wainscot + chair rail on the landing walls
+    for (const [x, sgn] of [[xa, 1], [xb, -1]]) {
+      const ch = [V3(x, DADO, sgn > 0 ? zA : zB + 0.2), V3(x, DADO, sgn > 0 ? zB + 0.2 : zA)];
+      root.add(new THREE.Mesh(G.sweepProfile(G.PROFILES.chairRail(0.075, 0.04), ch, { uvScale: 1 }), mat.mahogany));
+      const bs = [V3(x, 0, sgn > 0 ? zA : zB + 0.2), V3(x, 0, sgn > 0 ? zB + 0.2 : zA)];
+      root.add(new THREE.Mesh(G.sweepProfile(G.PROFILES.baseboard(0.24, 0.032), bs, { uvScale: 1 }), mat.mahogany));
+      const wb = new THREE.Mesh(G.boxUV(0.02, DADO, zB - zA + 0.2, 1), mat.wainscot); wb.position.set(x + sgn * 0.01, DADO / 2, (zA + zB + 0.2) / 2); root.add(wb);
+    }
+  }
   // balustrade overlooking the stair well (open void beyond)
   const railZ = zB;
   const rail = new THREE.Mesh(G.sweepProfile([V2(-0.045, 0), V2(0.045, 0), V2(0.05, 0.03), V2(0.035, 0.07), V2(0.0, 0.085), V2(-0.035, 0.07), V2(-0.05, 0.03), V2(-0.045, 0)].map((v) => V2(v.x, v.y)), [V3(xa, 0.92, railZ), V3(xb, 0.92, railZ)], { uvScale: 1 }), mat.mahogany);
