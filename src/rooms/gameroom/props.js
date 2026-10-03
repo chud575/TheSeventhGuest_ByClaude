@@ -535,8 +535,11 @@ export function buildTrophy(ctx, mats, kind = 'stag') {
     // neck rising out of the plaque, head turned slightly
     const neck = new THREE.CylinderGeometry(0.1 * S, 0.15 * S, 0.34 * S, 20, 4, true); neck.rotateX(Math.PI / 2 - 0.5); neck.translate(0, 0.02 * S, 0.17 * S); fur.push(neck);
     fur.push(ell(0.15 * S, 1, 1.1, 0.5, 0, -0.03 * S, 0.035 * S));
-    fur.push(ell(0.1 * S, 0.95, 1.05, 1.15, 0, 0.12 * S, 0.3 * S));            // skull
-    fur.push(ell(0.07 * S, 0.8, 0.75, 1.9, 0, 0.07 * S, 0.43 * S));            // muzzle
+    fur.push(ell(0.1 * S, 0.95, 1.0, 1.1, 0, 0.13 * S, 0.29 * S));             // skull
+    fur.push(ell(0.06 * S, 1.25, 0.6, 1.2, 0, 0.19 * S, 0.33 * S));            // brow
+    fur.push(ell(0.065 * S, 0.78, 0.7, 2.0, 0, 0.08 * S, 0.43 * S));           // muzzle
+    fur.push(ell(0.05 * S, 0.8, 0.55, 1.8, 0, 0.035 * S, 0.42 * S));           // jaw
+    for (const sx of [-1, 1]) fur.push(ell(0.05 * S, 0.6, 0.8, 1.3, sx * 0.07 * S, 0.1 * S, 0.33 * S));   // cheeks
     fur.push(ell(0.06 * S, 1.2, 0.7, 1.0, 0, 0.0 * S, 0.24 * S));              // throat
     dark.push(ell(0.035 * S, 1.2, 0.8, 0.8, 0, 0.065 * S, 0.555 * S));         // nose
     for (const sx of [-1, 1]) {

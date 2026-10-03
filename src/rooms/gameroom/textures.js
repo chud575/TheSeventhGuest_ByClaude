@@ -53,7 +53,7 @@ void surface(vec2 uv, inout Surface s) {
   float b = (1.0 - uInner) * 0.5;
   vec2 q = (uv - b) / uInner;               // 0..1 over the 8x8 field
   float sq = 1.0 / 8.0;
-  vec3 col; float h = 0.5; float rough = 0.22;
+  vec3 col; float h = 0.5; float rough = 0.5;
   vec2 d2 = abs(uv - 0.5);
   float edge = max(d2.x, d2.y);              // 0 centre .. 0.5 edge
   float fieldEdge = uInner * 0.5;
@@ -72,8 +72,8 @@ void surface(vec2 uv, inout Surface s) {
   } else {
     float t = (edge - fieldEdge) / (0.5 - fieldEdge);   // 0 at field .. 1 at outer edge
     vec2 along = d2.x > d2.y ? vec2(uv.y, edge) : vec2(uv.x, edge);
-    if (t < 0.06) { col = vec3(0.86, 0.74, 0.5); rough = 0.3; }                // boxwood stringing
-    else if (t < 0.1) { col = vec3(0.02, 0.012, 0.01); rough = 0.25; }          // ebony line
+    if (t < 0.06) { col = vec3(0.86, 0.74, 0.5); rough = 0.5; }                // boxwood stringing
+    else if (t < 0.1) { col = vec3(0.02, 0.012, 0.01); rough = 0.5; }          // ebony line
     else if (t < 0.34) {                                                      // dentil band: alternating blocks
       float k = floor(along.x * 64.0);
       bool a = mod(k, 2.0) < 0.5;
@@ -100,7 +100,7 @@ void surface(vec2 uv, inout Surface s) {
   col *= 1.0 - 0.18 * smoothstep(0.006, 0.0, ring) * (0.5 + 0.5 * vnoise(uv * 300.0, vec2(4096.0)));
   s.albedo = col;
   s.height = h + vnoise(uv * 700.0, vec2(4096.0)) * 0.015;
-  s.rough = rough + 0.15 * wear;
+  s.rough = rough + 0.2 * wear;
   s.metal = 0.0;
   s.ao = 1.0;
 }`,

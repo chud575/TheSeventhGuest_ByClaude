@@ -33,6 +33,7 @@ const C = new THREE.Vector3(-1.6, 0, -2.85);       // games table (chessboard) c
 const FIRE_Z = -0.45;
 const CARD = new THREE.Vector3(2.05, 0, 2.55);
 const BOARD = 0.6, FIELD = BOARD * 0.76;
+const ROOM_GRADE = { exposure: 2.05, contrast: 1.08, saturation: 1.0, bloomStrength: 0.35, bloomThreshold: 1.1, godRayWeight: 0.3, godRayThreshold: 3.0, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4 };
 
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 const V2 = (x, y) => new THREE.Vector2(x, y);
@@ -70,7 +71,7 @@ export default {
     const baize = baizeTexture(ctx.textures);
     const baizeSet = baize.withRepeat(2, 2);
     const mkBaize = (set, tint = 1) => new THREE.MeshPhysicalMaterial({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, aoMap: set.ormMap, roughness: 1, metalness: 0, sheen: 0.6, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.18, 0.5, 0.3), color: new THREE.Color(tint, tint, tint), envMapIntensity: 0.3, name: 'baize' });
-    const furSet = furTexture(ctx.textures).withRepeat(6, 6);
+    const furSet = furTexture(ctx.textures, { a: [0.06, 0.04, 0.025], b: [0.27, 0.17, 0.09], key: 'stag2' }).withRepeat(7, 7);
     const boarSet = furTexture(ctx.textures, { a: [0.05, 0.04, 0.035], b: [0.2, 0.15, 0.11], key: 'boar' }).withRepeat(8, 8);
     const furMat = (set) => new THREE.MeshStandardMaterial({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, aoMap: set.ormMap, roughness: 1, metalness: 0, envMapIntensity: 0.4, name: 'fur' });
     const mat = {
@@ -100,7 +101,7 @@ export default {
       dark: M.basic('black', { color: 0x0b0806 }),
       hole: new THREE.MeshStandardMaterial({ color: 0x050403, roughness: 0.9, name: 'pocket' }),
       pearl: new THREE.MeshPhysicalMaterial({ color: 0xe8e4dc, roughness: 0.2, iridescence: 0.8, clearcoat: 1, name: 'pearl' }),
-      ivory: new THREE.MeshPhysicalMaterial({ color: 0xe6d8b8, roughness: 0.32, clearcoat: 0.6, clearcoatRoughness: 0.25, sheen: 0.3, sheenColor: new THREE.Color(1, 0.95, 0.85), name: 'ivory' }),
+      ivory: new THREE.MeshPhysicalMaterial({ color: 0xe6d8b8, roughness: 0.38, clearcoat: 0.5, clearcoatRoughness: 0.35, sheen: 0.3, sheenColor: new THREE.Color(1, 0.95, 0.85), name: 'ivory' }),
       ebony: M.create('ebony', { repeat: [2, 2] }),
       maple: new THREE.MeshPhysicalMaterial({ color: 0xc89a5e, roughness: 0.35, clearcoat: 0.5, name: 'maple' }),
       tip: new THREE.MeshStandardMaterial({ color: 0x2a4a7a, roughness: 0.9, name: 'chalk' }),
@@ -326,7 +327,7 @@ export default {
     const boardY = gtable.userData.topY + 0.001;
     {
       const bset = chessboardTexture(ctx.textures, { inner: FIELD / BOARD });
-      const bm = new THREE.MeshPhysicalMaterial({ map: bset.map, normalMap: bset.normalMap, roughnessMap: bset.ormMap, roughness: 1, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.18, envMapIntensity: 0.9, name: 'chessboard' });
+      const bm = new THREE.MeshPhysicalMaterial({ map: bset.map, normalMap: bset.normalMap, roughnessMap: bset.ormMap, roughness: 1, metalness: 0, clearcoat: 0.15, clearcoatRoughness: 0.6, envMapIntensity: 0.7, name: 'chessboard' });
       const top = new THREE.Mesh(new THREE.PlaneGeometry(BOARD, BOARD).rotateX(-Math.PI / 2), bm);
       top.position.set(C.x, boardY - 0.001, C.z); top.name = 'chessboard'; top.userData.keep = true; top.receiveShadow = true;
       add(top);
@@ -389,7 +390,7 @@ export default {
       // hunting landscape
       const pg = new THREE.Group();
       const pw = 1.35, ph = 0.95;
-      pg.add(new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), M.create('painting', { subject: 0, seed: 12, aspect: pw / ph, size: 1024 })));
+      pg.add(new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), M.create('painting', { subject: 0, seed: 12, aspect: pw / ph, size: 1024, color: [0.75, 0.75, 0.75] })));
       pg.add(new THREE.Mesh(G.frameGeometry(pw, ph, { width: 0.12, depth: 0.065, uvScale: 1 }), mat.frame));
       pg.position.set(lx.left(-1.55), 2.1, 0.035); S.left.grp.add(pg);
       // cabinet (tantalus + humidor on top)
@@ -418,8 +419,16 @@ export default {
 
     // ================================================================ back wall trophy (between the windows)
     {
-      const ant = buildTrophy(ctx, mat, 'antelope');
-      ant.position.set(lx.back(0), 2.3, 0.04); ant.scale.setScalar(1.5); S.back.grp.add(ant);
+      // a portrait of the master of the house, between the windows
+      const pg = new THREE.Group();
+      const pw = 0.62, ph = 0.82;
+      pg.add(new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), M.create('painting', { subject: 1, seed: 7, aspect: pw / ph, size: 1024, color: [0.8, 0.8, 0.8] })));
+      pg.add(new THREE.Mesh(G.frameGeometry(pw, ph, { width: 0.1, depth: 0.06, uvScale: 1 }), mat.frame));
+      const ct = new THREE.Mesh(new THREE.SphereGeometry(0.07, 14, 10), mat.gilt); ct.scale.set(1.6, 0.8, 0.35); ct.position.set(0, ph / 2 + 0.11, 0.04); pg.add(ct);
+      pg.position.set(lx.back(0), 2.2, 0.035); S.back.grp.add(pg);
+      // a brass picture light over it
+      const pl = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.42, 14).rotateZ(Math.PI / 2), mat.brass); pl.position.set(lx.back(0), 2.2 + ph / 2 + 0.2, 0.12); S.back.grp.add(pl);
+      S.back.grp.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.12, 8).rotateX(Math.PI / 2), mat.brass), lx.back(0), 2.2 + ph / 2 + 0.2, 0.06));
     }
 
     // ================================================================ card table by the door, Chesterfield by the fire
@@ -494,7 +503,7 @@ export default {
 
     // ================================================================ wall sconces
     const sconceLights = [];
-    for (const [s, x] of [['right', lx.right(FIRE_Z) - 1.15], ['right', lx.right(FIRE_Z) + 1.15], ['left', lx.left(-0.45)], ['front', lx.front(0.6)]]) {
+    for (const [s, x] of [['right', lx.right(FIRE_Z) - 1.15], ['right', lx.right(FIRE_Z) + 1.15], ['left', lx.left(-0.2)], ['front', lx.front(-0.8)], ['front', lx.front(-2.6)]]) {
       const sc = buildSconce(ctx, { brass: mat.brass, globe: mat.globe });
       sc.position.set(x, 1.95, 0.0); S[s].grp.add(sc);
       sc.updateWorldMatrix(true, false);
@@ -512,8 +521,12 @@ export default {
     moon.shadow.bias = -0.0004; moon.shadow.normalBias = 0.02; moon.shadow.radius = Q.shadowRadius;
     moon.shadow.camera.near = 3; moon.shadow.camera.far = 22;
     root.add(moon, moon.target);
-    root.add(new THREE.HemisphereLight(0x4a64b8, 0x24160c, 2.2));
+    root.add(new THREE.HemisphereLight(0x4a64b8, 0x24160c, 2.6));
     for (const wx of WIN.xs) root.add(fx.areaLight({ center: [wx, WIN.sill + WIN.h / 2, Z0 - 0.1], normal: [0, -0.3, 1], width: WIN.w - 0.1, height: WIN.h - 0.1, color: 0x8ea6ff, intensity: 3.5 }));
+    {
+      const pls = new THREE.SpotLight(0xffc890, 2.2, 3, 0.7, 0.6, 2);
+      pls.position.set(0, 2.2 + 0.41 + 0.18, Z0 + 0.14); pls.target.position.set(0, 2.0, Z0); root.add(pls, pls.target);
+    }
     // the billiard lamp: three downward spots (centre one shadowed) + a soft glow in the shades
     const lampY = H - LAMP_DROP - 0.16;
     let lampBase = 13;
@@ -549,14 +562,14 @@ export default {
     for (const wx of WIN.xs) {
       const winCenter = V3(wx, WIN.sill + WIN.h / 2, Z0 - 0.05);
       const dir = new THREE.Vector3().subVectors(winCenter, moonPos).normalize();
-      const sh = fx.shaft({ center: winCenter, right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h / 2, 0), direction: dir, length: 5.0, color: 0x9fb6ff, intensity: 0.32, softness: 0.3, falloff: 1.0, panes: [2, 4], mullion: 0.03, noise: 0.7 });
+      const sh = fx.shaft({ center: winCenter, right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h / 2, 0), direction: dir, length: 5.0, color: 0x9fb6ff, intensity: 0.85, softness: 0.3, falloff: 1.0, panes: [2, 4], mullion: 0.03, noise: 0.7 });
       root.add(sh); shafts.push(sh);
     }
     for (const b of lamp.userData.bulbs) {
       const sh = fx.shaft({ center: V3(T.x, lampY - 0.05, T.z + b.z), right: V3(0.16, 0, 0), up: V3(0, 0, 0.16), direction: V3(0, -1, 0), length: 0.95, color: 0xffc27a, intensity: 0.12, softness: 0.6, falloff: 0.6, panes: [0, 0], mullion: 0, noise: 0.9 });
       root.add(sh); shafts.push(sh);
     }
-    root.add(fx.dust({ box: new THREE.Box3(V3(-3.0, 0.2, Z0 + 0.1), V3(2.5, 3.0, 1.2)), count: 2800, shafts, size: 0.011, intensity: 2.0, ambient: 0.05 }));
+    const dust = root.add(fx.dust({ box: new THREE.Box3(V3(-3.0, 0.2, Z0 + 0.1), V3(2.5, 3.0, 1.2)), count: 2800, shafts, size: 0.011, intensity: 2.0, ambient: 0.05 })) && root.children[root.children.length - 1];
     root.add(fx.fog({ box: new THREE.Box3(V3(T.x - 1.4, 1.35, T.z - 2.0), V3(T.x + 1.4, 2.9, T.z + 2.0)), color: 0x2a2a30, litColor: 0x6a5a48, density: 0.18, heightFalloff: 0.6 }));
     root.add(fx.fog({ box: new THREE.Box3(V3(X0 + 0.1, 0, Z0 + 0.1), V3(X1 - 0.1, 0.45, Z1 - 0.3)), color: 0x0b111e, litColor: 0x33425f, density: 0.4, heightFalloff: 4 }));
 
@@ -575,6 +588,13 @@ export default {
       },
     });
     if (ctx.state.isSolved(QUEENS_ID)) queens.applySolved();
+    // the moon shaft passes right through the puzzle camera: thin it out while playing
+    {
+      const pz = queens.puzzle, setup0 = pz.setup, teardown0 = pz.teardown;
+      const shaftI = shafts.map((sh) => sh.material.uniforms.uIntensity.value);
+      pz.setup = (p) => { dust.visible = false; shafts.forEach((sh, i) => { sh.material.uniforms.uIntensity.value = shaftI[i] * 0.12; }); ctx.post.set({ exposure: 1.45, godRayWeight: 0.08, bloomStrength: 0.25 }, ctx.shot ? 0 : 0.8); return setup0(p); };
+      pz.teardown = (p) => { dust.visible = true; shafts.forEach((sh, i) => { sh.material.uniforms.uIntensity.value = shaftI[i]; }); ctx.post.set({ exposure: ROOM_GRADE.exposure, godRayWeight: ROOM_GRADE.godRayWeight, bloomStrength: ROOM_GRADE.bloomStrength }, 0.8); return teardown0(p); };
+    }
     if (ctx.params.get('queens') === 'mid') queens.arrange([[0, 0], [4, 1], [7, 2], [3, 3], [2, 4]]);
     if (ctx.params.get('queens') === 'solved') queens.applySolved();
 
@@ -659,7 +679,7 @@ export default {
         onActivate: async () => {
           ctx.post.set({ saturation: 0.6, vignette: 0.6 }, 0.6);
           await ctx.say({ text: 'The leather is warm, and holds the shape of someone heavy. A smell of cigars, and very faintly, of formaldehyde.', speaker: 'narrator', speakerName: '' });
-          ctx.post.reset(1.0);
+          ctx.post.set(ROOM_GRADE, 1.0);
         },
       },
       { id: 'window', nodes: ['chess', 'back'], box: { min: [WIN.xs[0] - WIN.w / 2, WIN.sill, Z0 - 0.4], max: [WIN.xs[0] + WIN.w / 2, WIN.sill + WIN.h, Z0] }, cursor: 'examine', label: 'The window', onActivate: cap('The Window', 'The dead elm scratches at the glass. Down on the lawn the snow is unbroken — but the gate below is standing open.') },
@@ -685,12 +705,23 @@ export default {
       dbg.gameroom = { queens, click: queens.click, arrange: queens.arrange, reset: queens.reset };
     }
 
+    // review/debug: ?grOff=moon,lamp,area,fire,sconce,hemi disables light groups
+    {
+      const off = (ctx.params.get('grOff') || '').split(',');
+      const kill = (l) => { l.intensity = 0; l.visible = false; };
+      if (off.includes('moon')) kill(moon);
+      if (off.includes('lamp')) { lampSpots.forEach(kill); lampBase = 0; }
+      if (off.includes('fire')) kill(fireLight);
+      if (off.includes('sconce')) sconceLights.forEach(kill);
+      root.traverse((o) => { if (off.includes('area') && o.isRectAreaLight) kill(o); if (off.includes('hemi') && o.isHemisphereLight) kill(o); });
+    }
+
     // ================================================================ shadows + merge
     root.traverse((o) => {
       if (!o.isMesh) return;
       const m = Array.isArray(o.material) ? o.material[0] : o.material;
       const fxLike = o.isPoints || m?.isShaderMaterial || m?.isMeshBasicMaterial || (m?.transparent && (m.opacity ?? 1) < 0.6) || o.userData.noBake;
-      o.castShadow = !o.userData.noShadow && !fxLike && !['floor', 'ceiling', 'rug', 'cloth'].includes(o.name);
+      o.castShadow = !o.userData.noShadow && !fxLike && !['floor', 'rug', 'cloth'].includes(o.name);
       o.receiveShadow = !m?.isShaderMaterial && !m?.isMeshBasicMaterial;
     });
     root.userData.mergedCount = mergeStatic(root);
@@ -701,7 +732,7 @@ export default {
       scene: root,
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
-      grade: { exposure: 1.8, contrast: 1.08, saturation: 1.0, bloomStrength: 0.35, bloomThreshold: 1.1, godRayWeight: 0.3, godRayThreshold: 3.0, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4 },
+      grade: ROOM_GRADE,
       environment: { position: [-0.6, 1.9, 1.6], intensity: 0.6 },
       onEnter() {
         if (!ctx.state.has('gameroom.greeted')) {
