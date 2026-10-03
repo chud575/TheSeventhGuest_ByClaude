@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { headSdf, hairSdf, browSdf, cravatSdf, coatSdf, waistcoatSdf, headColor, smax, smin } from './ghostSdf.mjs';
+import { headSdf, hairSdf, browSdf, eyeSdf, cravatSdf, coatSdf, waistcoatSdf, headColor, smax, smin } from './ghostSdf.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.resolve(here, '../../../../public/assets/library/ghost.bin');
@@ -81,8 +81,9 @@ const parts = [
   {
     name: 'hair', h: H * 0.75,
     f: (x, y, z) => smax(Math.min(hairSdf(x, y, z), browSdf(x, y, z)), -(headSdf(x, y, z) + 0.0002), 0.0006),
-    min: [-0.1, 0.02, -0.115], max: [0.1, 0.19, 0.11], region: 'hair',
+    min: [-0.13, 0.02, -0.14], max: [0.13, 0.2, 0.115], region: 'hair',
   },
+  { name: 'eyes', f: eyeSdf, min: [-0.05, 0.05, 0.06], max: [0.05, 0.09, 0.095], h: H * 0.35, region: 'eye' },
   { name: 'cravat', f: cravatSdf, min: [-0.1, -0.29, -0.07], max: [0.1, -0.02, 0.135], h: H * 0.7, region: 'cravat' },
   { name: 'waistcoat', f: (x, y, z) => smax(waistcoatSdf(x, y, z), -(cravatSdf(x, y, z) + 0.0015), 0.003), min: [-0.15, -0.52, -0.06], max: [0.15, -0.1, 0.13], h: H * 1.4, region: 'waistcoat' },
   { name: 'coat', f: (x, y, z) => smax(coatSdf(x, y, z), -(cravatSdf(x, y, z) + 0.002), 0.004), min: [-0.26, -0.56, -0.16], max: [0.26, -0.04, 0.15], h: H * 1.8, region: 'coat' },
@@ -106,7 +107,7 @@ for (const p of parts) {
   const m = surfaceNets(p.f, p.min, p.max, p.h);
   const col = new Uint8Array((m.pos.length / 3) * 4);
   for (let n = 0, c = 0; n < m.pos.length; n += 3, c += 4) {
-    const rgb = headColor(m.pos[n], m.pos[n + 1], m.pos[n + 2], p.region === 'hair' ? 'hair' : p.region);
+    const rgb = headColor(m.pos[n], m.pos[n + 1], m.pos[n + 2], p.region);
     const ao = bakeAO(m.pos[n], m.pos[n + 1], m.pos[n + 2], m.nrm[n], m.nrm[n + 1], m.nrm[n + 2]);
     const k = 0.5 + 0.5 * Math.pow(ao, 1.2);
     rgb[0] *= k; rgb[1] *= k; rgb[2] *= k;

@@ -6,19 +6,19 @@ import * as THREE from 'three';
 export const BOOK_ATLAS = { cols: 8, rows: 2, spine: [0, 0.6], cover: [0.6, 0.8], pages: [0.8, 1.0] };
 
 export function bookAtlas(ctx) {
-  return ctx.textures.generate('library:bookatlas:v4', {
+  return ctx.textures.generate('library:bookatlas:v5', {
     size: 2048, aspect: 2.0, tile: false, normalStrength: 1.6,
     glsl: /* glsl */ `
 vec3 leatherCol(float k) {
   int i = int(floor(k * 8.0));
-  if (i == 0) return vec3(0.40, 0.07, 0.05);   // oxblood
-  if (i == 1) return vec3(0.10, 0.20, 0.12);   // bottle green
-  if (i == 2) return vec3(0.33, 0.19, 0.09);   // tan calf
-  if (i == 3) return vec3(0.05, 0.042, 0.036);  // black morocco
-  if (i == 4) return vec3(0.42, 0.28, 0.15);   // tan / vellum-ish brown
-  if (i == 5) return vec3(0.17, 0.06, 0.045);  // dark chocolate
-  if (i == 6) return vec3(0.27, 0.05, 0.10);   // claret
-  return vec3(0.20, 0.16, 0.11);               // faded umber
+  if (i == 0) return vec3(0.46, 0.08, 0.06);   // oxblood morocco
+  if (i == 1) return vec3(0.11, 0.26, 0.15);   // bottle green
+  if (i == 2) return vec3(0.52, 0.32, 0.15);   // tan calf
+  if (i == 3) return vec3(0.07, 0.06, 0.055);  // black morocco
+  if (i == 4) return vec3(0.1, 0.13, 0.27);    // navy cloth
+  if (i == 5) return vec3(0.62, 0.53, 0.37);   // vellum
+  if (i == 6) return vec3(0.33, 0.06, 0.12);   // claret
+  return vec3(0.3, 0.2, 0.12);                 // faded umber calf
 }
 void surface(vec2 uv, inout Surface s) {
   vec2 g = uv * vec2(8.0, 2.0);
@@ -87,12 +87,13 @@ void surface(vec2 uv, inout Surface s) {
 
 // ------------------------------------------------------------------ antique globe (equirect)
 export function globeMap(ctx) {
-  return ctx.textures.generate('library:globe:v2', {
+  return ctx.textures.generate('library:globe:v3', {
     size: 2048, aspect: 2.0, tile: true, normalStrength: 0.6,
     glsl: /* glsl */ `
 float landField(vec2 uv) {
   // fictional continents: low-frequency fbm with a few seeded masses
-  float n = fbm(uv + vec2(0.13, 0.4), vec2(4.0, 2.0), 6);
+  float n = fbm(uv + vec2(0.13, 0.4), vec2(4.0, 2.0), 9);
+  n += 0.05 * fbm(uv * 1.0 + 3.3, vec2(40.0, 20.0), 4);
   float lat = (uv.y - 0.5) * PI;
   n += 0.25 * cos(lat * 2.0) - 0.08;
   n += 0.22 * exp(-pow(length((uv - vec2(0.3, 0.62)) * vec2(1.0, 1.6)) / 0.16, 2.0));
@@ -104,8 +105,9 @@ float landField(vec2 uv) {
 void surface(vec2 uv, inout Surface s) {
   float L = landField(uv);
   float land = smoothstep(0.1, 0.115, L);
-  float coast = stroke(L - 0.11, 0.0, 0.004);
-  float hatch = stroke(L - 0.08, 0.0, 0.0025) * 0.6 + stroke(L - 0.05, 0.0, 0.002) * 0.35; // ocean contour lines (old maps)
+  float coast = stroke(L - 0.11, 0.0, 0.0022);
+  float hatch = stroke(L - 0.095, 0.0, 0.0012) * 0.7 + stroke(L - 0.082, 0.0, 0.001) * 0.5 + stroke(L - 0.07, 0.0, 0.0009) * 0.35 + stroke(L - 0.058, 0.0, 0.0008) * 0.2; // inked shoreline ripples (old maps)
+  float names = step(0.55, hash12(floor(uv * vec2(260.0, 520.0)))) * step(0.82, hash12(floor(uv * vec2(18.0, 52.0)) + 4.0)) * step(abs(fract(uv.y * 52.0) - 0.5), 0.12) * land;
   vec3 ocean = vec3(0.78, 0.70, 0.52);
   vec3 earth = mix(vec3(0.66, 0.52, 0.30), vec3(0.55, 0.47, 0.30), fbm(uv, vec2(16.0, 8.0), 4) * 0.5 + 0.5);
   earth = mix(earth, vec3(0.5, 0.3, 0.2), smoothstep(0.25, 0.4, L) * 0.5);     // highlands
@@ -113,7 +115,8 @@ void surface(vec2 uv, inout Surface s) {
   float mnt = smoothstep(0.32, 0.36, L) * step(0.6, hash12(floor(uv * vec2(400.0, 200.0))));
   vec3 col = mix(ocean, earth, land);
   col = mix(col, vec3(0.25, 0.16, 0.08), coast * 0.9 + mnt * 0.5);
-  col = mix(col, vec3(0.45, 0.36, 0.22), hatch * (1.0 - land));
+  col = mix(col, vec3(0.38, 0.27, 0.15), hatch * (1.0 - land));
+  col = mix(col, vec3(0.22, 0.13, 0.07), names * 0.8);
   // graticule
   float lon = abs(fract(uv.x * 24.0 + 0.5) - 0.5) / 24.0;
   float lat = abs(fract(uv.y * 12.0 + 0.5) - 0.5) / 12.0;
@@ -171,35 +174,42 @@ void surface(vec2 uv, inout Surface s) {
   });
 }
 
-// ------------------------------------------------------------------ wing-chair tapestry
+// ------------------------------------------------------------------ wing-chair cut-velvet damask (tone-on-tone, worn pile)
 export function tapestryMap(ctx) {
-  return ctx.textures.generate('library:tapestry:v4', {
-    size: 1024, tile: true, normalStrength: 1.0,
+  return ctx.textures.generate('library:tapestry:v5', {
+    size: 1024, tile: true, normalStrength: 0.8,
     glsl: /* glsl */ `
+float damask(vec2 c) {
+  // a symmetric ogee/palmette motif built from a few soft lobes (mirror in x)
+  c.x = abs(c.x);
+  float ogee = abs(c.x - 0.36 * (0.5 + 0.5 * cos(c.y * 6.2832))) - 0.035;
+  float palm = length((c - vec2(0.0, 0.02)) * vec2(1.5, 1.0)) - 0.17;
+  float leafA = length((c - vec2(0.12, 0.17)) * vec2(1.2, 2.4)) - 0.08;
+  float leafB = length((c - vec2(0.12, -0.13)) * vec2(1.2, 2.4)) - 0.07;
+  float bud = length(c - vec2(0.0, 0.3)) - 0.045;
+  float stem = max(abs(c.x) - 0.012, abs(c.y + 0.25) - 0.1);
+  return min(min(min(ogee, palm), min(leafA, leafB)), min(bud, stem));
+}
 void surface(vec2 uv, inout Surface s) {
-  // a blurry, ikat-like medallion pattern in rust, black and ochre (cut velvet look)
-  vec2 p = uv * 2.0;
+  // 3 x 3 repeats per texture tile; half-drop on alternate columns
+  vec2 p = uv * 3.0;
+  p.y += 0.5 * mod(floor(p.x), 2.0);
   vec2 c = fract(p) - 0.5;
-  vec2 id = floor(p);
-  vec2 q = c; q.x += 0.035 * sin(uv.y * 90.0) + 0.02 * fbm(uv * 4.0, vec2(8.0), 3);   // ikat bleed
-  float med = sdRhombus(q, vec2(0.36, 0.44));
-  float inner = sdRhombus(q, vec2(0.2, 0.26));
-  float dots = length(fract(q * 6.0) - 0.5) - 0.18;
-  float stripes = sin(q.y * 70.0 + sin(q.x * 18.0) * 2.0);
-  vec3 rust = vec3(0.42, 0.16, 0.06), black = vec3(0.05, 0.03, 0.02), ochre = vec3(0.5, 0.33, 0.13), wine = vec3(0.26, 0.1, 0.045);
-  vec3 col = wine;
-  col = mix(col, black, smoothstep(0.02, -0.02, med));
-  col = mix(col, rust, smoothstep(0.02, -0.02, med + 0.06) * (0.6 + 0.4 * stripes));
-  col = mix(col, ochre, smoothstep(0.02, -0.02, inner) * 0.8);
-  col = mix(col, black, smoothstep(0.03, -0.03, inner + 0.08));
-  col = mix(col, ochre * 0.8, smoothstep(0.05, -0.05, dots) * smoothstep(-0.02, 0.05, med) * 0.4);
-  float pile = vnoise(uv * vec2(300.0, 300.0), vec2(300.0));
-  float wear = smoothstep(0.55, 0.85, fbm(uv, vec2(3.0), 4) * 0.5 + 0.5);
-  col *= 0.8 + 0.3 * pile;
-  col = mix(col, col * 0.6 + vec3(0.08, 0.06, 0.05), wear * 0.5);
+  float d = damask(c + 0.01 * vec2(fbm(uv * 3.0, vec2(12.0), 3), 0.0));
+  float motif = smoothstep(0.012, -0.012, d);
+  // ground: deep claret velvet; motif: slightly lighter, browner, with a flat (sheared) pile
+  vec3 ground = vec3(0.2, 0.065, 0.05), fig = vec3(0.3, 0.13, 0.075);
+  float pile = vnoise(uv * vec2(420.0, 420.0), vec2(420.0)) * 0.6 + vnoise(uv * vec2(1100.0), vec2(1100.0)) * 0.4;
+  float rib = 0.5 + 0.5 * sin(uv.y * 1024.0 * 3.14159 * 0.5);            // fine woven rib of the ground
+  vec3 col = mix(ground * (0.85 + 0.25 * pile + 0.06 * rib), fig * (0.9 + 0.15 * pile), motif);
+  // wear: pile rubbed down on high spots (lighter, greyer), plus faint fading
+  float wear = smoothstep(0.55, 0.9, fbm(uv, vec2(3.0), 4) * 0.5 + 0.5);
+  col = mix(col, col * 0.75 + vec3(0.07, 0.055, 0.05), wear * 0.45);
+  col *= 0.92 + 0.12 * (fbm(uv + 5.0, vec2(2.0), 3) * 0.5 + 0.5);
   s.albedo = col;
-  s.height = 0.5 + 0.2 * pile - smoothstep(0.02, -0.02, med) * 0.1;
-  s.rough = 0.85; s.metal = 0.0; s.ao = 1.0;
+  s.height = 0.5 + motif * 0.12 + pile * 0.1 + rib * 0.03 * (1.0 - motif) - wear * 0.06;
+  s.rough = mix(0.88, 0.76, motif) + wear * 0.05;
+  s.metal = 0.0; s.ao = 1.0 - (1.0 - motif) * 0.08;
 }`,
   });
 }
@@ -381,145 +391,185 @@ void surface(vec2 uv, inout Surface s) {
 }
 
 // ------------------------------------------------------------------ brick (tile = 4 x 8 bricks = 0.9 m x 0.56 m)
+// Old hand-made stock bricks: irregular lengths (+-10 %), occasional closers (half bats),
+// per-brick hue / value / roughness jitter, chipped arrises, recessed sandy lime mortar,
+// soot and efflorescence. Desaturated toward a brown-plum 0x6a3a2c so it sits under the moonlight.
 export function brickMap(ctx, size = 2048) {
-  return ctx.textures.generate('library:brick:v2', {
-    size, aspect: 0.9 / 0.56, tile: true, normalStrength: 3.0,
+  return ctx.textures.generate('library:brick:v3', {
+    size, aspect: 0.9 / 0.56, tile: true, normalStrength: 1.7,
     glsl: /* glsl */ `
+float bj(float r, float k) { return (hash12(vec2(mod(k, 4.0), r) + 0.37) - 0.5) * 0.2; }  // boundary jitter (bricks)
 void surface(vec2 uv, inout Surface s) {
   const float COLS = 4.0, ROWS = 8.0;
   float r = floor(uv.y * ROWS);
-  vec2 g = vec2(uv.x * COLS + 0.5 * mod(r, 2.0) + 0.13 * hash12(vec2(r, 3.0)) * 0.0, uv.y * ROWS);
-  vec2 id = vec2(mod(floor(g.x), COLS), r);
-  vec2 f = fract(g);
-  // brick-space metres
-  vec2 m = vec2(f.x * 0.225, f.y * 0.07);
-  float ex = min(m.x, 0.225 - m.x), ey = min(m.y, 0.07 - m.y);
+  float gx = uv.x * COLS + 0.5 * mod(r, 2.0) + 0.25 * hash12(vec2(r, 9.0)) * step(0.75, hash12(vec2(r, 4.0)));
+  float fy = fract(uv.y * ROWS);
+  // irregular head joints: boundary k sits at k + bj(k)
+  float k = floor(gx);
+  float b0 = k + bj(r, k), b1 = k + 1.0 + bj(r, k + 1.0);
+  if (gx < b0) { b1 = b0; k -= 1.0; b0 = k + bj(r, k); }
+  else if (gx > b1) { k += 1.0; b0 = b1; b1 = k + 1.0 + bj(r, k + 1.0); }
+  // occasional closer: split the brick into two bats
+  float split = step(0.86, hash12(vec2(mod(k, 4.0), r) + 5.1));
+  float mid = mix(b0, b1, 0.45 + 0.1 * hash12(vec2(mod(k, 4.0), r) + 8.3));
+  float sub = split * step(mid, gx);
+  float lo = mix(b0, mid, sub * split), hi = mix(mix(b1, mid, split), b1, sub);
+  vec2 id = vec2(mod(k, 4.0) + sub * 7.0, r);
+  // metres inside this brick
+  float bw = (hi - lo) * 0.225;
+  vec2 m = vec2((gx - lo) * 0.225, fy * 0.07);
+  float ex = min(m.x, bw - m.x), ey = min(m.y, 0.07 - m.y);
   float e = min(ex, ey);
-  // chipped, irregular arrises
-  float chip = (fbm(uv + id.x * 0.071 + id.y * 0.13, vec2(64.0, 40.0), 4) * 0.5 + 0.5);
-  float bigChip = smoothstep(0.62, 0.85, fbm(uv * 1.0 + 3.7, vec2(24.0, 15.0), 3) * 0.5 + 0.5) * 0.006;
-  float joint = 0.0048 + chip * 0.0028 + bigChip;
-  float mortarM = 1.0 - smoothstep(joint - 0.0012, joint + 0.0006, e);
-  // per-brick colour: hue/value jitter, flashed (darker) ends, a few over-burnt clinkers
-  float h1 = hash12(id + 0.31), h2 = hash12(id * 1.7 + 4.0), h3 = hash12(id * 2.3 + 9.0);
-  vec3 base = vec3(0.40, 0.19, 0.13);
-  vec3 bc = base * (0.84 + 0.32 * h1);
-  bc = mix(bc, bc * vec3(1.12, 0.92, 0.82), h2 * 0.6);              // hue drift
-  bc = mix(bc, vec3(0.2, 0.12, 0.1), step(0.9, h3) * 0.6);           // clinker
-  bc = mix(bc, bc * vec3(1.15, 1.05, 0.95), step(0.8, h2) * step(h3, 0.4) * 0.5); // pale salmon
-  float flash = smoothstep(0.05, 0.0, min(m.x, 0.225 - m.x)) * 0.25;
-  bc *= 1.0 - flash;
-  // face texture: sandy pits + fire-mottle
-  float mott = fbm(uv + id * 0.37, vec2(48.0, 30.0), 4) * 0.5 + 0.5;
-  float pits = step(0.86, vnoise(uv * vec2(900.0, 560.0), vec2(900.0, 560.0)));
-  bc *= 0.82 + 0.3 * mott;
-  bc *= 1.0 - pits * 0.35;
-  // mortar: lime, recessed, sandy, darkened by age
-  float sand = vnoise(uv * vec2(700.0, 440.0), vec2(700.0, 440.0));
-  vec3 mc = vec3(0.30, 0.28, 0.25) * (0.75 + 0.35 * sand);
+  // ragged, chipped arrises (bigger chips on the corners)
+  float chip = fbm(uv + id.x * 0.071 + id.y * 0.13, vec2(90.0, 56.0), 4) * 0.5 + 0.5;
+  float corner = smoothstep(0.03, 0.0, max(ex, ey) - 0.0) ;
+  float bigChip = smoothstep(0.6, 0.85, fbm(uv * 1.0 + 3.7 + id.x, vec2(30.0, 19.0), 3) * 0.5 + 0.5) * 0.007;
+  float joint = 0.0045 + chip * 0.0035 + bigChip + corner * 0.003 * chip;
+  float mortarM = 1.0 - smoothstep(joint - 0.0015, joint + 0.0008, e);
+  // ---- per-brick colour
+  float h1 = hash12(id + 0.31), h2 = hash12(id * 1.7 + 4.0), h3 = hash12(id * 2.3 + 9.0), h4 = hash12(id * 3.1 + 1.0);
+  vec3 base = vec3(0.40, 0.22, 0.165);                                  // ~0x6a3a2c, desaturated
+  vec3 brown = vec3(0.39, 0.27, 0.19), plum = vec3(0.33, 0.19, 0.2), salmon = vec3(0.47, 0.27, 0.2);
+  vec3 bc = base;
+  bc = mix(bc, brown, smoothstep(0.4, 1.0, h2) * 0.8);                  // hue drift toward brown
+  bc = mix(bc, plum, smoothstep(0.6, 0.0, h2) * 0.6);                   // ... or toward purple
+  bc = mix(bc, salmon, step(0.88, h4) * 0.6);                           // under-fired pale ones
+  bc *= 0.85 + 0.3 * h1;                                                // +-15 % value
+  bc = mix(bc, vec3(0.13, 0.09, 0.085), step(0.93, h3) * 0.7);          // over-burnt clinker
+  // fire-flashing: darker, purplish ends / one face
+  float flash = smoothstep(0.06, 0.0, min(m.x, bw - m.x)) * (0.15 + 0.25 * h3);
+  bc = mix(bc, bc * vec3(0.7, 0.62, 0.7), flash);
+  // face: sandy pits, folds from the mould, fire mottle
+  float mott = fbm(uv + id * 0.37, vec2(64.0, 40.0), 5) * 0.5 + 0.5;
+  float fold = smoothstep(0.02, 0.0, abs(fbm(uv * 1.3 + id * 0.2, vec2(36.0, 22.0), 3) - 0.1)) * 0.5;
+  float pits = step(0.84, vnoise(uv * vec2(1100.0, 690.0), vec2(1100.0, 690.0)));
+  bc *= 0.8 + 0.34 * mott;
+  bc *= 1.0 - pits * 0.3 - fold * 0.12;
+  // ---- mortar: lime, recessed, sandy, sooted by a century of lamps
+  float sand = vnoise(uv * vec2(900.0, 560.0), vec2(900.0, 560.0));
+  float mvar = fbm(uv + 11.0, vec2(12.0, 8.0), 3) * 0.5 + 0.5;
+  vec3 mc = mix(vec3(0.27, 0.25, 0.22), vec3(0.4, 0.37, 0.32), mvar) * (0.8 + 0.3 * sand);
   vec3 col = mix(bc, mc, mortarM);
-  // soot / grime: heavier toward the top of the wall tile, streaks running down
-  float streak = fbm(vec2(uv.x * 1.0, uv.y * 0.25), vec2(40.0, 1.0), 3) * 0.5 + 0.5;
-  float soot = smoothstep(0.45, 0.85, fbm(uv + 7.0, vec2(3.0, 2.0), 5) * 0.5 + 0.5) * 0.6 + streak * 0.25;
-  col *= 1.0 - soot * 0.45;
-  // faint efflorescence on a few bricks
-  float eff = smoothstep(0.7, 0.95, fbm(uv + 2.0, vec2(8.0, 5.0), 4) * 0.5 + 0.5) * step(0.7, h1);
-  col = mix(col, vec3(0.42, 0.4, 0.37), eff * 0.25 * (1.0 - mortarM));
-  float faceH = 0.86 + mott * 0.06 - pits * 0.12 - smoothstep(0.006, 0.0, e - joint) * 0.25;
+  // ---- grime: large soft soot clouds + faint vertical run-down streaks (break up the tile)
+  float soot = smoothstep(0.35, 0.85, fbm(uv + 7.0, vec2(3.0, 2.0), 5) * 0.5 + 0.5);
+  float streak = smoothstep(0.55, 0.9, fbm(vec2(uv.x, uv.y * 0.15), vec2(36.0, 1.0), 3) * 0.5 + 0.5);
+  col *= 1.0 - soot * 0.32 - streak * 0.15;
+  // efflorescence: salt bloom on a few bricks and in the joints near them
+  float eff = smoothstep(0.65, 0.95, fbm(uv + 2.0, vec2(10.0, 6.0), 4) * 0.5 + 0.5) * (step(0.75, h1) * (1.0 - mortarM) + mortarM * 0.4);
+  col = mix(col, vec3(0.5, 0.48, 0.44), eff * 0.3);
+  // heights: brick faces slightly domed and pitted; mortar sits ~6 mm back
+  float faceH = 0.84 + mott * 0.05 - pits * 0.1 - fold * 0.04 - smoothstep(0.008, 0.0, e - joint) * 0.22 + 0.03 * h2;
   s.albedo = col;
-  s.height = mix(faceH, 0.18 + sand * 0.06, mortarM);
-  s.rough = mix(0.78 + pits * 0.1, 0.96, mortarM);
+  s.height = mix(faceH, 0.22 + sand * 0.08, mortarM);
+  s.rough = mix(0.72 + 0.16 * h3 + pits * 0.08, 0.95, mortarM);
   s.metal = 0.0;
-  s.ao = mix(1.0 - smoothstep(0.012, 0.0, e) * 0.25, 0.45, mortarM);
+  s.ao = mix(1.0 - smoothstep(0.014, 0.0, e) * 0.3, 0.42 + 0.1 * sand, mortarM);
 }`,
   });
 }
 
-// ------------------------------------------------------------------ aged, adzed oak timber (grain along U; tile 1.6 m x 0.4 m)
+// ------------------------------------------------------------------ aged, oiled oak timber (grain along U; tile 1.6 m x 0.4 m)
+// Grain = domain-warped fbm stretched ~1:20 along the fibre, fine open pores, medullary-ray
+// flecks, a few knots with the grain flowing round them, faint adze facets and drying checks.
 export function timberMap(ctx, size = 2048) {
-  return ctx.textures.generate('library:timber:v4', {
-    size, aspect: 4.0, tile: true, normalStrength: 2.2,
+  return ctx.textures.generate('library:timber:v5', {
+    size, aspect: 4.0, tile: true, normalStrength: 1.5,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
-  // grain lines along u
-  float wander = fbm(uv, vec2(2.0, 1.0), 3) * 0.08;
-  float vy = uv.y + wander;
-  float fine = fbm(vec2(uv.x, vy), vec2(4.0, 160.0), 3) * 0.5 + 0.5;
-  float rings = fract(abs(vy - 0.5) * 22.0 + fbm(uv + 1.3, vec2(3.0, 2.0), 3) * 0.7);
-  float late = smoothstep(0.0, 0.3, rings) * (1.0 - smoothstep(0.5, 1.0, rings));
-  vec3 early = vec3(0.22, 0.15, 0.095), lateC = vec3(0.15, 0.1, 0.065);
-  vec3 col = mix(early, lateC, clamp(0.4 + late * 0.2 + (fine - 0.5) * 0.7, 0.0, 1.0));
-  // medullary ray flecks (oak)
-  float ray = smoothstep(0.8, 0.95, vnoise(uv * vec2(40.0, 300.0), vec2(40.0, 300.0)));
-  col = mix(col, col * 1.35, ray * 0.4);
-  // adze scallops: shallow dished cuts across the grain, irregular spacing
-  float ax = uv.x * 26.0 + fbm(uv + 4.0, vec2(4.0, 2.0), 3) * 1.2;
-  float sc = fract(ax);
-  float scallop = (1.0 - pow(abs(sc - 0.5) * 2.0, 2.0)) * 0.5;
-  float scEdge = smoothstep(0.06, 0.0, min(sc, 1.0 - sc));
-  // drying checks: long dark cracks along the grain
-  float chk = 0.0;
+  // knots: grain deflects around them
+  vec2 kp[3]; kp[0] = vec2(0.18, 0.62); kp[1] = vec2(0.57, 0.3); kp[2] = vec2(0.83, 0.74);
+  vec2 w = uv;
+  float knot = 0.0;
   for (int i = 0; i < 3; i++) {
-    float fi = float(i);
-    float y0 = hash12(vec2(fi, 7.0));
-    float len = smoothstep(0.0, 0.1, fract(uv.x * 2.0 + hash12(vec2(fi, 3.0))) ) * smoothstep(0.75, 0.55, fract(uv.x * 2.0 + hash12(vec2(fi, 3.0))));
-    float d = abs(vy - y0 - 0.01 * sin(uv.x * 40.0 + fi)) ;
-    chk = max(chk, (1.0 - smoothstep(0.0015, 0.004, d)) * len);
+    vec2 d = (uv - kp[i]) * vec2(4.0, 1.0);          // tile is 4:1, make distances isotropic
+    d = d - floor(d / vec2(4.0, 1.0) + 0.5) * vec2(4.0, 1.0);
+    float r = length(d);
+    float kr = 0.018 + 0.012 * hash11(float(i) * 3.7);
+    knot = max(knot, smoothstep(kr * 1.4, kr * 0.4, r));
+    w.y += 0.035 * exp(-r * r / (kr * kr * 9.0)) * sign(d.y + 1e-4);
   }
-  // grime + polish from hands
-  float grime = smoothstep(0.3, 0.9, fbm(uv + 9.0, vec2(6.0, 2.0), 4) * 0.5 + 0.5);
-  col *= 0.85 + 0.25 * fine;
-  col *= 1.0 - grime * 0.35;
-  col *= 1.0 - scEdge * 0.18;
-  col = mix(col, vec3(0.02, 0.015, 0.01), chk * 0.85);
+  // domain warp, then strongly anisotropic fbm (1:20)
+  vec2 q = vec2(fbm(w + 2.1, vec2(3.0, 2.0), 4), fbm(w + 7.4, vec2(3.0, 2.0), 4));
+  vec2 g = w + vec2(0.0, 0.06 * q.x + 0.02 * q.y);
+  float grain = fbm(vec2(g.x, g.y), vec2(6.0, 120.0), 5) * 0.5 + 0.5;
+  float grain2 = fbm(vec2(g.x + 3.0, g.y), vec2(12.0, 260.0), 3) * 0.5 + 0.5;
+  float pores = step(0.78, vnoise(vec2(g.x * 1.0, g.y) * vec2(500.0, 1400.0), vec2(500.0, 1400.0)));
+  float ray = smoothstep(0.82, 0.96, vnoise(g * vec2(70.0, 500.0), vec2(70.0, 500.0)));
+  vec3 dark = vec3(0.105, 0.064, 0.038), mid = vec3(0.165, 0.102, 0.063), light = vec3(0.23, 0.15, 0.095);
+  float t = clamp(0.5 + (grain - 0.5) * 1.3 + (grain2 - 0.5) * 0.5, 0.0, 1.0);
+  vec3 col = mix(dark, mid, smoothstep(0.15, 0.6, t));
+  col = mix(col, light, smoothstep(0.62, 0.95, t) * 0.6);
+  col = mix(col, col * 1.25, ray * 0.25);
+  col *= 1.0 - pores * 0.25;
+  // knots: dark heartwood with a ring
+  col = mix(col, vec3(0.06, 0.035, 0.02), knot * 0.85);
+  // faint adze facets (very low contrast, irregular)
+  float ax = uv.x * 22.0 + fbm(uv + 4.0, vec2(4.0, 2.0), 3) * 1.6;
+  float sc = fract(ax);
+  float scallop = (1.0 - pow(abs(sc - 0.5) * 2.0, 2.0));
+  // drying checks: a couple of long fine cracks along the grain
+  float chk = 0.0;
+  for (int i = 0; i < 2; i++) {
+    float fi = float(i);
+    float y0 = 0.25 + 0.5 * hash12(vec2(fi, 7.0));
+    float seg = fract(uv.x * 2.0 + hash12(vec2(fi, 3.0)));
+    float len = smoothstep(0.0, 0.1, seg) * smoothstep(0.7, 0.5, seg);
+    float d = abs(g.y - y0);
+    chk = max(chk, (1.0 - smoothstep(0.0008, 0.0025, d)) * len);
+  }
+  // grime in the pores and a hand-polished sheen variation
+  float grime = smoothstep(0.35, 0.9, fbm(uv + 9.0, vec2(5.0, 2.0), 4) * 0.5 + 0.5);
+  col *= 1.0 - grime * 0.25;
+  col = mix(col, vec3(0.015, 0.01, 0.006), chk * 0.8);
   s.albedo = col;
-  s.height = 0.5 + scallop * 0.18 - scEdge * 0.06 + (fine - 0.5) * 0.08 + late * 0.01 - chk * 0.4;
-  s.rough = 0.72 - grime * 0.08 + chk * 0.2;
+  s.height = 0.5 + scallop * 0.05 + (grain - 0.5) * 0.12 + (grain2 - 0.5) * 0.05 - pores * 0.06 - chk * 0.35 + knot * 0.03;
+  s.rough = 0.55 + (1.0 - t) * 0.18 + grime * 0.1 + pores * 0.12 + chk * 0.2 - knot * 0.1;
   s.metal = 0.0;
-  s.ao = 1.0 - chk * 0.6 - scEdge * 0.1;
+  s.ao = 1.0 - chk * 0.6 - pores * 0.1;
 }`,
   });
 }
 
 // ------------------------------------------------------------------ coffer inserts: lozenge leaded glass in pressed-brass cames
 export function cofferGlassMap(ctx) {
-  return ctx.textures.generate('library:cofferglass:v1', {
+  return ctx.textures.generate('library:cofferglass:v2', {
     size: 1024, tile: true, normalStrength: 1.4,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
-  // 5 x 3 lozenges per tile (tile is stretched to each panel), bevelled glass, brass cames
+  // lozenge quarries in old lead cames; the glass is greyed and tea-stained with a century of grime,
+  // heaviest in the corners of each quarry and toward the panel edges
   vec2 p = uv * vec2(5.0, 5.0);
   vec2 q = vec2(p.x + p.y, p.x - p.y) * 0.5;
   vec2 fq = fract(q);
   vec2 id = floor(q);
   float e = min(min(fq.x, 1.0 - fq.x), min(fq.y, 1.0 - fq.y));
-  float came = 1.0 - smoothstep(0.035, 0.05, e);
-  float bevel = smoothstep(0.05, 0.16, e);
+  float came = 1.0 - smoothstep(0.03, 0.045, e);
   float t = hash12(id + 3.1);
   float wav = fbm(uv + id * 0.1, vec2(8.0), 3) * 0.5 + 0.5;
-  // glass: cold, slightly green-grey, seeded with bubbles; brighter facets catch light
-  vec3 glass = mix(vec3(0.42, 0.48, 0.55), vec3(0.62, 0.66, 0.68), t) * (0.7 + 0.45 * wav);
-  glass *= 0.75 + 0.35 * (1.0 - bevel) + 0.2 * step(0.5, fq.x);   // bevel facets
-  // little rosette jewel at every came crossing
-  vec2 cp = fract(q + 0.5) - 0.5;
-  float jewel = 1.0 - smoothstep(0.06, 0.08, length(cp));
-  vec3 brass = vec3(0.5, 0.38, 0.18) * (0.75 + 0.4 * wav);
-  float grime = smoothstep(0.0, 0.2, e) ;
-  glass *= 0.6 + 0.4 * grime;
-  vec3 col = mix(glass, brass, max(came, jewel));
+  vec3 glass = mix(vec3(0.42, 0.42, 0.4), vec3(0.6, 0.57, 0.48), t) * (0.7 + 0.4 * wav);
+  // amber-tinted replacement quarries here and there
+  glass = mix(glass, vec3(0.62, 0.45, 0.2), step(0.85, hash12(id + 9.7)) * 0.7);
+  // grime: corners of each quarry, and a general dirty vignette over the panel
+  float corner = 1.0 - smoothstep(0.0, 0.22, e);
+  vec2 pe = min(uv, 1.0 - uv);
+  float edge = 1.0 - smoothstep(0.0, 0.18, min(pe.x, pe.y));
+  float dirt = fbm(uv * 2.0 + 5.0, vec2(6.0), 4) * 0.5 + 0.5;
+  glass *= 1.0 - corner * 0.55 - edge * 0.45 - smoothstep(0.5, 0.9, dirt) * 0.35;
+  vec3 lead = vec3(0.07, 0.065, 0.06) * (0.8 + 0.4 * wav);
+  vec3 col = mix(glass, lead, came);
   s.albedo = col;
-  s.height = mix(0.55 + 0.25 * bevel, 0.9, max(came, jewel));
-  s.rough = mix(0.12, 0.35, max(came, jewel));
-  s.metal = max(came, jewel) * 0.9;
-  s.ao = mix(0.7 + 0.3 * bevel, 1.0, came);
+  s.height = mix(0.55 + 0.2 * smoothstep(0.04, 0.15, e), 0.9, came);
+  s.rough = mix(0.2, 0.6, came);
+  s.metal = 0.0;
+  s.ao = 1.0;
 }`,
   });
 }
 
 // ------------------------------------------------------------------ vanitas still life (painted: chiaroscuro, brushwork, craquelure)
 export function vanitasMap(ctx) {
-  return ctx.textures.generate('library:vanitas:v3', {
-    size: 1024, aspect: 0.72 / 0.52, tile: false, normalStrength: 0.6,
+  return ctx.textures.generate('library:vanitas:v4', {
+    size: 1024, aspect: 0.72 / 0.52, tile: false, normalStrength: 1.1,
     glsl: /* glsl */ `
 float sdEll(vec2 p, vec2 c, vec2 r) { vec2 q = (p - c) / r; return (length(q) - 1.0) * min(r.x, r.y); }
 // lambert-ish shade of a pseudo-sphere (centre c, radius r) lit from the upper left
@@ -529,7 +579,9 @@ float sph(vec2 p, vec2 c, float r) {
   return clamp(dot(n, normalize(vec3(-0.55, 0.55, 0.62))), 0.0, 1.0);
 }
 void surface(vec2 uv, inout Surface s) {
-  vec2 p = vec2(uv.x * 1.385, uv.y);
+  vec2 p0 = vec2(uv.x * 1.385, uv.y);
+  // brush jitter: every edge wobbles along the direction of the stroke that laid it
+  vec2 p = p0 + 0.007 * vec2(fbm(p0 * vec2(1.0, 3.0), vec2(18.0, 30.0), 3), fbm(p0 * vec2(3.0, 1.0) + 4.0, vec2(30.0, 18.0), 3));
   float stroke1 = fbm(vec2(p.x * 3.0 + p.y * 1.5, p.y * 0.6), vec2(60.0, 8.0), 4);
   float stroke2 = fbm(vec2(p.x * 0.8, p.y * 2.5 - p.x * 0.7), vec2(10.0, 50.0), 3);
   vec2 cand = vec2(1.0, 0.66);
@@ -545,10 +597,10 @@ void surface(vec2 uv, inout Surface s) {
   // crimson drape over the table edge at left, with deep folds
   float drapeX = 0.46 + 0.05 * sin(p.y * 9.0);
   float drape = step(p.x, drapeX) * step(p.y, 0.46 - 0.1 * p.x);
-  float folds = sin(p.x * 40.0 + sin(p.y * 7.0) * 2.0) * 0.5 + 0.5;
-  vec3 dcol = vec3(0.5, 0.07, 0.05) * (0.25 + 1.0 * folds) * (0.75 + 0.4 * smoothstep(0.5, 0.0, p.x));
-  dcol += vec3(0.5, 0.2, 0.1) * pow(folds, 10.0) * 0.5;
-  col = mix(col, dcol, drape);
+  float folds = sin(p.x * 13.0 + sin(p.y * 5.0) * 1.6 + fbm(p, vec2(4.0), 3) * 1.5) * 0.5 + 0.5;
+  vec3 dcol = vec3(0.34, 0.06, 0.04) * (0.35 + 0.75 * smoothstep(0.1, 0.9, folds)) * (0.6 + 0.5 * smoothstep(0.5, 0.0, p.x));
+  dcol += vec3(0.4, 0.16, 0.08) * smoothstep(0.85, 1.0, folds) * 0.25;
+  col = mix(col, dcol, drape * smoothstep(0.0, 0.012, drapeX - p.x));
   // book stack (right): three tilted volumes with page edges
   for (int i = 0; i < 3; i++) {
     float fi = float(i);
@@ -559,11 +611,11 @@ void surface(vec2 uv, inout Surface s) {
     float pages = step(0.0, q.x - (0.12 - fi * 0.03)) * step(abs(q.y), 0.022);
     bc = mix(bc, vec3(0.85, 0.72, 0.5), pages * 0.85);
     bc *= (0.45 + 0.75 * clamp(0.5 + q.y * 14.0, 0.0, 1.0)) * (0.65 + 0.6 * glow);
-    col = mix(col, bc * (0.85 + 0.25 * stroke1), fill(b, 0.003));
+    col = mix(col, bc * (0.85 + 0.25 * stroke1), fill(b, 0.008));
   }
   // candle + flame + halo
   float candle = sdBox(p - vec2(1.04, 0.52), vec2(0.022, 0.075));
-  col = mix(col, vec3(0.9, 0.82, 0.62) * (0.65 + 0.45 * smoothstep(1.065, 1.02, p.x)), fill(candle, 0.003));
+  col = mix(col, vec3(0.9, 0.82, 0.62) * (0.65 + 0.45 * smoothstep(1.065, 1.02, p.x)), fill(candle, 0.006));
   float fl = sdEll(p, vec2(1.04, 0.635), vec2(0.012, 0.03));
   col += vec3(1.0, 0.7, 0.3) * exp(-max(fl, 0.0) * 45.0) * 0.7;
   col = mix(col, vec3(1.0, 0.95, 0.75), fill(fl, 0.003));
@@ -586,7 +638,7 @@ void surface(vec2 uv, inout Surface s) {
   float socketR = sdEll(p, sc + vec2(0.094, -0.043), vec2(0.026, 0.029));
   float nasal = sdEll(p, sc + vec2(0.058, -0.088), vec2(0.013, 0.022));
   float holes = min(min(socketL, socketR), nasal);
-  bone = mix(bone, vec3(0.025, 0.016, 0.01), fill(holes, 0.004));
+  bone = mix(bone, vec3(0.025, 0.016, 0.01), fill(holes, 0.009));
   bone = mix(bone, bone * 0.55, stroke(holes, 0.004, 0.004));      // soft painted rim round each cavity
   // teeth: a row of small blocks with dark gaps, a missing one
   float ty = sc.y - 0.118;
@@ -594,15 +646,21 @@ void surface(vec2 uv, inout Surface s) {
   float gap = step(0.78, fract((p.x - sc.x) * 95.0)) + step(0.0, p.x - sc.x - 0.07) * step(p.x - sc.x - 0.08, 0.0);
   bone = mix(bone, vec3(0.03, 0.02, 0.015), tband * clamp(gap, 0.0, 1.0));
   bone = mix(bone, vec3(0.03, 0.02, 0.015), stroke(p.y - ty, 0.0, 0.0018) * step(abs(p.x - sc.x - 0.062), 0.045));
-  col = mix(col, bone, fill(sk, 0.003));
+  col = mix(col, bone, fill(sk, 0.007));
   col *= 1.0 - stroke(sk, 0.0, 0.003) * 0.5;
   // cast shadow of the skull on the table
   col *= 1.0 - 0.5 * fill(sdEll(p, sc + vec2(-0.08, -0.17), vec2(0.13, 0.025)), 0.03) * table;
   // hourglass at the far left, behind the drape
   vec2 hp = p - vec2(0.24, 0.5);
   float hg = max(abs(hp.y) - 0.1, abs(hp.x) - (0.01 + 0.05 * abs(hp.y) / 0.1));
-  col = mix(col, vec3(0.55, 0.45, 0.28) * (0.35 + 0.8 * smoothstep(0.05, -0.05, hp.x)), fill(hg, 0.003) * 0.8);
+  col = mix(col, vec3(0.55, 0.45, 0.28) * (0.35 + 0.8 * smoothstep(0.05, -0.05, hp.x)), fill(hg, 0.008) * 0.8);
   col = mix(col, vec3(0.35, 0.2, 0.1), (fill(sdBox(hp - vec2(0.0, 0.105), vec2(0.06, 0.008)), 0.002) + fill(sdBox(hp + vec2(0.0, 0.105), vec2(0.06, 0.008)), 0.002)));
+  // brushwork: short directional strokes visible in every passage, impasto in the lights
+  float ang = fbm(p * 2.0, vec2(3.0), 2) * 3.0;
+  vec2 bd = rot2(ang) * p;
+  float brush = fbm(vec2(bd.x * 4.0, bd.y * 0.5), vec2(160.0, 14.0), 4) * 0.5 + 0.5;
+  float lum = dot(col, vec3(0.3, 0.59, 0.11));
+  col *= 0.86 + 0.28 * brush;
   // varnish: yellowed, darker toward the edges; fine craquelure
   float edgeV = smoothstep(0.0, 0.2, min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y)));
   col *= mix(0.6, 1.0, edgeV);
@@ -610,8 +668,8 @@ void surface(vec2 uv, inout Surface s) {
   float crack = 1.0 - smoothstep(0.0, 0.012, voronoiEdge(uv * vec2(46.0, 34.0), vec2(46.0, 34.0), 0.9));
   col *= 1.0 - crack * 0.18;
   s.albedo = col;
-  s.height = 0.5 + stroke1 * 0.06 + stroke2 * 0.03 - crack * 0.12;
-  s.rough = 0.4 + crack * 0.2;
+  s.height = 0.5 + brush * (0.08 + 0.25 * smoothstep(0.1, 0.5, lum)) + stroke1 * 0.03 - crack * 0.12;
+  s.rough = 0.62 + crack * 0.15 + (1.0 - brush) * 0.1;
   s.metal = 0.0; s.ao = 1.0 - crack * 0.15;
 }`,
   });

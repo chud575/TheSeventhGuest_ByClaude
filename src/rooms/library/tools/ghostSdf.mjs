@@ -69,47 +69,51 @@ export function headSdf(px, py, pz) {
   // forehead slope
   d = smin(d, ell(px, py, pz, 0, 0.102, 0.034, 0.062, 0.056, 0.057), 0.02);
   // cheekbones (zygomatic arch)
-  d = smin(d, ell(ax, py, pz, 0.05, 0.052, 0.058, 0.02, 0.012, 0.02), 0.012);
+  d = smin(d, ell(ax, py, pz, 0.051, 0.05, 0.056, 0.018, 0.011, 0.018), 0.016);
   // hollow under the cheekbone (gaunt)
-  d = smax(d, -ell(ax, py, pz, 0.064, 0.028, 0.066, 0.007, 0.01, 0.005), 0.016);
+  d = smax(d, -ell(ax, py, pz, 0.062, 0.03, 0.068, 0.013, 0.015, 0.0035), 0.02);
   // jaw + chin
   d = smin(d, ell(tx, py, pz, 0, -0.013, 0.038, 0.052, 0.031, 0.053), 0.02);
   d = smin(d, ell(px, py, pz, 0, -0.037, 0.077, 0.019, 0.016, 0.015), 0.013);
   // sagging jowls hanging below the jaw line either side of the chin
-  d = smin(d, ell(ax, py, pz, 0.038, -0.018, 0.06, 0.014, 0.018, 0.014), 0.012);
+  d = smin(d, ell(ax, py, pz, 0.04, -0.016, 0.056, 0.014, 0.016, 0.013), 0.018);
   // under-chin / wattle
   d = smin(d, ell(px, py, pz, 0, -0.049, 0.036, 0.032, 0.017, 0.03), 0.02);
   // muzzle (around the mouth)
   d = smin(d, ell(px, py, pz, 0, 0.006, 0.08, 0.028, 0.024, 0.021), 0.012);
 
   // eye sockets
-  d = smax(d, -ell(ax, py, pz, EYE.x, EYE.y + 0.002, 0.095, 0.0195, 0.0135, 0.019), 0.011);
+  d = smax(d, -ell(ax, py, pz, EYE.x, EYE.y + 0.003, 0.094, 0.0205, 0.0145, 0.021), 0.011);
+  // the eyeball cavity itself (so the separate eyeballs sit in a real recess)
+  d = smax(d, -sph(ax, py, pz, EYE.x, EYE.y, EYE.z, EYE.r + 0.0004), 0.0015);
   // brow ridge: modest, dips at the glabella
-  d = smin(d, cap(ax, py, pz, 0.009, 0.086, 0.094, 0.05, 0.087, 0.082, 0.0058, 0.0066), 0.01);
-  // eyeballs
-  d = Math.min(d, sph(ax, py, pz, EYE.x, EYE.y, EYE.z, EYE.r));
+  d = smin(d, cap(ax, py, pz, 0.009, 0.087, 0.096, 0.03, 0.089, 0.09, 0.0062, 0.0066), 0.01);
+  d = smin(d, cap(ax, py, pz, 0.03, 0.089, 0.09, 0.047, 0.082, 0.077, 0.0066, 0.0045), 0.01);
+  // (eyeballs are a separate glossy part: eyeSdf)
   // hooded upper lids (droop over the top third of the iris) + lower lid bags
   {
-    const lid = Math.max(sph(ax, py, pz, EYE.x, EYE.y + 0.0006, EYE.z - 0.0004, EYE.r + 0.0014), -(py - (EYE.y + 0.0042 - (ax - EYE.x) * 0.12)));
+    const lid = Math.max(sph(ax, py, pz, EYE.x, EYE.y + 0.0006, EYE.z - 0.0004, EYE.r + 0.0014), -(py - (EYE.y + 0.0006 - (ax - EYE.x) * 0.1)));
     d = smin(d, lid, 0.004);
     // the hood: a fold of skin above the lid crease, heavier at the outer corner
-    d = smin(d, ell(ax, py, pz, EYE.x + 0.005, EYE.y + 0.0095, EYE.z + 0.004, 0.013, 0.0032, 0.0065), 0.004);
-    const low = Math.max(sph(ax, py, pz, EYE.x, EYE.y - 0.0005, EYE.z - 0.0012, EYE.r + 0.0011), (py - (EYE.y - 0.0078)));
+    d = smin(d, ell(ax, py, pz, EYE.x + 0.004, EYE.y + 0.0092, EYE.z + 0.0035, 0.0115, 0.0028, 0.0055), 0.005);
+    const low = Math.max(sph(ax, py, pz, EYE.x, EYE.y - 0.0005, EYE.z - 0.0012, EYE.r + 0.0011), (py - (EYE.y - 0.0069)));
     d = smin(d, low, 0.004);
-    d = smin(d, ell(ax, py, pz, EYE.x + 0.002, EYE.y - 0.0165, 0.086, 0.0145, 0.0058, 0.006), 0.008); // bags
+    d = smin(d, ell(ax, py, pz, EYE.x + 0.001, EYE.y - 0.0155, 0.087, 0.012, 0.0045, 0.0045), 0.009); // bags
     // tear trough under the bag
     d = smax(d, -cap(ax, py, pz, EYE.x - 0.012, EYE.y - 0.016, 0.093, EYE.x + 0.012, EYE.y - 0.024, 0.088, 0.0012), 0.003);
   }
 
   // nose: long, faintly aquiline, not caricatured
-  d = smin(d, cap(px, py, pz, 0, 0.077, 0.096, 0, 0.038, 0.115, 0.0056, 0.0072), 0.008);
-  d = smin(d, sph(px, py, pz, 0, 0.058, 0.104, 0.0055), 0.006); // dorsal bump
-  d = smin(d, sph(px, py, pz, 0, 0.033, 0.114, 0.0088), 0.007);
-  d = smin(d, sph(ax, py, pz, 0.0105, 0.028, 0.104, 0.0062), 0.006);
+  d = smin(d, cap(px, py, pz, 0, 0.079, 0.097, 0, 0.037, 0.121, 0.0052, 0.0068), 0.008);
+  d = smin(d, sph(px, py, pz, 0, 0.059, 0.108, 0.0052), 0.006); // dorsal bump
+  d = smin(d, ell(px, py, pz, 0, 0.032, 0.119, 0.0085, 0.0082, 0.0078), 0.007);
+  d = smin(d, ell(ax, py, pz, 0.0108, 0.0275, 0.107, 0.0058, 0.0052, 0.0068), 0.008);
+  // alar crease
+  d = smax(d, -cap(ax, py, pz, 0.0148, 0.034, 0.106, 0.0158, 0.023, 0.104, 0.0011), 0.0025);
   // columella / under-nose
-  d = smin(d, cap(px, py, pz, 0, 0.024, 0.11, 0, 0.019, 0.101, 0.0038), 0.004);
+  d = smin(d, cap(px, py, pz, 0, 0.024, 0.115, 0, 0.019, 0.103, 0.0036), 0.004);
   // nostrils
-  d = smax(d, -ell(ax, py, pz, 0.0078, 0.0205, 0.108, 0.0033, 0.0021, 0.0048), 0.002);
+  d = smax(d, -ell(ax, py, pz, 0.0076, 0.0215, 0.111, 0.0032, 0.002, 0.0048), 0.002);
 
   // lips (thin, downturned corners)
   {
@@ -129,7 +133,7 @@ export function headSdf(px, py, pz) {
     d = smax(d, -fold, 0.0045);
     d = smin(d, ell(ax, py, pz, 0.034, 0.02, 0.076, 0.014, 0.018, 0.012), 0.014);
     // marionette lines from the mouth corners down to the jowls
-    d = smax(d, -cap(ax, py, pz, 0.023, -0.008, 0.088, 0.03, -0.034, 0.072, 0.0007), 0.005);
+    d = smax(d, -cap(ax, py, pz, 0.024, -0.01, 0.087, 0.029, -0.026, 0.077, 0.0004), 0.006);
   }
   // chin crease
   d = smax(d, -cap(px, py, pz, -0.012, -0.023, 0.091, 0.012, -0.023, 0.091, 0.0018), 0.003);
@@ -165,29 +169,90 @@ export function headSdf(px, py, pz) {
   return d;
 }
 
-// thin, close-cropped grey fringe round the back and sides of the head (just above the scalp)
+// prng for the wisps
+function rnd(i) { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
+// flyaway wisps springing from the fringe above the ears and at the back (curved, tapering)
+const WISPS = [];
+const WISP_ON = false;
+for (let side = -1; side <= 1; side += 2) {
+  for (let i = 0; i < 16; i++) {
+    const k = i + (side > 0 ? 100 : 0);
+    const a = -0.35 + 1.9 * rnd(k) ;                    // angle around the head from the temple (0) back (pi/2)
+    const y0 = 0.058 + 0.04 * rnd(k + 7) - a * 0.01;
+    const rr = 0.074;
+    const x0 = side * rr * Math.cos(a * 0.9), z0 = -0.012 - 0.09 * Math.sin(a * 0.9) + 0.012;
+    const out = [side * Math.cos(a * 0.9), 0, -Math.sin(a * 0.9)];
+    const len = 0.022 + 0.026 * rnd(k + 3);
+    const up = 0.25 + 0.6 * rnd(k + 5);
+    const pts = [[x0, y0, z0]];
+    for (let s2 = 1; s2 <= 3; s2++) {
+      const t = s2 / 3;
+      const curl = Math.sin(t * 2.2 + rnd(k + 9) * 6) * 0.004;
+      pts.push([x0 + out[0] * len * t * 0.8 + curl * side, y0 + len * t * (up - 0.55 * t), z0 + out[2] * len * t * 0.8 - len * t * 0.25]);
+    }
+    WISPS.push({ pts, r0: 0.0016 + 0.0008 * rnd(k + 11) });
+  }
+}
+// thin, untidy grey fringe round the back and sides of the head, with flyaway wisps at the temples
 export function hairSdf(px, py, pz) {
   const ax = Math.abs(px);
-  const n = fbm3(px * 160 + 3, py * 90, pz * 160, 4);
-  // combed strands: run roughly front-to-back, swept slightly downward
-  const strands = 0.0004 * (fbm3(px * 300, py * 2200 + pz * 300, pz * 300 + px * 200, 3) - 0.5);
-  const crownY = 0.094 - 0.38 * Math.min(0, pz + 0.01);
-  const mask = smoothstep(0.035, 0.05, py) * smoothstep(crownY + 0.004, crownY - 0.014, py) * smoothstep(0.03, -0.005, pz)
-    * (1 - smoothstep(0.075, 0.06, py) * smoothstep(0.062, 0.072, ax) * smoothstep(-0.035, -0.012, pz)); // clear the ears
-  // sideburn-ish wisps just in front of the ears
-  const temple = smoothstep(0.04, 0.06, py) * smoothstep(0.1, 0.085, py) * smoothstep(0.062, 0.07, ax) * smoothstep(0.03, 0.01, pz) * smoothstep(-0.02, 0.0, pz);
-  const m = Math.max(mask, temple * 0.8);
-  const thick = m * (0.0011 + 0.0008 * n) + strands * m * 0.7;
-  const d = ell(px, py, pz, CRAN[0], CRAN[1], CRAN[2], CRAN[3], CRAN[4], CRAN[5]) - thick + 0.00025;
-  return m < 0.05 ? Math.max(d, 0.0015) : d;
+  const shell = ell(px, py, pz, CRAN[0], CRAN[1], CRAN[2], CRAN[3], CRAN[4], CRAN[5]);
+  // strand coordinates: strands run down and back; noise is stretched along them
+  const th = Math.atan2(px, -(pz + 0.01));
+  const su = th * 0.075 * 900, sv = (py + pz * 0.35) * 70;
+  const strands = fbm3(su, sv, ax * 40, 3);
+  const clump = fbm3(th * 9 + 2, py * 40, 1.3, 3);
+  const crownY = 0.1 - 0.42 * Math.min(0, pz + 0.01);
+  const fringe = smoothstep(0.03, 0.045, py) * smoothstep(crownY + 0.006, crownY - 0.016, py) * smoothstep(0.035, -0.002, pz)
+    * (1 - smoothstep(0.072, 0.058, py) * smoothstep(0.06, 0.07, ax) * smoothstep(-0.04, -0.012, pz)); // clear the ears
+  const temple = smoothstep(0.045, 0.062, py) * smoothstep(0.108, 0.088, py) * smoothstep(0.055, 0.068, ax) * smoothstep(0.036, 0.012, pz) * smoothstep(-0.03, -0.004, pz);
+  const m = Math.max(fringe, temple * 0.9);
+  // bulk thickens toward the lower edge of the fringe (hair puffs out over the ears)
+  const puff = 0.003 + 0.011 * smoothstep(crownY - 0.006, 0.052, py) * (0.4 + 0.9 * clump) + 0.006 * temple;
+  let thick = m * (puff * (0.55 + 0.75 * strands));
+  // ragged outer layer: individual strands stand proud
+  thick += m * 0.0025 * smoothstep(0.5, 0.75, strands);
+  let d = shell - thick + 0.0003;
+  if (m < 0.04) d = Math.max(d, 0.0015);
+  // a few long combed-over strands across the bald dome
+  {
+    const cv = Math.abs(Math.sin(px * 260 + Math.sin(pz * 60) * 1.2));
+    const top = smoothstep(0.08, 0.12, py) * smoothstep(0.06, 0.03, ax) * smoothstep(-0.07, -0.03, pz) * smoothstep(0.06, 0.03, pz);
+    const comb = shell - 0.0011 * top * smoothstep(0.93, 0.995, cv) * (0.6 + 0.8 * fbm3(px * 300, pz * 40, 3, 2));
+    if (top > 0.05) d = Math.min(d, Math.max(comb, -shell - 0.002));
+  }
+  // flyaway wisps
+  if (WISP_ON && shell < 0.06) for (const w of WISPS) {
+    const P = w.pts;
+    for (let i = 0; i < 3; i++) {
+      const r0 = w.r0 * (1 - i / 3.2), r1 = w.r0 * (1 - (i + 1) / 3.2);
+      d = smin(d, cap(px, py, pz, P[i][0], P[i][1], P[i][2], P[i + 1][0], P[i + 1][1], P[i + 1][2], r0, Math.max(0.0005, r1)), 0.0015);
+    }
+  }
+  return d;
 }
 
-// eyebrows: thin, wiry, a little untidy
+// eyebrows: bushy, wiry, untidy (long hairs curling up and out at the outer ends)
 export function browSdf(px, py, pz) {
   const ax = Math.abs(px);
-  const n = fbm3(px * 400, py * 400, pz * 400, 3);
-  const b = cap(ax, py, pz, 0.011, 0.0868, 0.1, 0.049, 0.0885, 0.088, 0.0022, 0.0028);
-  return b - 0.0012 * n + 0.0004;
+  const n = fbm3(px * 900 + py * 300, py * 200, pz * 400, 3);
+  let b = cap(ax, py, pz, 0.01, 0.0875, 0.101, 0.03, 0.09, 0.096, 0.0028, 0.0036);
+  b = smin(b, cap(ax, py, pz, 0.03, 0.09, 0.096, 0.049, 0.0858, 0.082, 0.0036, 0.0024), 0.002);
+  // stray long hairs
+  for (let i = 0; i < 6; i++) {
+    const x0 = 0.016 + i * 0.0055, y0 = 0.0885 + 0.002 * rnd(i + 40), z0 = 0.099 - i * 0.0026;
+    b = Math.min(b, cap(ax, py, pz, x0, y0, z0, x0 + 0.004 + 0.003 * rnd(i), y0 + 0.004 + 0.004 * rnd(i + 3), z0 + 0.003, 0.0008, 0.0005));
+  }
+  return b - 0.0016 * (n - 0.35);
+}
+
+// eyeballs (separate part so they can be glossy and catch a highlight)
+export function eyeSdf(px, py, pz) {
+  const ax = Math.abs(px);
+  let d = sph(ax, py, pz, EYE.x, EYE.y, EYE.z, EYE.r);
+  // the corneal bulge, looking slightly down toward the visitor
+  d = smin(d, sph(ax, py, pz, EYE.x, EYE.y - 0.0016, EYE.z + 0.0058, 0.0066), 0.002);
+  return d;
 }
 
 // ------------------------------------------------------------------ STOCK / CRAVAT
@@ -200,7 +265,8 @@ function sheet(px, py, pz, { y0, y1, cx0, cx1, w0, w1, z0, z1, t, pleat, pleatF,
   const w = mix(w0, w1, h);
   const u = (px - cx) / w; // -0.5..0.5 across the panel
   const amp = pleat * (0.35 + 0.65 * h);
-  const zs = mix(z0, z1, h) + amp * Math.sin(u * pleatF * Math.PI + phase + h * 1.6) + curl * u * u;
+  const crumple = 0.003 * (fbm3(px * 60 + phase, py * 25, 1.7, 3) - 0.5) * (0.3 + h);
+  const zs = mix(z0, z1, h) + amp * Math.sin(u * pleatF * Math.PI + phase + h * 1.6 + 1.2 * Math.sin(h * 5 + phase)) + curl * u * u + crumple;
   const grad = amp * pleatF * Math.PI / w;
   let d = Math.abs(pz - zs) / Math.sqrt(1 + grad * grad * 0.6) - t * (1 - 0.35 * h);
   // ragged, softly rounded hem and edges
@@ -215,7 +281,7 @@ export function cravatSdf(px, py, pz) {
   const ang = Math.atan2(px, pz);
   const rr = Math.hypot(px, pz - 0.004);
   // the band: tall at the back, dipping under the chin; horizontal wrapping creases
-  const yc = -0.062 + 0.026 * (1 - Math.max(0, Math.cos(ang)));
+  const yc = -0.074 + 0.02 * (1 - Math.max(0, Math.cos(ang)));
   const hh = 0.025 - 0.006 * Math.max(0, Math.cos(ang));
   const crease = 0.0011 * Math.sin((py - yc) * 260 + Math.sin(ang * 3) * 1.5) + 0.0007 * Math.sin(ang * 11 + py * 90);
   const qx = rr - (0.052 + 0.004 * Math.max(0, Math.cos(ang))), qy = py - yc;
@@ -225,13 +291,13 @@ export function cravatSdf(px, py, pz) {
   // the knot: a soft twisted bundle with creases
   {
     const kx = px, ky = py + 0.094, kz = pz - 0.06;
-    const tw = 0.0012 * Math.sin(Math.atan2(ky, kx) * 5 + kz * 200);
+    const tw = 0.0012 * Math.sin(Math.atan2(ky, kx) * 5 + kz * 200) * smoothstep(0.002, 0.012, Math.hypot(kx, ky));
     d = smin(d, ell(kx, ky, kz, 0, 0, 0, 0.026, 0.018, 0.017) - tw, 0.008);
   }
   // three cascading tails (left long, right long, a short middle ruffle on top)
-  const tailL = sheet(px, py, pz, { y0: -0.098, y1: -0.27, cx0: -0.008, cx1: -0.026, w0: 0.042, w1: 0.1, z0: 0.066, z1: 0.096, t: 0.0034, pleat: 0.008, pleatF: 4.0, phase: 0.4, curl: -0.05 });
-  const tailR = sheet(px, py, pz, { y0: -0.1, y1: -0.245, cx0: 0.01, cx1: 0.028, w0: 0.04, w1: 0.09, z0: 0.07, z1: 0.102, t: 0.0032, pleat: 0.0075, pleatF: 4.0, phase: 2.2, curl: -0.05 });
-  const tailM = sheet(px, py, pz, { y0: -0.102, y1: -0.19, cx0: 0.0, cx1: 0.004, w0: 0.034, w1: 0.065, z0: 0.078, z1: 0.11, t: 0.003, pleat: 0.007, pleatF: 3.5, phase: 1.0, curl: -0.06 });
+  const tailL = sheet(px, py, pz, { y0: -0.098, y1: -0.27, cx0: -0.008, cx1: -0.022, w0: 0.04, w1: 0.078, z0: 0.066, z1: 0.094, t: 0.0036, pleat: 0.012, pleatF: 5.0, phase: 0.4, curl: -0.08 });
+  const tailR = sheet(px, py, pz, { y0: -0.1, y1: -0.25, cx0: 0.01, cx1: 0.024, w0: 0.038, w1: 0.07, z0: 0.07, z1: 0.1, t: 0.0034, pleat: 0.011, pleatF: 5.0, phase: 2.2, curl: -0.08 });
+  const tailM = sheet(px, py, pz, { y0: -0.102, y1: -0.185, cx0: 0.0, cx1: 0.004, w0: 0.034, w1: 0.058, z0: 0.078, z1: 0.108, t: 0.0032, pleat: 0.01, pleatF: 4.0, phase: 1.0, curl: -0.08 });
   d = smin(d, tailL, 0.006);
   d = smin(d, tailR, 0.005);
   d = smin(d, tailM, 0.004);
@@ -285,16 +351,17 @@ export function headColor(px, py, pz, region) {
   const ax = Math.abs(px);
   const n = fbm3(px * 220 + 7, py * 220, pz * 220, 4);
   if (region === 'hair' || region === 'brow') {
-    const g = 0.42 + 0.22 * n;
-    return [g, g * 0.98, g * 0.96];
+    const browy = py > 0.08 && py < 0.096 && pz > 0.075;
+    const g = (browy ? 0.52 : 0.62) + 0.25 * n;
+    return [g, g * 0.985, g * 0.97];
   }
   if (region === 'cravat') { const g = 0.9 + 0.06 * n; return [g, g * 0.985, g * 0.95]; }
-  if (region === 'coat') { const g = 0.17 + 0.06 * n; return [g * 1.0, g * 1.0, g * 1.06]; }
+  if (region === 'coat') { const g = 0.3 + 0.08 * n; return [g * 1.0, g * 1.0, g * 1.06]; }
   if (region === 'waistcoat') {
     const btn = len3(px, ((py + 0.245) % 0.04 + 0.04) % 0.04 - 0.02, pz - 0.094) < 0.007 && py < -0.23;
     if (btn) return [0.55, 0.5, 0.42];
     const st = 0.5 + 0.5 * Math.sin(px * 600 + py * 600);   // faint brocade twill
-    const g = 0.16 + 0.04 * n + 0.02 * st; return [g * 1.1, g, g * 0.9];
+    const g = 0.27 + 0.05 * n + 0.03 * st; return [g * 1.08, g, g * 0.92];
   }
   // skin: pale, slightly cool; mottled; ruddy nose and ear rims; liver spots on the dome
   let r = 0.78, g = 0.69, b = 0.63;
@@ -304,13 +371,13 @@ export function headColor(px, py, pz, region) {
   // eyeballs (the old man looks a little down, toward the visitor)
   const ex = ax - EYE.x, ey = py - EYE.y, ez = pz - EYE.z;
   const er = len3(ex, ey, ez);
-  if (er < EYE.r + 0.0006) {
+  if (region === 'eye' || er < EYE.r + 0.0006) {
     const fwd = ez / Math.max(er, 1e-6);
     const ey2 = ey + 0.0028; // gaze down
     const off = Math.sqrt(ex * ex + ey2 * ey2);
-    if (fwd > 0.5 && off < 0.0024) return [0.025, 0.025, 0.03];                       // pupil
-    if (fwd > 0.45 && off < 0.0056) { const k = 0.2 + 0.1 * n + 0.08 * Math.sin(Math.atan2(ey2, ex) * 24); return [k * 0.95, k * 1.08, k * 1.15]; } // iris
-    if (fwd > 0.45 && off < 0.0062) return [0.12, 0.12, 0.13];                        // limbal ring
+    if (fwd > 0.5 && off < 0.0019) return [0.03, 0.03, 0.035];                       // pupil
+    if (fwd > 0.45 && off < 0.0056) { const k = 0.42 + 0.1 * n + 0.1 * Math.sin(Math.atan2(ey2, ex) * 24) - 0.12 * smoothstep(0.0045, 0.0056, off); return [k * 0.92, k * 1.04, k * 1.12]; } // iris
+    if (fwd > 0.45 && off < 0.0062) return [0.2, 0.21, 0.24];                        // limbal ring
     const vein = smoothstep(0.75, 0.9, fbm3(px * 900, py * 900, pz * 900, 2)) * smoothstep(0.004, 0.009, off);
     return [0.74 + vein * 0.05, 0.69 - vein * 0.12, 0.64 - vein * 0.1];               // sclera (aged)
   }

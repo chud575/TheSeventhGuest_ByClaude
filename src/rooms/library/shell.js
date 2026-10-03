@@ -162,6 +162,43 @@ export function buildShell(ctx, root, mat) {
       const y = H + mainD - 0.075;
       cofferMould.push(G.sweepProfile(G.PROFILES.crown(0.075, 0.05), [V3(xa, y, za), V3(xb, y, za), V3(xb, y, zb), V3(xa, y, zb)], { closed: true, uvScale: 1 }));
     }
+    // second, smaller bevelled tier stepping up to the glass + a bead at the glass stop
+    for (let i = 0; i < NX; i++) for (let j = 0; j < NZ; j++) {
+      const xa = bx(i) + mainW / 2 + 0.07, xb = bx(i + 1) - mainW / 2 - 0.07;
+      const za = bz(j) + crossW / 2 + 0.07, zb = bz(j + 1) - crossW / 2 - 0.07;
+      const y = H + mainD + 0.004;
+      cofferMould.push(G.sweepProfile(G.PROFILES.crown(0.04, 0.03), [V3(xa, y, za), V3(xb, y, za), V3(xb, y, zb), V3(xa, y, zb)], { closed: true, uvScale: 1 }));
+    }
+    // dentil course just under each coffer mouth
+    const dent = [];
+    for (let i = 0; i < NX; i++) for (let j = 0; j < NZ; j++) {
+      const xa = bx(i) + mainW / 2, xb = bx(i + 1) - mainW / 2;
+      const za = bz(j) + crossW / 2, zb = bz(j + 1) - crossW / 2;
+      const y = H + mainD - 0.1;
+      const step = 0.045;
+      const box = (w, h, d, x, y2, z) => new THREE.BoxGeometry(w, h, d).translate(x, y2, z);
+      for (let x = xa + 0.03; x < xb - 0.02; x += step) { dent.push(box(0.024, 0.026, 0.018, x, y, za + 0.009)); dent.push(box(0.024, 0.026, 0.018, x, y, zb - 0.009)); }
+      for (let z = za + 0.03; z < zb - 0.02; z += step) { dent.push(box(0.018, 0.026, 0.024, xa + 0.009, y, z)); dent.push(box(0.018, 0.026, 0.024, xb - 0.009, y, z)); }
+    }
+    cofferMould.push(merge(dent));
+    // carved rosettes where the cross beams meet the main beams, and ovolo beads along the beam soffits
+    const ros = [];
+    const rosette = () => {
+      const g = lathe([[0.001, 0], [0.085, 0], [0.088, 0.008], [0.075, 0.016], [0.07, 0.02], [0.05, 0.026], [0.03, 0.04], [0.016, 0.05], [0.001, 0.052]], 40);
+      const pos = g.attributes.position;
+      for (let k = 0; k < pos.count; k++) { const x = pos.getX(k), z = pos.getZ(k); const a = Math.atan2(z, x), r = Math.hypot(x, z); const petal = 1 + 0.1 * Math.cos(a * 8) * Math.min(1, r / 0.03); pos.setX(k, x * petal); pos.setZ(k, z * petal); pos.setY(k, pos.getY(k) * (1 + 0.15 * Math.cos(a * 8))); }
+      g.computeVertexNormals();
+      g.scale(1, -1, 1);
+      return g;
+    };
+    for (let i = 1; i < NX; i++) for (let j = 1; j < NZ; j++) { const r = rosette(); r.translate(bx(i), H + 0.002, bz(j)); ros.push(r); }
+    for (let i = 1; i < NX; i++) for (const sx of [-1, 1]) {
+      const b = new THREE.CylinderGeometry(0.016, 0.016, L.D, 10, 1, false, 0, Math.PI);
+      b.rotateX(Math.PI / 2); b.rotateZ(sx > 0 ? -Math.PI / 2 : Math.PI / 2);
+      b.translate(bx(i) + sx * (mainW / 2 - 0.016), H + 0.016, (Z0 + Z1) / 2);
+      ros.push(b);
+    }
+    cofferMould.push(merge(ros));
     ceiling.add(mesh(merge(cofferMould), mat.beamMould || mat.beam, 'coffer-mouldings', { cast: false }));
     const beams = mesh(merge(geos), mat.beam, 'beams');
     ceiling.add(beams);

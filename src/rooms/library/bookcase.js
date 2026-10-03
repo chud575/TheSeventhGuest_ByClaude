@@ -220,7 +220,7 @@ export function buildBookcase(ctx, root, mat) {
       const clear = rowH - 0.03;
       let x = a + 0.006;
       // reserve a prop gap on some shelves
-      const propAt = (bi === 1 && (r === 1 || r === 4)) || (bi !== 1 && r === 3) ? a + (b - a) * rnd.range(0.25, 0.7) : -1;
+      const propAt = (bi === 1 && (r === 1 || r === 4)) || (bi !== 1 && r === 3) || rnd.chance(0.3) ? a + (b - a) * rnd.range(0.2, 0.75) : -1;
       let propDone = false;
       while (x < b - 0.02) {
         if (!propDone && propAt > 0 && x > propAt) {
@@ -228,7 +228,7 @@ export function buildBookcase(ctx, root, mat) {
           x += 0.16; propDone = true; continue;
         }
         // occasional horizontal stack
-        if (rnd.chance(0.09) && b - x > 0.3) {
+        if (rnd.chance(0.13) && b - x > 0.3) {
           const n = rnd.int(2, 5);
           const bw = rnd.range(0.17, 0.25), bd = rnd.range(0.15, 0.22);
           let yy = y0;
@@ -241,10 +241,10 @@ export function buildBookcase(ctx, root, mat) {
           continue;
         }
         const w = rnd.chance(0.14) ? rnd.range(0.05, 0.08) : rnd.range(0.018, 0.05);
-        const h = Math.min(clear - 0.004, (rnd.chance(0.2) ? rnd.range(0.86, 0.97) : rnd.range(0.52, 0.86)) * clear);
+        const h = Math.min(clear - 0.004, (rnd.chance(0.2) ? rnd.range(0.86, 0.97) : rnd.chance(0.15) ? rnd.range(0.4, 0.55) : rnd.range(0.55, 0.86)) * clear);
         const d = Math.min(C.shelfD - 0.04, h * rnd.range(0.62, 0.8));
         // a lean at the end of a run
-        if (rnd.chance(0.06) && x > a + 0.2) {
+        if (rnd.chance(0.11) && x > a + 0.2) {
           const lean = rnd.range(0.18, 0.32);
           books.push({ x: x + Math.sin(lean) * h * 0.5 + w / 2, y: y0, z: C.shelfD - d / 2 - 0.025, w, h, d, lean });
           x += Math.sin(lean) * h + w + 0.03;
@@ -271,7 +271,7 @@ export function buildBookcase(ctx, root, mat) {
     inst.setMatrixAt(i, m4);
     const v = rnd.int(0, 15);
     off[i * 2] = (v % 8) / 8; off[i * 2 + 1] = Math.floor(v / 8) / 2;
-    const br = rnd.range(0.62, 1.1);
+    const br = rnd.range(0.78, 1.15);
     col.setRGB(br, br * rnd.range(0.93, 1.0), br * rnd.range(0.85, 1.0));
     inst.setColorAt(i, col);
   });

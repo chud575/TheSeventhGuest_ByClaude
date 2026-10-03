@@ -84,10 +84,10 @@ float gFbm(vec3 p) { return 0.5 * gNoise(p) + 0.25 * gNoise(p * 2.03 + 7.1) + 0.
   float gFlow = gFbm(vGp * 22.0 + vec3(0.0, -uTime * 0.06, uTime * 0.025));
   float gBreak = mix(1.0, smoothstep(0.18, 0.62, gFlow), uBreak);
   float gFade = smoothstep(uFadeY - uFadeSoft, uFadeY + uFadeSoft, vGp.y + (gFlow - 0.5) * uFadeSoft * 1.6);
-  diffuseColor.a = uOpacity * mix(uCoreA, uEdgeA, gFres) * gBreak * gFade;
+  diffuseColor.a = min(1.0, uOpacity * mix(uCoreA, uEdgeA, smoothstep(0.4, 0.95, gFres)) * gBreak * gFade);
 #include <opaque_fragment>`);
   };
-  m.customProgramCacheKey = () => `library-spectral2-${depthWrite}`;
+  m.customProgramCacheKey = () => `library-spectral3-${depthWrite}`;
   return m;
 }
 
@@ -98,13 +98,15 @@ export async function buildGhost(ctx, root) {
   try { parts = await loadParts(ctx.assetUrl('ghost.bin')); } catch (e) { console.warn('[library] ghost mesh missing', e); return { group, materials: [] }; }
   const time = ctx.time;
   const mats = {
-    head: spectralMaterial({ coreAlpha: 0.74, edgeAlpha: 0.13, rimStrength: 0.18, glow: 0.03, fadeY: -0.1, fadeSoft: 0.02, roughness: 0.52, tint: 0xd2d6de, bump: 0.0, breakup: 0.22, desat: 0.3, time }),
-    hair: spectralMaterial({ coreAlpha: 0.55, edgeAlpha: 0.05, rimStrength: 0.25, glow: 0.03, roughness: 0.75, tint: 0xc8ccd4, breakup: 0.3, desat: 0.4, time }),
-    cravat: spectralMaterial({ coreAlpha: 0.84, edgeAlpha: 0.2, rimStrength: 0.15, glow: 0.035, fadeY: -0.27, fadeSoft: 0.03, roughness: 0.55, tint: 0xe8e4da,  breakup: 0.25, desat: 0.25, time }),
-    waistcoat: spectralMaterial({ coreAlpha: 0.65, edgeAlpha: 0.25, rimStrength: 0.2, glow: 0.02, fadeY: -0.4, fadeSoft: 0.09, roughness: 0.7, tint: 0xc0c4cc, breakup: 0.35, depthWrite: false, desat: 0.4, time }),
-    coat: spectralMaterial({ coreAlpha: 0.62, edgeAlpha: 0.35, rimStrength: 0.4, glow: 0.02, fadeY: -0.4, fadeSoft: 0.12, roughness: 0.75, tint: 0xc0c6d2,  breakup: 0.4, depthWrite: false, desat: 0.4, time }),
+    // the face reads near-solid (the eye must find it); the body thins to a cold, rim-lit veil
+    head: spectralMaterial({ coreAlpha: 1.0, edgeAlpha: 0.72, rimStrength: 0.35, glow: 0.02, fadeY: -0.1, fadeSoft: 0.02, roughness: 0.5, tint: 0xc8ccd4, bump: 0.00022, bumpFreq: 320, breakup: 0.0, desat: 0.28, time }),
+    hair: spectralMaterial({ coreAlpha: 0.85, edgeAlpha: 0.25, rimStrength: 0.9, glow: 0.05, roughness: 0.55, tint: 0xe4e8f0, breakup: 0.25, desat: 0.4, time }),
+    eyes: spectralMaterial({ coreAlpha: 0.97, edgeAlpha: 0.9, rimStrength: 0.05, glow: 0.02, roughness: 0.06, tint: 0xe8ecf2, breakup: 0.0, desat: 0.2, time }),
+    cravat: spectralMaterial({ coreAlpha: 0.95, edgeAlpha: 0.45, rimStrength: 0.35, glow: 0.04, fadeY: -0.235, fadeSoft: 0.045, roughness: 0.6, tint: 0xf0ece4, bump: 0.0006, bumpFreq: 220, breakup: 0.2, desat: 0.25, time }),
+    waistcoat: spectralMaterial({ coreAlpha: 0.4, edgeAlpha: 0.4, rimStrength: 0.7, glow: 0.06, fadeY: -0.37, fadeSoft: 0.1, roughness: 0.7, tint: 0xd8e0ee, breakup: 0.35, depthWrite: false, desat: 0.4, time }),
+    coat: spectralMaterial({ coreAlpha: 0.3, edgeAlpha: 0.36, rimStrength: 0.6, glow: 0.05, fadeY: -0.32, fadeSoft: 0.13, roughness: 0.75, tint: 0xd8e0ee, breakup: 0.6, depthWrite: false, desat: 0.4, time }),
   };
-  const order = { coat: 1, waistcoat: 2, cravat: 3, head: 4, hair: 5 };
+  const order = { coat: 1, waistcoat: 2, cravat: 3, head: 4, eyes: 5, hair: 6 };
   const meshes = {};
   for (const [name, g] of Object.entries(parts)) {
     const m = new THREE.Mesh(g, mats[name] || mats.head);

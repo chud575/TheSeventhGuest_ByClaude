@@ -8,8 +8,8 @@ import { flicker } from '../../engine/fx/Flame.js';
 
 export const SPOTS = {
   desk: { x: -1.05, z: -0.35, ry: 0 },             // long axis along z, drawers face the room (+x)
-  chair: { x: -0.42, z: -0.95, ry: -1.45 },      // upholstered stool drawn up to the desk
-  wing: { x: 0.68, z: -0.62, ry: -0.78 },
+  chair: { x: -0.5, z: -0.72, ry: -Math.PI / 2 - 0.55 },   // desk chair, pulled out and turned
+  wing: { x: 0.66, z: -0.5, ry: -0.55 },
   globe: { x: 0.24, z: -1.7 },
   telescope: { x: -3.2, z: 2.05 },
   lectern: { x: 0.45, z: 3.1, ry: Math.PI + 0.45 },
@@ -126,7 +126,8 @@ export function buildProps(ctx, root, mat) {
     chim.userData.noShadow = true;
     lamp.add(chim);
     // frosted globe shade with an emissive inner glow
-    const shade = new THREE.Mesh(lathe([[0.035, 0.32], [0.06, 0.33], [0.09, 0.36], [0.104, 0.4], [0.098, 0.44], [0.075, 0.47], [0.045, 0.48], [0.04, 0.49]], 64), lampGlobeMat(shadeColor));
+    const shadeProf = new THREE.SplineCurve([[0.034, 0.318], [0.05, 0.326], [0.078, 0.345], [0.098, 0.372], [0.106, 0.4], [0.101, 0.432], [0.084, 0.458], [0.06, 0.474], [0.046, 0.482], [0.042, 0.494]].map(([x, y]) => new THREE.Vector2(x, y))).getPoints(48).map((v) => [v.x, v.y]);
+    const shade = new THREE.Mesh(lathe(shadeProf, 72), lampGlobeMat(shadeColor));
     shade.userData.noShadow = true;
     shade.renderOrder = 5;
     lamp.add(shade);
@@ -276,44 +277,102 @@ export function buildProps(ctx, root, mat) {
     out.desk = g;
   }
 
-  // ================================================================ upholstered stool (turned legs, buttoned stuffed top)
+  // ================================================================ desk chair (turned front legs, raked open back with a carved crest rail and pierced vase splat, drop-in leather seat)
   {
     const g = new THREE.Group();
-    g.name = 'desk-stool';
-    const wood = [];
-    const SW = 0.56, SD = 0.4, SH = 0.46;
-    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) wood.push(turnedLeg(SH - 0.08, 0.021).translate(x * (SW / 2 - 0.04), 0, z * (SD / 2 - 0.04)));
-    // apron rails
-    wood.push(bboxAt(SW - 0.04, 0.07, 0.022, 0, SH - 0.08 - 0.03, SD / 2 - 0.04, { r: 0.006 }));
-    wood.push(bboxAt(SW - 0.04, 0.07, 0.022, 0, SH - 0.08 - 0.03, -SD / 2 + 0.04, { r: 0.006 }));
-    wood.push(bboxAt(0.022, 0.07, SD - 0.06, SW / 2 - 0.04, SH - 0.08 - 0.03, 0, { r: 0.006 }));
-    wood.push(bboxAt(0.022, 0.07, SD - 0.06, -SW / 2 + 0.04, SH - 0.08 - 0.03, 0, { r: 0.006 }));
+    g.name = 'desk-chair';
+    const wood = [], brassN = [];
+    const SW = 0.48, SWb = 0.4, SD = 0.44, SH = 0.46;
+    // front legs: turned, with a block at the seat rail
+    for (const s of [-1, 1]) {
+      wood.push(turnedLeg(SH - 0.07, 0.022).translate(s * (SW / 2 - 0.03), 0, SD / 2 - 0.03));
+      wood.push(bboxAt(0.046, 0.075, 0.046, s * (SW / 2 - 0.03), SH - 0.07, SD / 2 - 0.03, { r: 0.006 }));
+    }
+    // back legs flow up into raked stiles (one continuous curved member each side)
+    const stileTop = 0.98;
+    for (const s of [-1, 1]) {
+      const x0 = s * (SWb / 2 - 0.02), x1 = s * (SWb / 2 + 0.005);
+      const curve = new THREE.CatmullRomCurve3([V3(x0, 0, -SD / 2 - 0.04), V3(x0, 0.2, -SD / 2 + 0.01), V3(x0, SH - 0.04, -SD / 2 + 0.03), V3(x1, 0.68, -SD / 2 - 0.0), V3(x1, stileTop - 0.04, -SD / 2 - 0.06)]);
+      const tube = new THREE.TubeGeometry(curve, 48, 0.017, 10, false);
+      wood.push(tube);
+      wood.push(new THREE.SphereGeometry(0.018, 12, 8).translate(x1, stileTop - 0.04, -SD / 2 - 0.06));
+    }
+    // seat rails
+    wood.push(bboxAt(SW - 0.04, 0.075, 0.024, 0, SH - 0.07, SD / 2 - 0.03, { r: 0.006 }));
+    wood.push(bboxAt(SWb - 0.02, 0.075, 0.024, 0, SH - 0.07, -SD / 2 + 0.03, { r: 0.006 }));
+    for (const s of [-1, 1]) {
+      const side = bboxAt(0.024, 0.075, SD - 0.04, 0, 0, 0, { r: 0.006 });
+      side.rotateY(s * Math.atan2((SW - SWb) / 2, SD)); side.translate(s * ((SW + SWb) / 4 - 0.03), SH - 0.07, 0);
+      wood.push(side);
+    }
     // turned H-stretcher
-    for (const z of [-1, 1]) wood.push(new THREE.CylinderGeometry(0.009, 0.009, SD - 0.08, 10).rotateX(Math.PI / 2).translate(z * (SW / 2 - 0.04), 0.13, 0));
-    wood.push(lathe([[0.008, 0], [0.012, 0.1], [0.008, 0.2], [0.012, 0.32], [0.008, SW - 0.08]], 12).rotateZ(-Math.PI / 2).translate(-(SW - 0.08) / 2, 0.13, 0));
-    g.add(mesh(merge(wood), mat.mahogany, 'stool-wood'));
-    // stuffed, domed seat with tufted buttons
-    const seatG = new G.RoundedBoxGeometry(SW + 0.02, 0.09, SD + 0.02, 6, 0.04);
+    for (const s of [-1, 1]) wood.push(lathe([[0.008, 0], [0.012, 0.08], [0.008, 0.18], [0.012, 0.3], [0.008, SD - 0.06]], 12).rotateX(Math.PI / 2).translate(s * (SW / 2 - 0.04), 0.14, -(SD - 0.06) / 2));
+    wood.push(lathe([[0.007, 0], [0.011, 0.1], [0.007, 0.2], [0.011, 0.3], [0.007, SW - 0.08]], 12).rotateZ(-Math.PI / 2).translate(-(SW - 0.08) / 2, 0.14, 0.02));
+    // carved crest rail: arched top with scrolled ears, bent to follow the sitter's back
+    const bend = (geo, k) => { const p = geo.attributes.position; for (let i = 0; i < p.count; i++) p.setZ(i, p.getZ(i) + k * p.getX(i) * p.getX(i)); geo.computeVertexNormals(); return geo; };
     {
+      const w = SWb / 2 + 0.03;
+      const pts = [];
+      for (let i = 0; i <= 24; i++) { const t = i / 24, x = -w + 2 * w * t; pts.push([x, 0.05 + 0.035 * Math.cos((t - 0.5) * Math.PI) + 0.012 * Math.exp(-Math.pow((t - 0.5) / 0.06, 2))]); }
+      // scrolled ears dip down
+      pts.push([w + 0.012, 0.03], [w + 0.006, 0.0], [w - 0.02, -0.012]);
+      for (let i = 24; i >= 0; i--) { const t = i / 24, x = -w + 2 * w * t; pts.push([x, -0.012 + 0.018 * Math.cos((t - 0.5) * Math.PI)]); }
+      pts.push([-w + 0.02, -0.012], [-w - 0.006, 0.0], [-w - 0.012, 0.03]);
+      const crest = extrudeOutline(pts, 0.026, { bevel: 0.006, uv: 1 });
+      bend(crest, 0.9);
+      crest.rotateX(-0.22);
+      crest.translate(0, stileTop - 0.08, -SD / 2 - 0.055);
+      wood.push(crest);
+      // carved shell boss in the centre of the crest
+      const shell = new THREE.SphereGeometry(0.03, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+      { const p = shell.attributes.position; for (let i = 0; i < p.count; i++) { const a = Math.atan2(p.getZ(i), p.getX(i)); const r = 1 + 0.12 * Math.cos(a * 9); p.setX(i, p.getX(i) * r); p.setZ(i, p.getZ(i) * r); } shell.computeVertexNormals(); }
+      shell.rotateX(Math.PI / 2 - 0.22); shell.scale(1, 1, 0.5); shell.translate(0, stileTop - 0.055, -SD / 2 - 0.035);
+      wood.push(shell);
+    }
+    // pierced vase splat + shoe rail + mid rail
+    {
+      const prof = (t) => 0.045 + 0.05 * Math.sin(Math.PI * Math.min(1, t * 1.6)) * (t < 0.62 ? 1 : 0.5) - 0.02 * Math.exp(-Math.pow((t - 0.72) / 0.08, 2)) + 0.03 * Math.max(0, t - 0.82) / 0.18;
+      const Hs = 0.42;
+      const outline = [];
+      for (let i = 0; i <= 30; i++) { const t = i / 30; outline.push([prof(t), t * Hs]); }
+      for (let i = 30; i >= 0; i--) { const t = i / 30; outline.push([-prof(t), t * Hs]); }
+      const sh = new THREE.Shape(outline.map(([x, y]) => new THREE.Vector2(x, y)));
+      for (const sx of [-1, 1]) {
+        const hole = new THREE.Path();
+        const hp = [];
+        for (let i = 0; i <= 16; i++) { const t = 0.18 + 0.38 * i / 16; hp.push(new THREE.Vector2(sx * (0.012 + (prof(t) - 0.03) * 0.62 * Math.sin(Math.PI * (i / 16))), t * Hs)); }
+        for (let i = 16; i >= 0; i--) { const t = 0.18 + 0.38 * i / 16; hp.push(new THREE.Vector2(sx * 0.012, t * Hs)); }
+        if (sx < 0) hp.reverse();
+        hole.setFromPoints(hp);
+        sh.holes.push(hole);
+      }
+      const splat = new THREE.ExtrudeGeometry(sh, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 2, curveSegments: 8 });
+      bend(splat, 0.9);
+      splat.translate(0, 0, -0.006);
+      splat.rotateX(-0.2);
+      splat.translate(0, SH + 0.04, -SD / 2 + 0.005);
+      wood.push(splat);
+      wood.push(bboxAt(SWb - 0.02, 0.035, 0.03, 0, SH + 0.03, -SD / 2 + 0.03, { r: 0.008 }));
+    }
+    g.add(mesh(merge(wood), mat.mahogany, 'chair-wood'));
+    // drop-in leather seat, stuffed and slightly sagging, close-nailed round the edge
+    {
+      const seatG = new G.RoundedBoxGeometry(SW - 0.01, 0.06, SD - 0.02, 6, 0.025);
       const pos = seatG.attributes.position;
       for (let i = 0; i < pos.count; i++) {
-        const x = pos.getX(i) / ((SW + 0.02) / 2), y = pos.getY(i), z = pos.getZ(i) / ((SD + 0.02) / 2);
-        if (y > 0) {
-          let dy = 0.03 * (1 - x * x) * (1 - z * z);
-          // tufting dimples
-          for (const [bx, bz] of [[-0.5, -0.4], [0, -0.4], [0.5, -0.4], [-0.25, 0.4], [0.25, 0.4]]) dy -= 0.012 * Math.exp(-((x - bx) ** 2 + (z - bz) ** 2) * 60);
-          pos.setY(i, y + dy);
-        }
+        const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+        const taper = 1 - 0.5 * ((SW - SWb) / SW) * (0.5 - z / (SD - 0.02));
+        pos.setX(i, x * taper);
+        if (y > 0) { const u = x / (SW / 2), v = z / (SD / 2); pos.setY(i, y + 0.022 * (1 - u * u) * (1 - v * v) - 0.008 * Math.exp(-(u * u + (v - 0.1) ** 2) * 6)); }
       }
       seatG.computeVertexNormals();
+      const seat = mesh(seatG, mat.leatherRed, 'chair-seat');
+      seat.position.y = SH;
+      g.add(seat);
+      for (let k = 0; k <= 22; k++) { const x = -SW / 2 + 0.01 + k * ((SW - 0.02) / 22); brassN.push(new THREE.SphereGeometry(0.0045, 8, 5).translate(x, SH - 0.02, SD / 2 - 0.008)); }
+      for (const s of [-1, 1]) for (let k = 0; k <= 18; k++) { const t = k / 18, z = SD / 2 - 0.01 - t * (SD - 0.03); const xw = (SW / 2 - 0.004) * (1 - 0.5 * ((SW - SWb) / SW) * t); brassN.push(new THREE.SphereGeometry(0.0045, 8, 5).translate(s * xw, SH - 0.02, z)); }
+      g.add(mesh(merge(brassN), mat.brass, 'chair-nails'));
     }
-    const seat = mesh(seatG, mat.stoolFabric, 'stool-seat');
-    seat.position.y = SH;
-    g.add(seat);
-    const nails = [];
-    for (const z of [-1, 1]) for (let k = 0; k < 24; k++) { const x = -SW / 2 + k * (SW / 23); nails.push(new THREE.SphereGeometry(0.0042, 8, 5).translate(x, SH - 0.032, z * ((SD + 0.02) / 2 + 0.001))); }
-    for (const x of [-1, 1]) for (let k = 0; k < 17; k++) { const z = -SD / 2 + k * (SD / 16); nails.push(new THREE.SphereGeometry(0.0042, 8, 5).translate(x * ((SW + 0.02) / 2 + 0.001), SH - 0.032, z)); }
-    g.add(mesh(merge(nails), mat.brass));
     g.position.set(SPOTS.chair.x, 0, SPOTS.chair.z); g.rotation.y = SPOTS.chair.ry;
     root.add(g);
     g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
@@ -397,7 +456,54 @@ export function buildProps(ctx, root, mat) {
       face.translate(sd * 0.385, 0.48, 0.37);
       up.push(face);
     }
-    g.add(mesh(merge(up), mat.tapestry, 'wing-upholstery'));
+    // slight lumpy sag over the whole upholstery (old horsehair stuffing)
+    const upG = merge(up);
+    {
+      const pos = upG.attributes.position, nor = upG.attributes.normal;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+        const n = Math.sin(x * 23.1 + y * 7.3) * Math.sin(z * 19.7 - y * 11.1) * 0.5 + Math.sin(x * 51 + z * 43 + y * 37) * 0.25;
+        const k = 0.0035 * n;
+        pos.setXYZ(i, x + nor.getX(i) * k, y + nor.getY(i) * k, z + nor.getZ(i) * k);
+      }
+      upG.computeVertexNormals();
+    }
+    g.add(mesh(upG, mat.tapestry, 'wing-upholstery'));
+    // piping (self-welt cord) along every seam: wing outlines, arm scroll faces, seat cushion edges, back crest
+    {
+      const pipe = [];
+      const tubeAlong = (pts, r = 0.0065, closed = false) => pipe.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, closed), Math.max(16, pts.length * 4), r, 6, closed));
+      for (const sd of [-1, 1]) {
+        // wing outline (same shape and transforms as the wing)
+        const sh = new THREE.Shape();
+        sh.moveTo(-0.1, 0.46);
+        sh.bezierCurveTo(-0.08, 0.56, 0.08, 0.58, 0.16, 0.5);
+        sh.bezierCurveTo(0.26, 0.4, 0.3, 0.26, 0.26, 0.12);
+        const m4 = new THREE.Matrix4().makeTranslation(sd * 0.36, 0.66, -0.2)
+          .multiply(new THREE.Matrix4().makeRotationY(sd * 0.1))
+          .multiply(new THREE.Matrix4().makeRotationZ(-sd * 0.12))
+          .multiply(new THREE.Matrix4().makeRotationY(-Math.PI / 2));
+        for (const zf of [-0.046, 0.046]) {
+          const pts = sh.getPoints(20).map((p2) => new THREE.Vector3(p2.x, p2.y, zf).applyMatrix4(m4));
+          tubeAlong(pts, 0.006);
+        }
+        // scroll face ring + the seam running back along the top of the arm roll
+        const ring = [];
+        for (let k = 0; k <= 24; k++) { const a = (k / 24) * Math.PI * 2; ring.push(V3(sd * 0.39 + Math.cos(a) * 0.072, 0.64 + Math.sin(a) * 0.072, 0.39)); }
+        tubeAlong(ring, 0.006, true);
+        for (const ox of [-0.05, 0.05]) tubeAlong([V3(sd * 0.39 + ox, 0.64 + 0.05, 0.38), V3(sd * 0.39 + ox, 0.64 + 0.052, 0.03), V3(sd * 0.39 + ox, 0.64 + 0.05, -0.31)], 0.0055);
+      }
+      // seat cushion: top and bottom perimeter welts
+      for (const yy of [0.44 + 0.07, 0.44 - 0.06]) {
+        const w2 = 0.3, d2 = 0.32, rr = 0.05, pts = [];
+        for (let k = 0; k < 4; k++) {
+          const cx = (k === 0 || k === 3 ? 1 : -1) * (w2 - rr), cz = (k < 2 ? 1 : -1) * (d2 - rr);
+          for (let j = 0; j <= 4; j++) { const a = (k * Math.PI) / 2 + (j / 4) * (Math.PI / 2); pts.push(V3(cx + Math.cos(a) * rr, yy, 0.05 + cz + Math.sin(a) * rr)); }
+        }
+        tubeAlong(pts, 0.0055, true);
+      }
+      g.add(mesh(merge(pipe), mat.piping, 'wing-piping'));
+    }
     // cabriole front legs, plain splayed back legs
     const legs = [];
     for (const [x, z, front] of [[-0.34, -0.3, 0], [0.34, -0.3, 0], [-0.35, 0.32, 1], [0.35, 0.32, 1]]) {
@@ -428,21 +534,27 @@ export function buildProps(ctx, root, mat) {
     g.name = 'globe';
     const R = 0.25, cy = 0.82;
     const stand = [];
-    // tripod cabriole legs
+    // tripod cabriole legs (stout, square-section with chamfers) ending in turned pad feet, tied by a turned stretcher
+    const legProf = [[-0.026, -0.03], [0.022, -0.03], [0.026, -0.024], [0.026, 0.024], [0.022, 0.03], [-0.022, 0.03], [-0.026, 0.024], [-0.026, -0.03]].map(([x, y]) => new THREE.Vector2(x, y));
     for (let k = 0; k < 3; k++) {
       const a = (k / 3) * Math.PI * 2 + 0.3;
-      const leg = G.sweepProfile([new THREE.Vector2(-0.018, -0.02), new THREE.Vector2(0.018, -0.02), new THREE.Vector2(0.018, 0.02), new THREE.Vector2(-0.018, 0.02), new THREE.Vector2(-0.018, -0.02)],
-        [V3(0.03, 0.36, 0), V3(0.12, 0.28, 0), V3(0.2, 0.14, 0), V3(0.24, 0.05, 0), V3(0.3, 0.02, 0)], { uvScale: 1 });
+      const leg = G.sweepProfile(legProf, [V3(0.035, 0.38, 0), V3(0.11, 0.31, 0), V3(0.19, 0.17, 0), V3(0.24, 0.07, 0), V3(0.29, 0.035, 0)], { uvScale: 1 });
       leg.rotateY(-a);
       stand.push(leg);
-      stand.push(new THREE.SphereGeometry(0.022, 12, 8).translate(Math.cos(a) * 0.3, 0.022, Math.sin(a) * 0.3));
+      stand.push(lathe([[0.001, 0], [0.032, 0], [0.036, 0.01], [0.028, 0.022], [0.02, 0.032], [0.001, 0.034]], 20).translate(Math.cos(a) * 0.3, 0, Math.sin(a) * 0.3));
+      // turned stretcher from each leg to a central boss
+      const st = lathe([[0.008, 0], [0.012, 0.03], [0.009, 0.07], [0.013, 0.1], [0.008, 0.17]], 12);
+      st.rotateZ(-Math.PI / 2); st.translate(0.02, 0.14, 0); st.rotateY(-a);
+      stand.push(st);
     }
-    // turned pillar up to the horizon ring supports
-    stand.push(lathe([[0.001, 0.3], [0.05, 0.3], [0.06, 0.33], [0.04, 0.38], [0.03, 0.45], [0.045, 0.5], [0.028, 0.53], [0.024, 0.56], [0.001, 0.56]], 24));
+    stand.push(lathe([[0.001, 0.12], [0.035, 0.12], [0.04, 0.14], [0.035, 0.16], [0.001, 0.16]], 20));
+    stand.push(lathe([[0.001, 0.03], [0.012, 0.04], [0.02, 0.1], [0.015, 0.14], [0.001, 0.15]], 12));
+    // stout turned pillar (vase + ring turnings) up to the horizon ring supports
+    stand.push(lathe([[0.001, 0.3], [0.07, 0.3], [0.078, 0.32], [0.07, 0.34], [0.05, 0.36], [0.058, 0.4], [0.064, 0.44], [0.05, 0.48], [0.036, 0.5], [0.05, 0.515], [0.04, 0.53], [0.032, 0.56], [0.001, 0.56]], 32));
     // horizon ring supports (four quadrant arms)
     for (let k = 0; k < 4; k++) {
       const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
-      const arm = G.sweepProfile([new THREE.Vector2(-0.01, -0.012), new THREE.Vector2(0.01, -0.012), new THREE.Vector2(0.01, 0.012), new THREE.Vector2(-0.01, 0.012), new THREE.Vector2(-0.01, -0.012)],
+      const arm = G.sweepProfile([new THREE.Vector2(-0.013, -0.015), new THREE.Vector2(0.013, -0.015), new THREE.Vector2(0.013, 0.015), new THREE.Vector2(-0.013, 0.015), new THREE.Vector2(-0.013, -0.015)],
         [V3(0.02, 0.55, 0), V3(0.15, 0.6, 0), V3(0.26, 0.7, 0), V3(R + 0.06, cy - 0.01, 0)], { uvScale: 1 });
       arm.rotateY(-a);
       stand.push(arm);
@@ -463,9 +575,31 @@ export function buildProps(ctx, root, mat) {
     sphere.rotation.y = 2.2;
     sphere.name = 'globe-sphere';
     tilt.add(sphere);
-    const mer = new THREE.Mesh(new THREE.TorusGeometry(R + 0.012, 0.007, 8, 96), mat.brass);
-    mer.scale.z = 0.6;
-    tilt.add(mer);
+    // engraved brass meridian: a flat band graduated in degrees
+    {
+      const tick = ctx.textures.canvas('library:meridian:v1', 1024, 1024, (c2, w, h) => {
+        c2.fillStyle = '#b08a48'; c2.fillRect(0, 0, w, h);
+        const cx = w / 2, cy2 = h / 2, r0 = (R + 0.004) / (R + 0.032) * w / 2, r1 = w / 2;
+        c2.strokeStyle = 'rgba(40,24,8,0.9)';
+        for (let d = 0; d < 360; d++) {
+          const a = (d / 180) * Math.PI, long = d % 10 === 0, mid = d % 5 === 0;
+          const ra = r1 - (long ? 0.55 : mid ? 0.38 : 0.25) * (r1 - r0);
+          c2.lineWidth = long ? 2.2 : 1.2;
+          c2.beginPath(); c2.moveTo(cx + Math.cos(a) * ra, cy2 + Math.sin(a) * ra); c2.lineTo(cx + Math.cos(a) * (r1 - 2), cy2 + Math.sin(a) * (r1 - 2)); c2.stroke();
+        }
+        c2.lineWidth = 1.5; c2.beginPath(); c2.arc(cx, cy2, r1 - 0.6 * (r1 - r0), 0, Math.PI * 2); c2.stroke();
+        for (let i = 0; i < 400; i++) { c2.fillStyle = `rgba(30,40,20,${0.03 + 0.05 * ((i * 7919) % 11) / 11})`; c2.beginPath(); c2.arc((i * 377) % w, (i * 911) % h, 6 + (i % 7) * 4, 0, 7); c2.fill(); }
+      }, { tile: false });
+      const merMat = new THREE.MeshStandardMaterial({ map: tick, metalness: 1, roughness: 0.38, side: THREE.DoubleSide, color: 0xffffff });
+      for (const zz of [-0.0035, 0.0035]) {
+        const band = new THREE.Mesh(new THREE.RingGeometry(R + 0.004, R + 0.032, 128, 1), merMat);
+        band.position.z = zz; tilt.add(band);
+      }
+      for (const rr of [R + 0.004, R + 0.032]) {
+        const edge = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, 0.007, 128, 1, true), mat.brass);
+        edge.rotation.x = Math.PI / 2; tilt.add(edge);
+      }
+    }
     const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, (R + 0.04) * 2, 8), mat.brass);
     tilt.add(pin);
     g.add(tilt);
@@ -586,7 +720,7 @@ export function buildProps(ctx, root, mat) {
     const candle = ctx.fx.candle({ height: 0.28, radius: 0.016, lightIntensity: 1.5, lightDistance: 6, seed: 23, burn: 0.8 });
     candle.position.y = 1.16;
     stand.add(candle);
-    stand.position.copy(new THREE.Vector3(0.5, 0, 0).applyAxisAngle(V3(0, 1, 0), SPOTS.lectern.ry).add(V3(SPOTS.lectern.x, 0, SPOTS.lectern.z)));
+    stand.position.copy(new THREE.Vector3(0.95, 0, 0).applyAxisAngle(V3(0, 1, 0), SPOTS.lectern.ry).add(V3(SPOTS.lectern.x, 0, SPOTS.lectern.z)));
     root.add(stand);
     out.pricket = stand;
   }
@@ -623,11 +757,16 @@ export function buildProps(ctx, root, mat) {
   {
     const hang = (wall, x, y, w, h, subject, seed, frameW = 0.085) => {
       const g = new THREE.Group();
-      const pm = subject === 'vanitas' ? mat.vanitas : ctx.materials.create('painting', { subject, seed, aspect: w / h, size: 1024, varnish: 0.8, cracks: 0.6 });
+      const pm = subject === 'vanitas' ? mat.vanitas : ctx.materials.create('painting', { subject, seed, aspect: w / h, size: 1024, varnish: 0.35, cracks: 0.6, roughness: 0.85, clearcoat: 0.12, clearcoatRoughness: 0.55 });
       const canvas = new THREE.Mesh(new THREE.PlaneGeometry(w, h), pm);
-      g.add(canvas);
+      // pictures hang forward-tilted from a cord (top away from the wall), so lamp glare drops out of the eye line
+      const tilt = new THREE.Group();
+      tilt.rotation.x = 0.07;
+      tilt.add(canvas);
+      g.add(tilt);
       const fr = new THREE.Mesh(G.frameGeometry(w, h, { width: frameW, depth: 0.05, uvScale: 1 }), mat.frameGilt);
-      g.add(fr);
+      tilt.add(fr);
+      tilt.position.z = Math.sin(0.07) * h / 2;
       g.position.copy(wallToWorld(wall, x, y, 0.07)); g.rotation.y = WALLS[wall].ry;
       g.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
       root.add(g);
