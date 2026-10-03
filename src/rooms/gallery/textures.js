@@ -11,104 +11,150 @@ import * as THREE from 'three';
 
 // ---------------------------------------------------------------------------- runner
 export function runnerTexture(ctx) {
-  // one tile = full runner width (u 0..1 = 1.05 m) x half that along v (0.525 m).
-  // Dense all-over herati field, triple border (guards + vine-and-rosette main band),
-  // hand-knotted pile, abrash banding and a worn walking line.
-  return ctx.textures.generate('gallery:runner2', {
-    size: 2048, aspect: 2.0, tile: true, normalStrength: 1.6,
+  // one tile = full runner width (u 0..1 = 1.05 m) x 2.1 m along v: a Persian runner repeat with
+  // a lobed central medallion and pendant palmettes on a dense, hand-irregular herati ground,
+  // half-diamond spandrels at the tile ends, and a triple border (guards + vine-and-rosette band).
+  // Wear, fading and dirt are NOT baked here (they would repeat every 2.1 m); the material adds
+  // them in world space (see index.js runner material patch).
+  return ctx.textures.generate('gallery:runner3', {
+    size: 2048, aspect: 0.5, tile: true, normalStrength: 0.9,
     glsl: /* glsl */ `
     float nz(vec2 p, vec2 per) { return gnoise(p, per); }
     float leafD(vec2 p, vec2 c, float ang, float len, float wid) { p -= c; p = rot2(ang) * p; return sdVesica(p, len, len - wid); }
+    // lobed medallion outline: an elongated octagon whose edge carries a ring of rounded lobes
+    float medD(vec2 q, vec2 r, float lobes, float lobeA) {
+      float d = sdRhombus(q, r) * 0.6 + sdEllipse(q, r * vec2(0.82, 0.8)) * 0.4;
+      float a = atan(q.y / r.y, q.x / r.x);
+      return d - lobeA * (0.5 + 0.5 * cos(a * lobes));
+    }
     void surface(vec2 uv, inout Surface s) {
       vec2 p = uv;
       float ax = abs(p.x - 0.5);
-      vec3 crimson = vec3(0.42, 0.07, 0.06);
-      vec3 madder = vec3(0.32, 0.05, 0.05);
-      vec3 navy = vec3(0.06, 0.08, 0.19);
-      vec3 gold = vec3(0.7, 0.52, 0.24);
-      vec3 ivory = vec3(0.76, 0.69, 0.55);
-      vec3 teal = vec3(0.09, 0.24, 0.24);
-      vec3 rose = vec3(0.6, 0.28, 0.24);
+      float py = p.y * 4.0;                                  // border units (old 0.525 m tile)
+      vec3 crimson = vec3(0.40, 0.065, 0.055);
+      vec3 madder = vec3(0.30, 0.048, 0.045);
+      vec3 navy = vec3(0.055, 0.075, 0.18);
+      vec3 gold = vec3(0.66, 0.48, 0.22);
+      vec3 ivory = vec3(0.74, 0.67, 0.53);
+      vec3 teal = vec3(0.08, 0.22, 0.22);
+      vec3 rose = vec3(0.58, 0.27, 0.22);
       vec3 col;
       float h = 0.55;
+      // hand-knotted irregularity: every motif boundary wanders by a few knots
+      vec2 wob = vec2(nz(p * vec2(30.0, 60.0), vec2(30.0, 60.0)), nz(p * vec2(30.0, 60.0) + 7.0, vec2(30.0, 60.0))) * 0.004;
       if (ax < 0.29) {
-        // ---- field: herati lattice, cells ~10 cm square
-        vec2 g = vec2((p.x - 0.5) / 0.0967, p.y / 0.184);
+        // metres in the field, origin at the medallion centre
+        vec2 m = vec2((p.x - 0.5) * 1.05, (p.y - 0.5) * 2.1) + wob * vec2(1.05, 2.1);
+        // ---- ground: small herati repeat (~5 x 6 cm), low contrast so it reads as texture
+        vec2 g = vec2(m.x / 0.0508, m.y / 0.0583);
         vec2 gi = floor(g), gf = fract(g) - 0.5;
         float par = mod(gi.x + gi.y, 2.0);
-        col = mix(crimson, madder, 0.25 + 0.5 * par);
-        // diamond lattice of thin ivory vines
+        col = mix(crimson, madder, 0.35 + 0.3 * par);
         float lat = abs(abs(gf.x) + abs(gf.y) - 0.5);
-        col = mix(col, ivory * 0.85, smoothstep(0.035, 0.012, lat));
-        // central rosette: eight petals around a navy eye
-        vec2 q = gf;
-        float pet = length(polarRep(q, 8.0) - vec2(0.12, 0.0)) - 0.055;
-        col = mix(col, par > 0.5 ? navy * 1.4 : teal, smoothstep(0.012, -0.012, pet));
-        col = mix(col, gold, smoothstep(0.01, -0.01, abs(length(q) - 0.06) - 0.012));
-        col = mix(col, navy, smoothstep(0.01, -0.01, length(q) - 0.035));
-        // four lancet leaves pointing into the lattice corners
-        float lf = 1e5;
-        for (int k = 0; k < 4; k++) { float an = 0.7854 + float(k) * 1.5708; lf = min(lf, leafD(q, vec2(cos(an), sin(an)) * 0.3, an + 1.5708, 0.11, 0.04)); }
-        col = mix(col, par > 0.5 ? gold * 0.85 : rose, smoothstep(0.01, -0.01, lf));
-        // tiny ivory dots at lattice nodes
-        col = mix(col, ivory, smoothstep(0.03, 0.0, length(abs(gf) - vec2(0.5, 0.0)) - 0.03));
-        col = mix(col, ivory, smoothstep(0.03, 0.0, length(abs(gf) - vec2(0.0, 0.5)) - 0.03));
-        h += 0.06 * smoothstep(0.01, -0.01, min(pet, lf));
+        col = mix(col, mix(col, ivory, 0.45), smoothstep(0.06, 0.02, lat));
+        float ros = length(polarRep(gf, 4.0) - vec2(0.16, 0.0)) - 0.08;
+        col = mix(col, par > 0.5 ? navy * 1.3 : teal * 0.9, smoothstep(0.03, -0.03, ros) * 0.8);
+        col = mix(col, gold * 0.8, smoothstep(0.05, 0.0, length(gf) - 0.06) * 0.7);
+        // ---- central medallion (0.9 m long, fills the field width)
+        vec2 mq = m;
+        float md = medD(mq, vec2(0.27, 0.44), 16.0, 0.014);
+        float inMed = smoothstep(0.004, -0.004, md);
+        if (md < 0.0) {
+          // concentric bands: navy outer field, ivory reciprocal band, crimson heart, gold core
+          col = navy * (1.0 + 0.15 * nz(m * 40.0, vec2(40.0)));
+          // scrolling vine inside the navy band
+          float vr = atan(mq.y, mq.x);
+          float rr = length(mq / vec2(0.27, 0.44));
+          float vine = abs(rr - 0.78 - 0.045 * sin(vr * 14.0)) - 0.012;
+          col = mix(col, gold * 0.75, smoothstep(0.012, -0.004, vine));
+          float pal = length(polarRep(mq / vec2(0.27, 0.44), 14.0) - vec2(0.86, 0.0)) - 0.035;
+          col = mix(col, rose, smoothstep(0.01, -0.01, pal));
+          float md2 = medD(mq, vec2(0.19, 0.31), 12.0, 0.01);
+          col = mix(col, ivory * 0.92, smoothstep(0.004, -0.004, md2));
+          float md3 = medD(mq, vec2(0.155, 0.255), 12.0, 0.008);
+          col = mix(col, crimson * 1.05, smoothstep(0.004, -0.004, md3));
+          // heart: eight-petal rosette inside a star
+          float st = sdStar(mq * vec2(1.0, 0.7), 0.11, 8.0, 3.0);
+          col = mix(col, teal * 1.2, smoothstep(0.004, -0.004, st));
+          float pet = length(polarRep(mq, 8.0) - vec2(0.05, 0.0)) - 0.022;
+          col = mix(col, ivory, smoothstep(0.004, -0.004, pet));
+          col = mix(col, gold, smoothstep(0.004, -0.004, length(mq) - 0.022));
+          col = mix(col, navy, smoothstep(0.003, -0.003, length(mq) - 0.01));
+          // fine ivory outline at each band edge
+          col = mix(col, ivory * 0.8, stroke(md2, 0.0, 0.004) + stroke(md3, 0.0, 0.003));
+          h += 0.05;
+        }
+        col = mix(col, ivory * 0.85, stroke(md, 0.0, 0.0045));
+        // pendant palmettes above and below the medallion
+        for (int k = 0; k < 2; k++) {
+          float sg = k == 0 ? 1.0 : -1.0;
+          vec2 pq = vec2(m.x, (m.y - sg * 0.53) * sg);
+          float stem = sdBox(pq - vec2(0.0, -0.05), vec2(0.008, 0.05));
+          float palm = sdEllipse(pq - vec2(0.0, 0.03), vec2(0.07, 0.05));
+          float fan = length(polarRep(pq - vec2(0.0, 0.0), 9.0) - vec2(0.075, 0.0)) - 0.02;
+          float dd = min(min(stem, palm), max(fan, -pq.y));
+          col = mix(col, navy * 1.2, smoothstep(0.004, -0.004, dd));
+          col = mix(col, gold * 0.8, smoothstep(0.004, -0.004, sdEllipse(pq - vec2(0.0, 0.03), vec2(0.035, 0.022))));
+        }
+        // half-diamond spandrels at the tile ends (they meet between medallions)
+        vec2 sq = vec2(m.x, 1.05 - abs(m.y));
+        float sp = sdRhombus(sq, vec2(0.2, 0.2));
+        if (sp < 0.0) {
+          col = mix(navy, teal, 0.35);
+          float sp2 = sdRhombus(sq, vec2(0.13, 0.13));
+          col = mix(col, ivory * 0.9, smoothstep(0.004, -0.004, sp2));
+          col = mix(col, crimson, smoothstep(0.004, -0.004, sdRhombus(sq, vec2(0.1, 0.1))));
+          col = mix(col, gold * 0.85, smoothstep(0.004, -0.004, length(polarRep(sq, 6.0) - vec2(0.04, 0.0)) - 0.016));
+        }
+        col = mix(col, ivory * 0.8, stroke(sp, 0.0, 0.004));
+        // four-leaf sprays scattered on the open ground between figures
+        h += 0.04 * inMed;
       } else {
-        float b = (ax - 0.29) / 0.21;                       // 0 inner .. 1 outer edge
+        float b = (ax - 0.29) / 0.21 + wob.x * 2.0;          // 0 inner .. 1 outer edge
         col = navy;
-        // inner guard: crimson stripe with ivory reciprocal dots
         if (b < 0.16) {
           col = mix(crimson, madder, 0.4);
-          float dy = fract(p.y * 18.0) - 0.5;
+          float dy = fract(py * 18.0) - 0.5;
           col = mix(col, ivory * 0.9, smoothstep(0.02, 0.0, length(vec2((b - 0.08) * 6.0, dy * 0.35)) - 0.07));
           col = mix(col, gold * 0.8, smoothstep(0.02, 0.0, abs(b - 0.01)) + smoothstep(0.02, 0.0, abs(b - 0.15)));
         } else if (b < 0.76) {
-          // main border: navy with a running vine, alternating rosettes and serrated leaves
-          float bb = (b - 0.46) / 0.3;                      // -1..1 across the band
-          float vy = p.y * 4.0;
+          float bb = (b - 0.46) / 0.3;
+          float vy = py * 4.0;
           float ph = fract(vy);
           float vine = abs(bb - 0.55 * sin(vy * 6.2832)) - 0.07;
           col = mix(col, gold * 0.8, smoothstep(0.05, -0.02, vine));
-          vec2 rp = vec2(bb * 0.3, (ph - 0.5) * 0.25 * 1.0);
+          vec2 rp = vec2(bb * 0.3, (ph - 0.5) * 0.25);
           float side = step(0.5, fract(vy * 0.5));
           vec2 rc = vec2((side > 0.5 ? 0.55 : -0.55) * 0.3, 0.0);
-          float ros = length(polarRep((rp - rc) * vec2(1.0, 0.95), 6.0) - vec2(0.032, 0.0)) - 0.02;
-          col = mix(col, side > 0.5 ? ivory * 0.92 : rose * 1.1, smoothstep(0.006, -0.006, ros));
+          float ro = length(polarRep((rp - rc) * vec2(1.0, 0.95), 6.0) - vec2(0.032, 0.0)) - 0.02;
+          col = mix(col, side > 0.5 ? ivory * 0.92 : rose * 1.1, smoothstep(0.006, -0.006, ro));
           col = mix(col, crimson, smoothstep(0.006, -0.006, length(rp - rc) - 0.014));
           float lv = leafD(rp, -rc * 0.9 + vec2(0.0, 0.02), side > 0.5 ? 0.8 : -0.8, 0.045, 0.018);
           col = mix(col, teal * 1.3, smoothstep(0.006, -0.006, lv));
-          h += 0.05 * smoothstep(0.006, -0.006, min(ros, lv));
+          h += 0.05 * smoothstep(0.006, -0.006, min(ro, lv));
         } else if (b < 0.9) {
-          // outer guard: ivory with crimson running dog
-          col = ivory * 0.82;
-          float rd = abs((b - 0.83) * 14.0 - 0.6 * sin(p.y * 18.0 * 6.2832 + abs(fract(p.y * 18.0) - 0.5) * 3.0)) - 0.18;
+          col = ivory * 0.8;
+          float rd = abs((b - 0.83) * 14.0 - 0.6 * sin(py * 18.0 * 6.2832 + abs(fract(py * 18.0) - 0.5) * 3.0)) - 0.18;
           col = mix(col, crimson * 0.95, smoothstep(0.08, -0.08, rd));
         } else {
-          // overcast selvedge binding
           col = vec3(0.13, 0.05, 0.035);
           h -= 0.25 * smoothstep(0.92, 1.0, b);
         }
         col = mix(col, gold * 0.6, smoothstep(0.012, 0.0, abs(b - 0.16)) + smoothstep(0.012, 0.0, abs(b - 0.76)) + smoothstep(0.012, 0.0, abs(b - 0.9)));
       }
       // abrash: dye lots band across the runner
-      float abrash = nz(vec2(p.y * 0.6, ax * 1.0), vec2(1.0, 4.0));
+      float abrash = nz(vec2(p.y * 2.0, ax * 1.0), vec2(2.0, 4.0));
       col *= 0.9 + 0.16 * abrash;
-      // worn walking line: pile worn down, colours faded toward the warp
-      float wearN = nz(p * vec2(5.0, 6.0), vec2(5.0, 6.0)) * 0.5 + 0.5;
-      float wear = smoothstep(0.24, 0.0, ax) * smoothstep(0.35, 0.75, wearN);
-      vec3 warp = vec3(0.55, 0.47, 0.36);
-      col = mix(col, mix(col, warp, 0.35) * 0.9, wear * 0.75);
-      // hand-knotted pile (~2.5 mm knots)
-      vec2 kn = fract(p * vec2(420.0, 210.0));
+      // hand-knotted pile (~2.5 mm knots) + fuzz
+      vec2 kn = fract(p * vec2(420.0, 840.0));
       float knot = smoothstep(0.55, 0.1, length(kn - 0.5));
-      float fuzz = nz(p * vec2(380.0, 190.0), vec2(380.0, 190.0)) * 0.5 + 0.5;
-      col *= 0.82 + 0.16 * knot + 0.1 * fuzz;
+      float fuzz = nz(p * vec2(380.0, 760.0), vec2(380.0, 760.0)) * 0.5 + 0.5;
+      col *= 0.84 + 0.12 * knot + 0.1 * fuzz;
       s.albedo = col;
-      s.height = h + knot * 0.14 + fuzz * 0.08 - wear * 0.1;
+      s.height = h * 0.5 + knot * 0.16 + fuzz * 0.12;
       s.rough = 0.95;
       s.metal = 0.0;
-      s.ao = 0.8 + 0.2 * knot;
+      s.ao = 0.82 + 0.18 * knot;
     }`,
   });
 }
@@ -117,7 +163,7 @@ export function runnerTexture(ctx) {
 /** sky only: gradient, moon with halo, layered moonlit clouds. */
 export function nightSky(ctx) {
   return ctx.textures.generate('gallery:nightsky2', {
-    size: 1024, aspect: 1.0, tile: false,
+    size: 2048, aspect: 1.0, tile: false,
     glsl: /* glsl */ `
     void surface(vec2 uv, inout Surface s) {
       vec2 p = uv;
@@ -316,3 +362,42 @@ export function archDialTexture(ctx) {
 }
 
 export const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+
+// ---------------------------------------------------------------------------- moon cookie
+/**
+ * Projected texture for the moon spot: thin cloud dapple and the soft shadows of the bare
+ * branches outside, so the moonlight on the boards and the clock is broken and alive rather
+ * than a clean lit oval. (Glazing-bar shadows come from the real window geometry.)
+ */
+export function moonCookie(ctx) {
+  return ctx.textures.canvas('gallery:moonCookie', 512, 512, (g, w, h) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
+    const grd = g.createRadialGradient(w / 2, h / 2, w * 0.3, w / 2, h / 2, w * 0.5);
+    grd.addColorStop(0, '#fff'); grd.addColorStop(1, '#000');
+    g.fillStyle = grd; g.fillRect(0, 0, w, h);
+    // cloud dapple
+    let sd = 11; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    g.globalCompositeOperation = 'multiply';
+    for (let i = 0; i < 26; i++) {
+      const x = rnd() * w, y = rnd() * h, r = 30 + rnd() * 90;
+      const c = g.createRadialGradient(x, y, 0, x, y, r);
+      c.addColorStop(0, 'rgba(150,150,160,1)'); c.addColorStop(1, 'rgba(255,255,255,1)');
+      g.fillStyle = c; g.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    // soft branch shadows (blurred), entering from one side
+    g.filter = 'blur(5px)';
+    g.strokeStyle = 'rgba(40,40,48,1)'; g.lineCap = 'round';
+    const branch = (x, y, ang, len, wd, depth) => {
+      if (depth <= 0 || wd < 0.8) return;
+      const x2 = x + Math.cos(ang) * len, y2 = y + Math.sin(ang) * len;
+      g.lineWidth = wd; g.beginPath(); g.moveTo(x, y);
+      g.quadraticCurveTo((x + x2) / 2 + (rnd() - 0.5) * len * 0.3, (y + y2) / 2 + (rnd() - 0.5) * len * 0.3, x2, y2); g.stroke();
+      branch(x2, y2, ang + 0.35 + rnd() * 0.3, len * 0.72, wd * 0.62, depth - 1);
+      branch(x2, y2, ang - 0.4 - rnd() * 0.3, len * 0.66, wd * 0.58, depth - 1);
+    };
+    branch(-10, h * 0.22, 0.32, 150, 13, 6);
+    branch(w + 10, h * 0.85, Math.PI + 0.25, 120, 9, 5);
+    g.filter = 'none';
+    g.globalCompositeOperation = 'source-over';
+  }, { tile: false });
+}

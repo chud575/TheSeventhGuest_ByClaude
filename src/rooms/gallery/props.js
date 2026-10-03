@@ -80,7 +80,7 @@ export function makeClock(ctx, mat) {
   const G = ctx.geometry;
   const g = new THREE.Group();
   g.name = 'clock';
-  const wood = mat.doorWood, trim = mat.mahogany;
+  const wood = mat.clockWood || mat.doorWood, trim = mat.mahogany;
   const box = (w, h, d, x, y, z, m = wood, r = 0.004) => {
     const geo = r > 0 ? G.applyBoxUVs(new G.RoundedBoxGeometry(w, h, d, 2, r), 1) : G.boxUV(w, h, d, 1);
     const b = new THREE.Mesh(geo, m); b.position.set(x, y, z); g.add(b); return b;
@@ -123,12 +123,12 @@ export function makeClock(ctx, mat) {
   const doorM = new THREE.Mesh(doorGeo, wood); doorM.position.set(0, dy, 0.24); g.add(doorM);
   // moulded bead round the glazing
   const beadPts = hole.getSpacedPoints(80).map((q) => V3(q.x, q.y + dy, 0.264));
-  g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(beadPts, true), 120, 0.005, 6, true), mat.giltCap));
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(beadPts, true), 120, 0.006, 8, true), trim));
   const glassShape = new THREE.Shape(hole.getPoints(24));
   const clockGlass = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.08, roughness: 0.04, metalness: 0, envMapIntensity: 0.25, depthWrite: false, name: 'clockGlass' });
   const glass = new THREE.Mesh(new THREE.ShapeGeometry(glassShape, 24), clockGlass); glass.position.set(0, dy, 0.252); glass.userData.noShadow = true; glass.name = 'clockGlass'; g.add(glass);
   // dark interior behind the glass
-  box(0.36, trunkH - 0.04, 0.01, 0, ty0 + trunkH / 2, 0.02, mat.black, 0);
+  box(0.36, trunkH - 0.04, 0.01, 0, ty0 + trunkH / 2, 0.02, trim, 0);
   // weights on their lines
   for (const sx of [-1, 1]) {
     const wy = ty0 + 0.62 + sx * 0.08;
@@ -170,7 +170,7 @@ export function makeClock(ctx, mat) {
   hd.holes.push(new THREE.Path(dPts.reverse()));
   const hdM = new THREE.Mesh(G.applyBoxUVs(new THREE.ExtrudeGeometry(hd, { depth: 0.016, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 2, curveSegments: 24 }), 1), wood);
   hdM.position.set(0, hy0 + 0.0, 0.302); g.add(hdM);
-  const hbead = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(dPts.map((q) => V3(q.x, q.y + hy0, 0.325)), true), 160, 0.004, 6, true), mat.giltCap); g.add(hbead);
+  const hbead = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(dPts.map((q) => V3(q.x, q.y + hy0, 0.325)), true), 160, 0.005, 8, true), mat.brass); g.add(hbead);
   const hglass = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(dPts), 24), clockGlass); hglass.position.set(0, hy0, 0.31); hglass.userData.noShadow = true; g.add(hglass);
   // turned free-standing hood columns with brass capitals
   for (const sx of [-1, 1]) {

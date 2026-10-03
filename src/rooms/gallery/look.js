@@ -190,7 +190,7 @@ export function frameGeometry(w, h, profile) {
   return ng;
 }
 
-export function giltMaterial(ctx, { tone = 1.0, rough = 0.42, wear = 0.45 } = {}) {
+export function giltMaterial(ctx, { tone = 1.0, rough = 0.26, wear = 0.45 } = {}) {
   // carved acanthus/scroll relief rolls along every rail (normal + roughness only; the cavity
   // vertex colour still darkens the recesses), so frames read as cast ornament, not bars
   const set = ctx.materials.textures('gilded', { pattern: 1, repeats: 3, wear, dirt: 0.5 });
@@ -203,21 +203,21 @@ export function giltMaterial(ctx, { tone = 1.0, rough = 0.42, wear = 0.45 } = {}
   // cavity colour multiplies albedo AND darkens recesses toward brown (bole), raised areas stay bright
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uGiltMinRough = { value: rough };
-    sh.fragmentShader = 'uniform float uGiltMinRough;\n' + sh.fragmentShader;
+    sh.fragmentShader = 'uniform float uGiltMinRough;\nfloat gGiltK = 1.0;\n' + sh.fragmentShader;
+    // cavity (vertex colour): raised beads burnished bright and warm; recesses fall to ~20% with the
+    // red bole ground showing through worn, dirty leaf (and that bole is not metal)
     sh.fragmentShader = sh.fragmentShader.replace('#include <color_fragment>', `
 #ifdef USE_COLOR
-  float gCav = vColor.r;
-  diffuseColor.rgb = mix(vec3(0.16, 0.07, 0.035), diffuseColor.rgb, smoothstep(0.15, 0.85, gCav));
-  diffuseColor.rgb *= 0.55 + 0.5 * gCav;
+  gGiltK = smoothstep(0.28, 0.92, vColor.r);
+  vec3 gBole = vec3(0.21, 0.055, 0.028);
+  diffuseColor.rgb = mix(gBole * 0.55, diffuseColor.rgb * vec3(1.08, 1.0, 0.9), gGiltK);
+  diffuseColor.rgb *= 0.2 + 0.85 * gGiltK;
 #endif`).replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-#ifdef USE_COLOR
-  roughnessFactor = mix(0.65, roughnessFactor, smoothstep(0.2, 0.9, vColor.r));
-#endif
-  // old water-gilt is burnished, not chromed: keep a floor under the roughness so point lights
-  // spread into soft sheens instead of pin-point hot spots
-  roughnessFactor = max(roughnessFactor, uGiltMinRough);`);
+  // burnished raised work ~0.25, recesses ~0.6 (the texture adds the carved breakup in between)
+  roughnessFactor = mix(0.62, max(roughnessFactor * 0.6, uGiltMinRough), gGiltK);`).replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
+  metalnessFactor *= mix(0.25, 1.0, gGiltK);`);
   };
-  m.customProgramCacheKey = () => 'gallery-gilt2';
+  m.customProgramCacheKey = () => 'gallery-gilt3';
   return m;
 }
 

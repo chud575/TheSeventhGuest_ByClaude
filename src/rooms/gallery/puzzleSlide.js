@@ -26,7 +26,7 @@ const N = 4;
 const SOLVED = Array.from({ length: N * N }, (_, i) => i);   // 15 = gap
 const GAP = N * N - 1;
 
-export function createSlidePuzzle(ctx, { material, backMaterial, edgeMaterial, trayMaterial, tile = 0.222, pitch = 0.224, depth = 0.005, random, onSolvedCb, camera }) {
+export function createSlidePuzzle(ctx, { material, backMaterial, edgeMaterial, trayMaterial, letterMaterial = null, tile = 0.2205, pitch = 0.224, depth = 0.0065, random, onSolvedCb, camera }) {
   const group = new THREE.Group();
   group.name = 'slidePuzzle';
   group.userData.dynamic = true;
@@ -36,7 +36,9 @@ export function createSlidePuzzle(ctx, { material, backMaterial, edgeMaterial, t
   // face laid on its top; 2 mm grooves between pieces show the felt bed 8 mm below the faces.
   const tiles = [];
   const BED = -0.003;                                            // felt surface (tile backs rest on it)
-  const bodyGeo = new RoundedBoxGeometry(tile, tile, depth, 3, 0.0015);
+  // 3.5 mm rounded arris all round: the lacquered bevel catches a light edge around every piece
+  const BEV = 0.0035;
+  const bodyGeo = new RoundedBoxGeometry(tile, tile, depth, 4, BEV);
   const shadowTex = ctx.textures.canvas('gallery:tileShadow2', 128, 128, (g, w, h) => {
     const img = g.createImageData(w, h);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -50,8 +52,9 @@ export function createSlidePuzzle(ctx, { material, backMaterial, edgeMaterial, t
   }, { tile: false });
   const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: 0.92, name: 'tileShadow' });
   const shadowGeo = new THREE.PlaneGeometry(tile / 0.76, tile / 0.76);
-  const faceW = tile - 0.0034;
-  for (let id = 0; id < N * N - 1; id++) {
+  const faceW = tile - BEV * 1.6;
+  const jr = random ? () => random.next() : Math.random;
+  for (let id = 0; id < N * N; id++) {
     const r = Math.floor(id / N), c = id % N;
     const t = new THREE.Group();
     t.name = `tile${id}`;
@@ -74,9 +77,23 @@ export function createSlidePuzzle(ctx, { material, backMaterial, edgeMaterial, t
     sh.position.set(0.002, -0.004, BED + 0.0003); sh.renderOrder = 1;
     t.add(sh);
     t.userData.id = id;
+    // hand-cut pieces never sit perfectly square (~0.2 deg) and each one's varnish has aged a little
+    // differently (a per-piece tone on the lacquered body)
+    t.userData.jitter = (jr() - 0.5) * 0.007;
+    t.rotation.z = t.userData.jitter;
+    if (jr() > 0.5) { body.material = edgeMaterial.clone(); body.material.color.multiplyScalar(0.82 + jr() * 0.3); }
     tiles.push(t);
     group.add(t);
+    if (id === GAP) { t.visible = false; t.userData.signature = true; }
   }
+  const sigTile = tiles[GAP];
+  // the assembled likeness as ONE seamless panel (shown once the pieces have closed up on solve)
+  const whole = new THREE.Mesh(new THREE.PlaneGeometry(pitch * N - 0.002, pitch * N - 0.002), material);
+  whole.position.z = BED + depth + 0.0004;
+  whole.visible = false;
+  whole.receiveShadow = true;
+  group.add(whole);
+  let reveal = 0;      // 0 = playing, (0,1) = closing up, 1 = whole
   // felt bed the tiles slide on, recessed inside a moulded walnut tray
   const span = pitch * N;
   const back = new THREE.Mesh(new THREE.BoxGeometry(span + 0.004, span + 0.004, 0.01), backMaterial);
@@ -111,7 +128,7 @@ export function createSlidePuzzle(ctx, { material, backMaterial, edgeMaterial, t
   const targets = new Map();
   const place = (snap) => {
     board.forEach((id, i) => {
-      if (id === GAP) return;
+      if (id === GAP && !sigTile.visible) return;
       const t = tiles[id];
       const p = cellPos(i);
       targets.set(t, p);
@@ -152,6 +169,18 @@ export function createSlidePuzzle(ctx, { material, backMaterial, edgeMaterial, t
       t.position.z = d > 0.002 ? 0.003 : 0;
     }
     animating = moving;
+    if (reveal > 0 && reveal < 1 && !moving) {
+      reveal = Math.min(1, reveal + dt / 1.6);
+      const e = reveal * reveal * (3 - 2 * reveal);
+      // the grooves close: pieces swell into each other and square up
+      const k = 1 + (pitch / tile - 1) * e;
+      for (const t of tiles) { t.scale.set(k, k, 1); t.rotation.z = t.userData.jitter * (1 - e); }
+      if (reveal >= 1) setWhole(true);
+    }
+  }
+  function setWhole(on) {
+    whole.visible = on;
+    for (const t of tiles) t.visible = !on && (t !== sigTile || reveal > 0);
   }
 
   function tileFromHit(hit) {
@@ -161,9 +190,13 @@ export function createSlidePuzzle(ctx, { material, backMaterial, edgeMaterial, t
   }
 
   function setSolvedVisual() {
-    // drop the missing final piece in from the side: the 16th tile is the toymaker's "signature"
+    // the missing 16th piece (the toymaker's "signature" corner) slides in from the side, then the
+    // pieces close up into one seamless canvas
     board = SOLVED.slice();
+    sigTile.visible = true;
+    sigTile.position.copy(cellPos(GAP)).add(new THREE.Vector3(pitch * 1.2, 0, 0));
     place(false);
+    if (reveal === 0) reveal = 0.0001;
   }
 
   // ------------------------------------------------------------ puzzle definition (engine API)
@@ -174,7 +207,7 @@ export function createSlidePuzzle(ctx, { material, backMaterial, edgeMaterial, t
       p.status(isSolved() ? 'He is whole.' : 'Slide the pieces until the face is whole.');
     },
     cursorAt(ndc, p) {
-      const hit = p.raycast(tiles, ndc)[0];
+      const hit = p.raycast(tiles.filter((t) => t.visible), ndc)[0];
       if (!hit) return 'default';
       const id = tileFromHit(hit);
       const i = board.indexOf(id), g = gapIndex();
@@ -182,7 +215,7 @@ export function createSlidePuzzle(ctx, { material, backMaterial, edgeMaterial, t
     },
     onPointer(type, e, ndc, p) {
       if (type !== 'down') return;
-      const hit = p.raycast(tiles, ndc)[0];
+      const hit = p.raycast(tiles.filter((t) => t.visible), ndc)[0];
       const id = tileFromHit(hit);
       if (id < 0) return;
       const n = slideAt(board.indexOf(id));
@@ -215,7 +248,9 @@ export function createSlidePuzzle(ctx, { material, backMaterial, edgeMaterial, t
     group, tiles, puzzle, update,
     state: () => ({ board: board.slice(), moves, solved: isSolved(), correct: correctCount(), animating }),
     slideAt, isSolved,
-    forceSolved() { setSolvedVisual(); place(true); },
+    forceSolved() { setSolvedVisual(); place(true); reveal = 1; for (const t of tiles) { t.scale.set(pitch / tile, pitch / tile, 1); t.rotation.z = 0; } setWhole(true); },
+    revealProgress: () => reveal,
+    revealSolved() { setSolvedVisual(); },
     setBoard(b) { board = b.slice(); place(true); },
   };
 }

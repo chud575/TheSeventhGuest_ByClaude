@@ -4,10 +4,11 @@ import { flicker } from '../../engine/fx/index.js';
 import { X0, X1, Z0, Z1, H, DADO, BAYS, BAY_CENTERS, DOORS, ARCH, WIN, PUZZLE, PIL } from './layout.js';
 import { buildShell, buildWindow, buildLanding, makeDoor, mount } from './architecture.js';
 import { makeFramed, makeClock, makeConsole, makeBench, makePlaque, makeLantern } from './props.js';
-import { runnerTexture, nightSky, treeLine, branchCard } from './textures.js';
+import { runnerTexture, nightSky, treeLine, branchCard, moonCookie } from './textures.js';
 import { makePortraitMaterial, createGaze } from './portraits.js';
 import { patchWallpaper, makeReflectiveFloor, giltMaterial, mahoganyTexture } from './look.js';
-import { makeGasBracket, makeGlobeMaterial, makeLightPool, makeGhostCard, silhouetteTexture, makeOvalFrame, makeGiltFrame, makePictureLight, makeSideChair, makeCoveredBust, makeBirdcage, transomTexture, linenTexture } from './dressing.js';
+import { makeGasBracket, makeGlobeMaterial, makeLightPool, silhouetteTexture, makeOvalFrame, makeGiltFrame, makePictureLight, makeSideChair, makeCoveredBust, makeJardiniere, makeBirdcage, transomTexture, linenTexture } from './dressing.js';
+import { makeGhost } from './ghost.js';
 import { createSlidePuzzle, meta as slideMeta, SLIDE_ID } from './puzzleSlide.js';
 
 /**
@@ -43,7 +44,7 @@ export default {
 
     // ================================================================ materials
     const mat = {
-      wall: M.create('damask', { base: [0.05, 0.078, 0.24], motif: [0.06, 0.092, 0.275], accent: [0.5, 0.4, 0.22], accentStrength: 0.03, sheen: 0.95, aging: 0.45, variant: 0, normalScale: 0.12, repeat: [2 / 0.1777, 2 / 0.1777], size: hiTex }),
+      wall: M.create('damask', { base: [0.062, 0.112, 0.26], motif: [0.08, 0.138, 0.3], accent: [0.5, 0.4, 0.22], accentStrength: 0.02, sheen: 0.62, aging: 0.45, variant: 0, normalScale: 0.12, repeat: [2 / 0.1777, 2 / 0.1777], size: hiTex }),
       floor: M.create('floorboards', { species: 'walnut', boards: 6, boardLength: 0.5, polish: 0.9, wear: 0.5, tint: [1.05, 0.86, 0.72], roughness: 0.85, repeat: [1 / 3.2, 1 / 1.0] }),
       ceiling: M.create('plaster', { color: [0.25, 0.28, 0.38], cracks: 0.3, stains: 0.45, repeat: [0.45, 0.45] }),
       beam: M.create('plaster', { color: [0.24, 0.27, 0.36], cracks: 0.15, stains: 0.3, repeat: [0.8, 0.8] }),
@@ -76,11 +77,15 @@ export default {
       stem: M.basic('black', { color: 0x1a1a0e, roughness: 0.9 }),
       rose: M.basic('black', { color: 0x3a0c10, roughness: 0.85 }),
       mantle: new THREE.MeshBasicMaterial({ color: new THREE.Color(4.0, 2.5, 1.2), name: 'mantle' }),
+      deadMantle: new THREE.MeshStandardMaterial({ color: 0x8a8478, roughness: 0.9, name: 'deadMantle' }),
       lanternGlass: new THREE.MeshStandardMaterial({ color: 0x302010, emissive: new THREE.Color(1.0, 0.6, 0.28), emissiveIntensity: 0.55, roughness: 0.2, metalness: 0, transparent: true, opacity: 0.55, depthWrite: false, name: 'lanternGlass' }),
     };
     {
       const mt = mahoganyTexture(ctx).withRepeat(1 / 0.5, 1 / 1.0);
       mat.doorWood = new THREE.MeshPhysicalMaterial({ map: mt.map, normalMap: mt.normalMap, roughnessMap: mt.roughnessMap, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 1, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.3, color: new THREE.Color(1.1, 1.0, 1.0), name: 'doorMahogany' });
+      // the long-case clock: same figured mahogany under a deeper French-polish lacquer
+      mat.clockWood = mat.doorWood.clone();
+      mat.clockWood.clearcoat = 0.6; mat.clockWood.clearcoatRoughness = 0.2; mat.clockWood.name = 'clockMahogany';
       const lt = mahoganyTexture(ctx).withRepeat(4, 4);
       mat.tileLacquer = new THREE.MeshPhysicalMaterial({ map: lt.map, normalMap: lt.normalMap, normalScale: new THREE.Vector2(0.2, 0.2), roughness: 0.55, metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.35, color: new THREE.Color(0.55, 0.42, 0.36), envMapIntensity: 0.5, name: 'tileLacquer' });
     }
@@ -104,8 +109,9 @@ export default {
       mat.porcelainBlue = new THREE.MeshPhysicalMaterial({ map: jt, color: new THREE.Color(0.75, 0.75, 0.78), roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.15, envMapIntensity: 0.5, name: 'jar' });
     }
     {
-      const ln = linenTexture(ctx).withRepeat(5, 5);
-      mat.sheet = new THREE.MeshPhysicalMaterial({ map: ln.map, normalMap: ln.normalMap, normalScale: new THREE.Vector2(0.5, 0.5), color: new THREE.Color(0.95, 0.94, 0.9), roughness: 0.9, metalness: 0, sheen: 0.6, sheenRoughness: 0.8, sheenColor: new THREE.Color(0.85, 0.85, 0.9), side: THREE.DoubleSide, envMapIntensity: 0.4, name: 'dustSheet' });
+      // aged linen: warm grey-ivory, weave normal at full strength, a faint sheen only (no satin)
+      const ln = linenTexture(ctx).withRepeat(9, 9);
+      mat.sheet = new THREE.MeshPhysicalMaterial({ map: ln.map, normalMap: ln.normalMap, roughnessMap: ln.roughnessMap, normalScale: new THREE.Vector2(1.0, 1.0), color: new THREE.Color(0.82, 0.8, 0.74).multiplyScalar(1.25), vertexColors: true, roughness: 1, metalness: 0, sheen: 0.25, sheenRoughness: 0.85, sheenColor: new THREE.Color(0.8, 0.78, 0.72), side: THREE.DoubleSide, envMapIntensity: 0.35, name: 'dustSheet' });
       mat.pedestal = M.create('ebony', { repeat: [3, 3], roughness: 3.0, clearcoat: 0.25, clearcoatRoughness: 0.45 });
     }
     const skyTex = nightSky(ctx);
@@ -138,9 +144,38 @@ export default {
     {
       const G = ctx.geometry;
       const zA = Z0 + 0.55, zB = Z1 + 0.9, len = zB - zA, TH = 0.007;
-      const rep = runnerSet.withRepeat(1, len / (RUN_W / 2));
+      const RPT = len / 2.1;
+      const rep = runnerSet.withRepeat(1, RPT);
       mat.runner.map = rep.map; mat.runner.normalMap = rep.normalMap; mat.runner.roughnessMap = rep.ormMap; mat.runner.aoMap = rep.ormMap;
-      mat.runner.roughness = 1; mat.runner.needsUpdate = true;
+      mat.runner.roughness = 1; mat.runner.normalScale.set(0.6, 0.6);
+      // wear in metres along the whole runner (never repeats): a pale, flattened walking line down
+      // the centre, darker unworn edges, fading toward the moonlit window end, a few old stains
+      mat.runner.onBeforeCompile = (sh) => {
+        sh.uniforms.uRunLen = { value: len };
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+uniform float uRunLen;
+float rH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float rN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(rH(i), rH(i + vec2(1, 0)), f.x), mix(rH(i + vec2(0, 1)), rH(i + vec2(1, 1)), f.x), f.y); }
+float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9.1) * 0.2; }`).replace('#include <map_fragment>', `#include <map_fragment>
+{
+  float ax = abs(vMapUv.x - 0.5);
+  float al = vMapUv.y * 2.1;                       // metres from the window end
+  float n = rF(vec2(ax * 9.0, al * 1.4));
+  float walk = smoothstep(0.3, 0.02, ax + 0.06 * (n - 0.5)) * (0.45 + 0.55 * smoothstep(0.3, 0.7, rF(vec2(ax * 4.0, al * 0.5) + 5.0)));
+  float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11));
+  vec3 faded = mix(diffuseColor.rgb, vec3(lum) * vec3(1.15, 0.98, 0.82), 0.55) * 1.28 + vec3(0.02, 0.016, 0.012);
+  diffuseColor.rgb = mix(diffuseColor.rgb, faded, walk * 0.55);
+  // sun-fade near the window, darker where furniture kept the light off the edges
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(lum) * vec3(1.1, 0.95, 0.85) * 1.15, smoothstep(3.5, 0.0, al) * 0.3);
+  diffuseColor.rgb *= 1.0 - 0.22 * smoothstep(0.3, 0.48, ax);
+  // old stains and grime
+  float st = smoothstep(0.72, 0.86, rF(vec2(ax * 3.0 + 11.0, al * 0.9)));
+  diffuseColor.rgb *= 1.0 - 0.35 * st;
+  diffuseColor.rgb *= 0.9 + 0.2 * rF(vec2(ax * 20.0, al * 6.0));
+}`);
+      };
+      mat.runner.customProgramCacheKey = () => 'gallery-runner-wear';
+      mat.runner.needsUpdate = true;
       const g = new G.RoundedBoxGeometry(RUN_W, TH, len, 2, 0.0028);
       const run = new THREE.Mesh(g, mat.runner);
       run.position.set(0, TH / 2 + 0.0005, (zA + zB) / 2);
@@ -159,23 +194,32 @@ export default {
       const sh = new THREE.Mesh(new THREE.PlaneGeometry(RUN_W + 0.05, len + 0.05), new THREE.MeshBasicMaterial({ map: cs, transparent: true, depthWrite: false, color: 0x000000, name: 'runnerShadow' }));
       sh.rotation.x = -Math.PI / 2; sh.position.set(0, 0.0012, (zA + zB) / 2); sh.renderOrder = 1; sh.userData.noShadow = true;
       root.add(sh);
-      // fringe: knotted ivory warp ends
-      const wool = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.55, 0.5, 0.4), roughness: 0.95, name: 'fringe' });
-      const strand = new THREE.CylinderGeometry(0.0016, 0.0012, 0.055, 4); strand.rotateX(Math.PI / 2); strand.translate(0, 0, 0.0275);
-      const N = 150;
-      const fr = new THREE.InstancedMesh(strand, wool, N * 2);
-      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1), pv = new THREE.Vector3();
-      const rnd = ctx.random.fork('gallery-fringe');
-      for (let e = 0; e < 2; e++) for (let i = 0; i < N; i++) {
-        const x = -RUN_W / 2 + 0.01 + (i / (N - 1)) * (RUN_W - 0.02) + (rnd.next() - 0.5) * 0.003;
-        const dir = e ? 1 : -1;
-        q.setFromEuler(new THREE.Euler(-0.04 * dir, (e ? 0 : Math.PI) + (rnd.next() - 0.5) * 0.35, 0));
-        sc.set(1, 1, 0.75 + rnd.next() * 0.5);
-        pv.set(x, 0.0025, e ? zB - 0.004 : zA + 0.004);
-        m4.compose(pv, q, sc); fr.setMatrixAt(e * N + i, m4);
+      // fringe: knotted ivory warp ends, drawn into a mipmapped alpha strip (no aliasing comb at
+      // distance) and laid on the boards at both ends, slightly lifted where the knots sit
+      {
+        const ft = ctx.textures.canvas('gallery:fringe', 1024, 64, (c, w, h) => {
+          c.clearRect(0, 0, w, h);
+          let sd = 3; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+          for (let i = 0; i < 160; i++) {
+            const x = (i + 0.5) * (w / 160) + (rnd() - 0.5) * 2, L = h * (0.7 + rnd() * 0.28), sway = (rnd() - 0.5) * 5;
+            const tone = 175 + Math.floor(rnd() * 45);
+            c.strokeStyle = `rgba(${tone},${tone - 12},${tone - 34},1)`; c.lineWidth = 2.2;
+            c.beginPath(); c.moveTo(x, 0); c.quadraticCurveTo(x + sway * 0.5, L * 0.5, x + sway, L); c.stroke();
+          }
+          // the knot row at the root
+          for (let i = 0; i < 40; i++) { c.fillStyle = 'rgba(190,176,140,1)'; c.beginPath(); c.ellipse((i + 0.5) * (w / 40), 5, 9, 5, 0, 0, Math.PI * 2); c.fill(); }
+        }, { tile: false });
+        const fm = new THREE.MeshStandardMaterial({ map: ft, transparent: true, alphaTest: 0.25, roughness: 0.95, side: THREE.DoubleSide, name: 'fringe' });
+        for (const e of [0, 1]) {
+          const fp = new THREE.Mesh(new THREE.PlaneGeometry(RUN_W - 0.01, 0.06), fm);
+          fp.rotation.x = -Math.PI / 2;
+          if (!e) fp.rotation.z = Math.PI;
+          fp.position.set(0, 0.0025, e ? zB + 0.03 : zA - 0.03);
+          fp.userData.noShadow = true;
+          root.add(fp);
+        }
       }
-      fr.castShadow = false; fr.receiveShadow = true;
-      root.add(fr);
+      const m4 = new THREE.Matrix4();
       // brass stair-rod style edge pins every 90 cm
       const pinGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.004, 8);
       const n = Math.floor(len / 0.9);
@@ -202,7 +246,10 @@ export default {
       const base = [2.6, 3.2, 2.2, 2.9, 3.4, 2.4, 2.8, 2.0, 3.0, 2.5];
       for (const z of BAYS) for (const side of [-1, 1]) {
         const globeMat = makeGlobeMaterial(ctx);
-        const s = makeGasBracket(ctx, mat, globeMat, mat.mantle);
+        // break the rhythm: the right-hand bracket in bay 2 is dead (gas off, cold mantle), so the
+        // middle of the hall has a dark gap the eye must push through
+        const dead = k === 3;
+        const s = makeGasBracket(ctx, mat, globeMat, dead ? mat.deadMantle : mat.mantle);
         const holder = new THREE.Group();
         holder.add(s.group);
         s.group.position.z = PIL.d + 0.005;
@@ -224,21 +271,28 @@ export default {
         const pl = new THREE.PointLight(0xffb070, base[k], 6.5, 2);
         pl.position.copy(wp);
         root.add(pl);
-        sconces.push({ light: pl, globe: globeMat, pools: s.pools, base: base[k], amp: 0.6 + 0.5 * ((k * 7) % 5) / 4, seed: 7 + k * 3.3, dying: k === 6 });
+        sconces.push({ light: pl, globe: globeMat, pools: s.pools, base: dead ? 0 : base[k], amp: 0.6 + 0.5 * ((k * 7) % 5) / 4, seed: 7 + k * 3.3, dying: k === 6, hard: k === 4, dead });
+        if (dead) { pl.visible = false; for (const p of s.pools) p.visible = false; globeMat.emissiveIntensity = 0.02; }
         k++;
       }
     }
     // the light of one bracket on the far bay sputters, as if the gas were failing
     ctx.onUpdate((dt, t) => {
       for (const s of sconces) {
+        if (s.dead) continue;
         let f = 1 + (flicker(t, s.seed) - 1) * s.amp;
+        if (s.hard) {
+          // a starved jet: it gutters hard, dropping to a blue bead for a beat now and then
+          const g = Math.sin(t * 2.3) * Math.sin(t * 0.91 + 2.0) + 0.3 * Math.sin(t * 13.0);
+          f *= g > 0.55 ? 0.18 : (0.7 + 0.3 * Math.sin(t * 23.0 + 1.0));
+        }
         if (s.dying) {
           const sp = Math.sin(t * 1.7) * Math.sin(t * 0.63 + 1.0);
           const cut = sp > 0.82 ? 0.25 : 1.0;
           f *= cut * (0.85 + 0.15 * Math.sin(t * 31.0));
         }
         s.light.intensity = s.base * f;
-        s.globe.emissiveIntensity = 0.8 * f;
+        s.globe.emissiveIntensity = 0.5 * f;
         for (const p of s.pools) p.material.opacity = f;
       }
     });
@@ -274,19 +328,45 @@ export default {
       }
       return f;
     };
+    // salon hang on BOTH walls: a principal canvas per bay with smaller cabinet portraits, ovals,
+    // silhouettes and landscapes around it; every principal has its own brass picture light
     const pLady = await hang('lady', -1, BAY_CENTERS[0], { light: true });
     const pColonel = await hang('colonel', -1, BAY_CENTERS[1], { w: 0.8, h: 1.02, light: true });
-    const pElder = await hang('elder', 1, BAY_CENTERS[0] + 0.45);
-    const pWidow = await hang('widow', 1, BAY_CENTERS[2] + 0.38, { w: 0.7, h: 0.9, y: 1.95 });
+    const pElder = await hang('elder', 1, 5.45, { light: true });
+    await hang('poet', 1, 6.62, { w: 0.42, h: 0.54, y: 1.5, frameW: 0.08 });
+    const pWidow = await hang('widow', 1, BAY_CENTERS[2] + 0.38, { w: 0.7, h: 0.9, y: 1.95, light: true });
     const pChild = await hang('child', 1, BAY_CENTERS[2] - 0.62, { w: 0.46, h: 0.6, y: 1.84, frameW: 0.09 });
+    const pDoctor = await hang('doctor', 1, 1.8, { w: 0.46, h: 0.59, y: 1.82, frameW: 0.085 });
+    // ovals carrying real portraits (eyes follow too)
+    const hangOval = async (name, side, z, y, w, h) => {
+      const pm = await makePortraitMaterial(ctx, name);
+      const g = makeOvalFrame(ctx, mat, pm, w, h);
+      mount(g, side, z, y, 0.02);
+      g.userData.dynamic = true;
+      root.add(g);
+      portraits.push({ name, mesh: g.children[0], mat: pm, strength: 0.9, group: g, speed: 1.1 });
+      return g;
+    };
+    const oBelle = await hangOval('belle', 1, 6.62, 2.28, 0.36, 0.46);
+    // two lesser cabinet pictures by the far doors (an unknown sitter, a dark seascape)
+    for (const [side, z, subject, seed] of [[1, -5.0, 1, 21], [-1, -6.25, 2, 33]]) {
+      const pm = M.create('painting', { subject, seed, aspect: 0.78, size: 512 });
+      const f = makeGiltFrame(ctx, mat, pm, 0.4, 0.51, { fw: 0.075 });
+      mount(f.group, side, z, 1.8, 0.03);
+      root.add(f.group);
+    }
     const gaze = createGaze(portraits, ctx.camera, { instant: !!ctx.shot });
 
     // salon hang: cut-paper silhouettes and small landscapes between the big canvases
     const smalls = [
       ['sil', -1, BAY_CENTERS[0] - 0.78, 2.02, 1, true], ['sil', -1, BAY_CENTERS[0] + 0.78, 2.02, 2, false],
-      ['sil', -1, BAY_CENTERS[1] - 0.82, 2.1, 3, false], ['sil', 1, BAY_CENTERS[0] - 0.55, 2.2, 4, true],
+      ['sil', -1, BAY_CENTERS[1] - 0.82, 2.1, 3, false], ['sil', 1, 4.92, 2.32, 4, true],
       ['land', -1, BAY_CENTERS[3] - 0.78, 2.15, 5, 0], ['land', -1, BAY_CENTERS[3] + 0.78, 2.15, 6, 2],
       ['land', -1, BAY_CENTERS[1] + 0.84, 2.0, 7, 3],
+      // right wall: either side of the bedroom door, over the shrouded bust, by the game-room door
+      ['land', 1, 3.98, 1.78, 8, 2], ['sil', 1, 3.98, 2.3, 9, false], ['sil', 1, 1.8, 2.4, 10, true],
+      ['land', 1, -2.72, 2.2, 11, 0], ['sil', 1, -5.0, 2.4, 12, false],
+      ['sil', -1, -6.25, 2.4, 13, true],
     ];
     for (const [kind, side, z, y, seed, extra] of smalls) {
       let g;
@@ -318,7 +398,7 @@ export default {
         const e = c.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.25, w / 2, h / 2, Math.max(w, h) * 0.62);
         e.addColorStop(0, 'rgba(0,0,0,0)'); e.addColorStop(1, 'rgba(10,8,6,0.85)'); c.fillStyle = e; c.fillRect(0, 0, w, h);
       }, { tile: false });
-      const mirrorMat = new THREE.MeshStandardMaterial({ map: silver, color: 0x7a7c82, metalness: 1.0, roughness: 0.08, envMapIntensity: 0.3, name: 'mirror' });
+      const mirrorMat = new THREE.MeshStandardMaterial({ map: silver, color: 0xa8a49c, metalness: 1.0, roughness: 0.08, envMapIntensity: 1.6, name: 'mirror' });
       // the window's RectAreaLight would print a flat glowing card on the glass; the glass shows the
       // (baked) hall instead, so drop rect-light specular for this material only
       mirrorMat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <lights_physical_pars_fragment>', '#include <lights_physical_pars_fragment>\n#undef RE_Direct_RectArea'); };
@@ -344,9 +424,20 @@ export default {
       ch.rotation.y += dz > 0 ? -0.12 : 0.12;
       root.add(ch);
     }
+    // right bay 0: a hall chair under the old man; by the bedroom door, an aspidistra on a torchere
+    {
+      const ch = makeSideChair(ctx, mat);
+      mount(ch, 1, 5.45, 0, 0.03);
+      ch.rotation.y += 0.1;
+      root.add(ch);
+      const jd = makeJardiniere(ctx, mat);
+      mount(jd, 1, 4.0, 0, 0.0);
+      root.add(jd);
+    }
     // right bay 1: a bust shrouded in a dust sheet on a marble pedestal
-    const bust = makeCoveredBust(ctx, mat);
-    mount(bust, 1, -2.75, 0, 0.32);
+    const bust = await makeCoveredBust(ctx, mat);
+    mount(bust, 1, -2.75, 0, 0.42);
+    bust.rotation.y += 0.35;
     root.add(bust);
     const bench = makeBench(ctx, mat);
     mount(bench, 1, BAY_CENTERS[2], 0, 0.02);
@@ -400,7 +491,14 @@ export default {
     // a rect light gives broad gradients on the gilt instead of pin-point hot spots
     const puzzleLight = fx.areaLight({ center: [X0 + 1.05, PUZZLE.y + 0.95, PUZZLE.z], normal: [-0.6, -0.9, 0], width: 0.6, height: 0.1, color: 0xffb274, intensity: 24 });
     root.add(puzzleLight);
-    ctx.onUpdate((dt, t) => { puzzleLight.intensity = 24 * (0.9 + 0.1 * flicker(t, 9.1)); });
+    // after the solve the lamp swells (24 -> 40) while the likeness closes up, then settles warmer
+    let puzzleBoost = 0;
+    ctx.onUpdate((dt, t) => {
+      const target = solvedFx >= 1 ? 0.35 : solvedFx > 0 ? 1.0 : 0;
+      puzzleBoost += (target - puzzleBoost) * (1 - Math.exp(-dt * 2.5));
+      if (ctx.shot) puzzleBoost = target;
+      puzzleLight.intensity = (24 + 16 * puzzleBoost) * (0.9 + 0.1 * flicker(t, 9.1));
+    });
     // each girandole candle throws its own small flickering pool on the paper
     for (const s of [-1, 1]) {
       const cl = new THREE.PointLight(0xff9a40, 0.4, 1.2, 2);
@@ -429,41 +527,57 @@ export default {
     function applySolved(animate) {
       ctx.state.set('gallery.atticOpen', true);
       solvedFx = animate ? 0.001 : 1;
-      if (!animate) { atticHinge.rotation.y = -0.55; toyMat.userData.eyes.uGlow.value = 0.6; }
-      slide.forceSolved();
+      if (!animate) { atticHinge.rotation.y = -0.55; toyMat.userData.eyes.uGlow.value = 0.6; slide.forceSolved(); }
+      else slide.revealSolved();
     }
-    if (ctx.state.isSolved(SLIDE_ID)) applySolved(false);
+    // review hook: ?gsolved=1 in shot mode renders the room as it looks after the puzzle
+    const gSolvedParam = ctx.shot && typeof location !== 'undefined' && new URLSearchParams(location.search).get('gsolved') === '1';
+    if (ctx.state.isSolved(SLIDE_ID) || gSolvedParam) applySolved(false);
 
     // ================================================================ ghost (a grey lady in the moonlight)
-    const ghostCard = await makeGhostCard(ctx);
-    const ghost = ghostCard.mesh;
-    ghost.position.set(0.32, 1.02, -8.15);
+    // standing on the boards ~0.6 m in front of the window seat (never inside it), turned a little
+    // toward whoever approaches but never billboarded
+    const GHOST = V3(-0.32, 0.0, -8.25);
+    const ghostRig = await makeGhost(ctx);
+    const ghost = ghostRig.group;
+    ghost.position.copy(GHOST);
+    ghost.userData.dynamic = true;
     root.add(ghost);
-    const ghostU = ghostCard.uniforms;
+    const ghostU = ghostRig.uniforms;
     let ghostBoost = 0;
     ctx.onUpdate((dt, t) => {
-      ghost.position.y = 1.02 + Math.sin(t * 0.7) * 0.025;
-      ghost.rotation.y = Math.atan2(ctx.camera.position.x - ghost.position.x, ctx.camera.position.z - ghost.position.z);
+      ghost.position.y = GHOST.y + 0.02 + Math.sin(t * 0.7) * 0.02;
+      const yaw = Math.atan2(ctx.camera.position.x - ghost.position.x, ctx.camera.position.z - ghost.position.z);
+      ghost.rotation.y = THREE.MathUtils.clamp(yaw, -0.26, 0.26);
       // she comes and goes: never fully readable for long
       const cyc = Math.sin(t * 0.33) * 1.6 + 0.35 + Math.sin(t * 1.9) * 0.08;
-      ghostU.uFade.value = THREE.MathUtils.clamp(cyc, 0, 1) * 0.55 + ghostBoost;
+      ghostU.uFade.value = THREE.MathUtils.clamp(cyc, 0, 1) * 0.7 + ghostBoost;
     });
 
     // ================================================================ moonlight + fills
-    const moon = new THREE.SpotLight(0xa8bcff, 520, 30, 0.24, 0.75, 2);
+    // the moon does the lighting at this end: a hard key through the window (its glazing bars are
+    // cast by the real window geometry and reinforced by a mullion cookie), no hemisphere wash
+    const moon = new THREE.SpotLight(0xa4c6ff, 560, 30, 0.42, 0.12, 2);
     moon.position.set(0.35, 7.2, Z0 - 6.0);
     moon.target.position.set(-0.1, 0.0, -6.2);
     moon.castShadow = ctx.quality.shadows;
     moon.shadow.mapSize.set(Math.max(2048, ctx.quality.shadowMapSize || 0), Math.max(2048, ctx.quality.shadowMapSize || 0));
-    moon.shadow.bias = -0.0005; moon.shadow.normalBias = 0.02; moon.shadow.radius = 2.5; moon.shadow.blurSamples = 12;
+    moon.shadow.bias = -0.0005; moon.shadow.normalBias = 0.02; moon.shadow.radius = 2.0; moon.shadow.blurSamples = 12;
     moon.shadow.camera.near = 3; moon.shadow.camera.far = 22;
+    if (moon.castShadow) moon.map = moonCookie(ctx);
     root.add(moon, moon.target);
-    root.add(new THREE.HemisphereLight(0x3d5cc0, 0x1a1210, 1.0));
-    // dim moonlit fill so the cornice, beams and rose read instead of a black void
-    root.add(new THREE.HemisphereLight(0x2a3550, 0x2a3550, 0.55));
-    // the moon pool on the boards bounces a little cold light back up at the far ceiling
-    root.add(fx.areaLight({ center: [0, 0.03, -6.9], normal: [0, 1, 0.15], width: 1.6, height: 2.2, color: 0x6f80b8, intensity: 3.5 }));
-    root.add(fx.areaLight({ center: [0, WIN.sill + 1.2, Z0 + 0.05], normal: [0, -0.65, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 1.6 }));
+    // a whisper of cold sky fill so the blacks are not dead (was two hemisphere lights at 1.55 total)
+    root.add(new THREE.HemisphereLight(0x30587e, 0x120c0a, 0.12));
+    // the moon pool on the boards bounces a little cold light back up at the far ceiling and the clock
+    root.add(fx.areaLight({ center: [0, 0.03, -6.9], normal: [0, 1, 0.15], width: 1.6, height: 2.2, color: 0x6c88b0, intensity: 1.2 }));
+    // the window itself: a broad cold panel that models the curtains, jambs and window seat
+    root.add(fx.areaLight({ center: [0, WIN.sill + 1.2, Z0 + 0.05], normal: [0, -0.5, 1], width: WIN.w, height: WIN.h, color: 0x88b2f2, intensity: 2.6 }));
+    // warm/cold split on the end walls: the last pair of gas brackets throws a dim 2700K bounce
+    for (const sx of [-1, 1]) {
+      const b = new THREE.PointLight(0xffa457, 0.3, 4.5, 2);
+      b.position.set(sx * 1.2, 1.7, BAYS[3] - 0.6);
+      root.add(b);
+    }
     // warm glow from the foyer chandelier below the landing balustrade (the fitting itself is out of sight)
     // (kept above the landing floor level, out in the stairwell, so it cannot leak up through the boards)
     // a broad soft source (no tight specular on the glossy jambs), aimed up out of the stairwell
@@ -485,7 +599,7 @@ export default {
       const mant = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.016, 0.04, 12), mat.mantle); mant.position.y = 0.58; lamp.add(mant);
       root.add(lamp);
       landingFill.position.set(1.15, 1.78, Z1 + 2.5);
-      ctx.onUpdate((dt, t) => { const f = flicker(t, 12.7); landingFill.intensity = 5 * f; globeMat.emissiveIntensity = 0.8 * f; });
+      ctx.onUpdate((dt, t) => { const f = flicker(t, 12.7); landingFill.intensity = 5 * f; globeMat.emissiveIntensity = 0.5 * f; });
     }
     // a pendant lantern over the landing, its spill reaching back through the arch
     {
@@ -516,7 +630,7 @@ export default {
         const b = makeGasBracket(ctx, mat, gm, mat.mantle);
         b.group.position.set(sx * 1.55, 1.75, Z1 + 8.58); b.group.rotation.y = Math.PI; root.add(b.group);
         const l = new THREE.PointLight(0xffb070, 2.4, 5, 2); l.position.set(sx * 1.55, 1.9, Z1 + 8.38); root.add(l);
-        ctx.onUpdate((dt, t) => { const f = flicker(t, 40 + sx * 3); l.intensity = 2.4 * f; gm.emissiveIntensity = 0.8 * f; });
+        ctx.onUpdate((dt, t) => { const f = flicker(t, 40 + sx * 3); l.intensity = 2.4 * f; gm.emissiveIntensity = 0.5 * f; });
       }
     }
     // a dim, low-turned bracket by the arch on the left wall so the near corner keeps its shape
@@ -539,7 +653,7 @@ export default {
     // ---- what lies beyond the glass: sky dome, distant tree line, a near branch that sways
     {
       const sky = root.getObjectByName('sky');
-      if (sky) { sky.scale.set(2.4, 1.4, 1); sky.position.set(0.6, 3.2, Z0 - 7.5); }
+      if (sky) { sky.scale.set(6.2, 3.6, 1); sky.position.set(0.0, 1.9, Z0 - 20.0); }   // far back: real parallax against the bars
       const tl = treeLine(ctx);
       const tlm = new THREE.Mesh(new THREE.PlaneGeometry(9, 4.5), new THREE.MeshBasicMaterial({ map: tl.map, transparent: true, alphaTest: 0.02, color: new THREE.Color(1.3, 1.3, 1.5), name: 'treeLine' }));
       tlm.position.set(0.4, 1.3, Z0 - 5.0); tlm.userData.noShadow = true; tlm.name = 'treeLine'; root.add(tlm);
@@ -550,10 +664,15 @@ export default {
       ctx.onUpdate((dt, t) => { pivot.rotation.z = Math.sin(t * 0.6) * 0.025 + Math.sin(t * 1.7) * 0.008; });
       // window seat: fringed cushion and two bolsters
       const G = ctx.geometry;
-      const fr = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.0025, 0.0018, 0.05, 4), mat.velvetSeat, 120);
-      const m4 = new THREE.Matrix4();
-      for (let i = 0; i < 120; i++) { m4.makeTranslation(-WIN.w / 2 + 0.05 + i * ((WIN.w - 0.1) / 119), WIN.sill + 0.005, Z0 + 0.068); fr.setMatrixAt(i, m4); }
-      root.add(fr);
+      // corded welt along the cushion's front edge with a tassel at each end (no comb of strands)
+      {
+        const welt = new THREE.Mesh(new THREE.TubeGeometry(new THREE.LineCurve3(V3(-WIN.w / 2 + 0.04, WIN.sill + 0.012, Z0 + 0.066), V3(WIN.w / 2 - 0.04, WIN.sill + 0.012, Z0 + 0.066)), 8, 0.009, 10), mat.velvetSeat);
+        root.add(welt);
+        for (const sx of [-1, 1]) {
+          const tas = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.01, -0.004], [0.014, -0.02], [0.009, -0.03], [0.016, -0.045], [0.02, -0.075], [0, -0.078]], 12), mat.giltCap);
+          tas.position.set(sx * (WIN.w / 2 - 0.05), WIN.sill + 0.006, Z0 + 0.07); root.add(tas);
+        }
+      }
       for (const sx of [-1, 1]) {
         const bol = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.22, 6, 16), mat.velvet);
         bol.rotation.z = Math.PI / 2; bol.rotation.y = sx * 0.25; bol.position.set(sx * (WIN.w / 2 - 0.2), WIN.sill + 0.175, Z0 - WIN.depth / 2 - 0.05); root.add(bol);
@@ -593,10 +712,10 @@ export default {
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
     const shaft = fx.shaft({
       center: winC, right: V3(WIN.w / 2, 0, 0), up: V3(0, (WIN.h - 0.4) * 0.5, 0), direction: beamDir, length: 7.5,
-      color: 0x9fb6ff, intensity: 0.075, softness: 0.35, falloff: 1.1, panes: [2, 4], mullion: 0.03, noise: 0.35,
+      color: 0x9fc0ff, intensity: 0.1, softness: 0.35, falloff: 1.1, panes: [2, 4], mullion: 0.03, noise: 0.35,
     });
     root.add(shaft);
-    root.add(fx.dust({ box: new THREE.Box3(V3(X0 + 0.1, 0.05, Z0 + 0.1), V3(X1 - 0.1, 3.2, -2.5)), count: 800, shafts: [shaft], size: 0.008, intensity: 1.3, ambient: 0.03 }));
+    root.add(fx.dust({ box: new THREE.Box3(V3(X0 + 0.1, 0.05, Z0 + 0.1), V3(X1 - 0.1, 3.2, -2.5)), count: 300, shafts: [shaft], size: 0.007, intensity: 0.7, ambient: 0.015 }));
     root.add(fx.fog({ box: new THREE.Box3(V3(X0 + 0.05, 0, Z0 + 0.3), V3(X1 - 0.05, 0.6, Z1 - 0.2)), color: 0x080c18, litColor: 0x121a2e, density: 0.18, heightFalloff: 4 }));
 
     // ================================================================ navigation
@@ -646,18 +765,20 @@ export default {
       { id: 'colonel', nodes: ['bedroom', 'portraits', 'main'], object: pColonel.group, cursor: 'examine', label: 'The captain', onActivate: examine('The Captain', 'Scarlet coat, brass buttons, whiskers like a hedge in winter. A brass label once named him; someone has scratched it out with a pin.') },
       { id: 'child', nodes: ['portraits', 'gamedoor', 'bedroom'], object: pChild.group, cursor: 'talk', label: 'A pale child', onActivate: async () => { ctx.audio.sfx('chime', { freq: 1320 }); await ctx.ui.caption('A small child in a starched collar. For a moment you could swear the paint is still wet around the eyes.', { title: 'The Boy' }); } },
       { id: 'widow', nodes: ['portraits', 'gamedoor', 'bedroom'], object: pWidow.group, cursor: 'examine', label: 'A widow in black', onActivate: examine('The Widow', 'Black bombazine, a brooch at her throat. The canvas is warm to the touch, as though someone had been standing very close to it.') },
+      { id: 'belle', nodes: ['main', 'back', 'bedroom'], object: oBelle, cursor: 'examine', label: 'A girl in green', onActivate: examine('The Girl in Green', 'A small oval, very finely done. The green of her dress has been mixed with something that was never paint.') },
+      { id: 'doctor', nodes: ['main', 'bedroom', 'portraits'], object: pDoctor.group, cursor: 'examine', label: 'A bearded man', onActivate: examine('The Physician', 'Pince-nez, a black coat, a gold watch-chain. On the back of the canvas, in pencil: \'He came to treat the children. He stayed.\'') },
       { id: 'elder', nodes: ['main', 'back', 'portraits'], object: pElder.group, cursor: 'talk', label: 'An old man', onActivate: async () => { await say('My dear old patron. He *also* thought he could leave whenever he liked.'); } },
       { id: 'clock', nodes: ['far', 'attic', 'gamedoor'], box: clockBox, cursor: 'examine', label: 'The long-case clock', onActivate: () => { ctx.audio.chimeClock?.(1); ctx.ui.caption('Its hands are stopped at five minutes to midnight. Yet you can hear it ticking.', { title: 'The Clock' }); } },
       { id: 'window', nodes: ['far', 'attic'], box: { min: [-WIN.w / 2, WIN.sill + 0.1, Z0 - WIN.depth], max: [WIN.w / 2, WIN.sill + WIN.h, Z0 - WIN.depth + 0.2] }, cursor: 'examine', label: 'The window', onActivate: examine('The Window', 'The moon hangs over the grounds like a coin on a dead man\'s eye. Down in the garden nothing moves. Nothing at all.') },
       { id: 'attic-locked', nodes: ['attic', 'far'], box: dBox(DOORS.attic, 0.05), cursor: 'examine', label: 'A narrow door', enabled: () => !ctx.state.isSolved(SLIDE_ID), onActivate: async () => { ctx.audio.sfx('thud'); await ctx.ui.caption('Latched fast. The keyhole is shaped like a tiny eye — and it is shut.', { title: 'The Attic Door' }); } },
-      { id: 'ghost', nodes: ['far', 'attic', 'main'], sphere: { center: [0.32, 1.1, -8.15], radius: 0.5 }, cursor: 'ghost', label: 'A grey shape', onActivate: () => ctx.cinematic(async (c, h) => {
+      { id: 'ghost', nodes: ['far', 'attic', 'main'], sphere: { center: [GHOST.x, 1.0, GHOST.z], radius: 0.55 }, cursor: 'ghost', label: 'A grey shape', onActivate: () => ctx.cinematic(async (c, h) => {
         ctx.post.set({ saturation: 0.6, vignette: 0.6 }, 0.8);
         ghostBoost = 0.6;
-        await ctx.nav.lookAt(V3(0.32, 1.45, -8.15), 1.2);
+        await ctx.nav.lookAt(V3(GHOST.x, 1.45, GHOST.z), 1.2);
         await ctx.say({ text: 'She walks the gallery every night, looking for the child she lost. She never looks *up*.', speaker: 'stauf', speakerName: 'Stauf' });
         await h.wait(0.4);
         ghostBoost = 0;
-        ctx.post.reset(1.2);
+        ctx.post.set({ saturation: 1.05, vignette: 0.48 }, 1.2);   // back to the room's own grade
         await ctx.nav.returnToNode(1.0);
       }) },
       { id: 'console', nodes: ['portraits', 'gamedoor', 'far'], box: consoleBox, cursor: 'examine', label: 'A console table', onActivate: examine('Dried Roses', 'Roses dried in a blue jar, black at the edges, beside an empty birdcage. In the mirror above, the hall behind you looks a little longer than it should.') },
@@ -701,7 +822,7 @@ export default {
       scene: root,
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
-      grade: { exposure: 1.85, contrast: 1.1, saturation: 1.05, shadowTint: [0.76, 0.92, 1.28], splitAmount: 0.65, bloomStrength: 0.3, bloomThreshold: 1.35, godRayWeight: 0.35, godRayThreshold: 2.5, vignette: 0.48, aoIntensity: 1.1, aoRadius: 0.4, grain: 0.025 },
+      grade: { exposure: 1.85, contrast: 1.12, saturation: 1.05, shadowTint: [0.86, 0.99, 1.1], splitAmount: 0.55, lift: [0.0, 0.004, 0.008], bloomStrength: 0.3, bloomThreshold: 1.35, godRayWeight: 0.35, godRayThreshold: 2.5, vignette: 0.48, aoIntensity: 1.1, aoRadius: 0.4, grain: 0.025 },
       environment: { position: [0.0, 1.7, 0.4], intensity: 0.8 },
       onEnter() {
         if (!ctx.state.has('gallery.greeted')) {
@@ -714,16 +835,23 @@ export default {
         // pier glass and the jambs; keep them for the views that look down the hall
         const nid = ctx.nav.current;
         if (nid && nid !== rayNode) {
-          ctx.post.set({ godRayWeight: ['main', 'far', 'attic'].includes(nid) ? 0.35 : 0.0 }, rayNode ? 0.8 : 0);
+          // the moonlit end gets its own, harder grade: deeper blacks, neutral-teal shadows
+          const cold = ['far', 'attic'].includes(nid);
+          ctx.post.set({
+            godRayWeight: ['main', 'far', 'attic'].includes(nid) ? 0.35 : 0.0,
+            exposure: cold ? 1.6 : 1.85, contrast: cold ? 1.2 : 1.12,
+            shadowTint: cold ? [0.9, 1.0, 1.04] : [0.86, 0.99, 1.1],
+          }, rayNode ? 0.8 : 0);
           rayNode = nid;
         }
         gaze(dt);
         slide.update(dt);
         if (solvedFx > 0 && solvedFx < 1) {
-          solvedFx = Math.min(1, solvedFx + dt * 0.5);
+          solvedFx = Math.min(1, solvedFx + dt * 0.4);
           const e = solvedFx * solvedFx * (3 - 2 * solvedFx);
           atticHinge.rotation.y = -0.55 * e;
-          toyMat.userData.eyes.uGlow.value = 0.6 * e + Math.sin(t * 8) * 0.1 * (1 - e);
+          // the eyes kindle in pulses as the face closes up, then hold a steady ember
+          toyMat.userData.eyes.uGlow.value = 0.6 * e + Math.max(0, Math.sin(t * 6)) * 0.5 * (1 - e);
         }
       },
       dispose() { const d = window.__debug; if (d) { delete d.gallery; if (d.solvers) delete d.solvers.gallery; if (d.states) delete d.states.gallery; } },

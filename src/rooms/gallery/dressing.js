@@ -293,18 +293,45 @@ export function makeGiltFrame(ctx, mat, canvasMat, w, h, { fw = 0.12, profile = 
   return { group: g, canvas, frame: fr };
 }
 
-/** small brass picture light (hood on an arm) above a frame. Facing +Z, origin at the wall. */
+/**
+ * Brass picture light above a frame: a chased rosette on the wall, two swan-neck arms, and a
+ * trough reflector (rolled bead lip, domed end caps) with a glowing lamp strip on its underside.
+ * Facing +Z, origin at the wall.
+ */
 export function makePictureLight(ctx, mat, width = 0.42) {
   const G = ctx.geometry;
   const g = new THREE.Group();
-  const base = new THREE.Mesh(new G.RoundedBoxGeometry(0.06, 0.04, 0.02, 2, 0.005), mat.brass); g.add(base);
-  const arm = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V3(0, 0, 0.01), V3(0, 0.03, 0.08), V3(0, 0.02, 0.16)]), 12, 0.006, 8), mat.brass); g.add(arm);
-  const hood = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, width, 20, 1, true, Math.PI * 0.15, Math.PI * 1.1), mat.brass);
-  hood.rotation.z = Math.PI / 2; hood.position.set(0, 0.02, 0.17); hood.material = mat.brass; g.add(hood);
-  for (const s of [-1, 1]) { const cap = new THREE.Mesh(new THREE.CircleGeometry(0.035, 16), mat.brass); cap.position.set(s * width / 2, 0.02, 0.17); cap.rotation.y = s * Math.PI / 2; g.add(cap); }
-  // the lamp tube sits up inside the hood; warm and below the bloom threshold so only the hood lip reads
-  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, width - 0.04, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.78, 0.54).multiplyScalar(0.16), name: 'picLamp' }));
-  tube.rotation.z = Math.PI / 2; tube.position.set(0, 0.03, 0.172); g.add(tube);
+  const brass = mat.brassBright || mat.brass;
+  const rose = new THREE.Mesh(G.latheFromProfile([[0, 0.016], [0.012, 0.015], [0.022, 0.01], [0.03, 0.004], [0.032, 0], [0, 0]], 24), mat.brass);
+  rose.rotation.x = Math.PI / 2; g.add(rose);
+  const reach = 0.17, lift = 0.05;
+  for (const s of [-1, 1]) {
+    const x = s * width * 0.3;
+    const c = new THREE.CatmullRomCurve3([V3(0, 0, 0.012), V3(x * 0.5, 0.035, 0.05), V3(x, 0.06, 0.11), V3(x, lift + 0.01, reach - 0.012)]);
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(c, 16, 0.005, 8), brass));
+    const knuckle = new THREE.Mesh(new THREE.SphereGeometry(0.009, 10, 8), brass); knuckle.position.set(x, lift + 0.01, reach - 0.012); g.add(knuckle);
+  }
+  // trough: an open-bottomed rolled sheet (profile swept along x), bead along the front lip
+  const sh = new THREE.Shape();
+  const prof = [];
+  for (let i = 0; i <= 14; i++) { const t = i / 14, a = -0.35 + t * (Math.PI + 0.55); prof.push([Math.cos(a) * 0.034, Math.sin(a) * 0.03]); }
+  sh.moveTo(prof[0][0], prof[0][1]); for (const [px, py] of prof.slice(1)) sh.lineTo(px, py);
+  for (const [px, py] of prof.slice().reverse()) sh.lineTo(px * 0.9, py * 0.88);
+  const tg = new THREE.ExtrudeGeometry(sh, { depth: width, bevelEnabled: false, curveSegments: 4 });
+  tg.translate(0, 0, -width / 2); tg.rotateY(Math.PI / 2); tg.rotateZ(0);
+  const trough = new THREE.Mesh(G.applyBoxUVs ? G.applyBoxUVs(tg, 0.2) : tg, brass);
+  trough.position.set(0, lift, reach); trough.rotation.x = -0.35; g.add(trough);
+  const bead = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, width + 0.01, 10), brass);
+  bead.rotation.z = Math.PI / 2; bead.position.set(0, lift - 0.018, reach + 0.03); g.add(bead);
+  for (const s of [-1, 1]) {
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.034, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), brass);
+    cap.scale.set(1, 0.35, 0.9); cap.rotation.z = -s * Math.PI / 2; cap.position.set(s * width / 2, lift, reach); g.add(cap);
+    const fin = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.006, 0.002], [0.004, 0.012], [0, 0.016]], 10), brass);
+    fin.rotation.z = -s * Math.PI / 2; fin.position.set(s * (width / 2 + 0.012), lift, reach); g.add(fin);
+  }
+  // the lamp strip tucked inside the trough, glowing warm on the underside only
+  const strip = new THREE.Mesh(new THREE.PlaneGeometry(width - 0.03, 0.012), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.72, 0.42).multiplyScalar(1.6), name: 'picLamp' }));
+  strip.rotation.x = Math.PI / 2 + 0.35; strip.position.set(0, lift - 0.012, reach + 0.006); g.add(strip);
   return g;
 }
 
@@ -354,115 +381,74 @@ export function makeSideChair(ctx, mat) {
 
 /**
  * Pedestal with a bust under a dust sheet. Origin at the floor, facing +Z.
- * The sheet is a dense (96 x 72) radial drape: it follows the bust's head/shoulder form where it
- * rests, then hangs free from the shoulder line in folds that start at the contact points,
- * deepen toward the hem and swing out at the four corners of the cloth.
+ * The sheet is an offline cloth simulation (tools/simSheet.mjs -> dustsheet.bin): a square of
+ * linen dropped over a sculpted bust proxy, gripping the brow, nose and shoulders, with tension
+ * lines radiating from them and free folds below. Vertex colour carries settled dust on the
+ * upward-facing cloth and occlusion in the fold valleys.
  */
-export function makeCoveredBust(ctx, mat) {
+export async function makeCoveredBust(ctx, mat) {
   const G = ctx.geometry;
   const g = new THREE.Group();
   g.name = 'coveredBust';
   // ---- turned ebonised column on a square plinth, moulded capital + square abacus
-  const plinth = new THREE.Mesh(G.applyBoxUVs(new G.RoundedBoxGeometry(0.36, 0.08, 0.36, 2, 0.006), 1), mat.pedestal); plinth.position.y = 0.04; g.add(plinth);
-  const prof = [[0, 0.08], [0.16, 0.08], [0.165, 0.09], [0.15, 0.1], [0.155, 0.115], [0.14, 0.13], [0.12, 0.135], [0.118, 0.15], [0.105, 0.17], [0.1, 0.2], [0.094, 0.5], [0.088, 0.8], [0.086, 0.84], [0.1, 0.85], [0.1, 0.865], [0.088, 0.875], [0.1, 0.9], [0.13, 0.93], [0.145, 0.95], [0.145, 0.96], [0, 0.96]];
+  const plinth = new THREE.Mesh(G.applyBoxUVs(new G.RoundedBoxGeometry(0.36, 0.12, 0.36, 2, 0.008), 1), mat.pedestal); plinth.position.y = 0.06; g.add(plinth);
+  const prof = [[0, 0.12], [0.15, 0.12], [0.155, 0.13], [0.14, 0.14], [0.145, 0.155], [0.13, 0.17], [0.112, 0.175], [0.11, 0.19], [0.1, 0.21], [0.098, 0.24], [0.094, 0.5], [0.088, 0.82], [0.086, 0.86], [0.1, 0.87], [0.1, 0.885], [0.088, 0.895], [0.1, 0.91], [0.13, 0.935], [0.145, 0.95], [0.145, 0.96], [0, 0.96]];
   const col = new THREE.Mesh(G.latheFromProfile(prof, 48), mat.pedestal); g.add(col);
-  // fluting: thin dark reeds around the shaft
+  // fluting: shallow reeds proud of the shaft (same ebonised wood, not a separate colour)
+  const reed = new THREE.CylinderGeometry(0.0055, 0.0055, 0.56, 6);
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2;
-    const f = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.58, 6), mat.black);
-    f.position.set(Math.cos(a) * 0.088, 0.52, Math.sin(a) * 0.088); f.scale.set(1, 1, 0.5); f.rotation.y = -a; g.add(f);
+    const f = new THREE.Mesh(reed, mat.pedestal);
+    f.position.set(Math.cos(a) * 0.09, 0.53, Math.sin(a) * 0.09); f.scale.set(1, 1, 0.5); f.rotation.y = -a; g.add(f);
   }
   const abacus = new THREE.Mesh(G.applyBoxUVs(new G.RoundedBoxGeometry(0.32, 0.04, 0.32, 2, 0.005), 1), mat.pedestal); abacus.position.y = 0.98; g.add(abacus);
-  const TOP = 1.0;
-  // ---- the hidden form: radius of the bust at height y and azimuth a (front = +z)
-  const ell = (a, rx, rz) => 1 / Math.sqrt((Math.cos(a) / rx) ** 2 + (Math.sin(a) / rz) ** 2);
-  const formR = (y, a) => {
-    const h = y - TOP;
-    if (h > 0.43) return 0;
-    if (h > 0.28) { const t = (h - 0.28) / 0.15; const head = Math.sqrt(Math.max(0, 1 - t * t)) * 0.1; return head * ell(a, 1.0, 1.12) + (Math.sin(a) > 0.9 ? 0.012 * Math.max(0, 1 - Math.abs(t - 0.1) * 5) : 0); }
-    if (h > 0.22) return 0.06 * ell(a, 1, 1);                 // neck
-    if (h > 0.1) { const t = (0.22 - h) / 0.12; return (0.06 + 0.18 * Math.sin(Math.min(1, t) * Math.PI / 2)) * ell(a, 1.0, 0.62); }
-    // the sheet's fall clears the corners of the square abacus below the bust
-    return h > 0.02 ? 0.24 * ell(a, 1.0, 0.62) : Math.max(0.24 * ell(a, 1.0, 0.62), 0.245);
-  };
-  // ---- sheet: rings by arc length from the crown; each column walks down the form, then hangs
-  const NA = 96, NS = 72, SL = 0.98;                              // azimuth segments, rings, cloth radius (m)
-  const pos = new Float32Array((NA + 1) * (NS + 1) * 3), uvs = new Float32Array((NA + 1) * (NS + 1) * 2);
-  const hash = (i) => { const x = Math.sin(i * 127.1) * 43758.5453; return x - Math.floor(x); };
-  const foldN = (a) => 0.55 * Math.sin(a * 7 + 0.6 * Math.sin(a * 3)) + 0.3 * Math.sin(a * 13 + 1.7) + 0.15 * Math.sin(a * 23 + 0.4);
-  for (let j = 0; j <= NA; j++) {
-    const a = (j / NA) * Math.PI * 2;
-    // corners of a square sheet hang lower (cloth radius grows toward the diagonals)
-    const corner = Math.pow(Math.abs(Math.cos(2 * (a - 0.35))), 3);
-    const len = SL * (0.88 + 0.22 * corner);
-    // the cloth wraps the convex hull of the form's silhouette at this azimuth: it tents from
-    // the crown of the head over the chin straight to the shoulder edge, then hangs plumb
-    const ys = [], rs = [];
-    for (let yy = TOP + 0.43; yy > TOP - 1.2; yy -= 0.004) { ys.push(yy); rs.push(formR(yy, a)); }
-    // upper hull of r(y) (monotone chain over points ordered by y), then interpolate back
-    const H = [];
-    for (let p = ys.length - 1; p >= 0; p--) {
-      while (H.length >= 2) {
-        const o = H[H.length - 2], m = H[H.length - 1];
-        const cross = (ys[m] - ys[o]) * (rs[p] - rs[o]) - (rs[m] - rs[o]) * (ys[p] - ys[o]);
-        if (cross >= 0) H.pop(); else break;
-      }
-      H.push(p);
-    }
-    const hull = new Float32Array(ys.length);
-    for (let k = 0; k < H.length - 1; k++) {
-      const p0 = H[k], p1 = H[k + 1];
-      for (let p = p0; p >= p1; p--) hull[p] = rs[p0] + (rs[p1] - rs[p0]) * ((ys[p] - ys[p0]) / ((ys[p1] - ys[p0]) || 1));
-    }
-    const col0 = [];
-    let s = 0, contactS = -1;
-    for (let p = 0; p < ys.length; p++) {
-      if (p > 0) s += Math.hypot(hull[p] - hull[p - 1], ys[p] - ys[p - 1]);
-      col0.push([s, hull[p], ys[p]]);
-      if (contactS < 0 && ys[p] < TOP + 0.1) contactS = s;
-      if (s > len) break;
-    }
-    for (let i = 0; i <= NS; i++) {
-      const si = (i / NS) * len;
-      let k = 0; while (k < col0.length - 1 && col0[k][0] < si) k++;
-      let [, rr, yy] = col0[k];
-      // free hang below contact: folds grow, slight flare at the hem
-      const free = Math.max(0, si - contactS);
-      const fa = Math.min(1, free / 0.35);
-      const amp = 0.028 * fa + 0.012 * Math.min(1, free / 0.8) * corner;
-      rr += foldN(a + hash(j % NA) * 0.02) * amp + free * 0.05 * (0.6 + corner);
-      // gentle pooling folds over the shoulders where it first drapes
-      if (free <= 0) rr += 0.004 * Math.sin(a * 11 + si * 30) * Math.min(1, si / 0.2);
-      // hem lifts slightly where a fold kicks out
-      if (i === NS) yy += 0.01 * foldN(a * 1.3);
-      const idx = (j * (NS + 1) + i);
-      pos[idx * 3] = Math.cos(a) * rr; pos[idx * 3 + 1] = yy; pos[idx * 3 + 2] = Math.sin(a) * rr;
-      uvs[idx * 2] = Math.cos(a) * si * 2 + 2; uvs[idx * 2 + 1] = Math.sin(a) * si * 2 + 2;
-    }
-  }
+
+  // ---- the simulated sheet
+  const buf = await (await fetch(ctx.assetUrl('dustsheet.bin'))).arrayBuffer();
+  const N = new Uint32Array(buf, 0, 1)[0];
+  const src = new Float32Array(buf, 4, N * N * 3);
+  const contact = new Float32Array(buf, 4 + N * N * 12, N * N);
+  const pos = new Float32Array(src);
+  const uvs = new Float32Array(N * N * 2);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const a = j * N + i; uvs[a * 2] = i / (N - 1); uvs[a * 2 + 1] = j / (N - 1); }
   const index = [];
-  for (let j = 0; j < NA; j++) for (let i = 0; i < NS; i++) {
-    const a0 = j * (NS + 1) + i, b0 = (j + 1) * (NS + 1) + i;
-    index.push(a0, a0 + 1, b0, b0, a0 + 1, b0 + 1);
+  for (let j = 0; j < N - 1; j++) for (let i = 0; i < N - 1; i++) {
+    const a = j * N + i;
+    index.push(a, a + N, a + 1, a + 1, a + N, a + N + 1);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
   geo.setIndex(index);
   geo.computeVertexNormals();
-  // make normals face outward
-  const n = geo.attributes.normal;
-  let out = 0; for (let i = 0; i < n.count; i++) out += n.getX(i) * pos[i * 3] + n.getZ(i) * pos[i * 3 + 2];
-  if (out < 0) { for (let i = 0; i < index.length; i += 3) { const t = index[i + 1]; index[i + 1] = index[i + 2]; index[i + 2] = t; } geo.setIndex(index); geo.computeVertexNormals(); }
-  // weld the normals across the azimuth seam (j = 0 and j = NA share positions)
+  // outward normals (relative to the bust's axis)
   {
-    const nn = geo.attributes.normal;
-    for (let i = 0; i <= NS; i++) {
-      const a0 = i, b0 = NA * (NS + 1) + i;
-      const x = nn.getX(a0) + nn.getX(b0), y = nn.getY(a0) + nn.getY(b0), z = nn.getZ(a0) + nn.getZ(b0);
-      const l = Math.hypot(x, y, z) || 1;
-      nn.setXYZ(a0, x / l, y / l, z / l); nn.setXYZ(b0, x / l, y / l, z / l);
+    const n = geo.attributes.normal;
+    let out = 0; for (let i = 0; i < n.count; i++) out += n.getX(i) * pos[i * 3] + n.getY(i) * (pos[i * 3 + 1] - 1.2) + n.getZ(i) * pos[i * 3 + 2];
+    if (out < 0) { for (let i = 0; i < index.length; i += 3) { const t = index[i + 1]; index[i + 1] = index[i + 2]; index[i + 2] = t; } geo.setIndex(index); geo.computeVertexNormals(); }
+  }
+  // dust + cavity: valleys (vertex below the average of its ring) darken; up-facing cloth greys
+  {
+    const n = geo.attributes.normal;
+    const colr = new Float32Array(N * N * 3);
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const a = j * N + i;
+      let cav = 0;
+      if (i > 1 && j > 1 && i < N - 2 && j < N - 2) {
+        let ax = 0, ay = 0, az = 0;
+        for (const o of [-2, 2, -2 * N, 2 * N]) { ax += pos[(a + o) * 3]; ay += pos[(a + o) * 3 + 1]; az += pos[(a + o) * 3 + 2]; }
+        ax = ax / 4 - pos[a * 3]; ay = ay / 4 - pos[a * 3 + 1]; az = az / 4 - pos[a * 3 + 2];
+        cav = ax * n.getX(a) + ay * n.getY(a) + az * n.getZ(a);    // > 0 = concave valley
+      }
+      const occ = THREE.MathUtils.clamp(1 - cav * 60, 0.45, 1.08);
+      const up = Math.max(0, n.getY(a));
+      const dust = up * up * 0.32;
+      // dust is a dull grey-brown film: darker and less saturated than the clean linen
+      colr[a * 3] = occ * (1 - dust * 0.85);
+      colr[a * 3 + 1] = occ * (1 - dust * 0.88);
+      colr[a * 3 + 2] = occ * (1 - dust * 0.95);
     }
+    geo.setAttribute('color', new THREE.BufferAttribute(colr, 3));
   }
   const sheet = new THREE.Mesh(geo, mat.sheet);
   sheet.name = 'dustSheet';
@@ -636,4 +622,54 @@ export function linenTexture(ctx) {
       s.rough = 0.88; s.metal = 0.0; s.ao = 0.9 + 0.1 * thread;
     }`,
   });
+}
+
+/**
+ * Jardiniere on a turned mahogany torchère stand, holding an aspidistra gone brown at the tips.
+ * Facing +Z, origin at the floor (the stand stands ~0.22 m off the wall).
+ */
+export function makeJardiniere(ctx, mat) {
+  const G = ctx.geometry;
+  const g = new THREE.Group();
+  g.name = 'jardiniere';
+  const z = 0.24;
+  // tripod stand: three splayed legs, turned shaft, dished top
+  const shaft = new THREE.Mesh(G.latheFromProfile([[0, 0.12], [0.035, 0.12], [0.04, 0.16], [0.022, 0.2], [0.026, 0.42], [0.018, 0.6], [0.03, 0.66], [0.02, 0.7], [0, 0.7]], 16), mat.mahogany);
+  shaft.position.set(0, 0, z); g.add(shaft);
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + 0.5;
+    const c = new THREE.CatmullRomCurve3([V3(0, 0.15, 0), V3(Math.cos(a) * 0.08, 0.08, Math.sin(a) * 0.08), V3(Math.cos(a) * 0.17, 0.012, Math.sin(a) * 0.17)]);
+    const leg = new THREE.Mesh(new THREE.TubeGeometry(c, 10, 0.014, 8), mat.mahogany); leg.position.z = z; g.add(leg);
+  }
+  const top = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.13, 0], [0.135, 0.01], [0.13, 0.022], [0.12, 0.024], [0.115, 0.012], [0, 0.012]], 32), mat.mahogany);
+  top.position.set(0, 0.7, z); g.add(top);
+  // the pot: blue-and-white porcelain jardiniere with a rolled lip
+  const pot = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.07, 0], [0.085, 0.015], [0.12, 0.08], [0.135, 0.14], [0.13, 0.19], [0.14, 0.205], [0.135, 0.215], [0.12, 0.21], [0, 0.2]], 40), mat.porcelainBlue);
+  pot.position.set(0, 0.724, z); g.add(pot);
+  // aspidistra: long lanceolate leaves arching out of the pot, tips browned
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x24301a, roughness: 0.6, side: THREE.DoubleSide, vertexColors: true, name: 'aspidistra' });
+  let sd = 5; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 16; i++) {
+    const a = rnd() * Math.PI * 2, tilt = 0.25 + rnd() * 0.75, L = 0.38 + rnd() * 0.22;
+    const segs = 10, pos = [], col = [], idx = [];
+    for (let k = 0; k <= segs; k++) {
+      const t = k / segs;
+      const w = 0.035 * Math.sin(Math.PI * Math.min(1, t * 1.1 + 0.05)) * (1 - 0.2 * t);
+      const r = Math.sin(tilt) * L * t, y = Math.cos(tilt) * L * t - 0.5 * L * t * t * tilt;
+      const cx = Math.cos(a) * r, cz = Math.sin(a) * r;
+      const px = -Math.sin(a) * w, pz = Math.cos(a) * w;
+      pos.push(cx - px, y + 0.012 * t, cz - pz, cx + px, y + 0.012 * t, cz + pz, cx, y + 0.02 * Math.sin(Math.PI * t), cz);
+      const brown = THREE.MathUtils.smoothstep(t, 0.7, 1.0) * (0.5 + 0.5 * rnd());
+      for (let q = 0; q < 3; q++) col.push(1 + 1.6 * brown, 1 + 0.5 * brown, 1 - 0.2 * brown);
+      if (k < segs) { const b = k * 3; idx.push(b, b + 3, b + 2, b + 2, b + 3, b + 5, b + 2, b + 5, b + 1, b + 1, b + 5, b + 4); }
+    }
+    const lg = new THREE.BufferGeometry();
+    lg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    lg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    lg.setIndex(idx); lg.computeVertexNormals();
+    const leaf = new THREE.Mesh(lg, leafMat);
+    leaf.position.set(0, 0.9, z);
+    g.add(leaf);
+  }
+  return g;
 }

@@ -357,12 +357,12 @@ def toymaker_extra(img, W, H, u, v):
         f2 = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf', 44)
     except Exception:
         f2 = ImageFont.load_default()
-    d.text((W / 2, band_y + (H - band_y) / 2 + 3), 'HENRY  STAUF   ·   MDCCCLXXXIX', font=f2, fill=(168, 128, 64, 255), anchor='mm')
+    d.text((W / 2, band_y + (H - band_y) / 2 + 3), 'HENRY  STAUF   ·   MDCCCLXXXIX', font=f2, fill=(222, 178, 92, 255), anchor='mm')
     res = np.asarray(pil, np.float32) / 255
     # wear the gilt: rub some of the letters back to bole
     wear = smoothstep(0.55, 0.75, noise(H, W, 24, 72, 3))[..., None]
     band = (yy >= band_y)[..., None]
-    res = np.where(band, res * (1 - 0.55 * wear) + np.array([0.11, 0.07, 0.045]) * 0.55 * wear, res)
+    res = np.where(band, res * (1 - 0.3 * wear) + np.array([0.11, 0.07, 0.045]) * 0.3 * wear, res)
     m = band.astype(np.float32)
     soft = np.asarray(to_img(res).filter(ImageFilter.GaussianBlur(0.8)), np.float32) / 255
     res = res * (1 - m) + soft * m
@@ -376,7 +376,10 @@ SPECS = {
     'elder':   dict(face='s8', H=1314, seed=37, coat=(24, 27, 40), faceW=0.6, faceY=0.08, shirt=True, shirtW=0.15, shirtDepth=0.18, cravat=(225, 220, 205), shoulderW=0.55),
     'child':   dict(face='s6', H=1331, seed=41, faceW=0.62, faceY=0.12, coat=(70, 84, 104), collar=0.2, oval=(18, 14, 12), shoulderW=0.46),
     'widow':   dict(face='v3_7', H=1314, seed=53, faceW=0.58, faceY=0.1, coat=(14, 13, 15), sheen=0.5, brooch=True, collar=0.14, shoulderW=0.5),
-    'toymaker': dict(face='v8_4', W=1024, H=1024, seed=67, faceW=0.64, faceY=0.1, coat=(22, 20, 18), shirt=True, shirtW=0.12, shirtDepth=0.12, cravat=(90, 18, 16), shoulderW=0.56, shoulder=0.92, extra=toymaker_extra, bgMul=0.55, maskInset=(0.13, 0.1), maskBlur=0.075),
+    'belle':   dict(face='m4', H=1314, seed=71, faceW=0.58, faceY=0.1, coat=(28, 58, 44), sheen=0.6, skin=(220, 190, 170), lace=True, oval=(20, 16, 12), shoulderW=0.5, cropFade=0.94),
+    'poet':    dict(face='s3', H=1306, seed=83, faceW=0.6, faceY=0.09, coat=(58, 40, 26), sheen=0.3, collar=0.16, collarCol=(36, 26, 18), shoulderW=0.54),
+    'doctor':  dict(face='v1_2', H=1306, seed=97, faceW=0.6, faceY=0.08, coat=(18, 18, 22), sheen=0.4, collar=0.15, collarCol=(26, 24, 22), buttons=3, shoulderW=0.56, shoulder=0.95),
+    'toymaker': dict(face='v8_4', W=1024, H=1024, seed=67, faceW=0.8, faceY=0.1, coat=(22, 20, 18), shirt=True, shirtW=0.12, shirtDepth=0.12, cravat=(46, 24, 30), shoulderW=0.56, shoulder=0.92, extra=toymaker_extra, bgMul=0.55, maskInset=(0.13, 0.1), maskBlur=0.075),
 }
 
 
