@@ -5,6 +5,7 @@ import { buildCurtain, buildSwagValance, buildTassel } from './drapery.js';
 import { treeLayerTexture, frostPaneTexture, foxingTexture } from './textures.js';
 import { createCakePuzzle, cakeMeta, CAKE_ID } from './puzzleCake.js';
 import { mergeStatic } from './merge.js';
+import { createGuestMaterial, loadGuestGeometry } from './guestFx.js';
 
 /**
  * The Dining Room — Stauf's table is still laid for six.
@@ -710,62 +711,36 @@ export default {
     if (ctx.state.isSolved(CAKE_ID)) cake.applySolved();
 
     // ================================================================ ghost guests
-    const ghostMat = fx.ghostMaterial({ color: 0x7c9cff, rimColor: 0xd6e4ff, opacity: 0.0, intensity: 1.15, dissolveY: 0.45, dissolveSoft: 0.5 });
-    /** a seated diner, elbows on the table (local +z = toward the table) */
-    const guestGeometry = (lady) => {
-      const parts = [];
-      const capsule = (a, b, r) => {
-        const A = V3(...a), B = V3(...b);
-        const len = A.distanceTo(B);
-        const g = new THREE.CapsuleGeometry(r, len, 4, 10);
-        const q = new THREE.Quaternion().setFromUnitVectors(V3(0, 1, 0), B.clone().sub(A).normalize());
-        g.applyQuaternion(q); g.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
-        parts.push(g);
-      };
-      const torso = G.latheFromProfile(lady
-        ? [[0.0, 0.5], [0.2, 0.52], [0.18, 0.66], [0.13, 0.8], [0.15, 0.95], [0.17, 1.05], [0.16, 1.13], [0.08, 1.19], [0.0, 1.2]]
-        : [[0.0, 0.5], [0.17, 0.52], [0.18, 0.7], [0.16, 0.86], [0.18, 0.99], [0.2, 1.08], [0.19, 1.15], [0.09, 1.2], [0.0, 1.22]], 22);
-      torso.scale(1, 1, 0.66); torso.rotateX(0.07);
-      parts.push(torso);
-      for (const sx of [-1, 1]) {
-        const sh = new THREE.SphereGeometry(0.065, 12, 8); sh.translate(sx * 0.17, 1.1, 0.02); parts.push(sh);
-        capsule([sx * 0.19, 1.08, 0.02], [sx * 0.21, 0.86, 0.2], 0.045);
-        capsule([sx * 0.21, 0.86, 0.2], [sx * 0.1, 0.8, 0.42], 0.038);
-        const hand = new THREE.SphereGeometry(0.04, 10, 8); hand.scale(0.8, 0.5, 1.2); hand.translate(sx * 0.07, 0.79, 0.47); parts.push(hand);
-        capsule([sx * 0.09, 0.55, 0.0], [sx * 0.1, 0.56, 0.4], lady ? 0.085 : 0.07);
-        capsule([sx * 0.1, 0.55, 0.42], [sx * 0.1, 0.08, 0.46], 0.05);
-      }
-      const neck = new THREE.CylinderGeometry(0.045, 0.05, 0.14, 12); neck.translate(0, 1.25, 0.03); parts.push(neck);
-      const head = new THREE.SphereGeometry(0.1, 20, 14); head.scale(0.88, 1.12, 1.0); head.translate(0, 1.4, 0.05); parts.push(head);
-      const jaw = new THREE.SphereGeometry(0.075, 14, 10); jaw.scale(0.95, 0.8, 1.0); jaw.translate(0, 1.33, 0.08); parts.push(jaw);
-      const nose = new THREE.ConeGeometry(0.018, 0.05, 8); nose.rotateX(Math.PI / 2 + 0.3); nose.translate(0, 1.4, 0.16); parts.push(nose);
-      if (lady) {
-        const bun = new THREE.SphereGeometry(0.065, 14, 10); bun.translate(0, 1.48, -0.06); parts.push(bun);
-        const hair = new THREE.SphereGeometry(0.108, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.55); hair.scale(0.92, 1.1, 1.02); hair.translate(0, 1.41, 0.04); parts.push(hair);
-        const skirt = G.latheFromProfile([[0.0, 0.62], [0.22, 0.6], [0.3, 0.4], [0.34, 0.1], [0.0, 0.1]], 18); skirt.scale(1, 1, 1.2); skirt.translate(0, 0, 0.12); parts.push(skirt);
-      } else {
-        const collar = new THREE.CylinderGeometry(0.06, 0.065, 0.06, 14, 1, true); collar.translate(0, 1.22, 0.03); parts.push(collar);
-        const lapel = new THREE.ConeGeometry(0.09, 0.22, 3); lapel.rotateX(Math.PI); lapel.scale(1, 1, 0.3); lapel.translate(0, 1.06, 0.11); parts.push(lapel);
-      }
-      return G.mergeGeometries(parts.map((g) => { if (g.attributes.uv) g.deleteAttribute('uv'); return g.index ? g.toNonIndexed() : g; }));
-    };
-    const ghostGeos = [guestGeometry(true), guestGeometry(false)];
-    const ghostEchoR = fx.ghostMaterial({ color: 0xff5a7a, rimColor: 0xff9aa8, opacity: 0.0, intensity: 0.6, dissolveY: 0.45, dissolveSoft: 0.5 });
-    const ghostEchoC = fx.ghostMaterial({ color: 0x4ad8ff, rimColor: 0x9af0ff, opacity: 0.0, intensity: 0.6, dissolveY: 0.45, dissolveSoft: 0.5 });
-    for (const m of [ghostMat, ghostEchoR, ghostEchoC]) { m.blending = THREE.AdditiveBlending; m.depthWrite = false; }
-    const ghostDepth = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: true, transparent: true, opacity: 1 });
-    const ghosts = places.map(({ phi, dir }, k) => {
-      const m = new THREE.Mesh(ghostGeos[k % 2], ghostMat);
-      m.position.copy(T).addScaledVector(dir, TABLE_R + 0.26);
+    // sculpted, baked period figures (tools/bake_guests.mjs); the seat by the window stays empty
+    const guestSeats = [[1, 'pearls'], [2, 'stout'], [4, 'hat'], [5, 'thin']];
+    const guestGeos = Object.fromEntries(await Promise.all(guestSeats.map(async ([, n]) => {
+      try { return [n, await loadGuestGeometry(ctx.assetUrl(`guest_${n}.bin`))]; } catch (e) { console.warn('[dining]', e.message); return [n, null]; }
+    })));
+    const ghostMats = guestSeats.map((_, i) => createGuestMaterial(ctx, { seed: i * 3.7, color: i % 2 ? 0x86a2ff : 0x7a98f6 }));
+    const ghostDepth = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: true, transparent: true, opacity: 1, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 4 });
+    ghostDepth.userData.noBake = true;
+    const ghosts = guestSeats.filter(([, n]) => guestGeos[n]).map(([k, n], i) => {
+      const { phi, dir } = places[k];
+      const m = new THREE.Mesh(guestGeos[n], ghostMats[i]);
+      m.position.copy(T).addScaledVector(dir, TABLE_R + 0.27);
       m.rotation.y = phi + Math.PI;
-      m.renderOrder = 7; m.visible = false; m.userData.keep = true; m.userData.noBake = true;
-      // depth pre-pass: only the nearest surface of the figure is drawn (no see-through limbs)
-      const pre = new THREE.Mesh(m.geometry, ghostDepth); pre.renderOrder = 6; pre.userData.noBake = true; m.add(pre);
-      // chromatic smear: faint red and cyan echoes trailing either side of the figure
-      for (const [mt, dx] of [[ghostEchoR, -0.018], [ghostEchoC, 0.018]]) { const e = new THREE.Mesh(m.geometry, mt); e.position.x = dx; e.renderOrder = 8; e.userData.noBake = true; e.userData.echo = dx; m.add(e); }
+      m.renderOrder = 7; m.visible = false; m.userData.keep = true; m.userData.noBake = true; m.userData.seat = k;
+      m.frustumCulled = false;
+      // depth pre-pass: only the nearest surface of each figure is drawn (no see-through limbs)
+      const pre = new THREE.Mesh(m.geometry, ghostDepth); pre.renderOrder = 6; pre.userData.noBake = true; pre.frustumCulled = false; m.add(pre);
       root.add(m);
       return m;
     });
+    const ghostMat = { uniforms: { uOpacity: { set value(v) { ghostMats.forEach((g) => { g.uniforms.uOpacity.value = v; }); }, get value() { return ghostMats[0].uniforms.uOpacity.value; } } } };
+    const _gp = new THREE.Vector3();
+    /** never let a figure fill the lens: cull a guest within 0.9 m of the camera, or sitting between it and the table */
+    const guestClear = (g) => {
+      g.getWorldPosition(_gp); _gp.y += 1.0;
+      const cam = ctx.camera.position, dg = _gp.distanceTo(cam);
+      if (dg < 0.9) return false;
+      const dt = Math.hypot(cam.x - T.x, cam.z - T.z), dgt = Math.hypot(_gp.x - T.x, _gp.z - T.z);
+      return !(dg < 1.5 && dt > dgt && Math.hypot(cam.x - _gp.x, cam.z - _gp.z) < dt);
+    };
     const ghostFade = { v: 0, target: 0 };
     const gutter = { t: 99 };
     const _fw = new THREE.Vector3(), _fd = new THREE.Vector3(), _ft = new THREE.Vector3();
@@ -777,9 +752,8 @@ export default {
       gutter.t += dt;
       const gk = gutter.t < 2.5 ? 0.35 + 0.65 * Math.abs(Math.sin(gutter.t * 9.0)) * (gutter.t / 2.5) : 1;
       allFlames.forEach((f, i) => { f.material.uniforms.uIntensity.value = flameBase[i] * gk; });
-      const o = ghostFade.v * 0.5;
+      const o = ghostFade.v;
       ghostMat.uniforms.uOpacity.value = o;
-      ghostEchoR.uniforms.uOpacity.value = ghostEchoC.uniforms.uOpacity.value = o * 0.45;
       // every flame on the table leans toward the guests
       const lean = ghostFade.v * 0.45;
       allFlames.forEach((f) => {
@@ -788,7 +762,12 @@ export default {
         _ft.copy(_fw).addScaledVector(_fd, 1); f.parent.worldToLocal(_ft); _ft.sub(f.position).setY(0).normalize();
         f.rotation.z = -lean * _ft.x * (1 + 0.15 * Math.sin(t * 7 + _fw.x * 10)); f.rotation.x = lean * _ft.z;
       });
-      ghosts.forEach((g, k) => { g.visible = o > 0.01; g.position.y = Math.sin(t * 0.9 + k) * 0.01; g.rotation.y = places[k].phi + Math.PI + Math.sin(t * 0.4 + k * 1.7) * 0.06; });
+      ghosts.forEach((g, k) => {
+        const seat = places[g.userData.seat];
+        g.position.y = Math.sin(t * 0.9 + k) * 0.01;
+        g.rotation.y = seat.phi + Math.PI + Math.sin(t * 0.4 + k * 1.7) * 0.05;
+        g.visible = o > 0.01 && guestClear(g);
+      });
     });
     async function summonGuests(afterCake = false) {
       const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
@@ -908,7 +887,7 @@ export default {
       dbg.states.dining = () => ({ ...cake.state(), isSolved: ctx.state.isSolved(CAKE_ID) });
       dbg.solve ||= (id) => (dbg.solvers[id] ? dbg.solvers[id]() : Promise.reject(new Error(`no solver for ${id}`)));
       dbg.state ||= (id) => (dbg.states[id] ? dbg.states[id]() : null);
-      dbg.dining = { cake, trySlice: cake.trySlice, reset: cake.reset, ghosts: (v) => { ghostFade.v = ghostFade.target = v; ghostMat.uniforms.uOpacity.value = v * 0.5; ghostEchoR.uniforms.uOpacity.value = ghostEchoC.uniforms.uOpacity.value = v * 0.3; ghosts.forEach((g) => { g.visible = v > 0.01; }); } };
+      dbg.dining = { ghostMeshes: ghosts, cake, trySlice: cake.trySlice, reset: cake.reset, ghosts: (v) => { ghostFade.v = ghostFade.target = v; ghostMat.uniforms.uOpacity.value = v; ghosts.forEach((g) => { g.visible = v > 0.01 && guestClear(g); }); } };
     }
 
     // ================================================================ shadows + merge
