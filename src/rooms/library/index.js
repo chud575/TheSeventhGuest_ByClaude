@@ -16,7 +16,7 @@ import { tapestryMap, globeMap, nightSky, riddleCard, brickMap, timberMap, coffe
  * on its lectern, and the Telescope puzzle.
  */
 const { X0, X1, Z0, Z1, H } = L;
-const GHOST_POS = V3(-0.4, 1.76, -0.05);
+const GHOST_POS = V3(-0.42, 1.74, 0.25);
 const GRADE = { exposure: 1.25, contrast: 1.2, saturation: 0.8, shadowTint: [0.93, 1.0, 1.03], highlightTint: [1.1, 1.0, 0.86], splitAmount: 0.5, lift: [0, 0, 0], blackPoint: 0.012, bloomStrength: 0.32, bloomThreshold: 1.5, godRayWeight: 0.25, vignette: 0.45, aoIntensity: 1.6, aoRadius: 0.25 };
 
 export default {
@@ -109,6 +109,7 @@ export default {
     if (ctx.params.get('vandbg')) mat.vanitas = new THREE.MeshBasicMaterial({ map: van.map });
     addMacro(mat.brick, { amount: 0.3, scale: 0.6, key: 'brick' });
     addWallGrime(mat.brick);
+    mat.gilt.roughness = 1.6;   // the shelf-edge gilt is dull and dusty: no pin-point lamp glints
     addMacro(mat.timber, { amount: 0.25, scale: 0.8, key: 'timber' });
     addMacro(mat.timberV, { amount: 0.25, scale: 0.8, key: 'timberv' });
 
@@ -182,8 +183,8 @@ export default {
     // ================================================================ ghost placement + idle motion
     const g = ghost.group;
     g.position.copy(GHOST_POS);
-    g.scale.setScalar(1.4);
-    const faceTo = V3(-0.25, 1.55, 2.05);
+    g.scale.setScalar(1.45);
+    const faceTo = V3(-0.35, 1.52, 2.6);
     g.rotation.order = 'YXZ';
     g.rotation.y = Math.atan2(faceTo.x - GHOST_POS.x, faceTo.z - GHOST_POS.z) + 0.1;
     g.rotation.x = 0.12;   // chin down: he regards the visitor below him
@@ -208,7 +209,7 @@ export default {
     root.add(fx.areaLight({ center: [(X0 + X1) / 2, H - 0.03, (Z0 + Z1) / 2], normal: [0, -1, 0], width: L.W * 0.8, height: L.D * 0.8, color: 0x9a9890, intensity: 0.12 }));
     root.add(new THREE.HemisphereLight(0x2a2c34, 0x24170e, 0.25));
     // the bay window's moon spill
-    root.add(fx.areaLight({ center: wallToWorld('left', OPEN.bay.x + OPEN.bay.w / 2, OPEN.bay.y + 1.1, 0.05).toArray(), normal: [1, -0.2, 0], width: OPEN.bay.w, height: OPEN.bay.h, color: 0x8ea6ff, intensity: 2.4 }));
+    root.add(fx.areaLight({ center: wallToWorld('left', OPEN.bay.x + OPEN.bay.w / 2, OPEN.bay.y + 1.1, 0.05).toArray(), normal: [1, -0.2, -0.4], width: OPEN.bay.w, height: OPEN.bay.h, color: 0x8ea6ff, intensity: 1.8 }));
     // moonlight through the bay window: the glazing bars throw their pattern across the floor and the telescope
     const bayC = wallToWorld('left', OPEN.bay.x + OPEN.bay.w / 2, OPEN.bay.y + 1.1, 0);
     const bayMoon = new THREE.SpotLight(0xa8bce8, 700, 14, 0.3, 0.5, 2);
@@ -236,16 +237,25 @@ export default {
     gw.target.position.copy(GHOST_POS).add(V3(0, 0.05, 0));
     root.add(gw, gw.target);
     // warm spill so the foreground wing chair and desk aren't black holes
-    const fillW = new THREE.PointLight(0xffa060, 1.6, 4.5, 2);
-    fillW.position.set(0.05, 1.1, 0.9);
+    const fillW = new THREE.PointLight(0xffa060, 1.3, 4.0, 2);
+    fillW.position.set(-0.3, 1.0, 0.5);
     root.add(fillW);
+    // cold moon fill through the bay onto the telescope and floor (aimed away from the entrance doors)
+    const bayKey = new THREE.SpotLight(0x9fb2e0, 380, 6, 0.85, 0.9, 2);
+    bayKey.position.set(-4.0, 2.2, 1.5);
+    bayKey.target.position.set(-2.4, 0.9, 0.9);
+    root.add(bayKey, bayKey.target);
+    // moon spill inside the bay recess: rims the curtain folds and the reveal
+    const bayRim = new THREE.PointLight(0x8ea4d8, 2.6, 2.2, 2);
+    bayRim.position.set(-4.1, 1.7, 1.55);
+    root.add(bayRim);
     // the music-room door would otherwise be a black hole: a low warm glow from the sconce side
     const doorGlow = new THREE.PointLight(0xffa060, 3.5, 3.5, 2);
     doorGlow.position.copy(wallToWorld('right', OPEN.rightDoor.x + OPEN.rightDoor.w * 0.9, 1.5, 0.9));
     root.add(doorGlow);
     // cold fill in the bay so the curtains and reveal read
-    const bayFill = new THREE.PointLight(0x8094c0, 0.9, 3.5, 2);
-    bayFill.position.set(-3.4, 1.9, 1.0);
+    const bayFill = new THREE.PointLight(0x8094c0, 1.8, 2.8, 2);
+    bayFill.position.set(-3.5, 1.9, 0.8);
     root.add(bayFill);
     // a low warm glow by the entrance doors (the foyer's lamps leak under them)
     const entGlow = new THREE.PointLight(0xffa868, 1.6, 3.5, 2);
@@ -273,7 +283,7 @@ export default {
 
     // ================================================================ navigation
     const nodes = {
-      main: { position: [-0.25, 1.55, 2.05], target: [-0.62, 1.32, -5.0], fov: 50, label: 'The Library', look: { yaw: [-55, 50], pitch: [-30, 32] } },
+      main: { position: [-0.35, 1.52, 2.6], target: [-0.7, 1.32, -5.0], fov: 46, label: 'The Library', look: { yaw: [-55, 50], pitch: [-30, 32] } },
       main_back: { position: [0.05, 1.62, 1.6], target: [-1.2, 1.35, 7.0], fov: 58, label: 'The way out' },
       shelves: { position: [-2.05, 1.62, -1.95], target: [-2.25, 1.95, -5.0], fov: 58, label: 'The bookcase', look: { yaw: [-50, 50], pitch: [-30, 38] } },
       bay: { position: [-1.9, 1.6, 0.35], target: [-4.3, 1.1, 2.2], fov: 56, label: 'The telescope', look: { yaw: [-50, 50], pitch: [-30, 32] } },
@@ -282,9 +292,9 @@ export default {
     };
     const edges = [
       ['main', 'main_back'],
-      ['main', 'shelves', [[-0.25, 1.62, 0.5], [-0.45, 1.62, -1.0], [-1.35, 1.62, -1.6]], { duration: 3.8 }],
+      ['main', 'shelves', [[0.15, 1.62, 0.8], [0.0, 1.62, -1.1], [-1.35, 1.62, -1.6]], { duration: 4.0 }],
       ['main', 'bay', [[-1.0, 1.62, 1.75]]],
-      ['main', 'door', [[-0.2, 1.62, 0.6], [-0.4, 1.62, -1.0]]],
+      ['main', 'door', [[0.15, 1.62, 0.8], [0.0, 1.62, -1.0]]],
       ['bay', 'shelves', [[-1.9, 1.62, -0.7]]],
       ['shelves', 'door'],
       ['shelves', 'corner'],
@@ -306,7 +316,7 @@ export default {
     ];
     const hotspots = [
       {
-        id: 'ghost', nodes: ['main', 'shelves', 'door', 'corner'], sphere: { center: GHOST_POS.clone().add(V3(0, 0.0, 0)).toArray(), radius: 0.3 }, cursor: 'ghost', label: 'A pale scholar',
+        id: 'ghost', nodes: ['main', 'shelves', 'door', 'corner'], sphere: { center: GHOST_POS.clone().add(V3(0, 0.0, 0)).toArray(), radius: 0.4 }, cursor: 'ghost', label: 'A pale scholar',
         onActivate: () => ctx.cinematic(async (c, h) => {
           ctx.post.set({ saturation: 0.6, vignette: 0.6 }, 0.8);
           await ctx.nav.lookAt(GHOST_POS.clone().add(V3(0, 0.1, 0)), 1.1);

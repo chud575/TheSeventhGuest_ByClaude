@@ -304,11 +304,15 @@ export function buildShell(ctx, root, mat) {
       for (const [y, hh] of [[0.55, 0.62], [1.62, 1.25]]) {
         const p = mesh(G.raisedPanel(lw - 0.2, hh, { border: 0.05, bevel: 0.03 }), mat.doorWood);
         p.position.set(0, y, 0.028); leaf.add(p);
+        // bolection moulding round the panel (crisp, bevelled, casts a shadow line into the recess)
+        const bm = mesh(G.frameGeometry(lw - 0.2, hh, { width: 0.028, depth: 0.022, uvScale: 1 }), mat.doorWood, 'door-moulding');
+        bm.position.set(0, y, 0.03); leaf.add(bm);
       }
       const knob = mesh(new THREE.SphereGeometry(0.03, 20, 14), mat.brass);
       knob.position.set(-s * (lw / 2 - 0.08), 1.02, 0.07); leaf.add(knob);
       leaf.position.set(s * lw / 2, 0, -0.03);
       g.add(leaf);
+      if (s > 0) leaf.add(mesh(bboxAt(0.03, o.h - 0.04, 0.02, -lw / 2, o.h / 2, 0.035, { r: 0.008 }), mat.doorWood, 'door-astragal'));
     }
     const casing = mesh(G.sweepProfile(G.PROFILES.chairRail(0.13, 0.04), [V3(-lw - 0.07, 0, 0), V3(-lw - 0.07, o.h + 0.07, 0), V3(lw + 0.07, o.h + 0.07, 0), V3(lw + 0.07, 0, 0)], { up: V3(0, 0, 1), uvScale: 1, flipOutward: true }), mat.timberDark);
     g.add(casing);
@@ -365,7 +369,7 @@ export function buildShell(ctx, root, mat) {
     g.add(sky);
     if (mat.treeline) {
       const tl = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 2.6), mat.treeline);
-      tl.position.set(0.1, 0.9, -1.6);
+      tl.position.set(0.1, 0.55, -1.6);
       tl.userData.noShadow = true;
       g.add(tl);
     }
@@ -374,7 +378,7 @@ export function buildShell(ctx, root, mat) {
     bay = g;
     // curtains
     for (const s of [-1, 1]) {
-      const c = mesh(G.curtainGeometry({ width: 0.85, height: 3.1, folds: 7, depth: 0.07, pool: 0.12, seed: s + 5 }), mat.curtain, 'curtain');
+      const c = mesh(G.curtainGeometry({ width: 0.85, height: 3.1, folds: 11, depth: 0.09, pool: 0.14, seed: s + 5 }), mat.curtain, 'curtain');
       c.position.copy(wallToWorld('left', o.x + o.w / 2 + s * (r + 0.28), 3.12, 0.12));
       c.rotation.y = WALLS.left.ry;
       if (s > 0) c.scale.x = -1;

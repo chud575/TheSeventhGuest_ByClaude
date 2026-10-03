@@ -717,7 +717,7 @@ export function buildProps(ctx, root, mat) {
     // a candle on a tall pricket stand beside the lectern
     const stand = new THREE.Group();
     stand.add(new THREE.Mesh(lathe([[0.001, 0], [0.14, 0], [0.12, 0.03], [0.04, 0.06], [0.025, 0.3], [0.035, 0.5], [0.02, 0.9], [0.03, 1.1], [0.07, 1.14], [0.06, 1.16], [0.001, 1.16]], 20), mat.iron));
-    const candle = ctx.fx.candle({ height: 0.28, radius: 0.016, lightIntensity: 1.5, lightDistance: 6, seed: 23, burn: 0.8 });
+    const candle = ctx.fx.candle({ height: 0.28, radius: 0.016, lightIntensity: 0.9, lightDistance: 5, seed: 23, burn: 0.8 });
     candle.position.y = 1.16;
     stand.add(candle);
     stand.position.copy(new THREE.Vector3(0.95, 0, 0).applyAxisAngle(V3(0, 1, 0), SPOTS.lectern.ry).add(V3(SPOTS.lectern.x, 0, SPOTS.lectern.z)));
@@ -758,7 +758,9 @@ export function buildProps(ctx, root, mat) {
     const hang = (wall, x, y, w, h, subject, seed, frameW = 0.085) => {
       const g = new THREE.Group();
       const pm = subject === 'vanitas' ? mat.vanitas : ctx.materials.create('painting', { subject, seed, aspect: w / h, size: 1024, varnish: 0.35, cracks: 0.6, roughness: 0.85, clearcoat: 0.12, clearcoatRoughness: 0.55 });
-      const canvas = new THREE.Mesh(new THREE.PlaneGeometry(w, h), pm);
+      // matte, aged oil (the generator's glossy varnish turned every canvas into a mirror for the sconces)
+      const cm = subject === 'vanitas' ? pm : new THREE.MeshStandardMaterial({ map: pm.map, normalMap: pm.normalMap || null, normalScale: new THREE.Vector2(0.25, 0.25), roughness: 0.88, metalness: 0, envMapIntensity: 0.25, color: 0xe8e0d0 });
+      const canvas = new THREE.Mesh(new THREE.PlaneGeometry(w, h), cm);
       // pictures hang forward-tilted from a cord (top away from the wall), so lamp glare drops out of the eye line
       const tilt = new THREE.Group();
       tilt.rotation.x = 0.07;

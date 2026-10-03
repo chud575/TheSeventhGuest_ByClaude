@@ -362,29 +362,41 @@ export function hintPagesTex(ctx) {
 
 // ------------------------------------------------------------------ night sky for the bay window
 export function nightSky(ctx) {
-  return ctx.textures.generate('library:nightsky:v1', {
-    size: 512, aspect: 0.75, tile: false,
+  return ctx.textures.generate('library:nightsky:v2', {
+    size: 1024, aspect: 0.75, tile: false,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
-  vec2 moon = vec2(0.32, 0.78);
+  vec2 moon = vec2(0.34, 0.8);
   float md = length((uv - moon) * vec2(0.75, 1.0));
-  float cl = fbm(uv * vec2(1.0, 1.4) + vec2(0.4, 0.1), vec2(3.0, 2.0), 6);
-  vec3 sky = mix(vec3(0.02, 0.035, 0.08), vec3(0.16, 0.22, 0.38), smoothstep(0.0, 1.0, uv.y));
-  sky += vec3(0.5, 0.58, 0.78) * exp(-md * 7.0) * 0.9;
-  sky = mix(sky, sky * 0.4 + vec3(0.015, 0.02, 0.03), smoothstep(-0.05, 0.35, cl) * 0.8);
-  sky = mix(sky, vec3(1.0, 0.98, 0.9), smoothstep(0.05, 0.043, md));
-  float hill = uv.y - (0.16 + 0.06 * fbm(vec2(uv.x * 2.0, 0.0), vec2(2.0, 1.0), 4));
-  float trunk = abs(uv.x - 0.78 - 0.02 * sin(uv.y * 11.0)) - 0.016 * (1.3 - uv.y);
-  float br = 1.0;
-  for (int i = 0; i < 7; i++) {
-    float fi = float(i);
-    vec2 o = vec2(0.78, 0.3 + fi * 0.09);
-    vec2 d = rot2(2.4 + 0.5 * sin(fi * 2.3)) * (uv - o);
-    br = min(br, max(abs(d.y + 0.02 * sin(d.x * 25.0)) - 0.005 * (1.0 - d.x * 2.5), -d.x));
-    br = max(br, d.x - 0.3);
-  }
-  float sil = min(min(trunk, br), hill);
-  sky = mix(sky, vec3(0.006, 0.008, 0.014), smoothstep(0.004, -0.004, sil));
+  // deep blue zenith to a paler, misty horizon
+  vec3 sky = mix(vec3(0.07, 0.1, 0.18), vec3(0.025, 0.04, 0.09), smoothstep(0.15, 1.0, uv.y));
+  sky += vec3(0.4, 0.48, 0.66) * exp(-md * 5.0) * 0.7 + vec3(0.2, 0.25, 0.36) * exp(-md * 1.6) * 0.35;
+  // stars in the clear patches
+  float st = step(0.9965, hash12(floor(uv * vec2(700.0, 930.0)))) * smoothstep(0.35, 0.7, uv.y);
+  // two cloud layers, lit from the moon: dark bellies, silver rims toward the moon
+  float c1 = fbm(uv * vec2(1.0, 2.2) + vec2(0.3, 0.1), vec2(4.0, 3.0), 6) * 0.5 + 0.5;
+  float c2 = fbm(uv * vec2(1.6, 3.5) + vec2(2.1, 0.7), vec2(6.0, 5.0), 5) * 0.5 + 0.5;
+  float cl = smoothstep(0.48, 0.72, c1) * smoothstep(0.28, 0.55, uv.y);
+  float cl2 = smoothstep(0.55, 0.75, c2) * smoothstep(0.2, 0.45, uv.y) * 0.8;
+  float gx = fbm(uv * vec2(1.0, 2.2) + vec2(0.3, 0.1) + normalize(moon - uv) * 0.015, vec2(4.0, 3.0), 6) * 0.5 + 0.5;
+  float rim = clamp((c1 - gx) * 30.0, 0.0, 1.0) * exp(-md * 2.2);
+  vec3 cloudCol = vec3(0.04, 0.05, 0.08) + vec3(0.55, 0.6, 0.72) * exp(-md * 3.5) * 0.5;
+  sky = mix(sky, cloudCol, cl * 0.85);
+  sky = mix(sky, cloudCol * 0.8, cl2 * (1.0 - cl));
+  sky += vec3(0.6, 0.66, 0.8) * rim * cl * 0.6;
+  sky += vec3(0.9, 0.92, 1.0) * st * (1.0 - cl) * (1.0 - cl2);
+  // the moon: a disc with maria, haloed, partly veiled by the thin cloud
+  float disc = smoothstep(0.045, 0.041, md);
+  float maria = fbm((uv - moon) * 18.0 + 3.0, vec2(4.0), 3) * 0.5 + 0.5;
+  sky = mix(sky, vec3(0.95, 0.94, 0.88) * (0.82 + 0.25 * maria), disc * (1.0 - cl2 * 0.5));
+  // distant hills in misty layers
+  float h1 = uv.y - (0.2 + 0.05 * fbm(vec2(uv.x * 1.5, 0.0), vec2(3.0, 1.0), 4));
+  float h2 = uv.y - (0.14 + 0.035 * fbm(vec2(uv.x * 2.5, 0.5), vec2(5.0, 1.0), 4));
+  vec3 mist = vec3(0.06, 0.075, 0.11);
+  sky = mix(sky, mist * 1.2, smoothstep(0.004, -0.004, h1));
+  sky = mix(sky, mist * 0.6, smoothstep(0.004, -0.004, h2));
+  // a low ground mist band glowing faintly
+  sky += vec3(0.05, 0.06, 0.09) * exp(-abs(uv.y - 0.15) * 30.0);
   s.albedo = sky; s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
 }`,
   });
@@ -395,7 +407,7 @@ void surface(vec2 uv, inout Surface s) {
 // per-brick hue / value / roughness jitter, chipped arrises, recessed sandy lime mortar,
 // soot and efflorescence. Desaturated toward a brown-plum 0x6a3a2c so it sits under the moonlight.
 export function brickMap(ctx, size = 2048) {
-  return ctx.textures.generate('library:brick:v3', {
+  return ctx.textures.generate('library:brick:v4', {
     size, aspect: 0.9 / 0.56, tile: true, normalStrength: 1.7,
     glsl: /* glsl */ `
 float bj(float r, float k) { return (hash12(vec2(mod(k, 4.0), r) + 0.37) - 0.5) * 0.2; }  // boundary jitter (bricks)
@@ -428,8 +440,8 @@ void surface(vec2 uv, inout Surface s) {
   float mortarM = 1.0 - smoothstep(joint - 0.0015, joint + 0.0008, e);
   // ---- per-brick colour
   float h1 = hash12(id + 0.31), h2 = hash12(id * 1.7 + 4.0), h3 = hash12(id * 2.3 + 9.0), h4 = hash12(id * 3.1 + 1.0);
-  vec3 base = vec3(0.40, 0.22, 0.165);                                  // ~0x6a3a2c, desaturated
-  vec3 brown = vec3(0.39, 0.27, 0.19), plum = vec3(0.33, 0.19, 0.2), salmon = vec3(0.47, 0.27, 0.2);
+  vec3 base = vec3(0.37, 0.215, 0.17);                                  // ~0x6a3a2c, desaturated
+  vec3 brown = vec3(0.36, 0.26, 0.2), plum = vec3(0.3, 0.19, 0.2), salmon = vec3(0.44, 0.28, 0.22);
   vec3 bc = base;
   bc = mix(bc, brown, smoothstep(0.4, 1.0, h2) * 0.8);                  // hue drift toward brown
   bc = mix(bc, plum, smoothstep(0.6, 0.0, h2) * 0.6);                   // ... or toward purple
@@ -448,7 +460,7 @@ void surface(vec2 uv, inout Surface s) {
   // ---- mortar: lime, recessed, sandy, sooted by a century of lamps
   float sand = vnoise(uv * vec2(900.0, 560.0), vec2(900.0, 560.0));
   float mvar = fbm(uv + 11.0, vec2(12.0, 8.0), 3) * 0.5 + 0.5;
-  vec3 mc = mix(vec3(0.27, 0.25, 0.22), vec3(0.4, 0.37, 0.32), mvar) * (0.8 + 0.3 * sand);
+  vec3 mc = mix(vec3(0.34, 0.315, 0.28), vec3(0.47, 0.43, 0.37), mvar) * (0.8 + 0.3 * sand);
   vec3 col = mix(bc, mc, mortarM);
   // ---- grime: large soft soot clouds + faint vertical run-down streaks (break up the tile)
   float soot = smoothstep(0.35, 0.85, fbm(uv + 7.0, vec2(3.0, 2.0), 5) * 0.5 + 0.5);
@@ -460,10 +472,10 @@ void surface(vec2 uv, inout Surface s) {
   // heights: brick faces slightly domed and pitted; mortar sits ~6 mm back
   float faceH = 0.84 + mott * 0.05 - pits * 0.1 - fold * 0.04 - smoothstep(0.008, 0.0, e - joint) * 0.22 + 0.03 * h2;
   s.albedo = col;
-  s.height = mix(faceH, 0.22 + sand * 0.08, mortarM);
+  s.height = mix(faceH, 0.4 + sand * 0.08, mortarM);
   s.rough = mix(0.72 + 0.16 * h3 + pits * 0.08, 0.95, mortarM);
   s.metal = 0.0;
-  s.ao = mix(1.0 - smoothstep(0.014, 0.0, e) * 0.3, 0.42 + 0.1 * sand, mortarM);
+  s.ao = mix(1.0 - smoothstep(0.014, 0.0, e) * 0.2, 0.66 + 0.1 * sand, mortarM);
 }`,
   });
 }
@@ -677,7 +689,7 @@ void surface(vec2 uv, inout Surface s) {
 
 // ------------------------------------------------------------------ distant landscape layer for the bay (alpha cut-out trees, gate lamp)
 export function treelineMap(ctx) {
-  return ctx.textures.generate('library:treeline:v1', {
+  return ctx.textures.generate('library:treeline:v2', {
     size: 1024, aspect: 1.6, tile: false, normalStrength: 0.0,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
@@ -702,7 +714,7 @@ void surface(vec2 uv, inout Surface s) {
   float pier2 = step(abs(uv.x - 0.45), 0.012) * step(uv.y, 0.27);
   float post = step(abs(uv.x - 0.39), 0.0025) * step(uv.y, 0.3);
   a = max(a, max(max(pier, pier2), post));
-  vec3 col = vec3(0.012, 0.014, 0.02);
+  vec3 col = vec3(0.022, 0.028, 0.042);
   // the gate lamp: warm glow
   float lampD = length((uv - vec2(0.39, 0.305)) * vec2(1.6, 1.0));
   vec3 glow = vec3(1.0, 0.62, 0.28) * (exp(-lampD * 60.0) * 2.5 + exp(-lampD * 14.0) * 0.25);

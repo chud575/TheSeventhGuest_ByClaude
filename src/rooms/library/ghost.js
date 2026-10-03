@@ -100,11 +100,11 @@ export async function buildGhost(ctx, root) {
   const mats = {
     // the face reads near-solid (the eye must find it); the body thins to a cold, rim-lit veil
     head: spectralMaterial({ coreAlpha: 1.0, edgeAlpha: 0.72, rimStrength: 0.35, glow: 0.02, fadeY: -0.1, fadeSoft: 0.02, roughness: 0.5, tint: 0xc8ccd4, bump: 0.00022, bumpFreq: 320, breakup: 0.0, desat: 0.28, time }),
-    hair: spectralMaterial({ coreAlpha: 0.85, edgeAlpha: 0.25, rimStrength: 0.9, glow: 0.05, roughness: 0.55, tint: 0xe4e8f0, breakup: 0.25, desat: 0.4, time }),
+    hair: spectralMaterial({ coreAlpha: 0.9, edgeAlpha: 0.3, rimStrength: 1.0, glow: 0.12, roughness: 0.55, tint: 0xe4e8f0, breakup: 0.25, desat: 0.4, time }),
     eyes: spectralMaterial({ coreAlpha: 0.97, edgeAlpha: 0.9, rimStrength: 0.05, glow: 0.02, roughness: 0.06, tint: 0xe8ecf2, breakup: 0.0, desat: 0.2, time }),
     cravat: spectralMaterial({ coreAlpha: 0.95, edgeAlpha: 0.45, rimStrength: 0.35, glow: 0.04, fadeY: -0.235, fadeSoft: 0.045, roughness: 0.6, tint: 0xf0ece4, bump: 0.0006, bumpFreq: 220, breakup: 0.2, desat: 0.25, time }),
-    waistcoat: spectralMaterial({ coreAlpha: 0.4, edgeAlpha: 0.4, rimStrength: 0.7, glow: 0.06, fadeY: -0.37, fadeSoft: 0.1, roughness: 0.7, tint: 0xd8e0ee, breakup: 0.35, depthWrite: false, desat: 0.4, time }),
-    coat: spectralMaterial({ coreAlpha: 0.3, edgeAlpha: 0.36, rimStrength: 0.6, glow: 0.05, fadeY: -0.32, fadeSoft: 0.13, roughness: 0.75, tint: 0xd8e0ee, breakup: 0.6, depthWrite: false, desat: 0.4, time }),
+    waistcoat: spectralMaterial({ coreAlpha: 0.42, edgeAlpha: 0.45, rimStrength: 0.8, glow: 0.16, fadeY: -0.37, fadeSoft: 0.1, roughness: 0.7, tint: 0xd8e0ee, breakup: 0.35, depthWrite: false, desat: 0.4, time }),
+    coat: spectralMaterial({ coreAlpha: 0.3, edgeAlpha: 0.55, rimStrength: 1.0, glow: 0.18, fadeY: -0.32, fadeSoft: 0.13, roughness: 0.75, tint: 0xd8e0ee, breakup: 0.6, depthWrite: false, desat: 0.4, time }),
   };
   const order = { coat: 1, waistcoat: 2, cravat: 3, head: 4, eyes: 5, hair: 6 };
   const meshes = {};
@@ -117,6 +117,16 @@ export async function buildGhost(ctx, root) {
     group.add(m);
     meshes[name] = m;
   }
+  // catchlights: the wet glint of the key light on each cornea (keeps the eyes alive at a distance)
+  {
+    const cl = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.65, 1.8), transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false });
+    for (const sx of [-1, 1]) {
+      const d = new THREE.Mesh(new THREE.SphereGeometry(0.0009, 8, 6), cl);
+      d.position.set(sx * 0.0315 - 0.0016, 0.0702, 0.0896);
+      d.renderOrder = 17; d.userData.noBake = true;
+      group.add(d);
+    }
+  }
   // a very faint cold aura behind the head
   {
     const tex = ctx.textures.canvas('library:ghosthalo', 128, 128, (g2, w, h) => {
@@ -124,8 +134,8 @@ export async function buildGhost(ctx, root) {
       grd.addColorStop(0, 'rgba(170,185,215,0.5)'); grd.addColorStop(0.45, 'rgba(120,135,170,0.14)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
       g2.fillStyle = grd; g2.fillRect(0, 0, w, h);
     }, { tile: false });
-    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.12, toneMapped: false }));
-    halo.scale.set(0.55, 0.65, 1);
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.2, toneMapped: false }));
+    halo.scale.set(0.7, 0.9, 1);
     halo.position.set(0, 0.04, -0.08);
     halo.renderOrder = 8;
     halo.userData.noBake = true;
