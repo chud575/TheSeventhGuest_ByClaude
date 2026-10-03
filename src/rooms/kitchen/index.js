@@ -961,9 +961,9 @@ export default {
       leaf.rotation.y = 1.25;
       add(leaf);
       // mop bucket, boots and a coal hod by the door; the broom against the wall
-      const mb = buildMopBucket(G, mat); mb.position.set(x0 - 0.88, 0, Z1 - 0.32); mb.rotation.y = 0.6; add(mb);
-      const bt = buildBoots(G, mat); bt.position.set(x0 - 1.32, 0, Z1 - 0.3); bt.rotation.y = Math.PI + 0.3; add(bt);
-      const hod = buildCoalHod(G, mat); hod.position.set(x0 + 0.7, 0, Z1 - 0.3); hod.rotation.y = 2.5; add(hod);
+      const mb = buildMopBucket(G, mat); mb.position.set(x0 - 0.75, 0, Z1 - 0.36); mb.rotation.y = 0.6; add(mb);
+      const bt = buildBoots(G, mat); bt.position.set(x0 + 0.68, 0, Z1 - 0.22); bt.rotation.y = Math.PI + 0.5; add(bt);
+      const hod = buildCoalHod(G, mat); hod.position.set(2.12, 0, Z1 - 0.38); hod.rotation.y = 2.5; add(hod);
       const broom = new THREE.Group();
       broom.add(mk(new THREE.CylinderGeometry(0.012, 0.012, 1.3, 8), mat.pine, 0, 0.85, 0));
       broom.add(mk(new THREE.CylinderGeometry(0.03, 0.09, 0.28, 16), mat.herbs, 0, 0.14, 0));
@@ -1285,7 +1285,7 @@ export default {
     rangeRim.target.position.set((CH.ax0 + CH.ax1) / 2, 0.6, Z0 + 0.5);
     add(rangeRim); add(rangeRim.target);
     // fake bounce: candle- and lamp-light thrown up off the floured block onto the beams
-    const bounce = new THREE.PointLight(0xd89a5c, 0.9, 3.2, 2);
+    const bounce = new THREE.PointLight(0xd89a5c, 1.8, 3.4, 2);
     bounce.position.set(BLOCK.x, 2.75, BLOCK.z + 0.2);
     add(bounce);
     const dinPassage = new THREE.PointLight(0xffa860, 1.0, 3.5, 2);
