@@ -53,7 +53,7 @@ void glassOut(inout Surface s, vec2 uv, vec3 col, float lead, float alpha) {
   }
   s.alpha = alpha;
   s.height = 0.25 + 0.65 * sqrt(lead);
-  s.rough = mix(0.06, 0.42, lead);
+  s.rough = mix(uMode > 0.5 ? 0.3 : 0.06, 0.42, lead);
   s.metal = lead * 0.7;
   s.ao = 1.0;
 }
@@ -176,7 +176,7 @@ void surface(vec2 uv, inout Surface s) {
       float k = atan(ar.y, ar.x) / PI * 10.0;
       float f = fract(k);
       float ring = step(0.19, ra);
-      col = ring > 0.5 ? (mod(floor(k), 2.0) < 0.5 ? glassPal(3.0) : glassPal(0.0) * 1.3) : glassPal(7.0);
+      col = ring > 0.5 ? (mod(floor(k), 2.0) < 0.5 ? glassPal(3.0) * 1.2 : glassPal(5.0) * 0.9) : glassPal(7.0);
       if (ra < 0.1) col = glassPal(2.0);
       id = vec2(floor(k), ring + (ra < 0.1 ? 5.0 : 0.0) + 80.0);
       lead = max(lead, leadLine(min(f, 1.0 - f) * ra * PI / 10.0, 0.006) * step(0.1, ra));
@@ -459,165 +459,251 @@ export function clockDialTexture(forge) {
 }
 
 /**
- * Portrait of Henry Stauf, toymaker: a gaunt, bald old man in a high wing collar,
- * lit from below-left by a single candle (Rembrandt-in-reverse), with a jester
- * marionette dangling from his fingers and the house itself glimpsed through a
- * storm window behind him. Painted, varnished, crazed.
+ * Portrait of Henry Stauf, toymaker: a gaunt, bald old man in a wing collar and black silk
+ * stock, turned three-quarters, lit by a single high key from the left. The head and bust
+ * are a raymarched sculpted SDF (real form, soft shadow, occlusion) so the light models the
+ * skull, the sockets and the hooked nose; the result is then "painted": brush-warped,
+ * stroke-modulated, varnished and finely crazed. A storm window shows the house behind him.
  */
 export function staufPortraitTexture(forge, aspect) {
-  return forge.generate('foyer:stauf', {
-    size: 1536, aspect, tile: false, uniforms: { uAsp: aspect }, normalStrength: 0.6,
-    glsl: /* glsl */ `
-float fb(vec2 p, int o) { return fbm(p, vec2(64.0), o) * 0.5 + 0.5; }
-vec3 staufPaint(vec2 uv) {
-  vec2 p = (uv - 0.5) * vec2(uAsp, 1.0);
-  // ---- ground: umber dark with a warm bloom behind the head
-  vec3 col = mix(vec3(0.03, 0.022, 0.018), vec3(0.2, 0.13, 0.07), exp(-length((p - vec2(-0.12, 0.1)) * vec2(1.0, 0.75)) * 3.0));
-  col *= 0.8 + 0.35 * fb(uv * 5.0 + 2.0, 4);
-  // ---- storm window, upper right: moon, clouds, the house on its hill
-  vec2 w = p - vec2(0.23, 0.27);
-  float win = sdBox(w, vec2(0.085, 0.13));
-  float winArch = length(w - vec2(0.0, 0.13)) - 0.085;
-  float inWin = min(win, max(winArch, -(w.y - 0.13)));
+  return forge.generate('foyer:stauf3', {
+    size: 1280, aspect, tile: false, uniforms: { uAsp: aspect, uV: 0, uCoat: [0.028, 0.026, 0.03] }, normalStrength: 0.25,
+    glsl: PORTRAIT_SDF + /* glsl */ `
+vec3 background(vec2 p, vec2 uv) {
+  vec3 col = mix(vec3(0.025, 0.018, 0.014), vec3(0.2, 0.13, 0.075), exp(-length((p - vec2(-0.16, 0.12)) * vec2(1.0, 0.75)) * 3.2));
+  col *= 0.75 + 0.4 * fb2(uv * 4.0 + 2.0, 4);
+  // storm window, upper right: moon, clouds, the house on its hill
+  vec2 w = p - vec2(0.21, 0.25);
+  float win = sdBox(w, vec2(0.08, 0.12));
+  float winArch = length(w - vec2(0.0, 0.12)) - 0.08;
+  float inWin = min(win, max(winArch, -(w.y - 0.12)));
   if (inWin < 0.0) {
-    vec3 sky = mix(vec3(0.05, 0.07, 0.11), vec3(0.28, 0.3, 0.34), smoothstep(-0.12, 0.2, w.y));
-    float cl = fb(w * vec2(9.0, 18.0) + 3.0, 5);
-    sky = mix(sky, vec3(0.08, 0.08, 0.1), smoothstep(0.45, 0.7, cl));
-    sky += vec3(0.85, 0.82, 0.7) * smoothstep(0.022, 0.016, length(w - vec2(0.035, 0.12)));
+    vec3 sky = mix(vec3(0.04, 0.05, 0.08), vec3(0.22, 0.24, 0.28), smoothstep(-0.12, 0.2, w.y));
+    float cl = fb2(w * vec2(9.0, 18.0) + 3.0, 5);
+    sky = mix(sky, vec3(0.06, 0.06, 0.08), smoothstep(0.45, 0.7, cl));
+    sky += vec3(0.85, 0.82, 0.7) * smoothstep(0.02, 0.014, length(w - vec2(0.03, 0.11)));
     float hill = w.y + 0.07 - 0.03 * sin(w.x * 30.0);
     float house = sdBox(w - vec2(-0.015, -0.045), vec2(0.035, 0.03));
-    house = min(house, sdBox(w - vec2(-0.03, -0.01), vec2(0.008, 0.03)));   // tower
-    house = min(house, max(abs(w.x + 0.03) - 0.016 + (w.y - 0.02) * 0.6, abs(w.y - 0.03) - 0.012)); // spire
-    vec3 c = sky;
-    c = mix(c, vec3(0.015, 0.015, 0.02), smoothstep(0.002, -0.002, min(hill, house)));
+    house = min(house, sdBox(w - vec2(-0.03, -0.01), vec2(0.008, 0.03)));
+    vec3 c = mix(sky, vec3(0.012, 0.012, 0.016), smoothstep(0.002, -0.002, min(hill, house)));
     c += vec3(0.9, 0.6, 0.2) * smoothstep(0.004, 0.0, sdBox(w - vec2(-0.005, -0.045), vec2(0.004, 0.004)));
     col = c;
   }
-  col = mix(col, vec3(0.06, 0.04, 0.025), smoothstep(0.006, 0.0, abs(inWin) - 0.004));
-  // ---- coat & shoulders (sloping, thin)
-  float coat = sdEllipse(p - vec2(-0.01, -0.56), vec2(0.4, 0.4));
-  float lightCoat = smoothstep(0.25, -0.35, p.x + p.y * 0.3);
-  vec3 coatCol = vec3(0.025, 0.022, 0.026) + vec3(0.07, 0.06, 0.07) * lightCoat * fb(uv * 22.0, 3);
-  float lapL = abs(p.x + 0.05 - (p.y + 0.3) * 0.55) - 0.01;
-  float lapR = abs(p.x - 0.06 + (p.y + 0.3) * 0.5) - 0.01;
-  coatCol += vec3(0.045) * (1.0 - smoothstep(0.0, 0.02, min(lapL, lapR))) * step(p.y, -0.18);
-  col = mix(col, coatCol, smoothstep(0.012, -0.012, coat));
-  // ---- wing collar + black silk stock
-  float vee = max(abs(p.x - 0.005) - (p.y + 0.4) * 0.36, p.y + 0.16);
-  vec3 linen = vec3(0.8, 0.76, 0.66) * (0.35 + 0.65 * smoothstep(0.12, -0.12, p.x));
-  col = mix(col, linen, smoothstep(0.01, -0.01, vee) * step(-0.55, p.y));
-  float wingL = sdBox(rot2(-0.5) * (p - vec2(-0.045, -0.115)), vec2(0.035, 0.016));
-  float wingR = sdBox(rot2(0.5) * (p - vec2(0.05, -0.115)), vec2(0.035, 0.016));
-  col = mix(col, linen * 1.1, smoothstep(0.006, -0.006, min(wingL, wingR)));
-  float stock = sdEllipse(p - vec2(0.0, -0.165), vec2(0.06, 0.032));
-  col = mix(col, vec3(0.02, 0.018, 0.02) + 0.04 * lightCoat, smoothstep(0.008, -0.008, stock));
-  col += vec3(0.8, 0.55, 0.2) * 0.5 * smoothstep(0.006, 0.0, abs(length((p - vec2(0.09, -0.36)) * vec2(1.0, 2.2)) - 0.07) - 0.002) * step(p.x, 0.15) * step(0.04, p.x); // watch chain
-  // ---- neck (scrawny, in shadow)
-  float neck = sdBox(p - vec2(0.0, -0.075), vec2(0.035, 0.05));
-  col = mix(col, vec3(0.16, 0.1, 0.07) * (0.5 + smoothstep(0.03, -0.03, p.x)), smoothstep(0.008, -0.008, neck));
-  // ---- head: long, bald, turned a little to his left
-  vec2 hp = rot2(0.07) * (p - vec2(-0.005, 0.085));
-  float head = sdEllipse(hp, vec2(0.092, 0.142));
-  // narrow jaw: pinch the bottom
-  head = max(head, sdEllipse(hp - vec2(0.0, 0.02), vec2(0.105, 0.17)));
-  vec2 hn = hp / vec2(0.092, 0.142);
-  // key light from lower left (a candle), fill from the window at right
-  float key = clamp(0.55 - hn.x * 0.85 - hn.y * 0.25 - dot(hn, hn) * 0.3, 0.0, 1.0);
-  float rim = smoothstep(0.7, 1.0, hn.x) * smoothstep(-0.3, 0.6, hn.y) * 0.35;
-  vec3 skin = mix(vec3(0.09, 0.05, 0.035), vec3(0.88, 0.7, 0.52), pow(key, 1.1));
-  skin += vec3(0.25, 0.3, 0.38) * rim;
-  // dome highlight (bald crown catches the light)
-  skin += vec3(0.25, 0.2, 0.15) * smoothstep(0.35, 0.0, length(hn - vec2(-0.25, 0.62))) * 0.8;
-  // heavy brow ridge, arched, sinister
-  float browL = abs(hn.y - 0.25 - 0.18 * (1.0 - pow((hn.x + 0.38) / 0.32, 2.0))) - 0.035;
-  browL = max(browL, abs(hn.x + 0.38) - 0.3);
-  float browR = abs(hn.y - 0.25 - 0.22 * (1.0 - pow((hn.x - 0.38) / 0.3, 2.0))) - 0.035;
-  browR = max(browR, abs(hn.x - 0.38) - 0.28);
-  // deep sockets
-  float sockL = sdEllipse(hn - vec2(-0.36, 0.1), vec2(0.23, 0.15));
-  float sockR = sdEllipse(hn - vec2(0.37, 0.1), vec2(0.21, 0.15));
-  skin *= mix(0.3, 1.0, smoothstep(-0.06, 0.1, min(sockL, sockR)));
-  skin = mix(skin, vec3(0.5, 0.48, 0.45) * (0.3 + key), (1.0 - smoothstep(-0.01, 0.03, min(browL, browR))) * 0.75);
-  // eyes: small, hooded, glinting
-  float eyeL = sdEllipse(hn - vec2(-0.35, 0.09), vec2(0.12, 0.04));
-  float eyeR = sdEllipse(hn - vec2(0.36, 0.1), vec2(0.11, 0.04));
-  skin = mix(skin, vec3(0.03, 0.02, 0.02), 1.0 - smoothstep(-0.01, 0.02, min(eyeL, eyeR)));
-  float glint = min(length(hn - vec2(-0.32, 0.1)), length(hn - vec2(0.39, 0.11)));
-  skin += vec3(0.9, 0.85, 0.7) * (1.0 - smoothstep(0.012, 0.03, glint));
-  // long hooked nose
-  float ridge = sdSegment(hn, vec2(-0.03, 0.08), vec2(0.06, -0.36)) - 0.045;
-  float noseSh = sdSegment(hn, vec2(0.1, 0.02), vec2(0.18, -0.38)) - 0.06;
-  skin = mix(skin, skin * 1.25 + 0.04, (1.0 - smoothstep(0.0, 0.05, ridge)) * 0.6);
-  skin *= mix(0.45, 1.0, smoothstep(0.0, 0.08, noseSh));
-  float nost = sdEllipse(hn - vec2(0.05, -0.42), vec2(0.14, 0.045));
-  skin *= mix(0.5, 1.0, smoothstep(0.0, 0.04, nost));
-  // hollow cheeks
-  skin *= mix(0.65, 1.0, smoothstep(0.0, 0.25, sdEllipse(hn - vec2(0.48, -0.3), vec2(0.25, 0.3)) + 0.1));
-  skin *= mix(0.8, 1.0, smoothstep(0.0, 0.25, sdEllipse(hn - vec2(-0.5, -0.32), vec2(0.2, 0.28)) + 0.1));
-  // the smile: thin, curling up at his left
-  float mx = hn.x - 0.03;
-  float mouth = abs(hn.y + 0.62 - 0.22 * mx * mx - 0.12 * max(mx, 0.0)) - 0.018;
-  mouth = max(mouth, abs(mx) - 0.33);
-  skin = mix(skin, vec3(0.12, 0.04, 0.035), 1.0 - smoothstep(0.0, 0.025, mouth));
-  float lip = abs(hn.y + 0.67 - 0.15 * mx * mx) - 0.02;
-  lip = max(lip, abs(mx) - 0.22);
-  skin = mix(skin, skin * 1.2, (1.0 - smoothstep(0.0, 0.03, lip)) * 0.4);
-  // grey wisps at the temples and behind the ears
-  float wisp = smoothstep(0.62, 0.95, abs(hn.x)) * smoothstep(0.55, -0.1, hn.y) * smoothstep(-0.55, -0.1, hn.y);
-  wisp *= 0.6 + 0.6 * fb(hn * vec2(3.0, 22.0), 3);
-  skin = mix(skin, vec3(0.55, 0.53, 0.5) * (0.35 + key), clamp(wisp, 0.0, 1.0));
-  // ears
-  float ear = sdEllipse(hn - vec2(-1.02, 0.02), vec2(0.12, 0.26));
-  skin *= 0.92 + 0.15 * fb(uv * 50.0, 3);
-  col = mix(col, skin, smoothstep(0.01, -0.01, head));
-  col = mix(col, vec3(0.5, 0.33, 0.24) * 0.8, smoothstep(0.004, -0.004, (ear) * 0.1) * (1.0 - smoothstep(0.01, -0.01, head)) * step(p.x, -0.06));
-  // ---- hand + jester marionette (lower left)
-  vec2 hd = p - vec2(-0.2, -0.27);
-  float hand = sdEllipse(rot2(0.6) * hd, vec2(0.05, 0.028));
-  float fingers = min(sdSegment(hd, vec2(0.02, 0.01), vec2(0.06, 0.03)) - 0.01, sdSegment(hd, vec2(0.02, -0.01), vec2(0.065, 0.0)) - 0.01);
-  vec3 handCol = mix(vec3(0.15, 0.09, 0.06), vec3(0.8, 0.62, 0.46), smoothstep(0.05, -0.05, hd.x + hd.y));
-  col = mix(col, handCol, smoothstep(0.006, -0.006, min(hand, fingers)));
-  // strings
-  for (int i = 0; i < 3; i++) {
-    float fx0 = -0.16 + float(i) * 0.012;
-    float s = abs(p.x - fx0 - (p.y + 0.27) * 0.02 * float(i - 1)) - 0.0012;
-    col = mix(col, vec3(0.6, 0.55, 0.45), (1.0 - smoothstep(0.0, 0.002, s)) * step(p.y, -0.28) * step(-0.39, p.y) * 0.7);
-  }
-  vec2 jp = p - vec2(-0.155, -0.43);
-  float jHead = length(jp) - 0.022;
-  float jHat = min(sdSegment(jp, vec2(0.0, 0.015), vec2(-0.03, 0.045)), sdSegment(jp, vec2(0.0, 0.015), vec2(0.03, 0.048))) - 0.008;
-  float jBody = sdEllipse(jp - vec2(0.0, -0.05), vec2(0.03, 0.035));
-  col = mix(col, vec3(0.5, 0.06, 0.05) * (0.5 + smoothstep(0.03, -0.03, jp.x)), smoothstep(0.004, -0.004, min(jBody, jHat)));
-  col = mix(col, vec3(0.8, 0.75, 0.66) * (0.5 + smoothstep(0.02, -0.02, jp.x)), smoothstep(0.004, -0.004, jHead));
-  col = mix(col, vec3(0.05), smoothstep(0.003, 0.0, abs(jHead + 0.01) - 0.0015) * step(jp.y, -0.004) * step(abs(jp.x), 0.012));
-  col += vec3(0.9, 0.7, 0.2) * 0.6 * smoothstep(0.008, 0.0, min(length(jp - vec2(-0.03, 0.045)), length(jp - vec2(0.03, 0.048))));
-  // painted oval spandrel
-  float oval = sdEllipse((uv - 0.5) * vec2(uAsp, 1.0), vec2(0.465 * uAsp, 0.475));
-  col = mix(col, vec3(0.025, 0.02, 0.016), smoothstep(-0.02, 0.025, oval));
+  col = mix(col, vec3(0.05, 0.035, 0.022), smoothstep(0.006, 0.0, abs(inWin) - 0.004));
+  // a faint red drape at the left edge
+  float dr = smoothstep(-0.2, -0.32, p.x + 0.04 * sin(p.y * 30.0)) * 0.6;
+  col = mix(col, vec3(0.14, 0.02, 0.02) * (0.4 + 0.8 * fb2(vec2(p.x * 40.0, p.y * 3.0), 3)), dr);
   return col;
 }
 void surface(vec2 uv, inout Surface s) {
-  vec2 b = uv + (vec2(fb(uv * 7.0, 3), fb(uv * 7.0 + 5.0, 3)) - 0.5) * 0.006;
-  vec3 col = staufPaint(b);
-  col = pow(max(col, 0.0), vec3(0.9)) * 1.2;
-  float strokes = fb(rot2(fb(uv * 3.0, 2) * 3.0) * uv * vec2(70.0, 20.0), 3);
-  col *= 0.9 + 0.16 * strokes;
-  // yellowed varnish, darker at the rebate
+  vec2 b = uv + (vec2(fb2(uv * 11.0, 3), fb2(uv * 11.0 + 5.0, 3)) - 0.5) * 0.0045;
+  vec2 p = (b - 0.5) * vec2(uAsp, 1.0);
+  vec3 col = renderSitter(p, b, background(p, b), 0.0);
+  float strokes = fb2(rot2(fb2(uv * 3.0, 2) * 3.0) * uv * vec2(90.0, 26.0), 3);
+  col *= 0.92 + 0.14 * strokes;
+  col = mix(col, col * vec3(1.0, 0.84, 0.58), 0.45);
   float edge = min(min(uv.x, 1.0 - uv.x) * uAsp, min(uv.y, 1.0 - uv.y));
-  col = mix(col, col * vec3(1.0, 0.8, 0.5), 0.55);
-  col *= mix(0.5, 1.0, smoothstep(0.0, 0.1, edge));
-  // craquelure
-  vec2 cq = uv * vec2(uAsp, 1.0) * 80.0;
-  float cr = voronoiEdge(cq + (vec2(fb(uv * 9.0, 3), fb(uv * 9.0 + 3.0, 3)) - 0.5) * 1.2, vec2(1e4), 1.0);
-  float crack = 1.0 - smoothstep(0.0, 0.06, cr);
-  col *= 1.0 - crack * 0.35;
+  col *= mix(0.55, 1.0, smoothstep(0.0, 0.09, edge));
+  float oval = sdEllipse(p, vec2(0.47 * uAsp, 0.48));
+  col = mix(col, vec3(0.02, 0.015, 0.012), smoothstep(-0.02, 0.03, oval) * 0.8);
+  vec2 cq = uv * vec2(uAsp, 1.0) * 150.0;
+  float cr = voronoiEdge(cq + (vec2(fb2(uv * 9.0, 3), fb2(uv * 9.0 + 3.0, 3)) - 0.5) * 1.2, vec2(1e4), 1.0);
+  float crack = (1.0 - smoothstep(0.0, 0.04, cr)) * (0.4 + 0.6 * fb2(uv * 6.0, 3));
+  col *= 1.0 - crack * 0.12;
   s.albedo = col;
-  s.height = 0.5 + strokes * 0.25 - crack * 0.3;
-  s.rough = 0.35 + strokes * 0.2 + crack * 0.3;
-  s.metal = 0.0; s.ao = 1.0 - crack * 0.3;
+  s.height = 0.5 + strokes * 0.12 - crack * 0.15;
+  s.rough = 0.3 + strokes * 0.15 + crack * 0.25;
+  s.metal = 0.0; s.ao = 1.0 - crack * 0.2;
 }`,
   });
 }
+
+// Raymarched sitter: sculpted head & bust. renderSitter(p, uv, bg, variant)
+const PORTRAIT_SDF = /* glsl */ `
+float fb2(vec2 p, int o) { return fbm(p, vec2(64.0), o) * 0.5 + 0.5; }
+float sdEll(vec3 p, vec3 r) { float k0 = length(p / r); float k1 = length(p / (r * r)); return k0 * (k0 - 1.0) / max(k1, 1e-6); }
+float sdCap(vec3 p, vec3 a, vec3 b, float r) { vec3 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h) - r; }
+float smin3(float a, float b, float k) { float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0); return mix(b, a, h) - k * h * (1.0 - h); }
+float smax3(float a, float b, float k) { return -smin3(-a, -b, k); }
+// materials: 0 skin, 1 eye, 2 coat, 3 linen, 4 silk
+const float YAW = 0.42;
+const vec3 HEAD = vec3(0.0, 0.115, 0.0);
+vec3 toHead(vec3 p) {
+  vec3 q = p - HEAD;
+  float c = cos(YAW), s = sin(YAW);
+  q.xz = mat2(c, -s, s, c) * q.xz;
+  float t = -0.08;                         // a slight downward tilt: he looks at us from under his brow
+  q.yz = mat2(cos(t), -sin(t), sin(t), cos(t)) * q.yz;
+  return q;
+}
+float headSDF(vec3 q, out float mat) {
+  vec3 m = vec3(abs(q.x), q.yz);
+  float d = sdEll(q - vec3(0.0, 0.035, -0.012), vec3(0.077, 0.094, 0.097));            // cranium
+  d = smin3(d, sdEll(q - vec3(0.0, -0.035, 0.02), vec3(0.056, 0.074, 0.07)), 0.03);    // face mass
+  d = smin3(d, sdEll(q - vec3(0.0, -0.078, 0.028), vec3(0.04, 0.034, 0.048)), 0.022); // jaw
+  d = smin3(d, sdEll(m - vec3(0.042, -0.01, 0.052), vec3(0.021, 0.015, 0.02)), 0.014);// cheekbones
+  if (uV < 0.5) {
+    d = smax3(d, -sdEll(m - vec3(0.07, 0.025, 0.035), vec3(0.018, 0.03, 0.03)), 0.02);  // sunken temples
+    d = smax3(d, -sdEll(m - vec3(0.046, -0.05, 0.068), vec3(0.018, 0.024, 0.018)), 0.02);// hollow cheeks
+  } else {
+    d = smin3(d, sdEll(m - vec3(0.038, -0.04, 0.05), vec3(0.025, 0.03, 0.025)), 0.02);  // fuller cheeks
+  }
+  d = smin3(d, sdCap(q, vec3(-0.042, 0.016, 0.074), vec3(0.042, 0.016, 0.074), 0.011), 0.014); // brow ridge
+  d = smax3(d, -sdEll(m - vec3(0.029, 0.0, 0.085), vec3(0.02, 0.016, 0.02)), 0.009);   // sockets
+  float nz = uV > 1.5 ? 0.82 : 1.0;      // the lady's nose is finer
+  d = smin3(d, sdCap(q, vec3(0.0, 0.006, 0.086), vec3(0.0, -0.03 * nz, 0.086 + 0.022 * nz), 0.0085 * nz), 0.012); // nose bridge
+  d = smin3(d, length(q - vec3(0.0, -0.033 * nz, 0.083 + 0.021 * nz)) - 0.011 * nz, 0.008);                  // tip
+  d = smin3(d, length(m - vec3(0.012, -0.036, 0.09)) - 0.0085, 0.008);                // wings
+  d = smin3(d, sdEll(q - vec3(0.002, -0.061, 0.087), vec3(0.021, 0.0055, 0.009)), 0.006);  // thin lips
+  d = smax3(d, -sdCap(q, vec3(-0.022, -0.061, 0.093), vec3(0.024, -0.056, 0.093), 0.0022), 0.003); // the mouth line, lifted at his left
+  d = smin3(d, sdEll(q - vec3(0.0, -0.096, 0.06), vec3(0.02, 0.016, 0.017)), 0.016);  // pointed chin
+  d = smin3(d, sdEll(m - vec3(0.077, 0.002, -0.006), vec3(0.011, 0.03, 0.019)), 0.008);// ears
+  d = smin3(d, sdCap(q, vec3(0.0, -0.08, -0.015), vec3(0.0, -0.22, -0.02), 0.036), 0.02); // neck
+  mat = 0.0;
+  // hair (material 5)
+  if (uV > 0.5) {
+    float hair;
+    if (uV < 1.5) {
+      // patriarch: receding grey hair swept back, a full beard and moustache
+      hair = sdEll(q - vec3(0.0, 0.036, -0.02), vec3(0.082, 0.096, 0.1));
+      hair = smax3(hair, -(q.y - 0.07 + q.x * q.x * 6.0 + (q.z - 0.02) * 0.9), 0.02);       // high, receding hairline
+      float beard = sdEll(q - vec3(0.0, -0.092, 0.038), vec3(0.062, 0.062, 0.056));
+      beard = smax3(beard, q.y + 0.04 - abs(q.x) * 0.2 - max(0.0, q.z - 0.075) * 0.0, 0.015);
+      beard = smin3(beard, sdCap(vec3(abs(q.x), q.y, q.z), vec3(0.0, -0.05, 0.093), vec3(0.03, -0.062, 0.084), 0.0075), 0.006);
+      beard = smin3(beard, sdEll(vec3(abs(q.x), q.y, q.z) - vec3(0.06, -0.04, 0.03), vec3(0.018, 0.04, 0.03)), 0.015);   // whiskers
+      hair = min(hair, beard);
+    } else {
+      // lady: hair parted in the centre, smooth bands over the ears, a chignon behind
+      hair = sdEll(q - vec3(0.0, 0.038, -0.014), vec3(0.081, 0.096, 0.1));
+      hair = smax3(hair, -(q.y - 0.052 + q.x * q.x * 9.0 + (q.z - 0.06) * 0.55), 0.018);   // soft, arched hairline
+      float bands = sdEll(vec3(abs(q.x), q.y, q.z) - vec3(0.06, 0.0, 0.0), vec3(0.028, 0.05, 0.06));
+      hair = smin3(hair, bands, 0.02);
+      hair = smin3(hair, length(q - vec3(0.0, 0.0, -0.105)) - 0.042, 0.02);
+      hair = smax3(hair, -sdCap(q, vec3(0.0, 0.15, 0.09), vec3(0.0, 0.07, 0.0), 0.0025), 0.002);   // the parting
+    }
+    if (hair < d) { d = hair; mat = 5.0; }
+  }
+  // heavy hooded upper lids and a lower lid roll (skin), drawn over the eyeballs
+  d = smin3(d, sdEll(m - vec3(0.029, 0.007, 0.075), vec3(0.016, 0.0065, 0.009)), 0.004);
+  d = smin3(d, sdEll(m - vec3(0.029, -0.011, 0.074), vec3(0.014, 0.004, 0.007)), 0.004);
+  float eye = length(m - vec3(0.029, -0.001, 0.0675)) - 0.0105;
+  if (eye < d) { d = eye; mat = 1.0; }
+  return d;
+}
+float bodySDF(vec3 p, out float mat) {
+  vec3 b = p;
+  b.xz = mat2(cos(0.25), -sin(0.25), sin(0.25), cos(0.25)) * b.xz;
+  float coat = sdEll(b - vec3(0.0, -0.31, -0.06), uV > 1.5 ? vec3(0.21, 0.23, 0.11) : vec3(0.24, 0.23, 0.12));
+  coat = smin3(coat, sdEll(b - vec3(0.0, -0.11, -0.04), vec3(0.11, 0.05, 0.075)), 0.07);
+  mat = 2.0;
+  // wing collar: a short tube round the neck, open at the front
+  vec3 c = toHead(p);
+  float ring = max(abs(length(c.xz - vec2(0.0, -0.012)) - (uV > 1.5 ? 0.038 : 0.041)) - 0.003, abs(c.y + 0.155) - (uV > 1.5 ? 0.03 : 0.022));
+  float wings = sdEll(vec3(abs(c.x), c.y, c.z) - vec3(0.016, -0.17, 0.035), vec3(0.016, 0.008, 0.006));
+  float collar = min(ring, wings);
+  if (collar < coat) { coat = collar; mat = 3.0; }
+  float stock = uV > 1.5 ? length(c - vec3(0.0, -0.19, 0.04)) - 0.012 : sdEll(c - vec3(0.0, -0.183, 0.03), vec3(0.03, 0.02, 0.014));
+  if (stock < coat) { coat = stock; mat = uV > 1.5 ? 6.0 : 4.0; }
+  return coat;
+}
+float sceneSDF(vec3 p, out float mat) {
+  float mh, mb;
+  float h = headSDF(toHead(p), mh);
+  float b = bodySDF(p, mb);
+  if (h < b) { mat = mh; return h; }
+  mat = mb; return b;
+}
+float sceneD(vec3 p) { float m; return sceneSDF(p, m); }
+vec3 sceneN(vec3 p) {
+  vec2 e = vec2(0.0007, 0.0);
+  return normalize(vec3(sceneD(p + e.xyy) - sceneD(p - e.xyy), sceneD(p + e.yxy) - sceneD(p - e.yxy), sceneD(p + e.yyx) - sceneD(p - e.yyx)));
+}
+float softShadow(vec3 ro, vec3 rd) {
+  float res = 1.0, t = 0.004;
+  for (int i = 0; i < 28; i++) {
+    float h = sceneD(ro + rd * t);
+    res = min(res, 9.0 * h / t);
+    t += clamp(h, 0.003, 0.03);
+    if (res < 0.002 || t > 0.4) break;
+  }
+  return clamp(res, 0.0, 1.0);
+}
+float occl(vec3 p, vec3 n) {
+  float o = 0.0, w = 1.0;
+  for (int i = 1; i <= 5; i++) { float h = 0.006 * float(i); o += w * (h - sceneD(p + n * h)); w *= 0.6; }
+  return clamp(1.0 - o * 22.0, 0.0, 1.0);
+}
+vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
+  vec3 ro = vec3(p * 0.95, 0.4);
+  if (abs(ro.x) > 0.32 || ro.y > 0.26) return bg;
+  vec3 rd = vec3(0.0, 0.0, -1.0);
+  float t = 0.0, mat = -1.0;
+  bool hit = false;
+  for (int i = 0; i < 96; i++) {
+    float m;
+    float d = sceneSDF(ro + rd * t, m);
+    if (d < 0.0004) { hit = true; mat = m; break; }
+    t += d * 0.9;
+    if (t > 0.8) break;
+  }
+  if (!hit) return bg;
+  vec3 pos = ro + rd * t;
+  vec3 n = sceneN(pos);
+  vec3 L = normalize(vec3(-0.62, 0.62, 0.5));
+  float sh = softShadow(pos + n * 0.0015, L);
+  float ao = occl(pos, n);
+  float dif = clamp(dot(n, L), 0.0, 1.0);
+  float wrap = clamp((dot(n, L) + 0.35) / 1.35, 0.0, 1.0);
+  vec3 H = normalize(L - rd);
+  float spec = pow(clamp(dot(n, H), 0.0, 1.0), 28.0);
+  float fill = clamp(dot(n, normalize(vec3(0.8, 0.1, 0.6))), 0.0, 1.0);
+  float rim = pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 3.0) * clamp(dot(n, normalize(vec3(0.9, 0.3, -0.2))), 0.0, 1.0);
+  vec3 alb; float sp = 0.0;
+  vec3 hp = toHead(pos);
+  if (mat < 0.5) {
+    alb = uV > 1.5 ? vec3(0.74, 0.6, 0.52) : vec3(0.64, 0.5, 0.41);
+    alb *= 0.9 + 0.2 * fb2(uv * 70.0, 3);                                     // mottled old skin
+    alb = mix(alb, vec3(0.62, 0.32, 0.28), smoothstep(0.03, 0.0, length(hp.xy - vec2(0.0, -0.034))) * 0.35);   // reddened nose
+    alb = mix(alb, alb * vec3(0.8, 0.75, 0.85), smoothstep(0.0, 0.02, -hp.y - 0.06) * 0.3);  // stubble shadow
+    // grey wisps of hair over the ears and the back of the skull
+    float wisp = smoothstep(0.045, 0.075, abs(hp.x)) * smoothstep(0.06, -0.01, hp.y) * smoothstep(-0.05, 0.0, hp.y) * step(hp.z, 0.03);
+    wisp *= 0.5 + 0.7 * fb2(vec2(hp.x * 60.0, hp.y * 400.0), 3);
+    alb = mix(alb, vec3(0.62, 0.6, 0.57), clamp(wisp, 0.0, 1.0));
+    sp = 0.22;
+  } else if (mat < 1.5) {
+    vec3 m = vec3(abs(hp.x), hp.yz);
+    float ir = length((m.xy - vec2(0.029 - 0.004, -0.002)) * vec2(1.0, 1.1));
+    alb = mix(vec3(0.6, 0.57, 0.5), vec3(0.06, 0.05, 0.04), smoothstep(0.0062, 0.0048, ir));
+    sp = 1.4;
+  } else if (mat < 2.5) {
+    alb = uCoat * (0.85 + 0.3 * fb2(uv * 30.0, 3));
+    sp = uV > 1.5 ? 0.5 : 0.08;
+  } else if (mat < 3.5) { alb = vec3(0.78, 0.75, 0.66) * (uV > 1.5 ? 0.85 + 0.25 * sin(atan(hp.z, hp.x) * 40.0) : 1.0); sp = 0.1; }
+  else if (mat < 4.5) { alb = vec3(0.02, 0.018, 0.022); sp = 0.5; }
+  else if (mat < 5.5) {
+    float str = fb2(vec2(atan(hp.z, hp.x) * 30.0, hp.y * 60.0), 3);
+    alb = (uV < 1.5 ? vec3(0.55, 0.53, 0.5) : vec3(0.1, 0.065, 0.04)) * (0.7 + 0.6 * str);
+    sp = 0.35;
+  } else { alb = vec3(0.7, 0.55, 0.4); sp = 0.6; }   // cameo
+  vec3 key = vec3(1.0, 0.86, 0.66) * 2.1;
+  vec3 col = alb * (key * mix(wrap * 0.25, dif, 0.8) * mix(0.12, 1.0, sh) + vec3(0.1, 0.12, 0.16) * fill * 0.6 + vec3(0.05, 0.04, 0.035)) * ao;
+  col += key * spec * sp * sh * 0.25;
+  col += vec3(0.25, 0.3, 0.4) * rim * 0.25 * ao;
+  // the shirt front V under the stock
+  if (mat > 1.5 && mat < 2.5 && uV < 1.5) {
+    vec3 b = pos;
+    float vee = max(abs(b.x + 0.025) - (b.y + 0.27) * 0.32, b.y + 0.085);
+    col = mix(col, vec3(0.72, 0.68, 0.6) * (key * dif * mix(0.15, 1.0, sh) + 0.05) * ao, smoothstep(0.004, -0.004, vee) * step(-0.36, b.y));
+    // lapel edges catch the key
+    float lap = min(abs(b.x + 0.025 - (b.y + 0.27) * 0.32 - 0.012), abs(b.x + 0.025 + (b.y + 0.27) * 0.32 + 0.012)) - 0.002;
+    col += vec3(0.05, 0.045, 0.04) * smoothstep(0.004, 0.0, lap) * step(b.y, -0.09) * dif;
+    // a gold watch chain
+    float ch = abs(length((b.xy - vec2(0.06, -0.3)) * vec2(1.0, 2.4)) - 0.07) - 0.0016;
+    col += vec3(0.9, 0.62, 0.22) * 0.6 * smoothstep(0.002, 0.0, ch) * step(0.02, b.x) * step(b.x, 0.14) * dif;
+  }
+  return col;
+}
+`;
 
 /**
  * Hall floor: diagonal checker of aged ivory Carrara and Nero Marquina (period 1 = 3.2 m,
@@ -675,6 +761,40 @@ void surface(vec2 uv, inout Surface s) {
   s.rough = mix(polish + veins * 0.03 + scuff * 0.22 + pits * 0.3, 0.85, groutM);
   s.metal = 0.0;
   s.ao = mix(1.0, 0.5, groutM) * (1.0 - pits * 0.3);
+}`,
+  });
+}
+
+/**
+ * Ancestor portraits for the stair wall, painted the same way as Stauf's (raymarched sculpted
+ * sitter + brushwork + varnish): o = { v: 1 bearded patriarch | 2 lady, ground:[r,g,b], coat:[r,g,b] }
+ */
+export function ancestorPortraitTexture(forge, aspect, o = {}) {
+  return forge.generate(`foyer:ancestor2:${JSON.stringify(o)}:${aspect.toFixed(3)}`, {
+    size: 1024, aspect, tile: false, normalStrength: 0.25,
+    uniforms: { uAsp: aspect, uV: o.v ?? 1, uCoat: o.coat || [0.03, 0.028, 0.032], uGround: o.ground || [0.16, 0.12, 0.07] },
+    glsl: PORTRAIT_SDF + /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 b = uv + (vec2(fb2(uv * 11.0, 3), fb2(uv * 11.0 + 5.0, 3)) - 0.5) * 0.0045;
+  vec2 p = (b - 0.5) * vec2(uAsp, 1.0);
+  vec3 bg = mix(uGround * 0.15, uGround, exp(-length((p - vec2(-0.12, 0.12)) * vec2(1.0, 0.8)) * 3.0));
+  bg *= 0.75 + 0.4 * fb2(b * 4.0 + uV, 4);
+  vec3 col = renderSitter(p + vec2(0.0, -0.02), b, bg, uV);
+  float strokes = fb2(rot2(fb2(uv * 3.0, 2) * 3.0) * uv * vec2(90.0, 26.0), 3);
+  col *= 0.92 + 0.14 * strokes;
+  col = mix(col, col * vec3(1.0, 0.84, 0.58), 0.45);
+  float edge = min(min(uv.x, 1.0 - uv.x) * uAsp, min(uv.y, 1.0 - uv.y));
+  col *= mix(0.55, 1.0, smoothstep(0.0, 0.09, edge));
+  float oval = sdEllipse(p, vec2(0.46 * uAsp, 0.47));
+  col = mix(col, uGround * 0.1, smoothstep(-0.02, 0.03, oval) * 0.85);
+  vec2 cq = uv * vec2(uAsp, 1.0) * 130.0;
+  float cr = voronoiEdge(cq + (vec2(fb2(uv * 9.0, 3), fb2(uv * 9.0 + 3.0, 3)) - 0.5) * 1.2, vec2(1e4), 1.0);
+  float crack = (1.0 - smoothstep(0.0, 0.04, cr)) * (0.4 + 0.6 * fb2(uv * 6.0, 3));
+  col *= 1.0 - crack * 0.12;
+  s.albedo = col;
+  s.height = 0.5 + strokes * 0.12 - crack * 0.15;
+  s.rough = 0.3 + strokes * 0.15 + crack * 0.25;
+  s.metal = 0.0; s.ao = 1.0 - crack * 0.2;
 }`,
   });
 }

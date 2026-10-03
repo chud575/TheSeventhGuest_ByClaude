@@ -27,7 +27,7 @@ export const webMeta = {
 
 const SOLUTION = [[0, 3], [5, 0], [2, 5], [7, 2], [4, 7], [1, 4], [6, 1]];
 
-export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials, onSolved, grade: roomGrade }) {
+export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials, onSolved, grade: roomGrade, onView }) {
   const N = 8, SP = 7;
   const links = (i) => [(i + 3) % N, (i + 5) % N];
   // stud world positions (texture angle i*45+90 deg, texture y -> world -z)
@@ -175,7 +175,8 @@ export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials,
     cameraDuration: 1.5,
     setup(p) {
       // clean, readable board: no AO speckle, no DOF, almost no grain, flames-only bloom
-      p.post?.set?.({ aoIntensity: 0, dof: null, grain: 0.01, bloomThreshold: 5, bloomStrength: 0.2, chromaticAberration: 0, vignette: 0.32 }, 0.6);
+      p.post?.set?.({ aoIntensity: 0, dof: null, grain: 0.01, bloomThreshold: 5, bloomStrength: 0.2, chromaticAberration: 0, vignette: 0.32 }, p.shot ? 0 : 0.6);
+      onView?.(true);
       if (solvedFlag) { p.status('The web is complete.'); return; }
       p.status(placed ? `${placed} of ${SP} spiders at rest.` : 'Choose an empty point for the first spider.');
       refreshRings();
@@ -236,7 +237,7 @@ export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials,
     reset(p) { if (solvedFlag) return; resetState(); p.status('The spiders scuttle back to the rim.'); },
     autoSolve(p) { anim = null; applySolved(); p.solve(); },
     async onSolved(p) { await onSolved?.(p); },
-    teardown(p) { if (roomGrade) p?.post?.set?.(roomGrade, 0.6); hover = -1; selected = selected >= 0 ? -1 : selected; refreshRings(); for (const r of rings) r.material.opacity = 0; },
+    teardown(p) { onView?.(false); if (roomGrade) p?.post?.set?.(roomGrade, 0.6); hover = -1; selected = selected >= 0 ? -1 : selected; refreshRings(); for (const r of rings) r.material.opacity = 0; },
   };
 
   return {

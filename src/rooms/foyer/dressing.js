@@ -259,3 +259,47 @@ export function corbelGeometry(G, { w = 0.14, h = 0.34, d = 0.26 } = {}) {
   G.applyBoxUVs(g, 1);
   return g;
 }
+
+// -------------------------------------------------------------------- torchère
+/** tall brass floor candelabrum (≈1.75 m): tripod lion-paw base, baluster stem, five candles */
+export function torchere(ctx, { brass, seed = 1, flameIntensity = 4.5 }) {
+  const G = ctx.geometry, fx = ctx.fx;
+  const g = new THREE.Group();
+  g.name = 'torchere';
+  const stem = G.latheFromProfile([
+    [0.0, 0.1], [0.07, 0.1], [0.075, 0.12], [0.05, 0.16], [0.035, 0.24], [0.05, 0.3], [0.03, 0.36], [0.022, 0.6], [0.035, 0.63], [0.022, 0.66],
+    [0.018, 1.1], [0.032, 1.14], [0.05, 1.2], [0.04, 1.26], [0.02, 1.3], [0.018, 1.45], [0.03, 1.47], [0.0, 1.48],
+  ], 24);
+  g.add(new THREE.Mesh(stem, brass));
+  // tripod scroll legs with paw feet
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const d = V3(Math.cos(a), 0, Math.sin(a));
+    const pts = [V3(0, 0.2, 0), d.clone().multiplyScalar(0.08).setY(0.17), d.clone().multiplyScalar(0.17).setY(0.1), d.clone().multiplyScalar(0.22).setY(0.03)];
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 14, 0.014, 6, false), brass));
+    const paw = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), brass); paw.scale.set(1, 0.6, 1.2); paw.position.copy(d.clone().multiplyScalar(0.23)).setY(0.018); g.add(paw);
+  }
+  // arms + candles
+  const candles = [];
+  const arms = 4;
+  for (let i = 0; i <= arms; i++) {
+    let tip;
+    if (i === arms) tip = V3(0, 1.5, 0);
+    else {
+      const a = (i / arms) * Math.PI * 2 + 0.4;
+      const d = V3(Math.cos(a), 0, Math.sin(a));
+      const pts = [V3(0, 1.32, 0), d.clone().multiplyScalar(0.1).setY(1.28), d.clone().multiplyScalar(0.2).setY(1.33), d.clone().multiplyScalar(0.22).setY(1.42)];
+      g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 12, 0.009, 6, false), brass));
+      tip = d.clone().multiplyScalar(0.22).setY(1.42);
+    }
+    const cup = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.02, 0], [0.04, 0.012], [0.045, 0.02], [0.03, 0.022], [0.022, 0.05], [0, 0.05]], 16), brass);
+    cup.position.copy(tip); g.add(cup);
+    const c = fx.candle({ height: 0.2 + 0.05 * Math.sin(seed * 7 + i * 3), radius: 0.012, light: false, seed: seed * 20 + i, burn: 0.75 });
+    c.position.copy(tip).add(V3(0, 0.048, 0)); g.add(c);
+    if (c.userData.flame?.material?.uniforms?.uIntensity) c.userData.flame.material.uniforms.uIntensity.value = flameIntensity;
+    candles.push(c);
+  }
+  g.userData.candles = candles;
+  g.traverse((m) => { if (m.isMesh && !m.material.isShaderMaterial) { m.castShadow = true; m.receiveShadow = true; } });
+  return g;
+}
