@@ -565,7 +565,7 @@ export function buildFireplace(ctx, mats, { seed = 3 } = {}) {
   for (const sx of [-1, 1]) grate.add(at(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.02, 0], [0.02, 0.2], [0.03, 0.24], [0.0, 0.3]], 10), mats.brass), sx * 0.3, 0.05, 0.08));
   inner.add(grate);
   const rnd = ctx.random.fork('gr-fire');
-  const coalMat = new THREE.MeshStandardMaterial({ color: 0x120a06, roughness: 0.9, emissive: new THREE.Color(1.0, 0.28, 0.05), emissiveIntensity: 1.3, name: 'coal' });
+  const coalMat = new THREE.MeshStandardMaterial({ color: 0x0c0806, roughness: 0.9, emissive: new THREE.Color(0.9, 0.16, 0.02), emissiveIntensity: 0.7, name: 'coal' });
   const coals = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.03, 0), coalMat, 34);
   const m4 = new THREE.Matrix4();
   for (let i = 0; i < 34; i++) {

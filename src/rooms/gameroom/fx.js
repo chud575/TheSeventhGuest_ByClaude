@@ -144,9 +144,9 @@ void main() {
   float facing = abs(dot(normalize(vN), v));
   float thick = pow(facing, 1.6);             // thickest through the middle of the cone
   float n = grFbm(vec3(vWorld.x * 3.0 + uSeed, vWorld.y * 2.2 - uTime * 0.12, vWorld.z * 3.0 + uTime * 0.05));
-  float wisps = smoothstep(0.25, 0.85, n);
+  float wisps = smoothstep(0.35, 0.8, n);
   float fall = smoothstep(0.0, 0.08, vH) * (1.0 - smoothstep(0.55, 1.0, vH)) * (1.15 - vH * 0.6);
-  float a = thick * fall * (0.35 + 1.1 * wisps) * uOpacity;
+  float a = thick * fall * (0.15 + 1.4 * wisps) * uOpacity;
   gl_FragColor = vec4(uColor * a, 1.0);
 }`;
 

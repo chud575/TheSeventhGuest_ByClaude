@@ -79,7 +79,7 @@ void surface(vec2 uv, inout Surface s) {
     float bev = smoothstep(0.0, 0.03, ge);
     h = 0.45 + 0.15 * sqrt(bev);
     col *= mix(0.55, 1.0, smoothstep(0.0, 0.012, ge));
-    rough = 0.3;
+    rough = 0.5;
   } else {
     float t = (edge - fieldEdge) / (0.5 - fieldEdge);
     vec2 along = d2.x > d2.y ? vec2(uv.y, edge) : vec2(uv.x, edge);
@@ -284,7 +284,7 @@ void surface(vec2 uv, inout Surface s) {
   vec3 sky = mix(vec3(0.62, 0.42, 0.18), vec3(0.08, 0.08, 0.06), smoothstep(hz, 1.0, uv.y));
   float cl = fbm(vec2(p.x * 0.8, uv.y * 2.0), vec2(4.0, 2.0), 5);
   sky = mix(sky, sky * 0.55 + vec3(0.04, 0.035, 0.03), smoothstep(-0.1, 0.4, cl) * smoothstep(hz + 0.05, 0.7, uv.y));
-  sky += vec3(0.5, 0.33, 0.12) * exp(-length((p - vec2(uPA * 0.62, hz + 0.05)) * vec2(1.0, 2.5)) * 5.0) * 0.6;
+  sky += vec3(0.45, 0.3, 0.12) * exp(-length((p - vec2(uPA * 0.62, hz + 0.02)) * vec2(0.6, 3.0)) * 4.0) * 0.25;
   vec3 col = sky;
   // distant hills
   float hill = uv.y - (hz + 0.03 * fbm(vec2(p.x * 1.5, 0.0), vec2(6.0, 1.0), 4));
@@ -308,14 +308,14 @@ void surface(vec2 uv, inout Surface s) {
   }
   // the hunt: a rider and hounds crossing the meadow, catching the dusk light on their backs
   vec2 hp = p - vec2(uPA * 0.42, 0.27);
-  float dh = horse(hp * 1.25) / 1.25;
+  float dh = horse(hp * 0.8) / 0.8;
   vec3 horseC = vec3(0.12, 0.06, 0.03);
   col = mix(col, horseC, smoothstep(0.002, -0.002, dh));
-  col = mix(col, vec3(0.45, 0.12, 0.06), smoothstep(0.002, -0.002, sdSegment(hp * 1.25, vec2(0.0, 0.035), vec2(0.012, 0.085)) / 1.25 - 0.009));  // red coat
+  col = mix(col, vec3(0.45, 0.12, 0.06), smoothstep(0.002, -0.002, sdSegment(hp * 0.8, vec2(0.0, 0.035), vec2(0.012, 0.085)) / 0.8 - 0.009));  // red coat
   for (int i = 0; i < 5; i++) {
     float fi = float(i);
     vec2 q = p - vec2(uPA * (0.55 + fi * 0.06 + 0.02 * sin(fi * 3.0)), 0.18 + 0.03 * sin(fi * 1.7));
-    float d = hound(q, 0.9 + 0.2 * hash11(fi));
+    float d = hound(q, 1.4 + 0.3 * hash11(fi));
     vec3 hc = mix(vec3(0.5, 0.42, 0.3), vec3(0.15, 0.09, 0.05), hash11(fi + 3.0));
     col = mix(col, hc, smoothstep(0.0015, -0.0015, d));
   }
@@ -327,12 +327,13 @@ void surface(vec2 uv, inout Surface s) {
   float brush = vnoise(vec2(p.x * 220.0 + fbm(p * 4.0, vec2(8.0), 2) * 20.0, uv.y * 60.0), vec2(4096.0));
   col *= 0.9 + 0.18 * brush;
   col = mix(col, col * vec3(1.05, 0.9, 0.6), 0.5);
-  float cr = voronoiEdge(p * 26.0, vec2(4096.0), 1.0);
-  float crack = 1.0 - smoothstep(0.0, 0.03, cr);
-  col *= 1.0 - crack * 0.35;
+  float cr = voronoiEdge(p * 90.0, vec2(4096.0), 1.0);
+  float crack = (1.0 - smoothstep(0.0, 0.04, cr)) * smoothstep(0.3, 0.7, fbmv(p * 2.0, vec2(8.0), 3));
+  col *= 1.0 - crack * 0.2;
   vec2 vq = uv - 0.5;
-  col *= 1.0 - 0.55 * smoothstep(0.25, 0.75, length(vq * vec2(1.2, 1.4)));
-  s.albedo = col; s.height = 0.5 + brush * 0.05 - crack * 0.15; s.rough = 0.45 + crack * 0.3; s.metal = 0.0; s.ao = 1.0;
+  col *= 1.0 - 0.35 * smoothstep(0.3, 0.75, length(vq * vec2(1.2, 1.4)));
+  col *= 1.35;
+  s.albedo = col; s.height = 0.5 + brush * 0.05 - crack * 0.06; s.rough = 0.45 + crack * 0.2; s.metal = 0.0; s.ao = 1.0;
 }`,
   });
 }
