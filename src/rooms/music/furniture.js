@@ -363,7 +363,7 @@ export function buildSconce(ctx, { brass }) {
   const inner = G.latheFromProfile(prof.map(([r, y]) => [Math.max(0.001, r - 0.003), y + 0.001]).reverse(), 64);
   const glassMat = new THREE.MeshPhysicalMaterial({
     color: 0xfff1dc, roughness: 0.5, metalness: 0, transparent: true, opacity: 0.9, side: THREE.DoubleSide,
-    emissive: new THREE.Color(1.0, 0.68, 0.4), emissiveMap: etch, emissiveIntensity: 0.75, clearcoat: 0.6, clearcoatRoughness: 0.15, depthWrite: false,
+    emissive: new THREE.Color(1.0, 0.68, 0.4), emissiveMap: etch, emissiveIntensity: 0.55, clearcoat: 0.6, clearcoatRoughness: 0.15, depthWrite: false,
   });
   glassMat.userData.noBake = true;
   const shade = new THREE.Group();
@@ -371,7 +371,7 @@ export function buildSconce(ctx, { brass }) {
   const iMesh = new THREE.Mesh(inner, glassMat); iMesh.renderOrder = 2; shade.add(iMesh);
   shade.position.set(0, 0.072, 0.2); g.add(shade);
   // the gas flame inside: a small bright teardrop (it blooms through the frosting)
-  const flame = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.007, 0.006], [0.009, 0.016], [0.006, 0.028], [0, 0.04]], 16), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.3, 0.55), toneMapped: false }));
+  const flame = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.007, 0.006], [0.009, 0.016], [0.006, 0.028], [0, 0.04]], 16), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 0.95, 0.4), toneMapped: false }));
   flame.position.set(0, 0.09, 0.2); g.add(flame);
   // IES-like scallops on the wall: a fan of light up and a shorter one down, additive
   const fan = ctx.textures.canvas('music:sconce-scallop', 128, 256, (c, w, h) => {
