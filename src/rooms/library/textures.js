@@ -6,7 +6,7 @@ import * as THREE from 'three';
 export const BOOK_ATLAS = { cols: 8, rows: 2, spine: [0, 0.6], cover: [0.6, 0.8], pages: [0.8, 1.0] };
 
 export function bookAtlas(ctx) {
-  return ctx.textures.generate('library:bookatlas:v3', {
+  return ctx.textures.generate('library:bookatlas:v4', {
     size: 2048, aspect: 2.0, tile: false, normalStrength: 1.6,
     glsl: /* glsl */ `
 vec3 leatherCol(float k) {
@@ -14,8 +14,8 @@ vec3 leatherCol(float k) {
   if (i == 0) return vec3(0.40, 0.07, 0.05);   // oxblood
   if (i == 1) return vec3(0.10, 0.20, 0.12);   // bottle green
   if (i == 2) return vec3(0.33, 0.19, 0.09);   // tan calf
-  if (i == 3) return vec3(0.09, 0.11, 0.24);   // navy
-  if (i == 4) return vec3(0.48, 0.32, 0.17);   // vellum-ish brown
+  if (i == 3) return vec3(0.05, 0.042, 0.036);  // black morocco
+  if (i == 4) return vec3(0.42, 0.28, 0.15);   // tan / vellum-ish brown
   if (i == 5) return vec3(0.17, 0.06, 0.045);  // dark chocolate
   if (i == 6) return vec3(0.27, 0.05, 0.10);   // claret
   return vec3(0.20, 0.16, 0.11);               // faded umber
@@ -44,7 +44,7 @@ void surface(vec2 uv, inout Surface s) {
     float nb = r1 > 0.5 ? 5.0 : 4.0;
     float by = fract(v * nb + 0.5);
     float band = smoothstep(0.0, 0.05, by) * smoothstep(0.12, 0.07, by) * step(0.15, v) * step(v, 0.9);
-    float hasBands = step(0.25, r2);
+    float hasBands = step(0.15, r2);
     float giltRule = (stroke(by - 0.02, 0.0, 0.006) + stroke(by - 0.15, 0.0, 0.006)) * step(0.15, v) * step(v, 0.9);
     // title label
     float lab = step(0.66, v) * step(v, 0.78) * step(0.16, u) * step(u, 0.84);
@@ -241,19 +241,95 @@ export function letterUV(ch) {
   return [u0, v0, u0 + 1 / cols, v0 + 1 / rows];
 }
 
-// ------------------------------------------------------------------ Stauf's card (riddle)
+// ------------------------------------------------------------------ Stauf's note (riddle): an aged, folded letter in a spidery hand
+function prand(seed) { let x = seed >>> 0 || 1; return () => { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return ((x >>> 0) % 100000) / 100000; }; }
 export function riddleCard(ctx, lines) {
-  return ctx.textures.canvas('library:riddle:v2', 768, 512, (g, w, h) => {
-    g.fillStyle = '#d9c9a3'; g.fillRect(0, 0, w, h);
-    const grd = g.createRadialGradient(w / 2, h / 2, 50, w / 2, h / 2, w * 0.7);
-    grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(1, 'rgba(90,55,20,0.55)');
+  return ctx.textures.canvas('library:riddle:v3', 1024, 700, (g, w, h) => {
+    const r = prand(77);
+    g.fillStyle = '#b9a47c'; g.fillRect(0, 0, w, h);
+    // mottled foxing + edge darkening
+    for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(${90 + r() * 40},${60 + r() * 30},${25},${0.03 + r() * 0.05})`; const rr = 6 + r() * 40; g.beginPath(); g.arc(r() * w, r() * h, rr, 0, 7); g.fill(); }
+    const grd = g.createRadialGradient(w / 2, h / 2, h * 0.2, w / 2, h / 2, w * 0.68);
+    grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(1, 'rgba(70,40,15,0.6)');
     g.fillStyle = grd; g.fillRect(0, 0, w, h);
-    g.strokeStyle = '#5a3a18'; g.lineWidth = 4; g.strokeRect(22, 22, w - 44, h - 44);
-    g.fillStyle = '#2a1a0c'; g.textAlign = 'center';
-    g.font = 'italic 34px "IM Fell English", "Times New Roman", serif';
-    lines.forEach((l, i) => g.fillText(l, w / 2, 110 + i * 62));
-    g.font = '28px "IM Fell English SC", serif';
-    g.fillText('— H. S.', w * 0.72, h - 60);
+    // fold creases (one vertical, one horizontal)
+    for (const [x0, y0, x1, y1] of [[w * 0.5, 0, w * 0.505, h], [0, h * 0.5, w, h * 0.49]]) {
+      g.strokeStyle = 'rgba(60,35,10,0.35)'; g.lineWidth = 3; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+      g.strokeStyle = 'rgba(255,240,210,0.18)'; g.lineWidth = 2; g.beginPath(); g.moveTo(x0 + 3, y0 + 3); g.lineTo(x1 + 3, y1 + 3); g.stroke();
+    }
+    // a ring stain from a glass
+    g.strokeStyle = 'rgba(90,50,20,0.22)'; g.lineWidth = 7; g.beginPath(); g.arc(w * 0.8, h * 0.78, 70, 0.3, 5.6); g.stroke();
+    // handwriting (slanted, uneven baseline, ink varying)
+    g.textAlign = 'left';
+    g.save(); g.translate(80, 0);
+    lines.forEach((l, i) => {
+      let x = 0; const y = 140 + i * 88;
+      for (const ch of l) {
+        g.font = `italic ${40 + r() * 4}px "IM Fell English", "Times New Roman", serif`;
+        g.fillStyle = `rgba(${28 + r() * 20},${16 + r() * 10},${10},${0.78 + r() * 0.2})`;
+        g.save(); g.translate(x, y + (r() - 0.5) * 3); g.rotate((r() - 0.5) * 0.06); g.fillText(ch, 0, 0); g.restore();
+        x += g.measureText(ch).width * 0.98;
+      }
+    });
+    g.restore();
+    g.font = 'italic 46px "IM Fell English", serif'; g.fillStyle = 'rgba(30,16,8,0.9)';
+    g.fillText('— H. S.', w * 0.66, h - 64);
+    // an ink blot
+    g.fillStyle = 'rgba(20,10,5,0.75)'; g.beginPath(); g.arc(w * 0.62, h - 80, 7, 0, 7); g.fill();
+  }, { tile: false });
+}
+
+// ------------------------------------------------------------------ the Book of Hints: an open spread (two pages, ruled text, initial)
+export function hintPagesTex(ctx) {
+  return ctx.textures.canvas('library:hintpages:v1', 1536, 1024, (g, w, h) => {
+    const r = prand(1993);
+    for (const side of [0, 1]) {
+      const x0 = side * w / 2;
+      const grd = g.createLinearGradient(x0, 0, x0 + w / 2, 0);
+      // gutter shading toward the spine
+      if (side === 0) { grd.addColorStop(0, '#c9b58c'); grd.addColorStop(0.85, '#d6c49c'); grd.addColorStop(1, '#8a7652'); }
+      else { grd.addColorStop(0, '#8a7652'); grd.addColorStop(0.15, '#d6c49c'); grd.addColorStop(1, '#c4b088'); }
+      g.fillStyle = grd; g.fillRect(x0, 0, w / 2, h);
+      for (let i = 0; i < 90; i++) { g.fillStyle = `rgba(110,75,30,${0.02 + r() * 0.05})`; g.beginPath(); g.arc(x0 + r() * w / 2, r() * h, 4 + r() * 26, 0, 7); g.fill(); }
+      const mx = x0 + (side ? 90 : 70), mw = w / 2 - 160;
+      // red ruled margins
+      g.strokeStyle = 'rgba(140,30,20,0.55)'; g.lineWidth = 2;
+      g.strokeRect(mx - 14, 70, mw + 28, h - 150);
+      // heading
+      g.fillStyle = 'rgba(120,20,15,0.9)'; g.font = '600 34px "IM Fell English SC", serif'; g.textAlign = 'center';
+      g.fillText(side ? 'Of the Telescope' : 'Liber Auxilii', mx + mw / 2, 120);
+      g.textAlign = 'left';
+      // illuminated initial on the left page
+      let y0 = 170;
+      if (!side) {
+        g.fillStyle = '#6a1410'; g.fillRect(mx, y0 - 10, 110, 110);
+        g.strokeStyle = '#b8902e'; g.lineWidth = 5; g.strokeRect(mx + 4, y0 - 6, 102, 102);
+        g.fillStyle = '#d8b04a'; g.font = '700 96px "Cinzel", serif'; g.fillText('T', mx + 22, y0 + 82);
+      }
+      // body text: pseudo-words in a book hand
+      g.font = '26px "IM Fell English", serif';
+      for (let line = 0; line < 22; line++) {
+        const y = y0 + 34 + line * 34;
+        let x = mx + (!side && line < 3 ? 124 : 0);
+        const end = mx + mw - (line === 21 ? mw * 0.5 : 0);
+        while (x < end - 40) {
+          const n = 2 + Math.floor(r() * 7);
+          let word = ''; for (let k = 0; k < n; k++) word += 'aeiounrstlhmcdpgwy'[Math.floor(r() * 18)];
+          g.fillStyle = `rgba(35,20,10,${0.72 + r() * 0.2})`;
+          g.fillText(word, x, y);
+          x += g.measureText(word + ' ').width;
+        }
+      }
+      // a small woodcut-style eye/telescope vignette on the right page
+      if (side) {
+        g.strokeStyle = 'rgba(40,25,12,0.8)'; g.lineWidth = 3;
+        g.beginPath(); g.ellipse(mx + mw / 2, h - 210, 90, 42, 0, 0, 7); g.stroke();
+        g.beginPath(); g.arc(mx + mw / 2, h - 210, 28, 0, 7); g.stroke();
+        g.fillStyle = 'rgba(40,25,12,0.85)'; g.beginPath(); g.arc(mx + mw / 2, h - 210, 12, 0, 7); g.fill();
+      }
+      g.fillStyle = 'rgba(60,40,20,0.7)'; g.font = 'italic 22px "IM Fell English", serif'; g.textAlign = 'center';
+      g.fillText(side ? 'vii' : 'vi', mx + mw / 2, h - 40); g.textAlign = 'left';
+    }
   }, { tile: false });
 }
 
@@ -283,6 +359,291 @@ void surface(vec2 uv, inout Surface s) {
   float sil = min(min(trunk, br), hill);
   sky = mix(sky, vec3(0.006, 0.008, 0.014), smoothstep(0.004, -0.004, sil));
   s.albedo = sky; s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+}
+
+// ------------------------------------------------------------------ brick (tile = 4 x 8 bricks = 0.9 m x 0.56 m)
+export function brickMap(ctx, size = 2048) {
+  return ctx.textures.generate('library:brick:v2', {
+    size, aspect: 0.9 / 0.56, tile: true, normalStrength: 3.0,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  const float COLS = 4.0, ROWS = 8.0;
+  float r = floor(uv.y * ROWS);
+  vec2 g = vec2(uv.x * COLS + 0.5 * mod(r, 2.0) + 0.13 * hash12(vec2(r, 3.0)) * 0.0, uv.y * ROWS);
+  vec2 id = vec2(mod(floor(g.x), COLS), r);
+  vec2 f = fract(g);
+  // brick-space metres
+  vec2 m = vec2(f.x * 0.225, f.y * 0.07);
+  float ex = min(m.x, 0.225 - m.x), ey = min(m.y, 0.07 - m.y);
+  float e = min(ex, ey);
+  // chipped, irregular arrises
+  float chip = (fbm(uv + id.x * 0.071 + id.y * 0.13, vec2(64.0, 40.0), 4) * 0.5 + 0.5);
+  float bigChip = smoothstep(0.62, 0.85, fbm(uv * 1.0 + 3.7, vec2(24.0, 15.0), 3) * 0.5 + 0.5) * 0.006;
+  float joint = 0.0048 + chip * 0.0028 + bigChip;
+  float mortarM = 1.0 - smoothstep(joint - 0.0012, joint + 0.0006, e);
+  // per-brick colour: hue/value jitter, flashed (darker) ends, a few over-burnt clinkers
+  float h1 = hash12(id + 0.31), h2 = hash12(id * 1.7 + 4.0), h3 = hash12(id * 2.3 + 9.0);
+  vec3 base = vec3(0.40, 0.19, 0.13);
+  vec3 bc = base * (0.84 + 0.32 * h1);
+  bc = mix(bc, bc * vec3(1.12, 0.92, 0.82), h2 * 0.6);              // hue drift
+  bc = mix(bc, vec3(0.2, 0.12, 0.1), step(0.9, h3) * 0.6);           // clinker
+  bc = mix(bc, bc * vec3(1.15, 1.05, 0.95), step(0.8, h2) * step(h3, 0.4) * 0.5); // pale salmon
+  float flash = smoothstep(0.05, 0.0, min(m.x, 0.225 - m.x)) * 0.25;
+  bc *= 1.0 - flash;
+  // face texture: sandy pits + fire-mottle
+  float mott = fbm(uv + id * 0.37, vec2(48.0, 30.0), 4) * 0.5 + 0.5;
+  float pits = step(0.86, vnoise(uv * vec2(900.0, 560.0), vec2(900.0, 560.0)));
+  bc *= 0.82 + 0.3 * mott;
+  bc *= 1.0 - pits * 0.35;
+  // mortar: lime, recessed, sandy, darkened by age
+  float sand = vnoise(uv * vec2(700.0, 440.0), vec2(700.0, 440.0));
+  vec3 mc = vec3(0.30, 0.28, 0.25) * (0.75 + 0.35 * sand);
+  vec3 col = mix(bc, mc, mortarM);
+  // soot / grime: heavier toward the top of the wall tile, streaks running down
+  float streak = fbm(vec2(uv.x * 1.0, uv.y * 0.25), vec2(40.0, 1.0), 3) * 0.5 + 0.5;
+  float soot = smoothstep(0.45, 0.85, fbm(uv + 7.0, vec2(3.0, 2.0), 5) * 0.5 + 0.5) * 0.6 + streak * 0.25;
+  col *= 1.0 - soot * 0.45;
+  // faint efflorescence on a few bricks
+  float eff = smoothstep(0.7, 0.95, fbm(uv + 2.0, vec2(8.0, 5.0), 4) * 0.5 + 0.5) * step(0.7, h1);
+  col = mix(col, vec3(0.42, 0.4, 0.37), eff * 0.25 * (1.0 - mortarM));
+  float faceH = 0.86 + mott * 0.06 - pits * 0.12 - smoothstep(0.006, 0.0, e - joint) * 0.25;
+  s.albedo = col;
+  s.height = mix(faceH, 0.18 + sand * 0.06, mortarM);
+  s.rough = mix(0.78 + pits * 0.1, 0.96, mortarM);
+  s.metal = 0.0;
+  s.ao = mix(1.0 - smoothstep(0.012, 0.0, e) * 0.25, 0.45, mortarM);
+}`,
+  });
+}
+
+// ------------------------------------------------------------------ aged, adzed oak timber (grain along U; tile 1.6 m x 0.4 m)
+export function timberMap(ctx, size = 2048) {
+  return ctx.textures.generate('library:timber:v2', {
+    size, aspect: 4.0, tile: true, normalStrength: 2.2,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  // grain lines along u
+  float wander = fbm(uv, vec2(2.0, 1.0), 3) * 0.08;
+  float vy = uv.y + wander;
+  float fine = fbm(vec2(uv.x, vy), vec2(4.0, 160.0), 3) * 0.5 + 0.5;
+  float rings = fract(abs(vy - 0.5) * 22.0 + fbm(uv + 1.3, vec2(3.0, 2.0), 3) * 0.7);
+  float late = smoothstep(0.0, 0.3, rings) * (1.0 - smoothstep(0.5, 1.0, rings));
+  vec3 early = vec3(0.24, 0.16, 0.1), lateC = vec3(0.13, 0.085, 0.055);
+  vec3 col = mix(early, lateC, clamp(0.35 + late * 0.35 + (fine - 0.5) * 0.7, 0.0, 1.0));
+  // medullary ray flecks (oak)
+  float ray = smoothstep(0.8, 0.95, vnoise(uv * vec2(40.0, 300.0), vec2(40.0, 300.0)));
+  col = mix(col, col * 1.35, ray * 0.4);
+  // adze scallops: shallow dished cuts across the grain, irregular spacing
+  float ax = uv.x * 26.0 + fbm(uv + 4.0, vec2(4.0, 2.0), 3) * 1.2;
+  float sc = fract(ax);
+  float scallop = 1.0 - pow(abs(sc - 0.5) * 2.0, 2.0);
+  float scEdge = smoothstep(0.06, 0.0, min(sc, 1.0 - sc));
+  // drying checks: long dark cracks along the grain
+  float chk = 0.0;
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    float y0 = hash12(vec2(fi, 7.0));
+    float len = smoothstep(0.0, 0.1, fract(uv.x * 2.0 + hash12(vec2(fi, 3.0))) ) * smoothstep(0.75, 0.55, fract(uv.x * 2.0 + hash12(vec2(fi, 3.0))));
+    float d = abs(vy - y0 - 0.01 * sin(uv.x * 40.0 + fi)) ;
+    chk = max(chk, (1.0 - smoothstep(0.0015, 0.004, d)) * len);
+  }
+  // grime + polish from hands
+  float grime = smoothstep(0.3, 0.9, fbm(uv + 9.0, vec2(6.0, 2.0), 4) * 0.5 + 0.5);
+  col *= 0.85 + 0.25 * fine;
+  col *= 1.0 - grime * 0.35;
+  col *= 1.0 - scEdge * 0.18;
+  col = mix(col, vec3(0.02, 0.015, 0.01), chk * 0.85);
+  s.albedo = col;
+  s.height = 0.5 + scallop * 0.18 - scEdge * 0.06 + (fine - 0.5) * 0.08 + late * 0.03 - chk * 0.4;
+  s.rough = 0.72 - grime * 0.08 + chk * 0.2;
+  s.metal = 0.0;
+  s.ao = 1.0 - chk * 0.6 - scEdge * 0.1;
+}`,
+  });
+}
+
+// ------------------------------------------------------------------ coffer inserts: lozenge leaded glass in pressed-brass cames
+export function cofferGlassMap(ctx) {
+  return ctx.textures.generate('library:cofferglass:v1', {
+    size: 1024, tile: true, normalStrength: 1.4,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  // 5 x 3 lozenges per tile (tile is stretched to each panel), bevelled glass, brass cames
+  vec2 p = uv * vec2(5.0, 5.0);
+  vec2 q = vec2(p.x + p.y, p.x - p.y) * 0.5;
+  vec2 fq = fract(q);
+  vec2 id = floor(q);
+  float e = min(min(fq.x, 1.0 - fq.x), min(fq.y, 1.0 - fq.y));
+  float came = 1.0 - smoothstep(0.035, 0.05, e);
+  float bevel = smoothstep(0.05, 0.16, e);
+  float t = hash12(id + 3.1);
+  float wav = fbm(uv + id * 0.1, vec2(8.0), 3) * 0.5 + 0.5;
+  // glass: cold, slightly green-grey, seeded with bubbles; brighter facets catch light
+  vec3 glass = mix(vec3(0.42, 0.48, 0.55), vec3(0.62, 0.66, 0.68), t) * (0.7 + 0.45 * wav);
+  glass *= 0.75 + 0.35 * (1.0 - bevel) + 0.2 * step(0.5, fq.x);   // bevel facets
+  // little rosette jewel at every came crossing
+  vec2 cp = fract(q + 0.5) - 0.5;
+  float jewel = 1.0 - smoothstep(0.06, 0.08, length(cp));
+  vec3 brass = vec3(0.5, 0.38, 0.18) * (0.75 + 0.4 * wav);
+  float grime = smoothstep(0.0, 0.2, e) ;
+  glass *= 0.6 + 0.4 * grime;
+  vec3 col = mix(glass, brass, max(came, jewel));
+  s.albedo = col;
+  s.height = mix(0.55 + 0.25 * bevel, 0.9, max(came, jewel));
+  s.rough = mix(0.12, 0.35, max(came, jewel));
+  s.metal = max(came, jewel) * 0.9;
+  s.ao = mix(0.7 + 0.3 * bevel, 1.0, came);
+}`,
+  });
+}
+
+// ------------------------------------------------------------------ vanitas still life (painted: chiaroscuro, brushwork, craquelure)
+export function vanitasMap(ctx) {
+  return ctx.textures.generate('library:vanitas:v1', {
+    size: 1024, aspect: 0.72 / 0.52, tile: false, normalStrength: 1.0,
+    glsl: /* glsl */ `
+float sdSeg(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h); }
+float sdEll(vec2 p, vec2 c, vec2 r) { vec2 q = (p - c) / r; return (length(q) - 1.0) * min(r.x, r.y); }
+void surface(vec2 uv, inout Surface s) {
+  vec2 p = vec2(uv.x * 1.385, uv.y);   // aspect-correct, x 0..1.385
+  vec2 L = normalize(vec2(-0.7, 0.7));  // light from the upper left
+  // brushwork: directional strokes
+  float stroke1 = fbm(vec2(p.x * 3.0 + p.y * 1.5, p.y * 0.6), vec2(60.0, 8.0), 4);
+  float stroke2 = fbm(vec2(p.x * 0.8, p.y * 2.5 - p.x * 0.7), vec2(10.0, 50.0), 3);
+  // background: umber murk, warmer glow around the candle
+  vec2 cand = vec2(1.02, 0.62);
+  float glow = exp(-length((p - cand) * vec2(1.0, 1.2)) * 3.2);
+  vec3 col = mix(vec3(0.035, 0.028, 0.02), vec3(0.16, 0.11, 0.06), glow * 0.9 + 0.08 * (stroke2 * 0.5 + 0.5));
+  // table top + front edge
+  float table = step(p.y, 0.3);
+  vec3 tcol = mix(vec3(0.12, 0.07, 0.04), vec3(0.22, 0.14, 0.08), smoothstep(0.0, 0.3, p.y)) * (0.85 + 0.3 * stroke1);
+  tcol *= 0.6 + 0.6 * glow;
+  col = mix(col, tcol, table);
+  col = mix(col, vec3(0.3, 0.2, 0.1) * (0.5 + glow), stroke(p.y - 0.3, 0.0, 0.004) * 0.7);
+  // red drape falling over the table edge at left, with folds
+  float drapeX = 0.42 + 0.06 * sin(p.y * 9.0);
+  float drape = step(p.x, drapeX) * step(p.y, 0.44 - 0.12 * p.x);
+  float folds = sin(p.x * 46.0 + sin(p.y * 7.0) * 2.0) * 0.5 + 0.5;
+  vec3 dcol = vec3(0.32, 0.04, 0.03) * (0.35 + 0.9 * folds) * (0.7 + 0.5 * glow);
+  dcol += vec3(0.25, 0.08, 0.04) * pow(folds, 8.0) * 0.6;
+  col = mix(col, dcol, drape);
+  // book stack (right): three tilted volumes
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    vec2 c = vec2(1.03 + fi * 0.015, 0.33 + fi * 0.065);
+    vec2 q = rot2(0.04 - fi * 0.05) * (p - c);
+    float b = sdBox(q, vec2(0.2 - fi * 0.025, 0.03));
+    vec3 bc = fi == 0.0 ? vec3(0.25, 0.12, 0.05) : (fi == 1.0 ? vec3(0.1, 0.12, 0.06) : vec3(0.3, 0.06, 0.04));
+    float pages = step(q.x, -0.16 + fi * 0.025 + 0.15) * step(0.0, q.x - 0.12 + fi * 0.02);
+    bc = mix(bc, vec3(0.62, 0.52, 0.35), pages * 0.8);
+    bc *= 0.55 + 0.7 * clamp(0.5 + q.y * 12.0, 0.0, 1.0) * (0.6 + glow);
+    col = mix(col, bc * (0.85 + 0.25 * stroke1), fill(b, 0.003));
+  }
+  // candle on top of the books + flame + halo
+  float candle = sdBox(p - vec2(1.04, 0.5), vec2(0.022, 0.07));
+  col = mix(col, vec3(0.78, 0.7, 0.55) * (0.7 + 0.4 * smoothstep(1.06, 1.02, p.x)), fill(candle, 0.003));
+  float fl = sdEll(p, vec2(1.04, 0.605), vec2(0.011, 0.028));
+  col += vec3(1.0, 0.7, 0.3) * exp(-max(fl, 0.0) * 60.0) * 0.8;
+  col = mix(col, vec3(1.0, 0.93, 0.7), fill(fl, 0.003));
+  // the skull (three-quarter view), lit from the left
+  vec2 sc = vec2(0.68, 0.42);
+  float cran = sdEll(p, sc + vec2(0.0, 0.03), vec2(0.13, 0.115));
+  float face = sdEll(p, sc + vec2(0.05, -0.06), vec2(0.085, 0.075));
+  float jaw = sdEll(p, sc + vec2(0.06, -0.13), vec2(0.06, 0.035));
+  float sk = min(min(cran, face), jaw + 0.004);
+  // fake normal from the cranium ellipse for shading
+  vec2 nrm = normalize((p - sc - vec2(-0.02, 0.0)) / vec2(0.13, 0.12));
+  float shade = clamp(dot(nrm, L) * 0.6 + 0.5, 0.0, 1.0);
+  shade = mix(shade, shade * 0.5 + 0.5 * glow, 0.3);
+  vec3 bone = vec3(0.72, 0.64, 0.48) * (0.15 + 0.95 * shade) * (0.85 + 0.3 * stroke1);
+  float socketL = sdEll(p, sc + vec2(0.005, -0.03), vec2(0.03, 0.026));
+  float socketR = sdEll(p, sc + vec2(0.085, -0.035), vec2(0.024, 0.024));
+  float nasal = sdEll(p, sc + vec2(0.05, -0.08), vec2(0.012, 0.02));
+  float teeth = step(abs(p.y - (sc.y - 0.115)), 0.012) * step(abs(p.x - sc.x - 0.055), 0.045);
+  bone = mix(bone, vec3(0.03, 0.02, 0.015), fill(min(min(socketL, socketR), nasal), 0.006));
+  bone = mix(bone, bone * (0.6 + 0.4 * step(0.5, fract(p.x * 120.0))), teeth);
+  col = mix(col, bone, fill(sk, 0.004));
+  // a dark rim between skull and murk (painted contour)
+  col *= 1.0 - stroke(sk, 0.0, 0.004) * 0.4;
+  // hourglass on the far left behind the drape
+  vec2 hp = p - vec2(0.22, 0.47);
+  float hg = max(abs(hp.y) - 0.1, abs(hp.x) - (0.012 + 0.05 * abs(hp.y) / 0.1));
+  col = mix(col, vec3(0.38, 0.3, 0.18) * (0.5 + 0.6 * smoothstep(0.05, -0.05, hp.x)), fill(hg, 0.003) * 0.85);
+  col = mix(col, vec3(0.2, 0.12, 0.06), (fill(sdBox(hp - vec2(0.0, 0.105), vec2(0.06, 0.008)), 0.002) + fill(sdBox(hp + vec2(0.0, 0.105), vec2(0.06, 0.008)), 0.002)));
+  // varnish: yellowed, darkest at the edges; craquelure
+  float edgeV = smoothstep(0.0, 0.25, min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y)));
+  col *= mix(0.55, 1.0, edgeV);
+  col *= vec3(1.0, 0.9, 0.7);
+  float crack = 1.0 - smoothstep(0.0, 0.02, voronoiEdge(uv * vec2(38.0, 28.0), vec2(38.0, 28.0), 0.9));
+  col *= 1.0 - crack * 0.35;
+  s.albedo = col;
+  s.height = 0.5 + stroke1 * 0.08 + stroke2 * 0.04 - crack * 0.3;
+  s.rough = 0.35 + crack * 0.3;
+  s.metal = 0.0; s.ao = 1.0 - crack * 0.3;
+}`,
+  });
+}
+
+// ------------------------------------------------------------------ distant landscape layer for the bay (alpha cut-out trees, gate lamp)
+export function treelineMap(ctx) {
+  return ctx.textures.generate('library:treeline:v1', {
+    size: 1024, aspect: 1.6, tile: false, normalStrength: 0.0,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  // ragged treeline + bare oak + gate posts with a lamp
+  float tl = 0.28 + 0.07 * fbm(vec2(uv.x * 1.0, 0.0), vec2(6.0, 1.0), 5) + 0.05 * (fbm(vec2(uv.x * 3.0, 0.3), vec2(24.0, 1.0), 4));
+  float ground = 0.12 + 0.02 * sin(uv.x * 5.0);
+  float a = step(uv.y, tl) ;
+  // a bare tree (right) with branching arms
+  float tr = abs(uv.x - 0.82 - 0.01 * sin(uv.y * 20.0)) - 0.008 * (1.4 - uv.y * 1.5);
+  float br = 1.0;
+  for (int i = 0; i < 9; i++) {
+    float fi = float(i);
+    vec2 o = vec2(0.82, 0.3 + fi * 0.055);
+    float side = mod(fi, 2.0) * 2.0 - 1.0;
+    vec2 d = rot2(side * (0.7 + 0.3 * sin(fi * 1.7))) * (uv - o);
+    float len = 0.18 - fi * 0.012;
+    br = min(br, max(abs(d.y + 0.015 * sin(d.x * 30.0)) - 0.003 * (1.0 - d.x / len), max(-d.x, d.x - len)));
+  }
+  a = max(a, step(min(tr, br), 0.0) * step(uv.y, 0.85));
+  // gate piers + lamp post (left of centre)
+  float pier = step(abs(uv.x - 0.33), 0.012) * step(uv.y, 0.27);
+  float pier2 = step(abs(uv.x - 0.45), 0.012) * step(uv.y, 0.27);
+  float post = step(abs(uv.x - 0.39), 0.0025) * step(uv.y, 0.3);
+  a = max(a, max(max(pier, pier2), post));
+  vec3 col = vec3(0.012, 0.014, 0.02);
+  // the gate lamp: warm glow
+  float lampD = length((uv - vec2(0.39, 0.305)) * vec2(1.6, 1.0));
+  vec3 glow = vec3(1.0, 0.62, 0.28) * (exp(-lampD * 60.0) * 2.5 + exp(-lampD * 14.0) * 0.25);
+  col += glow;
+  a = max(a, clamp(exp(-lampD * 14.0) * 0.6, 0.0, 1.0));
+  s.albedo = clamp(col, 0.0, 1.0); s.alpha = a; s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+}
+
+// ------------------------------------------------------------------ rain-streaked, condensation-misted window glass (alpha = streaks)
+export function rainGlassMap(ctx) {
+  return ctx.textures.generate('library:rainglass:v1', {
+    size: 1024, tile: true, normalStrength: 2.0,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  // vertical rivulets that wander, beads of water, misted lower edge
+  float col = floor(uv.x * 40.0);
+  float fx = fract(uv.x * 40.0);
+  float wob = 0.18 * sin(uv.y * 30.0 + hash12(vec2(col, 1.0)) * 6.28) + 0.1 * fbm(vec2(uv.x * 1.0, uv.y), vec2(40.0, 6.0), 3);
+  float lane = step(0.55, hash12(vec2(col, 5.0)));
+  float riv = (1.0 - smoothstep(0.03, 0.09, abs(fx - 0.5 - wob))) * lane * smoothstep(0.2, 0.8, fbm(vec2(col * 0.1, uv.y), vec2(4.0, 3.0), 3) * 0.5 + 0.5 + 0.3);
+  vec4 v = voronoi(uv * 60.0, vec2(60.0), 0.9);
+  float bead = (1.0 - smoothstep(0.12, 0.2, v.x)) * step(0.62, hash12(v.zw));
+  float mist = fbm(uv, vec2(6.0), 4) * 0.5 + 0.5;
+  float a = clamp(riv * 0.55 + bead * 0.45 + mist * 0.1, 0.0, 1.0);
+  s.albedo = vec3(0.7, 0.75, 0.8);
+  s.alpha = a;
+  s.height = 0.5 + riv * 0.3 + bead * (0.3 - v.x);
+  s.rough = 0.05 + mist * 0.2; s.metal = 0.0; s.ao = 1.0;
 }`,
   });
 }

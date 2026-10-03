@@ -59,7 +59,7 @@ export function buildShell(ctx, root, mat) {
   for (const [name, w] of Object.entries(WALLS)) {
     const ops = openingsFor(name).map((o) => ({ ...o, x0: o.x - 0.16, x1: o.x + o.w + 0.16 }));
     if (name === 'back') ops.push({ x0: BOOKCASE.x0 - 0.02, x1: BOOKCASE.x1 + 0.02, y: 0, h: H, isCase: true });
-    const geos = [];
+    const geos = [], vgeos = [];
     const blocked = (x0, x1, y0, y1) => ops.filter((o) => x1 > o.x0 && x0 < o.x1 && y1 > (o.y ?? 0) && y0 < (o.y ?? 0) + o.h + (o.arch ? 0.12 : 0.1));
     // horizontal members, clipped around openings
     const rails = [
@@ -85,19 +85,19 @@ export function buildShell(ctx, root, mat) {
     for (let i = 0; i <= n; i++) {
       const x = Math.min(w.len - 0.09, Math.max(0.09, (w.len / n) * i));
       if (blocked(x - 0.09, x + 0.09, 0.2, H - 0.3).length) continue;
-      geos.push(bboxAt(0.17, H - 0.5, 0.055, x, 0.2 + (H - 0.5) / 2, 0.0275, { r: 0.01 }));
+      vgeos.push(bboxAt(0.17, H - 0.5, 0.055, x, 0.2 + (H - 0.5) / 2, 0.0275, { r: 0.014 }));
     }
     // posts + head beams framing every opening
     for (const o of ops) {
       if (o.isCase) continue;
       const top = o.y + o.h + (o.arch ? 0.05 : 0.0);
-      geos.push(bboxAt(0.16, top - (o.y > 0 ? o.y - 0.12 : 0.2), 0.06, o.x - 0.08, (top + (o.y > 0 ? o.y - 0.12 : 0.2)) / 2, 0.03, { r: 0.01 }));
-      geos.push(bboxAt(0.16, top - (o.y > 0 ? o.y - 0.12 : 0.2), 0.06, o.x + o.w + 0.08, (top + (o.y > 0 ? o.y - 0.12 : 0.2)) / 2, 0.03, { r: 0.01 }));
+      vgeos.push(bboxAt(0.16, top - (o.y > 0 ? o.y - 0.12 : 0.2), 0.06, o.x - 0.08, (top + (o.y > 0 ? o.y - 0.12 : 0.2)) / 2, 0.03, { r: 0.014 }));
+      vgeos.push(bboxAt(0.16, top - (o.y > 0 ? o.y - 0.12 : 0.2), 0.06, o.x + o.w + 0.08, (top + (o.y > 0 ? o.y - 0.12 : 0.2)) / 2, 0.03, { r: 0.014 }));
       geos.push(bboxAt(o.w + 0.48, 0.2, 0.07, o.x + o.w / 2, top + 0.1, 0.035, { r: 0.012 }));
       if (o.y > 0) geos.push(bboxAt(o.w + 0.4, 0.12, 0.08, o.x + o.w / 2, o.y - 0.06, 0.04, { r: 0.01 }));
     }
-    const tm = mesh(merge(geos), mat.timber, `timber-${name}`);
-    groups[name].add(tm);
+    groups[name].add(mesh(merge(geos), mat.timber, `timber-${name}`));
+    if (vgeos.length) groups[name].add(mesh(merge(vgeos), mat.timberV, `timber-posts-${name}`));
   }
 
   // ------------------------------------------------------------ cornice (crown) under the ceiling beams
@@ -146,7 +146,7 @@ export function buildShell(ctx, root, mat) {
       const cx = (xa + xb) / 2, cz = (za + zb) / 2, w = xb - xa, d = zb - za;
       const y0 = H + mainD;               // top of beams
       // two receding steps up to the glass
-      for (const [inset, hh] of [[0.0, 0.06], [0.07, 0.05]]) {
+      for (const [inset, hh] of [[0.0, 0.04]]) {
         const yy = y0 + (inset ? 0.06 : 0) + hh / 2;
         geos.push(bboxAt(w - inset * 2, hh, 0.07, cx, yy, za + inset + 0.035, { r: 0.006 }));
         geos.push(bboxAt(w - inset * 2, hh, 0.07, cx, yy, zb - inset - 0.035, { r: 0.006 }));
@@ -154,23 +154,32 @@ export function buildShell(ctx, root, mat) {
         geos.push(bboxAt(0.07, hh, d - inset * 2 - 0.14, xb - inset - 0.035, yy, cz, { r: 0.006 }));
       }
     }
+    // a small crown moulding round the mouth of every coffer
+    const cofferMould = [];
+    for (let i = 0; i < NX; i++) for (let j = 0; j < NZ; j++) {
+      const xa = bx(i) + mainW / 2, xb = bx(i + 1) - mainW / 2;
+      const za = bz(j) + crossW / 2, zb = bz(j + 1) - crossW / 2;
+      const y = H + mainD - 0.075;
+      cofferMould.push(G.sweepProfile(G.PROFILES.crown(0.075, 0.05), [V3(xa, y, za), V3(xb, y, za), V3(xb, y, zb), V3(xa, y, zb)], { closed: true, uvScale: 1 }));
+    }
+    ceiling.add(mesh(merge(cofferMould), mat.beamMould || mat.beam, 'coffer-mouldings', { cast: false }));
     const beams = mesh(merge(geos), mat.beam, 'beams');
     ceiling.add(beams);
     // glass panels (one merged mesh, emissive moonlit) + a lead/iron grid behind
     const glassGeos = [];
     for (let i = 0; i < NX; i++) for (let j = 0; j < NZ; j++) {
-      const xa = bx(i) + mainW / 2 + 0.14, xb = bx(i + 1) - mainW / 2 - 0.14;
-      const za = bz(j) + crossW / 2 + 0.14, zb = bz(j + 1) - crossW / 2 - 0.14;
+      const xa = bx(i) + mainW / 2 + 0.07, xb = bx(i + 1) - mainW / 2 - 0.07;
+      const za = bz(j) + crossW / 2 + 0.07, zb = bz(j + 1) - crossW / 2 - 0.07;
       const g = new THREE.PlaneGeometry(xb - xa, zb - za);
       const uv = g.attributes.uv;
-      for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) * (xb - xa) * 1.6 + i * 0.37, uv.getY(k) * (zb - za) * 1.6 + j * 0.21);
+      void uv; // panel uv 0..1: one lozenge field per coffer
       // per-panel brightness via vertex colour (moon side brighter)
       const col = new Float32Array(uv.count * 3);
       const lum = 0.55 + 0.45 * Math.max(0, Math.min(1, 1 - (((xa + xb) / 2 - X0) / L.W) * 0.6 - (((za + zb) / 2 - Z0) / L.D) * 0.2)) + 0.08 * Math.sin(i * 7.1 + j * 3.3);
       for (let k = 0; k < uv.count; k++) col.set([lum, lum, lum], k * 3);
       g.setAttribute('color', new THREE.BufferAttribute(col, 3));
       g.rotateX(Math.PI / 2);
-      g.translate((xa + xb) / 2, H + 0.34 + 0.115, (za + zb) / 2);
+      g.translate((xa + xb) / 2, H + 0.34 + 0.04, (za + zb) / 2);
       glassGeos.push(g);
     }
     const glass = new THREE.Mesh(merge(glassGeos.map((g) => { const c = g.attributes.color; const n = g.toNonIndexed(); return n; })), mat.skylight);
@@ -317,6 +326,12 @@ export function buildShell(ctx, root, mat) {
     sky.position.set(0.2, 1.4, -2.6);
     sky.userData.noShadow = true;
     g.add(sky);
+    if (mat.treeline) {
+      const tl = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 2.6), mat.treeline);
+      tl.position.set(0.1, 0.9, -1.6);
+      tl.userData.noShadow = true;
+      g.add(tl);
+    }
     g.position.copy(wallToWorld('left', o.x + o.w / 2, o.y, 0)); g.rotation.y = WALLS.left.ry;
     root.add(g);
     bay = g;

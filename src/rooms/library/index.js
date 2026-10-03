@@ -5,7 +5,7 @@ import { buildBookcase } from './bookcase.js';
 import { buildProps, SPOTS } from './props.js';
 import { buildGhost } from './ghost.js';
 import { createTelescopePuzzle, telescopeMeta, PUZZLE_ID, RIDDLE, PHRASE } from './puzzleTelescope.js';
-import { tapestryMap, globeMap, skylightMap, nightSky, riddleCard } from './textures.js';
+import { tapestryMap, globeMap, nightSky, riddleCard, brickMap, timberMap, cofferGlassMap, vanitasMap, treelineMap, rainGlassMap, hintPagesTex } from './textures.js';
 
 /**
  * The Library — brick-and-timber walls, a coffered skylight ceiling washing the
@@ -14,7 +14,7 @@ import { tapestryMap, globeMap, skylightMap, nightSky, riddleCard } from './text
  * on its lectern, and the Telescope puzzle.
  */
 const { X0, X1, Z0, Z1, H } = L;
-const GHOST_POS = V3(-0.03, 1.83, 0.3);
+const GHOST_POS = V3(0.0, 1.9, -0.25);
 
 export default {
   id: 'library',
@@ -37,21 +37,31 @@ export default {
     const tap = tapestryMap(ctx);
     const tapRep = tap.withRepeat(1.3, 1.3);
     const glob = globeMap(ctx);
-    const sky = skylightMap(ctx);
-    const skyRep = sky.withRepeat(1, 1);
+    const cg = cofferGlassMap(ctx);
+    const bm = brickMap(ctx, hi ? 2048 : 1024);
+    const brickRep = bm.withRepeat(1 / 0.9, 1 / 0.56);
+    const tm = timberMap(ctx, hi ? 2048 : 1024);
+    const timberH = tm.withRepeat(1 / 1.6, 1 / 0.4);
+    const timberV = tm.withRepeat(1 / 1.6, 1 / 0.4, Math.PI / 2);
+    const van = vanitasMap(ctx);
+    const tree = treelineMap(ctx);
+    const rain = rainGlassMap(ctx).withRepeat(1.4, 1.4);
+    const timberMat = (set) => new THREE.MeshPhysicalMaterial({ map: set.map, normalMap: set.normalMap, normalScale: new THREE.Vector2(1.2, 1.2), roughnessMap: set.roughnessMap, aoMap: set.aoMap, roughness: 1, metalness: 0, clearcoat: 0.08, clearcoatRoughness: 0.6, envMapIntensity: 0.5, name: 'timber' });
     const mat = {
       floor: M.create('wood', { species: 'oak', boards: 6, boardLength: 0.36, polish: 0.32, wear: 0.75, figure: 0.6, tint: [0.44, 0.39, 0.36], repeat: [1 / 3.0, 1 / 1.02], size: hi ? 2048 : 1024, physical: true, clearcoat: 0.18, clearcoatRoughness: 0.45, macro: 0.45 }),
-      brick: M.create('brick', { color: [0.32, 0.15, 0.11], mortar: [0.3, 0.28, 0.26], rows: 8, cols: 4, soot: 0.55, repeat: [1 / 0.9, 1 / 0.56], size: hi ? 2048 : 1024, macro: 0.4 }),
-      timber: M.create('wood', { species: 'oak', boards: 0, polish: 0.25, wear: 0.55, figure: 0.8, tint: [0.3, 0.24, 0.2], repeat: [1 / 1.6, 1 / 0.8], physical: true, clearcoat: 0.12, clearcoatRoughness: 0.5 }),
+      brick: new THREE.MeshStandardMaterial({ map: brickRep.map, normalMap: brickRep.normalMap, normalScale: new THREE.Vector2(1.5, 1.5), roughnessMap: brickRep.roughnessMap, aoMap: brickRep.aoMap, aoMapIntensity: 1, roughness: 1, metalness: 0, envMapIntensity: 0.35, name: 'brick' }),
+      timber: timberMat(timberH),
+      timberV: timberMat(timberV),
       timberDark: M.create('wood', { species: 'walnut', boards: 0, polish: 0.4, wear: 0.4, tint: [0.42, 0.36, 0.33], repeat: [1, 1], physical: true, clearcoat: 0.3, clearcoatRoughness: 0.35 }),
-      beam: M.create('wood', { species: 'oak', boards: 0, polish: 0.15, wear: 0.5, figure: 0.8, tint: [0.25, 0.2, 0.17], repeat: [1 / 1.8, 1 / 0.9], envMapIntensity: 0.25 }),
-      caseWood: M.create('wood', { species: 'walnut', boards: 0, polish: 0.65, wear: 0.3, tint: [0.42, 0.34, 0.3], repeat: [1.4, 1.4], physical: true, clearcoat: 0.45, clearcoatRoughness: 0.3 }),
+      beam: M.create('wood', { species: 'oak', boards: 0, polish: 0.3, wear: 0.5, figure: 0.9, tint: [0.42, 0.34, 0.28], repeat: [1 / 1.2, 1 / 0.6], normalScale: 1.6, physical: true, clearcoat: 0.15, clearcoatRoughness: 0.5, envMapIntensity: 0.35 }),
+      beamMould: M.create('wood', { species: 'walnut', boards: 0, polish: 0.5, wear: 0.4, tint: [0.4, 0.33, 0.28], repeat: [3, 3], physical: true, clearcoat: 0.3, clearcoatRoughness: 0.35 }),
+      caseWood: M.create('wood', { species: 'walnut', boards: 0, polish: 0.7, wear: 0.3, figure: 0.8, tint: [0.5, 0.42, 0.36], repeat: [1.4, 1.4], normalScale: 1.4, physical: true, clearcoat: 0.3, clearcoatRoughness: 0.28 }),
       caseDark: new THREE.MeshStandardMaterial({ color: 0x0d0907, roughness: 0.85, metalness: 0 }),
-      column: M.create('ebony', { repeat: [3, 1], color: [0.62, 0.82, 0.82] }),
+      column: M.create('ebony', { repeat: [3, 1], normalScale: 1.5, physical: true, clearcoat: 0.45, clearcoatRoughness: 0.25 }),
       gilt: M.create('gold', { wear: 0.55, dirt: 0.65, repeat: [4, 1] }),
       giltCap: M.create('gold', { wear: 0.5, dirt: 0.7, repeat: [6, 6] }),
       frameGilt: M.create('gilded', { pattern: 1, repeats: 3, wear: 0.55, dirt: 0.7, repeat: [1 / 0.45, 1] }),
-      mahogany: M.create('mahogany', { repeat: [1.5, 1.5], color: [0.55, 0.45, 0.42] }),
+      mahogany: M.create('mahogany', { repeat: [1.5, 1.5], color: [0.4, 0.3, 0.26], roughness: 1.1 }),
       doorWood: M.create('wood', { species: 'walnut', boards: 0, polish: 0.4, wear: 0.5, tint: [0.45, 0.38, 0.34], repeat: [1, 1], physical: true, clearcoat: 0.2, clearcoatRoughness: 0.4 }),
       deskLeather: M.create('leather', { color: [0.05, 0.12, 0.07], wear: 0.55, repeat: [2, 2] }),
       tapestry: new THREE.MeshPhysicalMaterial({ map: tapRep.map, normalMap: tapRep.normalMap, normalScale: new THREE.Vector2(0.5, 0.5), roughnessMap: tapRep.roughnessMap, roughness: 1, metalness: 0, sheen: 0.35, sheenRoughness: 0.6, sheenColor: new THREE.Color(0.35, 0.18, 0.12), envMapIntensity: 0.25, name: 'tapestry' }),
@@ -66,18 +76,25 @@ export default {
       leatherBox: M.create('leather', { color: [0.2, 0.09, 0.05], wear: 0.5, repeat: [4, 4] }),
       leatherRed: M.create('leather', { color: [0.28, 0.04, 0.035], wear: 0.45, repeat: [4, 4] }),
       leatherGreen: M.create('leather', { color: [0.05, 0.12, 0.07], wear: 0.45, repeat: [4, 4] }),
-      hintPages: new THREE.MeshStandardMaterial({ color: 0xd8c8a0, roughness: 0.85, emissive: new THREE.Color(1.0, 0.82, 0.5), emissiveIntensity: 0.015 }),
+      hintTex: hintPagesTex(ctx),
+      ledgerTex: hintPagesTex(ctx),
+      pageEdge: new THREE.MeshStandardMaterial({ color: 0xb8a47c, roughness: 0.9 }),
+      giltEdge: new THREE.MeshStandardMaterial({ color: 0xc89a48, roughness: 0.4, metalness: 0.85 }),
+      letterPaper: new THREE.MeshStandardMaterial({ color: 0xb3a07a, roughness: 0.92, side: THREE.DoubleSide }),
+      stoolFabric: new THREE.MeshPhysicalMaterial({ map: tapRep.map, normalMap: tapRep.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), roughnessMap: tapRep.roughnessMap, roughness: 1, metalness: 0, sheen: 0.5, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.4, 0.22, 0.14), envMapIntensity: 0.25 }),
+      vanitas: new THREE.MeshPhysicalMaterial({ map: van.map, normalMap: van.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), roughnessMap: van.roughnessMap, roughness: 1, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.2, envMapIntensity: 0.5 }),
+      treeline: new THREE.MeshBasicMaterial({ map: tree.map, transparent: true, depthWrite: false, color: new THREE.Color(1.6, 1.6, 1.6), toneMapped: true }),
       ribbon: new THREE.MeshStandardMaterial({ color: 0x5a0a10, roughness: 0.6, side: THREE.DoubleSide }),
       lampShade: new THREE.MeshStandardMaterial({ color: 0x302418, emissive: new THREE.Color(1.0, 0.66, 0.34), emissiveIntensity: 1.5, roughness: 0.4, transparent: true, opacity: 0.94, side: THREE.DoubleSide }),
       sconceShade: new THREE.MeshStandardMaterial({ color: 0x302418, emissive: new THREE.Color(1.0, 0.6, 0.3), emissiveIntensity: 2.0, roughness: 0.4, transparent: true, opacity: 0.92, side: THREE.DoubleSide }),
       globe: new THREE.MeshPhysicalMaterial({ map: glob.map, normalMap: glob.normalMap, roughnessMap: glob.roughnessMap, roughness: 1, metalness: 0, clearcoat: 0.08, clearcoatRoughness: 0.5, envMapIntensity: 0.25, roughness: 1.4, name: 'globe' }),
       horizonRing: new THREE.MeshStandardMaterial({ color: 0xb59f74, roughness: 0.7 }),
-      curtain: M.create('velvet', { color: [0.05, 0.08, 0.2], crush: 0.55, repeat: [2, 2], side: THREE.DoubleSide }),
+      curtain: M.create('velvet', { color: [0.2, 0.03, 0.035], crush: 0.45, repeat: [2, 2], side: THREE.DoubleSide, roughness: 1.1, sheen: 0.6, sheenRoughness: 0.5, sheenColor: [0.5, 0.16, 0.14], envMapIntensity: 0.2 }),
       plasterDark: M.create('plaster', { color: [0.3, 0.29, 0.3], cracks: 0.4, stains: 0.5, repeat: [0.8, 0.8] }),
       windowFrame: new THREE.MeshStandardMaterial({ color: 0x0b0908, roughness: 0.6 }),
-      glass: M.create('glass', { dirt: 0.6, transparent: true, opacity: 0.16 }),
+      glass: new THREE.MeshPhysicalMaterial({ map: rain.map, normalMap: rain.normalMap, color: 0xb8c4d0, roughness: 0.15, metalness: 0, transparent: true, opacity: 0.9, clearcoat: 1, clearcoatRoughness: 0.05, depthWrite: false, name: 'rain-glass' }),
       sky: new THREE.MeshBasicMaterial({ map: nightSky(ctx).map, color: new THREE.Color(1, 1, 1).multiplyScalar(2.6), toneMapped: false }),
-      skylight: new THREE.MeshBasicMaterial({ map: skyRep.map, vertexColors: true, color: new THREE.Color(0.62, 0.74, 1.0).multiplyScalar(0.9), toneMapped: false, name: 'skylight-glass' }),
+      skylight: new THREE.MeshBasicMaterial({ map: cg.map, vertexColors: true, color: new THREE.Color(0.62, 0.68, 0.78).multiplyScalar(1.1), name: 'skylight-glass' }),
       sand: new THREE.MeshStandardMaterial({ color: 0xb89a66, roughness: 0.95 }),
       wax: M.create('wax', { color: [0.88, 0.83, 0.7], drips: 0.6, size: 256 }),
       bone: M.basic('bone'),
@@ -94,32 +111,22 @@ export default {
 
     // riddle card on the bay-window sill
     const cardTex = riddleCard(ctx, RIDDLE);
-    const card = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.14), new THREE.MeshStandardMaterial({ map: cardTex, roughness: 0.85 }));
+    const card = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.144), new THREE.MeshStandardMaterial({ map: cardTex, color: 0x9a9080, roughness: 0.9 }));
     card.name = 'riddle-card';
     card.position.copy(wallToWorld('left', OPEN.bay.x + OPEN.bay.w / 2 + 0.25, OPEN.bay.y + 0.006, 0.1));
     card.rotation.set(-Math.PI / 2, 0, Math.PI / 2 + 0.25);
     card.receiveShadow = true;
     root.add(card);
 
-    // candlestick pair on the bookcase counter (warm light on the books)
+    // a single brass oil lamp on the bookcase counter (left bay): warm practical on the books
     {
-      const cs = new THREE.Group();
-      const lathe = (pts) => new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(Math.max(r, 1e-4), y)), 24);
-      for (const dx of [-0.11, 0.11]) {
-        const stick = new THREE.Mesh(lathe([[0.001, 0], [0.055, 0], [0.05, 0.012], [0.018, 0.04], [0.012, 0.16], [0.022, 0.2], [0.03, 0.215], [0.001, 0.215]]), mat.brass);
-        stick.position.x = dx; cs.add(stick);
-        const c = fx.candle({ height: 0.17 + (dx > 0 ? -0.04 : 0), radius: 0.012, light: false, seed: dx > 0 ? 5 : 9, burn: 0.7 });
-        c.position.set(dx, 0.215, 0); cs.add(c);
-      }
-      cs.position.copy(bookcase.toWorld(0.95, 0.8, 0.3));
-      root.add(cs);
-      const cs2 = cs.clone(); cs2.position.copy(bookcase.toWorld(3.2, 0.8, 0.3)); root.add(cs2);
-      const pl = new THREE.PointLight(0xffa456, 2.0, 5, 2);
-      pl.position.copy(bookcase.toWorld(0.95, 1.12, 0.42));
-      const pl2 = new THREE.PointLight(0xffa456, 2.0, 5, 2);
-      pl2.position.copy(bookcase.toWorld(3.2, 1.12, 0.42));
-      root.add(pl, pl2);
-      ctx.onUpdate((dt, t) => { pl.intensity = 2.0 * (0.93 + 0.07 * Math.sin(t * 8.3) * Math.sin(t * 3.1 + 1)); pl2.intensity = 2.0 * (0.93 + 0.07 * Math.sin(t * 7.1 + 2) * Math.sin(t * 2.3)); });
+      const lamp = props.makeOilLamp({ shadeColor: 0xffb070, scale: 0.85, seed: 41 });
+      lamp.position.copy(bookcase.toWorld(0.9, 0.8, 0.34));
+      root.add(lamp);
+      const pl = new THREE.PointLight(0xffa456, 2.6, 6, 2);
+      pl.position.copy(bookcase.toWorld(0.9, 1.15, 0.45));
+      root.add(pl);
+      ctx.onUpdate((dt, t) => { pl.intensity = 2.6 * (0.94 + 0.06 * Math.sin(t * 7.3) * Math.sin(t * 2.9 + 1)); });
     }
 
     // ================================================================ telescope aim + puzzle
@@ -148,39 +155,47 @@ export default {
     // ================================================================ ghost placement + idle motion
     const g = ghost.group;
     g.position.copy(GHOST_POS);
-    g.scale.setScalar(1.12);
+    g.scale.setScalar(1.1);
     const faceTo = V3(0.05, 1.62, 1.45);
-    g.rotation.y = Math.atan2(faceTo.x - GHOST_POS.x, faceTo.z - GHOST_POS.z) + 0.12;
-    g.rotation.x = 0.05;
-    g.rotation.z = -0.04;
+    g.rotation.order = 'YXZ';
+    g.rotation.y = Math.atan2(faceTo.x - GHOST_POS.x, faceTo.z - GHOST_POS.z) + 0.1;
+    g.rotation.x = 0.12;   // chin down: he regards the visitor below him
+    g.rotation.z = -0.03;
     ctx.onUpdate((dt, t) => {
       g.position.y = GHOST_POS.y + Math.sin(t * 0.7) * 0.025;
-      g.rotation.z = -0.04 + Math.sin(t * 0.45) * 0.02;
+      g.rotation.z = -0.03 + Math.sin(t * 0.45) * 0.015;
     });
 
     // ================================================================ lighting
-    // moonlight through the skylights (shadowed by the beam grid)
-    const moon = new THREE.SpotLight(0xa8bcff, 2600, 26, 0.5, 0.55, 2);
+    // moonlight through the skylights: a broad, very soft cone so only the beam grid draws shadows
+    const moon = new THREE.SpotLight(0xa8bce8, 1500, 28, 0.78, 1.0, 2);
     moon.position.set(-1.9, 11.0, 0.9);
-    moon.target.position.set(-0.6, 0, -1.6);
+    moon.target.position.set(-1.0, 0, -1.4);
     moon.castShadow = ctx.quality.shadows;
     moon.shadow.mapSize.set(ctx.quality.shadowMapSize, ctx.quality.shadowMapSize);
-    moon.shadow.bias = -0.0004; moon.shadow.normalBias = 0.03; moon.shadow.radius = ctx.quality.shadowRadius;
-    moon.shadow.camera.near = 4; moon.shadow.camera.far = 20;
+    moon.shadow.bias = -0.0005; moon.shadow.normalBias = 0.02; moon.shadow.radius = Math.max(6, ctx.quality.shadowRadius * 2);
+    moon.shadow.blurSamples = 16;
+    moon.shadow.camera.near = 6; moon.shadow.camera.far = 16;
     root.add(moon, moon.target);
-    // cool skylight spill + deep-blue ambient
-    root.add(fx.areaLight({ center: [(X0 + X1) / 2, H - 0.03, (Z0 + Z1) / 2], normal: [0, -1, 0], width: L.W * 0.8, height: L.D * 0.8, color: 0x8ea6ff, intensity: 0.6 }));
-    root.add(new THREE.HemisphereLight(0x3a4778, 0x2a1a10, 0.5));
+    // neutral, dim skylight spill + near-neutral ambient (the cold stays in the moon and the bay)
+    root.add(fx.areaLight({ center: [(X0 + X1) / 2, H - 0.03, (Z0 + Z1) / 2], normal: [0, -1, 0], width: L.W * 0.8, height: L.D * 0.8, color: 0x9a9890, intensity: 0.25 }));
+    root.add(new THREE.HemisphereLight(0x2a2c34, 0x24170e, 0.25));
     // the bay window's moon spill
-    root.add(fx.areaLight({ center: wallToWorld('left', OPEN.bay.x + OPEN.bay.w / 2, OPEN.bay.y + 1.1, 0.05).toArray(), normal: [1, -0.2, 0], width: OPEN.bay.w, height: OPEN.bay.h, color: 0x8ea6ff, intensity: 3 }));
-    // a cold key on the ghost's face (as if a skylight pane singled him out)
-    const gk = new THREE.SpotLight(0xd8e2ff, 12, 5, 0.2, 0.8, 2);
-    gk.position.copy(GHOST_POS).add(V3(-0.75, 0.55, 1.05));
+    root.add(fx.areaLight({ center: wallToWorld('left', OPEN.bay.x + OPEN.bay.w / 2, OPEN.bay.y + 1.1, 0.05).toArray(), normal: [1, -0.2, 0], width: OPEN.bay.w, height: OPEN.bay.h, color: 0x8ea6ff, intensity: 2.4 }));
+    // warm bounce from the lamps onto the bookcase (keeps the walnut and leather reading brown)
+    root.add(fx.areaLight({ center: [-1.0, 1.5, -1.2], normal: [0, 0.1, -1], width: 3.2, height: 1.6, color: 0xffa868, intensity: 1.3 }));
+    // a cold key on the ghost's face (a skylight pane singles him out) + a warm kicker from the lamps below
+    const gk = new THREE.SpotLight(0xdfe4f0, 9, 5, 0.22, 0.9, 2);
+    gk.position.copy(GHOST_POS).add(V3(-0.85, 0.75, 0.95));
     gk.target.position.copy(GHOST_POS).add(V3(0, 0.08, 0));
     root.add(gk, gk.target);
-    // faint warm spill so the foreground wing chair isn't a black hole
-    const fillW = new THREE.PointLight(0xffa060, 1.5, 4, 2);
-    fillW.position.set(0.1, 1.0, 0.9);
+    const gw = new THREE.SpotLight(0xffb27a, 2.5, 4, 0.3, 1.0, 2);
+    gw.position.copy(GHOST_POS).add(V3(0.9, -0.5, 0.6));
+    gw.target.position.copy(GHOST_POS).add(V3(0, 0.05, 0));
+    root.add(gw, gw.target);
+    // warm spill so the foreground wing chair and desk aren't black holes
+    const fillW = new THREE.PointLight(0xffa060, 1.6, 4.5, 2);
+    fillW.position.set(0.05, 1.1, 0.9);
     root.add(fillW);
 
     // ================================================================ volumetrics: shafts from the skylights + dust + floor mist
@@ -190,18 +205,18 @@ export default {
     for (const [i, j, s] of [[1, 3, 0.32], [2, 2, 0.26], [1, 1, 0.22], [2, 4, 0.2]]) {
       const cx = (bx(i) + bx(i + 1)) / 2, cz = (bz(j) + bz(j + 1)) / 2;
       const w = (bx(i + 1) - bx(i)) - 0.55, d = (bz(j + 1) - bz(j)) - 0.5;
-      const sh = fx.shaft({ center: V3(cx, H + 0.35, cz), right: V3(w / 2, 0, 0), up: V3(0, 0, d / 2), direction: moonDir, length: 4.4, color: 0x9fb6ff, intensity: s, softness: 0.4, falloff: 0.9, panes: [3, 3], mullion: 0.02, noise: 0.8 });
+      const sh = fx.shaft({ center: V3(cx, H + 0.35, cz), right: V3(w / 2, 0, 0), up: V3(0, 0, d / 2), direction: moonDir, length: 4.4, color: 0xa8b8e0, intensity: s * 0.8, softness: 0.55, falloff: 0.9, panes: [3, 3], mullion: 0.02, noise: 0.8 });
       root.add(sh);
       shafts.push(sh);
     }
-    const dust = fx.dust({ box: new THREE.Box3(V3(-3.0, 0.1, -4.2), V3(1.2, 3.3, 1.6)), count: Math.round(2600 * (ctx.quality.particles ?? 1)), shafts, size: 0.01, intensity: 2.0, ambient: 0.04 });
+    const dust = fx.dust({ box: new THREE.Box3(V3(-3.0, 0.1, -4.2), V3(1.2, 3.3, 1.6)), count: Math.round(1000 * (ctx.quality.particles ?? 1)), shafts, size: 0.005, intensity: 1.6, ambient: 0.0 });
     root.add(dust);
-    const mist = fx.fog({ box: new THREE.Box3(V3(X0 + 0.2, 0, Z0 + 0.6), V3(X1 - 0.2, 0.5, Z1 - 0.4)), color: 0x0a0f1a, litColor: 0x2c3a58, density: 0.45, heightFalloff: 5 });
+    const mist = fx.fog({ box: new THREE.Box3(V3(X0 + 0.2, 0, Z0 + 0.6), V3(X1 - 0.2, 0.5, Z1 - 0.4)), color: 0x0b0c10, litColor: 0x2a3040, density: 0.35, heightFalloff: 5 });
     root.add(mist);
 
     // ================================================================ navigation
     const nodes = {
-      main: { position: [0.05, 1.62, 1.45], target: [0.0, 1.68, -5.0], fov: 58, label: 'The Library', look: { yaw: [-55, 50], pitch: [-30, 32] } },
+      main: { position: [0.05, 1.62, 1.45], target: [-0.45, 1.3, -5.0], fov: 58, label: 'The Library', look: { yaw: [-55, 50], pitch: [-30, 32] } },
       main_back: { position: [0.05, 1.62, 1.6], target: [-1.2, 1.35, 7.0], fov: 58, label: 'The way out' },
       shelves: { position: [-2.05, 1.62, -1.95], target: [-2.25, 1.95, -5.0], fov: 58, label: 'The bookcase', look: { yaw: [-50, 50], pitch: [-30, 38] } },
       bay: { position: [-1.9, 1.6, 0.35], target: [-4.3, 1.35, 2.2], fov: 56, label: 'The telescope', look: { yaw: [-50, 50], pitch: [-30, 32] } },
@@ -210,9 +225,9 @@ export default {
     };
     const edges = [
       ['main', 'main_back'],
-      ['main', 'shelves', [[-0.6, 1.62, 0.4], [-1.35, 1.62, -1.2]], { duration: 3.6 }],
-      ['main', 'bay', [[-0.8, 1.62, 1.5]]],
-      ['main', 'door', [[-0.3, 1.62, 0.6], [-0.55, 1.62, -1.0]]],
+      ['main', 'shelves', [[-0.25, 1.62, 0.5], [-0.45, 1.62, -1.0], [-1.35, 1.62, -1.6]], { duration: 3.8 }],
+      ['main', 'bay', [[-1.0, 1.62, 1.75]]],
+      ['main', 'door', [[-0.2, 1.62, 0.6], [-0.4, 1.62, -1.0]]],
       ['bay', 'shelves', [[-1.9, 1.62, -0.7]]],
       ['shelves', 'door'],
       ['shelves', 'corner'],
@@ -321,7 +336,7 @@ export default {
       scene: root,
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
-      grade: { exposure: 1.75, contrast: 1.12, saturation: 0.9, bloomStrength: 0.35, bloomThreshold: 1.6, godRayWeight: 0.3, vignette: 0.48, aoIntensity: 1.2, aoRadius: 0.4 },
+      grade: { exposure: 1.25, contrast: 1.2, saturation: 0.8, shadowTint: [0.93, 1.0, 1.03], highlightTint: [1.1, 1.0, 0.86], splitAmount: 0.5, lift: [0, 0, 0], blackPoint: 0.012, bloomStrength: 0.32, bloomThreshold: 1.5, godRayWeight: 0.25, vignette: 0.45, aoIntensity: 1.2, aoRadius: 0.4 },
       environment: { position: [-0.6, 1.9, -0.8], intensity: 0.8 },
       onEnter() {
         if (!ctx.state.has('library.greeted')) {
@@ -349,7 +364,7 @@ async function ghostLab(ctx, root) {
   gk.position.copy(GHOST_POS).add(V3(-0.9, 1.5, 0.9));
   gk.target.position.copy(GHOST_POS).add(V3(0, 0.08, 0));
   root.add(gk, gk.target);
-  root.add(new THREE.HemisphereLight(0x3a4778, 0x2a1a10, 0.5));
+  root.add(new THREE.HemisphereLight(0x2a2c34, 0x2a1a10, 0.35));
   const warm = new THREE.PointLight(0xffa252, 3, 10, 2);
   warm.position.copy(GHOST_POS).add(V3(1.6, -0.6, 0.8));
   root.add(warm);
@@ -362,7 +377,7 @@ async function ghostLab(ctx, root) {
       far: { position: c.clone().add(V3(0.2, -0.2, 1.9)).toArray(), target: c.clone().add(V3(0, -0.12, 0)).toArray(), fov: 40 },
     },
     edges: [], exits: [], hotspots: [],
-    grade: { exposure: 1.9, contrast: 1.1, saturation: 0.92, bloomStrength: 0.35, bloomThreshold: 1.6, vignette: 0.45 },
+    grade: { exposure: 1.3, contrast: 1.18, saturation: 0.82, bloomStrength: 0.35, bloomThreshold: 1.6, vignette: 0.45 },
     environment: { position: [0, 1.5, 0], intensity: 0.5 },
   };
 }

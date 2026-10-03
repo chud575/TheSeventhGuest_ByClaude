@@ -7,10 +7,10 @@ import { WALLS, wallToWorld, OPEN } from './shell.js';
 import { flicker } from '../../engine/fx/Flame.js';
 
 export const SPOTS = {
-  desk: { x: -1.95, z: -0.55, ry: 0 },            // long axis along z
-  chair: { x: -1.05, z: -0.75, ry: -1.75 },
-  wing: { x: 0.58, z: -0.15, ry: -1.9 },
-  globe: { x: 0.36, z: -1.55 },
+  desk: { x: -1.05, z: -0.35, ry: 0 },             // long axis along z, drawers face the room (+x)
+  chair: { x: -0.4, z: -0.45, ry: -1.45 },      // upholstered stool drawn up to the desk
+  wing: { x: 0.68, z: -0.62, ry: -0.78 },
+  globe: { x: 0.24, z: -1.7 },
   telescope: { x: -3.2, z: 2.05 },
   lectern: { x: 0.45, z: 3.1, ry: Math.PI + 0.45 },
 };
@@ -19,40 +19,157 @@ function turnedLeg(h, r = 0.022) {
   return lathe([[0.001, 0], [r * 0.7, 0], [r * 0.9, 0.02], [r * 0.75, 0.05], [r * 1.1, h * 0.2], [r * 0.7, h * 0.32], [r * 0.85, h * 0.5], [r * 0.65, h * 0.7], [r * 1.05, h * 0.82], [r * 1.0, h * 0.95], [r * 1.25, h * 0.97], [r * 1.25, h], [0.001, h]], 16);
 }
 
+/** Replace degenerate (zero) vertex normals, which turn into NaN in the shader. */
+function safeNormals(geo) {
+  const n = geo.attributes.normal;
+  for (let i = 0; i < n.count; i++) if (Math.abs(n.getX(i)) + Math.abs(n.getY(i)) + Math.abs(n.getZ(i)) < 1e-6) n.setXYZ(i, 0, 1, 0);
+  return geo;
+}
+
+/** Book with a rounded spine, inset page block and square boards (local: spine toward -x, lying flat; y up). */
+export function leatherBook(w, h, d, cover, pages, { round = 0.35 } = {}) {
+  // w = width (along z), d = depth across (x), h = thickness (y)
+  const g = new THREE.Group();
+  const board = 0.0025;
+  for (const sy of [0, 1]) {
+    const b = new THREE.Mesh(bboxAt(d, board, w, 0, sy ? h - board / 2 : board / 2, 0, { r: 0.0012 }), cover);
+    g.add(b);
+  }
+  const blk = new THREE.Mesh(bboxAt(d - 0.006, h - board * 2, w - 0.006, 0.003, h / 2, 0, { r: 0.0008 }), pages);
+  g.add(blk);
+  // rounded spine (half cylinder squashed)
+  const sp = new THREE.CylinderGeometry(h / 2, h / 2, w, 20, 1, false, Math.PI, Math.PI);
+  sp.rotateX(Math.PI / 2);
+  sp.scale(round, 1, 1);
+  sp.translate(-d / 2 + 0.001, h / 2, 0);
+  g.add(new THREE.Mesh(sp, cover));
+  // two raised bands
+  for (const z of [-w * 0.22, w * 0.22]) {
+    const band = new THREE.CylinderGeometry(h / 2 + 0.0012, h / 2 + 0.0012, 0.006, 20, 1, false, Math.PI, Math.PI);
+    band.rotateX(Math.PI / 2); band.scale(round, 1, 1); band.translate(-d / 2 + 0.001, h / 2, z);
+    g.add(new THREE.Mesh(band, cover));
+  }
+  return g;
+}
+
+/** An open folio: two curved page blocks rising from the gutter, a printed spread, gilt edges. Local: spine along z, y up. */
+export function openFolio({ w = 0.3, d = 0.42, thick = 0.035, cover, pagesTex, edgeMat, ribbonMat, segs = 28 }) {
+  const g = new THREE.Group();
+  // cover boards (slightly larger than the blocks), lying open
+  for (const s of [-1, 1]) {
+    const b = new THREE.Mesh(bboxAt(w + 0.012, 0.005, d + 0.02, s * (w / 2 + 0.006), 0.0025, 0, { r: 0.0015 }), cover);
+    g.add(b);
+  }
+  const prof = (t) => thick * (0.28 + 0.72 * (1 - Math.pow(1 - Math.min(1, t * 1.25), 2.4))) - thick * 0.12 * Math.max(0, t - 0.8) / 0.2;
+  const pageMat = new THREE.MeshStandardMaterial({ map: pagesTex, roughness: 0.82, metalness: 0, side: THREE.DoubleSide });
+  for (const s of [-1, 1]) {
+    // block body: extruded profile (gilt edges show on head, tail and fore-edge)
+    const sh = new THREE.Shape();
+    sh.moveTo(0, 0.004);
+    for (let k = 0; k <= segs; k++) { const t = k / segs; sh.lineTo(t * w, 0.004 + prof(t)); }
+    sh.lineTo(w, 0.004);
+    const body = new THREE.ExtrudeGeometry(sh, { depth: d - 0.008, bevelEnabled: false, curveSegments: 4 });
+    body.translate(0, 0, -(d - 0.008) / 2);
+    if (s < 0) body.scale(-1, 1, 1);
+    if (s < 0) body.computeVertexNormals();
+    const bm = new THREE.Mesh(safeNormals(body), edgeMat);
+    g.add(bm);
+    // printed top surface
+    const top = new THREE.PlaneGeometry(w, d - 0.008, segs, 1);
+    top.rotateX(-Math.PI / 2);
+    const pos = top.attributes.position, uv = top.attributes.uv;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i) + w / 2; const t = x / w;
+      pos.setXYZ(i, s * x, 0.0045 + prof(t), pos.getZ(i));
+      const u = s > 0 ? 0.5 + 0.5 * t : 0.5 - 0.5 * t;
+      uv.setXY(i, u, uv.getY(i));
+    }
+    top.computeVertexNormals();
+    if (s < 0) { const idx = top.index.array; for (let i = 0; i < idx.length; i += 3) { const tmp = idx[i]; idx[i] = idx[i + 1]; idx[i + 1] = tmp; } top.computeVertexNormals(); }
+    g.add(new THREE.Mesh(safeNormals(top), pageMat));
+  }
+  if (ribbonMat) {
+    const rb = new THREE.PlaneGeometry(0.014, d * 0.75, 1, 12);
+    const pos = rb.attributes.position;
+    for (let i = 0; i < pos.count; i++) { const y = pos.getY(i); pos.setZ(i, Math.max(0, -y - d * 0.2) * 0.25); }
+    rb.rotateX(-Math.PI / 2); rb.translate(0.004, thick * 0.3 + 0.006, d * 0.25);
+    g.add(new THREE.Mesh(rb, ribbonMat));
+  }
+  return g;
+}
+
 export function buildProps(ctx, root, mat) {
   const G = ctx.geometry;
   const out = {};
+
+  // ---------------------------------------------------------------- oil lamp factory (brass font, collar, chimney, frosted globe)
+  const lampGlobeMat = (shadeColor) => new THREE.MeshPhysicalMaterial({
+    color: 0xf2e6d2, roughness: 0.32, metalness: 0, transparent: true, opacity: 0.55, side: THREE.DoubleSide,
+    emissive: new THREE.Color(shadeColor), emissiveIntensity: 0.45, clearcoat: 0.6, clearcoatRoughness: 0.2, depthWrite: false,
+  });
+  out.makeOilLamp = ({ shadeColor = 0xffb070, scale = 1, seed = 11, flameIntensity = 7 } = {}) => {
+    const lamp = new THREE.Group();
+    lamp.name = 'oil-lamp';
+    lamp.add(new THREE.Mesh(lathe([[0.001, 0], [0.078, 0], [0.08, 0.006], [0.072, 0.016], [0.05, 0.026], [0.032, 0.04], [0.026, 0.07], [0.022, 0.11], [0.03, 0.125], [0.026, 0.135], [0.04, 0.15], [0.062, 0.17], [0.072, 0.2], [0.068, 0.225], [0.05, 0.245], [0.03, 0.255], [0.024, 0.27], [0.001, 0.27]], 64), mat.brass));
+    // burner collar + gallery
+    lamp.add(new THREE.Mesh(lathe([[0.001, 0.268], [0.032, 0.268], [0.036, 0.276], [0.03, 0.284], [0.036, 0.292], [0.022, 0.302], [0.001, 0.302]], 48), mat.brassBright));
+    for (let k = 0; k < 12; k++) { const a = (k / 12) * Math.PI * 2; lamp.add(new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.03, 0.006).translate(Math.cos(a) * 0.05, 0.31, Math.sin(a) * 0.05).rotateY(0), mat.brass)); }
+    lamp.add(new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.0025, 6, 48).rotateX(Math.PI / 2).translate(0, 0.325, 0), mat.brass));
+    // glass chimney
+    const chim = new THREE.Mesh(lathe([[0.017, 0.3], [0.025, 0.325], [0.027, 0.36], [0.018, 0.42], [0.016, 0.52], [0.017, 0.53]], 48), mat.glassClear);
+    chim.userData.noShadow = true;
+    lamp.add(chim);
+    // frosted globe shade with an emissive inner glow
+    const shade = new THREE.Mesh(lathe([[0.035, 0.32], [0.06, 0.33], [0.09, 0.36], [0.104, 0.4], [0.098, 0.44], [0.075, 0.47], [0.045, 0.48], [0.04, 0.49]], 64), lampGlobeMat(shadeColor));
+    shade.userData.noShadow = true;
+    shade.renderOrder = 5;
+    lamp.add(shade);
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.03, 24, 16), new THREE.MeshBasicMaterial({ color: new THREE.Color(shadeColor).multiplyScalar(1.4), transparent: true, opacity: 0.35, toneMapped: false, depthWrite: false }));
+    core.scale.set(1, 1.4, 1); core.position.y = 0.37; core.userData.noShadow = true;
+    lamp.add(core);
+    const flame = ctx.fx.flame({ height: 0.04, width: 0.015, intensity: flameIntensity, seed });
+    flame.position.y = 0.31;
+    lamp.add(flame);
+    lamp.scale.setScalar(scale);
+    lamp.userData.shade = shade;
+    return lamp;
+  };
 
   // ================================================================ writing desk (pedestal, leather top)
   {
     const g = new THREE.Group();
     g.name = 'desk';
-    const W = 0.8, Dz = 1.55, Hh = 0.78;
+    const W = 0.8, Dz = 1.4, Hh = 0.78;
     const wood = [], brassG = [];
-    // top with moulded edge + leather inlay
-    wood.push(bboxAt(W, 0.045, Dz, 0, Hh - 0.0225, 0, { r: 0.012 }));
+    // top with moulded edge + tooled leather inlay with a gilt fillet
+    wood.push(bboxAt(W, 0.045, Dz, 0, Hh - 0.0225, 0, { r: 0.014 }));
     wood.push(bboxAt(W - 0.04, 0.03, Dz - 0.04, 0, Hh - 0.06, 0, { r: 0.006 }));
-    const leather = mesh(bboxAt(W - 0.14, 0.004, Dz - 0.16, 0, Hh + 0.001, 0, { r: 0.0015 }), mat.deskLeather, 'desk-leather');
+    const leather = mesh(bboxAt(W - 0.12, 0.003, Dz - 0.14, 0, Hh + 0.0005, 0, { r: 0.0012 }), mat.deskLeather, 'desk-leather');
     g.add(leather);
-    // two pedestals
+    const fillet = [];
+    for (const s of [-1, 1]) {
+      fillet.push(bboxAt(W - 0.14, 0.001, 0.004, 0, Hh + 0.0022, s * (Dz - 0.17) / 2, { r: 0.0004 }));
+      fillet.push(bboxAt(0.004, 0.001, Dz - 0.17, s * (W - 0.15) / 2, Hh + 0.0022, 0, { r: 0.0004 }));
+    }
+    g.add(mesh(merge(fillet), mat.gilt, 'desk-fillet'));
+    // two pedestals on turned bun feet
     for (const s of [-1, 1]) {
       const pz = s * (Dz / 2 - 0.25);
-      wood.push(bboxAt(W - 0.06, Hh - 0.12, 0.46, 0, 0.06 + (Hh - 0.12) / 2, pz, { r: 0.008 }));
-      wood.push(bboxAt(W - 0.02, 0.07, 0.5, 0, 0.035, pz, { r: 0.01 }));
-      // drawers on the room-facing side (+x)
+      wood.push(bboxAt(W - 0.06, Hh - 0.14, 0.46, 0, 0.08 + (Hh - 0.14) / 2, pz, { r: 0.008 }));
+      wood.push(bboxAt(W - 0.02, 0.05, 0.5, 0, 0.065, pz, { r: 0.012 }));
+      for (const [fx, fz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) wood.push(lathe([[0.001, 0], [0.028, 0], [0.036, 0.012], [0.034, 0.03], [0.024, 0.04], [0.001, 0.04]], 20).translate(fx * (W / 2 - 0.06), 0, pz + fz * 0.19));
       for (let k = 0; k < 3; k++) {
-        const y = 0.17 + k * 0.17;
+        const y = 0.19 + k * 0.165;
         const p = G.raisedPanel(0.4, 0.14, { border: 0.02, bevel: 0.012, frameDepth: 0.008, fieldDepth: 0.006 });
         p.rotateY(Math.PI / 2); p.translate((W - 0.06) / 2, y, pz);
         wood.push(p);
-        const pull = new THREE.TorusGeometry(0.018, 0.0035, 8, 14, Math.PI);
+        const pull = new THREE.TorusGeometry(0.018, 0.0035, 8, 20, Math.PI);
         pull.rotateZ(Math.PI); pull.rotateY(Math.PI / 2); pull.translate((W - 0.06) / 2 + 0.018, y + 0.005, pz);
         brassG.push(pull);
-        brassG.push(new THREE.SphereGeometry(0.006, 8, 6).translate((W - 0.06) / 2 + 0.012, y + 0.005, pz - 0.018));
-        brassG.push(new THREE.SphereGeometry(0.006, 8, 6).translate((W - 0.06) / 2 + 0.012, y + 0.005, pz + 0.018));
+        brassG.push(lathe([[0.001, 0], [0.012, 0], [0.01, 0.004], [0.001, 0.005]], 16).rotateZ(-Math.PI / 2).translate((W - 0.06) / 2 + 0.006, y + 0.005, pz));
       }
     }
-    // kneehole drawer + modesty panel
+    // kneehole drawer + modesty panel + turned stretcher
     wood.push(bboxAt(W - 0.08, 0.1, Dz - 1.0, 0, Hh - 0.12, 0, { r: 0.006 }));
     wood.push(bboxAt(0.02, Hh - 0.25, Dz - 0.96, -W / 2 + 0.06, (Hh - 0.25) / 2 + 0.06, 0, { r: 0.004 }));
     g.add(mesh(merge(wood), mat.mahogany, 'desk-wood'));
@@ -60,105 +177,140 @@ export function buildProps(ctx, root, mat) {
 
     // --- desk objects
     const objs = new THREE.Group();
-    // open book
+    objs.name = 'desk-objs';
+    // an open ledger (curved pages)
     {
-      const bk = new THREE.Group();
-      for (const s of [-1, 1]) {
-        const pages = new THREE.Mesh(bboxAt(0.16, 0.018, 0.23, s * 0.085, 0.009, 0, { r: 0.004 }), mat.paper);
-        pages.rotation.z = -s * 0.06;
-        bk.add(pages);
-      }
-      bk.add(new THREE.Mesh(bboxAt(0.35, 0.006, 0.245, 0, 0.0, 0, { r: 0.002 }), mat.leatherBox));
-      bk.position.set(0.05, Hh + 0.005, 0.25); bk.rotation.y = 0.35;
+      const bk = openFolio({ w: 0.17, d: 0.25, thick: 0.014, cover: mat.leatherBox, pagesTex: mat.ledgerTex, edgeMat: mat.pageEdge, ribbonMat: mat.ribbon, segs: 18 });
+      bk.position.set(0.08, Hh + 0.002, 0.22); bk.rotation.y = Math.PI / 2 + 0.3;
       objs.add(bk);
     }
-    // inkwell + quill
+    // inkwell (cut glass + brass lid) + quill
     {
-      const ink = new THREE.Mesh(lathe([[0.001, 0], [0.03, 0], [0.032, 0.01], [0.028, 0.04], [0.012, 0.05], [0.012, 0.06], [0.001, 0.06]], 20), mat.glassDark);
-      ink.position.set(-0.22, Hh, -0.05);
+      const ink = new THREE.Mesh(lathe([[0.001, 0], [0.032, 0], [0.034, 0.008], [0.032, 0.034], [0.014, 0.046], [0.013, 0.052], [0.001, 0.052]], 8), mat.glassDark);
+      ink.position.set(-0.2, Hh, -0.02);
       objs.add(ink);
-      const quill = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.26, 8, 1, true).translate(0, 0.13, 0), mat.feather);
-      quill.scale.set(1, 1, 0.25);
-      quill.position.set(-0.22, Hh + 0.04, -0.05); quill.rotation.set(0.35, 0.4, -0.3);
-      objs.add(quill);
+      const lid = new THREE.Mesh(lathe([[0.001, 0], [0.016, 0], [0.017, 0.006], [0.012, 0.012], [0.004, 0.016], [0.001, 0.02]], 24), mat.brass);
+      lid.position.set(-0.2, Hh + 0.052, -0.02); objs.add(lid);
+      // quill: tapered shaft + vaned feather (bent plane)
+      const qg = new THREE.Group();
+      qg.add(new THREE.Mesh(new THREE.CylinderGeometry(0.0012, 0.0025, 0.28, 6).translate(0, 0.14, 0), mat.feather));
+      const vane = new THREE.PlaneGeometry(0.03, 0.2, 2, 10);
+      { const pos = vane.attributes.position; for (let i = 0; i < pos.count; i++) { const y = pos.getY(i), x = pos.getX(i); const t = (y + 0.1) / 0.2; const wv = Math.max(0.06, Math.sin(Math.PI * Math.min(1, t * 1.1))) * (x < 0 ? 0.9 : 0.55); pos.setX(i, x * wv); pos.setZ(i, Math.abs(x) * 0.15); } vane.computeVertexNormals(); safeNormals(vane); }
+      vane.translate(0, 0.17, 0);
+      qg.add(new THREE.Mesh(vane, mat.feather));
+      qg.position.set(-0.2, Hh + 0.03, -0.02); qg.rotation.set(0.4, 0.5, -0.35);
+      objs.add(qg);
     }
-    // scattered papers + a stack of books
+    // scattered letters (aged paper, slightly curled)
     for (let k = 0; k < 3; k++) {
-      const pp = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.29), mat.paper);
-      pp.rotation.x = -Math.PI / 2; pp.rotation.z = 0.3 * k - 0.4;
-      pp.position.set(0.12 - k * 0.04, Hh + 0.004 + k * 0.001, -0.3 - k * 0.07);
+      const pg = new THREE.PlaneGeometry(0.2, 0.27, 6, 6);
+      { const pos = pg.attributes.position; for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), y = pos.getY(i); pos.setZ(i, 0.004 * Math.pow(Math.abs(x) / 0.1, 3) + 0.003 * Math.pow(Math.abs(y) / 0.135, 4) * (k % 2)); } pg.computeVertexNormals(); }
+      const pp = new THREE.Mesh(pg, mat.letterPaper);
+      pp.rotation.x = -Math.PI / 2; pp.rotation.z = 0.35 * k - 0.4;
+      pp.position.set(0.14 - k * 0.04, Hh + 0.003 + k * 0.0012, -0.18 - k * 0.07);
       objs.add(pp);
     }
+    // a stack of leather volumes with rounded spines
     {
-      const bs = [[0.22, 0.05, 0.3, mat.leatherBox], [0.2, 0.04, 0.27, mat.leatherRed], [0.18, 0.06, 0.25, mat.leatherGreen]];
+      const bs = [[0.24, 0.05, 0.3, mat.leatherBox], [0.21, 0.04, 0.28, mat.leatherRed], [0.19, 0.055, 0.25, mat.leatherGreen], [0.16, 0.03, 0.22, mat.leatherBox]];
       let y = Hh;
-      bs.forEach(([w, h, d, m], i) => { const b = new THREE.Mesh(bboxAt(w, h, d, 0, y + h / 2, 0, { r: 0.004 }), m); b.rotation.y = 0.12 * i - 0.1; b.position.set(-0.18, 0, -0.55); objs.add(b); y += h; });
+      bs.forEach(([wz, h, dx, m], i) => {
+        const b = leatherBook(wz, h, dx, m, mat.pageEdge);
+        b.rotation.y = 0.14 * i - 0.12 + Math.PI; b.position.set(-0.2, y, -0.5);
+        objs.add(b); y += h;
+      });
+    }
+    // a three-branch brass candelabrum at the near end of the desk (warm practical in the hero view)
+    {
+      const cb = new THREE.Group();
+      cb.name = 'candelabrum';
+      cb.add(new THREE.Mesh(lathe([[0.001, 0], [0.07, 0], [0.068, 0.01], [0.04, 0.025], [0.018, 0.05], [0.014, 0.2], [0.022, 0.22], [0.016, 0.24], [0.001, 0.25]], 48), mat.brass));
+      const armG = [];
+      for (const s of [-1, 1]) {
+        const curve = new THREE.CatmullRomCurve3([V3(0, 0.2, 0), V3(s * 0.06, 0.19, 0), V3(s * 0.11, 0.23, 0), V3(s * 0.12, 0.27, 0)]);
+        armG.push(new THREE.TubeGeometry(curve, 24, 0.006, 8, false));
+        armG.push(lathe([[0.001, 0], [0.02, 0], [0.022, 0.012], [0.014, 0.03], [0.001, 0.03]], 24).translate(s * 0.12, 0.265, 0));
+      }
+      armG.push(lathe([[0.001, 0], [0.02, 0], [0.022, 0.012], [0.014, 0.03], [0.001, 0.03]], 24).translate(0, 0.245, 0));
+      cb.add(new THREE.Mesh(merge(armG), mat.brass));
+      const tips = [[-0.12, 0.295, 0.13], [0, 0.275, 0.18], [0.12, 0.295, 0.1]];
+      tips.forEach(([x, y, hgt], k) => {
+        const c = ctx.fx.candle({ height: hgt, radius: 0.0105, light: false, seed: 60 + k, burn: 0.75 });
+        c.position.set(x, y, 0); cb.add(c);
+      });
+      cb.position.set(0.12, Hh, 0.56); cb.rotation.y = 0.5;
+      g.add(cb);
+      const pl = new THREE.PointLight(0xffa456, 2.2, 6, 2);
+      pl.position.set(0.12, Hh + 0.5, 0.56);
+      g.add(pl);
+      ctx.onUpdate((dt, t) => { pl.intensity = 2.2 * flicker(t * 0.7, 3.3); });
     }
     g.add(objs);
 
-    // oil lamp (the room's warm key light) at the far end of the desk
+    // oil lamp (the room's warm key) at the far end of the desk
     {
-      const lamp = new THREE.Group();
-      lamp.add(new THREE.Mesh(lathe([[0.001, 0], [0.075, 0], [0.07, 0.015], [0.03, 0.04], [0.022, 0.12], [0.03, 0.14], [0.055, 0.16], [0.07, 0.2], [0.06, 0.24], [0.028, 0.255], [0.022, 0.27], [0.001, 0.27]], 32), mat.brass));
-      // gallery + glass chimney + frosted globe shade
-      lamp.add(new THREE.Mesh(lathe([[0.001, 0.27], [0.03, 0.27], [0.034, 0.29], [0.02, 0.3], [0.001, 0.3]], 20), mat.brass));
-      const chim = new THREE.Mesh(lathe([[0.016, 0.29], [0.024, 0.32], [0.026, 0.36], [0.016, 0.42], [0.015, 0.5]], 24), mat.glassClear);
-      lamp.add(chim);
-      const shade = new THREE.Mesh(lathe([[0.03, 0.31], [0.08, 0.34], [0.1, 0.39], [0.09, 0.44], [0.05, 0.46]], 32), mat.lampShade);
-      shade.userData.noShadow = true;
-      lamp.add(shade);
-      const flame = ctx.fx.flame({ height: 0.045, width: 0.016, intensity: 7, seed: 11 });
-      flame.position.y = 0.315;
-      lamp.add(flame);
-      lamp.position.set(-0.12, Hh, -0.42);
+      const lamp = out.makeOilLamp({ shadeColor: 0xffb070, seed: 11 });
+      lamp.position.set(-0.12, Hh, -0.48);
       g.add(lamp);
       const pl = new THREE.PointLight(0xffa252, 3.0, 10, 2);
-      pl.position.set(-0.12, Hh + 0.39, -0.42);
+      pl.position.set(-0.12, Hh + 0.39, -0.48);
       pl.castShadow = ctx.quality.shadows;
       pl.shadow.mapSize.set(1024, 1024);
-      pl.shadow.bias = -0.002; pl.shadow.normalBias = 0.025; pl.shadow.radius = 5;
-      pl.shadow.camera.near = 0.06;
+      pl.shadow.bias = -0.002; pl.shadow.normalBias = 0.025; pl.shadow.radius = 6;
+      pl.shadow.camera.near = 0.12;
       g.add(pl);
       out.lampLight = pl;
-      out.lampShade = shade;
+      out.lampShade = lamp.userData.shade;
       ctx.onUpdate((dt, t) => { pl.intensity = out.lampBase * flicker(t * 0.6, 4.2); });
-      out.lampBase = 3.0;
+      out.lampBase = 3.4;
     }
     g.position.set(SPOTS.desk.x, 0, SPOTS.desk.z); g.rotation.y = SPOTS.desk.ry;
     root.add(g);
-    g.traverse((o) => { if (o.isMesh && !o.userData.noShadow) { o.castShadow = true; o.receiveShadow = true; } });
+    g.traverse((o) => { if (o.isMesh && !o.userData.noShadow && !o.material?.transparent) { o.castShadow = true; o.receiveShadow = true; } });
     out.desk = g;
   }
 
-  // ================================================================ side chair (upholstered, turned legs)
+  // ================================================================ upholstered stool (turned legs, buttoned stuffed top)
   {
     const g = new THREE.Group();
-    g.name = 'side-chair';
+    g.name = 'desk-stool';
     const wood = [];
-    for (const [x, z] of [[-0.21, -0.2], [0.21, -0.2], [-0.21, 0.2], [0.21, 0.2]]) wood.push(turnedLeg(0.44, 0.02).translate(x, 0, z));
-    wood.push(bboxAt(0.48, 0.06, 0.46, 0, 0.42, 0, { r: 0.01 }));
-    for (const x of [-0.21, 0.21]) {
-      const post = new THREE.CylinderGeometry(0.016, 0.019, 0.5, 12);
-      post.rotateX(0.12); post.translate(x, 0.69, -0.22);
-      wood.push(post);
-      wood.push(new THREE.SphereGeometry(0.022, 12, 8).translate(x, 0.95, -0.25));
+    const SW = 0.56, SD = 0.4, SH = 0.46;
+    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) wood.push(turnedLeg(SH - 0.08, 0.021).translate(x * (SW / 2 - 0.04), 0, z * (SD / 2 - 0.04)));
+    // apron rails
+    wood.push(bboxAt(SW - 0.04, 0.07, 0.022, 0, SH - 0.08 - 0.03, SD / 2 - 0.04, { r: 0.006 }));
+    wood.push(bboxAt(SW - 0.04, 0.07, 0.022, 0, SH - 0.08 - 0.03, -SD / 2 + 0.04, { r: 0.006 }));
+    wood.push(bboxAt(0.022, 0.07, SD - 0.06, SW / 2 - 0.04, SH - 0.08 - 0.03, 0, { r: 0.006 }));
+    wood.push(bboxAt(0.022, 0.07, SD - 0.06, -SW / 2 + 0.04, SH - 0.08 - 0.03, 0, { r: 0.006 }));
+    // turned H-stretcher
+    for (const z of [-1, 1]) wood.push(new THREE.CylinderGeometry(0.009, 0.009, SD - 0.08, 10).rotateX(Math.PI / 2).translate(z * (SW / 2 - 0.04), 0.13, 0));
+    wood.push(lathe([[0.008, 0], [0.012, 0.1], [0.008, 0.2], [0.012, 0.32], [0.008, SW - 0.08]], 12).rotateZ(-Math.PI / 2).translate(-(SW - 0.08) / 2, 0.13, 0));
+    g.add(mesh(merge(wood), mat.mahogany, 'stool-wood'));
+    // stuffed, domed seat with tufted buttons
+    const seatG = new G.RoundedBoxGeometry(SW + 0.02, 0.09, SD + 0.02, 6, 0.04);
+    {
+      const pos = seatG.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i) / ((SW + 0.02) / 2), y = pos.getY(i), z = pos.getZ(i) / ((SD + 0.02) / 2);
+        if (y > 0) {
+          let dy = 0.03 * (1 - x * x) * (1 - z * z);
+          // tufting dimples
+          for (const [bx, bz] of [[-0.5, -0.4], [0, -0.4], [0.5, -0.4], [-0.25, 0.4], [0.25, 0.4]]) dy -= 0.012 * Math.exp(-((x - bx) ** 2 + (z - bz) ** 2) * 60);
+          pos.setY(i, y + dy);
+        }
+      }
+      seatG.computeVertexNormals();
     }
-    wood.push(bboxAt(0.44, 0.06, 0.03, 0, 0.9, -0.25, { r: 0.012, rx: 0.12 }));
-    wood.push(bboxAt(0.4, 0.025, 0.02, 0, 0.64, -0.215, { r: 0.008, rx: 0.12 }));
-    // stretchers
-    wood.push(bboxAt(0.4, 0.02, 0.02, 0, 0.14, 0.2, { r: 0.006 }));
-    wood.push(bboxAt(0.02, 0.02, 0.38, -0.21, 0.16, 0, { r: 0.006 }));
-    wood.push(bboxAt(0.02, 0.02, 0.38, 0.21, 0.16, 0, { r: 0.006 }));
-    g.add(mesh(merge(wood), mat.mahogany, 'chair-wood'));
-    const seat = mesh(new G.RoundedBoxGeometry(0.5, 0.08, 0.48, 4, 0.035), mat.tapestry, 'chair-seat');
-    seat.position.set(0, 0.48, 0.005);
+    const seat = mesh(seatG, mat.stoolFabric, 'stool-seat');
+    seat.position.y = SH;
     g.add(seat);
-    // nail-head trim
     const nails = [];
-    for (let k = 0; k < 22; k++) { const x = -0.24 + k * (0.48 / 21); nails.push(new THREE.SphereGeometry(0.004, 6, 4).translate(x, 0.455, 0.243)); }
+    for (const z of [-1, 1]) for (let k = 0; k < 24; k++) { const x = -SW / 2 + k * (SW / 23); nails.push(new THREE.SphereGeometry(0.0042, 8, 5).translate(x, SH - 0.032, z * ((SD + 0.02) / 2 + 0.001))); }
+    for (const x of [-1, 1]) for (let k = 0; k < 17; k++) { const z = -SD / 2 + k * (SD / 16); nails.push(new THREE.SphereGeometry(0.0042, 8, 5).translate(x * ((SW + 0.02) / 2 + 0.001), SH - 0.032, z)); }
     g.add(mesh(merge(nails), mat.brass));
     g.position.set(SPOTS.chair.x, 0, SPOTS.chair.z); g.rotation.y = SPOTS.chair.ry;
     root.add(g);
+    g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     out.chair = g;
   }
 
@@ -196,7 +348,14 @@ export function buildProps(ctx, root, mat) {
         let ny = y;
         if (y > 0.3) ny = y + 0.07 * Math.cos(x * 4.2) - 0.02;            // camel crest
         let nz = z + x * x * 0.35;                                         // curve around the sitter
-        if (z > 0.02) nz += 0.035 * (1 - (x / 0.37) ** 2) * (1 - ((y - 0.0) / 0.42) ** 2); // padded face
+        if (z > 0.02) {
+          nz += 0.035 * (1 - (x / 0.37) ** 2) * (1 - ((y - 0.0) / 0.42) ** 2); // padded face
+          // deep-buttoned (tufted) diamond pattern
+          for (let r = 0; r < 3; r++) for (let c = 0; c < 4 - (r % 2); c++) {
+            const bx = -0.24 + c * 0.16 + (r % 2) * 0.08, by = -0.12 + r * 0.17;
+            nz -= 0.018 * Math.exp(-((x - bx) ** 2 + (y - by) ** 2) * 900);
+          }
+        }
         pos.setXYZ(i, x, ny, nz);
       }
       back.computeVertexNormals();
@@ -236,7 +395,11 @@ export function buildProps(ctx, root, mat) {
     // cabriole front legs, plain splayed back legs
     const legs = [];
     for (const [x, z, front] of [[-0.34, -0.3, 0], [0.34, -0.3, 0], [-0.35, 0.32, 1], [0.35, 0.32, 1]]) {
-      const pts = front ? [[0.001, 0], [0.032, 0], [0.036, 0.015], [0.022, 0.04], [0.02, 0.07], [0.03, 0.1], [0.04, 0.12], [0.001, 0.12]] : [[0.001, 0], [0.022, 0], [0.026, 0.06], [0.032, 0.12], [0.001, 0.12]];
+      const pts = front ? [[0.001, 0.02], [0.022, 0.03], [0.018, 0.05], [0.02, 0.08], [0.032, 0.11], [0.042, 0.13], [0.001, 0.13]] : [[0.001, 0], [0.022, 0], [0.026, 0.06], [0.032, 0.13], [0.001, 0.13]];
+      if (front) {
+        legs.push(new THREE.SphereGeometry(0.024, 16, 12).translate(x, 0.024, z + 0.01));
+        for (let k = 0; k < 3; k++) { const a = -0.9 + k * 0.9; legs.push(new THREE.CapsuleGeometry(0.007, 0.03, 4, 8).rotateX(Math.PI / 2 - 0.6).rotateY(a).translate(x + Math.sin(a) * 0.016, 0.03, z + 0.01 + Math.cos(a) * 0.016)); }
+      }
       const l = lathe(pts, 14);
       if (front) l.rotateX(0.12);
       l.translate(x, 0, z);
@@ -355,6 +518,17 @@ export function buildProps(ctx, root, mat) {
     const eye = lathe([[0.001, 0], [0.02, 0], [0.022, 0.02], [0.016, 0.05], [0.018, 0.08], [0.001, 0.08]], 20); eye.rotateX(Math.PI / 2); eye.translate(0, 0, 0.64); tubeGeo.push(eye);
     // focusing knob
     tubeGeo.push(new THREE.CylinderGeometry(0.014, 0.014, 0.1, 16).rotateZ(Math.PI / 2).translate(0, -0.04, 0.42));
+    // knurled draw-tube rings at each step + engraved bands
+    for (const [r, z] of [[0.046, 0.12], [0.046, 0.135], [0.036, 0.4], [0.036, 0.415], [0.054, -0.3], [0.054, -0.32], [0.054, -0.34]]) {
+      const rg = new THREE.TorusGeometry(r, 0.0025, 6, 48); rg.translate(0, 0, z); tubeGeo.push(rg);
+    }
+    // finder scope on two brackets
+    {
+      const f = new THREE.CylinderGeometry(0.013, 0.013, 0.24, 24, 1, false); f.rotateX(Math.PI / 2); f.translate(0, 0.085, -0.1); tubeGeo.push(f);
+      const fo = new THREE.CylinderGeometry(0.016, 0.016, 0.03, 24); fo.rotateX(Math.PI / 2); fo.translate(0, 0.085, -0.21); tubeGeo.push(fo);
+      const fe = new THREE.CylinderGeometry(0.009, 0.011, 0.04, 16); fe.rotateX(Math.PI / 2); fe.translate(0, 0.085, 0.04); tubeGeo.push(fe);
+      for (const z of [-0.18, -0.02]) { tubeGeo.push(new THREE.BoxGeometry(0.008, 0.035, 0.012).translate(0, 0.064, z)); const ring = new THREE.TorusGeometry(0.016, 0.003, 6, 24); ring.translate(0, 0.085, z); tubeGeo.push(ring); }
+    }
     const tubeMesh = mesh(merge(tubeGeo), mat.brassBright, 'telescope-brass');
     tubeMesh.material.side = THREE.DoubleSide;
     tube.add(tubeMesh);
@@ -362,7 +536,7 @@ export function buildProps(ctx, root, mat) {
     lens.position.z = -0.49; lens.rotation.y = Math.PI;
     tube.add(lens);
     // leather grip
-    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.054, 0.054, 0.18, 40, 1, true).rotateX(Math.PI / 2).translate(0, 0, -0.2), mat.leatherBox);
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.0545, 0.0545, 0.2, 48, 1, true).rotateX(Math.PI / 2).translate(0, 0, -0.18), mat.leatherBox);
     tube.add(grip);
     g.add(tube);
     g.position.set(SPOTS.telescope.x, 0, SPOTS.telescope.z);
@@ -389,18 +563,11 @@ export function buildProps(ctx, root, mat) {
     // the Book of Hints: huge, open, its pages faintly luminous
     const book = new THREE.Group();
     book.name = 'book-of-hints';
-    const cover = new THREE.Mesh(bboxAt(0.62, 0.025, 0.44, 0, 0, 0, { r: 0.008 }), mat.leatherRed);
-    book.add(cover);
-    for (const s of [-1, 1]) {
-      const pg = new THREE.Mesh(bboxAt(0.29, 0.05, 0.41, s * 0.152, 0.03, 0, { r: 0.012 }), mat.hintPages);
-      pg.rotation.z = -s * 0.05;
-      book.add(pg);
-    }
-    // brass corner bosses + a clasp
-    for (const [x, z] of [[-0.3, -0.21], [0.3, -0.21], [-0.3, 0.21], [0.3, 0.21]]) book.add(new THREE.Mesh(new THREE.SphereGeometry(0.014, 10, 8).translate(x, 0.0, z), mat.brass));
-    const ribbon = new THREE.Mesh(new THREE.PlaneGeometry(0.018, 0.34), mat.ribbon);
-    ribbon.rotation.x = -Math.PI / 2 + 0.3; ribbon.position.set(0.01, 0.06, 0.29);
-    book.add(ribbon);
+    const folio = openFolio({ w: 0.3, d: 0.42, thick: 0.05, cover: mat.leatherRed, pagesTex: mat.hintTex, edgeMat: mat.giltEdge, ribbonMat: mat.ribbon, segs: 32 });
+    folio.position.y = -0.012;
+    book.add(folio);
+    // brass corner bosses on the boards
+    for (const [x, z] of [[-0.6, -0.21], [0.6, -0.21], [-0.6, 0.21], [0.6, 0.21]]) book.add(new THREE.Mesh(lathe([[0.001, 0], [0.018, 0], [0.016, 0.004], [0.008, 0.008], [0.001, 0.009]], 20).translate(x * 0.5, -0.011, z), mat.brass));
     book.rotation.x = 0.42; book.position.set(0, 1.08, 0);
     g.add(book);
     g.position.set(SPOTS.lectern.x, 0, SPOTS.lectern.z); g.rotation.y = SPOTS.lectern.ry;
@@ -426,9 +593,12 @@ export function buildProps(ctx, root, mat) {
     const arm = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.009, 8, 24, Math.PI / 2).rotateY(Math.PI / 2).translate(0, -0.12, 0.0), mat.brass);
     sc.add(arm);
     sc.add(new THREE.Mesh(lathe([[0.001, 0], [0.03, 0], [0.035, 0.02], [0.02, 0.035], [0.001, 0.04]], 16).translate(0, 0, 0.12), mat.brass));
-    const tulip = new THREE.Mesh(lathe([[0.02, 0], [0.05, 0.03], [0.065, 0.08], [0.06, 0.13], [0.045, 0.15]], 28).translate(0, 0.02, 0.12), mat.sconceShade);
+    sc.add(new THREE.Mesh(lathe([[0.012, 0.0], [0.026, 0.0], [0.028, 0.012], [0.022, 0.024], [0.012, 0.026]], 48).translate(0, 0.0, 0.12), mat.brassBright));
+    const tulip = new THREE.Mesh(lathe([[0.02, 0.02], [0.034, 0.03], [0.05, 0.05], [0.064, 0.085], [0.066, 0.11], [0.06, 0.14], [0.052, 0.152], [0.056, 0.16]], 64).translate(0, 0.0, 0.12), lampGlobeMat(0xff9a50));
     tulip.userData.noShadow = true;
     sc.add(tulip);
+    const sCore = new THREE.Mesh(new THREE.SphereGeometry(0.022, 20, 14), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff9a50).multiplyScalar(2.0), transparent: true, opacity: 0.55, toneMapped: false, depthWrite: false }));
+    sCore.scale.set(1, 1.5, 1); sCore.position.set(0, 0.075, 0.12); sc.add(sCore);
     const fl = ctx.fx.flame({ height: 0.04, width: 0.014, intensity: 6, seed: 31 });
     fl.position.set(0, 0.06, 0.12);
     sc.add(fl);
@@ -447,7 +617,8 @@ export function buildProps(ctx, root, mat) {
   {
     const hang = (wall, x, y, w, h, subject, seed, frameW = 0.085) => {
       const g = new THREE.Group();
-      const canvas = new THREE.Mesh(new THREE.PlaneGeometry(w, h), ctx.materials.create('painting', { subject, seed, aspect: w / h, size: 1024, varnish: 0.8, cracks: 0.6 }));
+      const pm = subject === 'vanitas' ? mat.vanitas : ctx.materials.create('painting', { subject, seed, aspect: w / h, size: 1024, varnish: 0.8, cracks: 0.6 });
+      const canvas = new THREE.Mesh(new THREE.PlaneGeometry(w, h), pm);
       g.add(canvas);
       const fr = new THREE.Mesh(G.frameGeometry(w, h, { width: frameW, depth: 0.05, uvScale: 1 }), mat.frameGilt);
       g.add(fr);
@@ -460,13 +631,13 @@ export function buildProps(ctx, root, mat) {
       hang('right', 3.35, 1.72, 0.72, 0.52, 0, 21),
       hang('right', 5.6, 1.8, 0.5, 0.66, 1, 33, 0.07),
       hang('back', 5.05, 1.7, 0.6, 0.46, 2, 12, 0.07),
-      hang('front', 0.95, 1.75, 0.55, 0.72, 3, 44, 0.07),
+      hang('front', 0.95, 1.75, 0.72, 0.52, 'vanitas', 44, 0.08),
     ];
   }
 
   // ================================================================ rug (faded Persian)
   {
-    const rug = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 3.4), ctx.materials.create('rug', { palette: 'faded', aspect: 2.3 / 3.4, knots: 200, wear: 0.65, fringe: 0.04, seed: 7, size: 1536 }));
+    const rug = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 3.4), ctx.materials.create('rug', { palette: 'heriz', aspect: 2.3 / 3.4, knots: 200, wear: 0.7, fringe: 0.04, seed: 7, size: 1536 }));
     rug.rotation.x = -Math.PI / 2; rug.rotation.z = 0.04;
     rug.position.set(-1.7, 0.005, -2.3);
     rug.receiveShadow = true;

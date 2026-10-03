@@ -29,7 +29,7 @@ try {
     await page.waitForFunction(() => window.__SHOT_READY === true, null, { timeout: 300000, polling: 250 });
     const info = await page.evaluate(() => ({ i: window.__SHOT_INFO, e: window.__SHOT_ERROR }));
     const out = path.join(outdir, `${name}.png`);
-    await page.screenshot({ path: out });
+    await page.screenshot({ path: out, timeout: 240000 });
     await page.close();
     console.log(JSON.stringify({ out: path.relative(ROOT, out), ms: Date.now() - t0, calls: info.i?.calls, tris: info.i?.triangles, err: info.e }));
     if (logs.length) console.log(logs.slice(0, 10).join('\n'));

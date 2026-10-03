@@ -13,7 +13,12 @@ async function loadParts(url) {
   const parts = {};
   for (const p of header.parts) {
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(buf, base + p.pos, p.vertices * 3), 3));
+    if (header.version >= 2) {
+      const q = new Int16Array(buf, base + p.pos, p.vertices * 3);
+      const f = new Float32Array(p.vertices * 3);
+      for (let i = 0; i < f.length; i++) { const a = i % 3; f[i] = p.qmin[a] + (q[i] + 32767) * p.qs[a]; }
+      g.setAttribute('position', new THREE.BufferAttribute(f, 3));
+    } else g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(buf, base + p.pos, p.vertices * 3), 3));
     // normals are stored as 4 x int8 (xyz + pad)
     const n4 = new Int8Array(buf, base + p.nrm, p.vertices * 4);
     const n3 = new Float32Array(p.vertices * 3);
@@ -27,35 +32,62 @@ async function loadParts(url) {
   return parts;
 }
 
-/** Lit spectral material: vertex-painted PBR, translucent toward the silhouette, glowing rim, fades below `fadeY`. */
-export function spectralMaterial({ opacity = 0.9, coreAlpha = 1.0, edgeAlpha = 0.25, rim = 0x9fc0ff, rimStrength = 0.6, glow = 0.08, fadeY = -1, fadeSoft = 0.1, roughness = 0.6, sheen = 0, tint = 0xdfe8ff, depthWrite = true } = {}) {
+/**
+ * Lit spectral material (one family for every part of the apparition): vertex-painted PBR,
+ * translucent toward the silhouette (fresnel), a slow drifting noise breakup of the alpha,
+ * fine procedural skin/cloth bump, a cold desaturating tint, and a soft fade below `fadeY`.
+ */
+export function spectralMaterial({ opacity = 1, coreAlpha = 0.78, edgeAlpha = 0.15, rim = 0x9fb4dc, rimStrength = 0.25, glow = 0.04, fadeY = -1, fadeSoft = 0.1, roughness = 0.6, tint = 0xc8d0dc, depthWrite = true, breakup = 0.3, bump = 0.0, bumpFreq = 700, desat = 0.35, time = null } = {}) {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness, metalness: 0, transparent: true, depthWrite, color: tint });
   const u = {
     uOpacity: { value: opacity }, uCoreA: { value: coreAlpha }, uEdgeA: { value: edgeAlpha },
     uRim: { value: new THREE.Color(rim) }, uRimS: { value: rimStrength }, uGlow: { value: glow },
-    uFadeY: { value: fadeY }, uFadeSoft: { value: fadeSoft },
+    uFadeY: { value: fadeY }, uFadeSoft: { value: fadeSoft }, uBreak: { value: breakup },
+    uBump: { value: bump }, uBumpF: { value: bumpFreq }, uDesat: { value: desat },
+    uTime: time || { value: 0 },
   };
   m.userData.uniforms = u;
   m.userData.noBake = true;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, u);
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying float vGy;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGy = position.y;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGp;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGp = position;');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
-varying float vGy;
-uniform float uOpacity, uCoreA, uEdgeA, uRimS, uGlow, uFadeY, uFadeSoft;
-uniform vec3 uRim;`)
+varying vec3 vGp;
+uniform float uOpacity, uCoreA, uEdgeA, uRimS, uGlow, uFadeY, uFadeSoft, uBreak, uBump, uBumpF, uDesat, uTime;
+uniform vec3 uRim;
+float gHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float gNoise(vec3 x) {
+  vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(gHash(i), gHash(i + vec3(1, 0, 0)), f.x), mix(gHash(i + vec3(0, 1, 0)), gHash(i + vec3(1, 1, 0)), f.x), f.y),
+             mix(mix(gHash(i + vec3(0, 0, 1)), gHash(i + vec3(1, 0, 1)), f.x), mix(gHash(i + vec3(0, 1, 1)), gHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+}
+float gFbm(vec3 p) { return 0.5 * gNoise(p) + 0.25 * gNoise(p * 2.03 + 7.1) + 0.125 * gNoise(p * 4.1 + 3.3) + 0.0625 * gNoise(p * 8.3 + 1.7); }`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+  if (uBump > 0.0) {
+    float gh = gFbm(vGp * uBumpF) + 0.5 * gNoise(vGp * uBumpF * 3.7);
+    vec2 dH = vec2(dFdx(gh), dFdy(gh)) * uBump;
+    vec3 sX = dFdx(-vViewPosition), sY = dFdy(-vViewPosition);
+    vec3 R1 = cross(sY, normal), R2 = cross(normal, sX);
+    float fDet = dot(sX, R1);
+    vec3 vGrad = sign(fDet) * (dH.x * R1 + dH.y * R2);
+    normal = normalize(abs(fDet) * normal - vGrad);
+  }`)
       .replace('#include <opaque_fragment>', `
   float gNdv = abs(dot(normalize(normal), normalize(vViewPosition)));
-  float gFres = pow(1.0 - gNdv, 2.2);
+  float gFres = pow(1.0 - gNdv, 2.0);
+  float gl = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
+  outgoingLight = mix(outgoingLight, vec3(gl), uDesat);
   outgoingLight += diffuseColor.rgb * uGlow + uRim * gFres * uRimS;
-  float gFade = smoothstep(uFadeY - uFadeSoft, uFadeY + uFadeSoft, vGy);
-  diffuseColor.a = uOpacity * mix(uCoreA, uEdgeA, gFres) * gFade;
+  float gFlow = gFbm(vGp * 22.0 + vec3(0.0, -uTime * 0.06, uTime * 0.025));
+  float gBreak = mix(1.0, smoothstep(0.18, 0.62, gFlow), uBreak);
+  float gFade = smoothstep(uFadeY - uFadeSoft, uFadeY + uFadeSoft, vGp.y + (gFlow - 0.5) * uFadeSoft * 1.6);
+  diffuseColor.a = uOpacity * mix(uCoreA, uEdgeA, gFres) * gBreak * gFade;
 #include <opaque_fragment>`);
   };
-  m.customProgramCacheKey = () => `library-spectral-${depthWrite}`;
+  m.customProgramCacheKey = () => `library-spectral2-${depthWrite}`;
   return m;
 }
 
@@ -64,13 +96,15 @@ export async function buildGhost(ctx, root) {
   group.name = 'ghost';
   let parts;
   try { parts = await loadParts(ctx.assetUrl('ghost.bin')); } catch (e) { console.warn('[library] ghost mesh missing', e); return { group, materials: [] }; }
+  const time = ctx.time;
   const mats = {
-    head: spectralMaterial({ opacity: 0.9, coreAlpha: 0.97, edgeAlpha: 0.12, rimStrength: 0.22, glow: 0.035, fadeY: -0.13, fadeSoft: 0.03, roughness: 0.5, tint: 0xc4bab2 }),
-    hair: spectralMaterial({ opacity: 0.85, coreAlpha: 0.95, edgeAlpha: 0.25, rimStrength: 0.3, glow: 0.05, roughness: 0.8, tint: 0xbfc0c4 }),
-    cravat: spectralMaterial({ opacity: 0.88, coreAlpha: 0.95, edgeAlpha: 0.2, rimStrength: 0.18, glow: 0.03, fadeY: -0.215, fadeSoft: 0.035, roughness: 0.9, tint: 0xa8a8ae }),
-    coat: spectralMaterial({ opacity: 0.45, coreAlpha: 0.35, edgeAlpha: 0.9, rimStrength: 0.5, glow: 0.05, fadeY: -0.42, fadeSoft: 0.12, roughness: 0.5, depthWrite: false }),
+    head: spectralMaterial({ coreAlpha: 0.8, edgeAlpha: 0.14, rimStrength: 0.18, glow: 0.03, fadeY: -0.1, fadeSoft: 0.02, roughness: 0.52, tint: 0xd2d6de, bump: 0.0, breakup: 0.22, desat: 0.3, time }),
+    hair: spectralMaterial({ coreAlpha: 0.7, edgeAlpha: 0.1, rimStrength: 0.25, glow: 0.03, roughness: 0.75, tint: 0xc8ccd4, breakup: 0.3, desat: 0.4, time }),
+    cravat: spectralMaterial({ coreAlpha: 0.84, edgeAlpha: 0.2, rimStrength: 0.15, glow: 0.035, fadeY: -0.27, fadeSoft: 0.03, roughness: 0.55, tint: 0xe8e4da,  breakup: 0.25, desat: 0.25, time }),
+    waistcoat: spectralMaterial({ coreAlpha: 0.55, edgeAlpha: 0.25, rimStrength: 0.2, glow: 0.02, fadeY: -0.4, fadeSoft: 0.09, roughness: 0.7, tint: 0xc0c4cc, breakup: 0.35, depthWrite: false, desat: 0.4, time }),
+    coat: spectralMaterial({ coreAlpha: 0.45, edgeAlpha: 0.3, rimStrength: 0.3, glow: 0.02, fadeY: -0.4, fadeSoft: 0.12, roughness: 0.75, tint: 0xc0c6d2,  breakup: 0.4, depthWrite: false, desat: 0.4, time }),
   };
-  const order = { coat: 1, cravat: 2, hair: 4, head: 3 };
+  const order = { coat: 1, waistcoat: 2, cravat: 3, head: 4, hair: 5 };
   const meshes = {};
   for (const [name, g] of Object.entries(parts)) {
     const m = new THREE.Mesh(g, mats[name] || mats.head);
@@ -81,25 +115,16 @@ export async function buildGhost(ctx, root) {
     group.add(m);
     meshes[name] = m;
   }
-  // ethereal wisps trailing from the coat (engine apparition shader)
-  if (parts.coat) {
-    const wisp = new THREE.Mesh(parts.coat, ctx.fx.ghostMaterial({ color: 0x5f7fc8, rimColor: 0xb8ccff, opacity: 0.35, intensity: 0.9, dissolveY: -0.36, dissolveSoft: 0.12, wobble: 0.01, flicker: 0.1 }));
-    wisp.scale.setScalar(1.035);
-    wisp.renderOrder = 9;
-    wisp.userData.noBake = true;
-    group.add(wisp);
-    meshes.wisp = wisp;
-  }
-  // soft spectral halo behind the head
+  // a very faint cold aura behind the head
   {
     const tex = ctx.textures.canvas('library:ghosthalo', 128, 128, (g2, w, h) => {
       const grd = g2.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
-      grd.addColorStop(0, 'rgba(150,180,255,0.55)'); grd.addColorStop(0.45, 'rgba(110,140,230,0.18)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+      grd.addColorStop(0, 'rgba(170,185,215,0.5)'); grd.addColorStop(0.45, 'rgba(120,135,170,0.14)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
       g2.fillStyle = grd; g2.fillRect(0, 0, w, h);
     }, { tile: false });
-    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.35, toneMapped: false }));
-    halo.scale.set(0.62, 0.72, 1);
-    halo.position.set(0, 0.04, -0.06);
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.12, toneMapped: false }));
+    halo.scale.set(0.55, 0.65, 1);
+    halo.position.set(0, 0.04, -0.08);
     halo.renderOrder = 8;
     halo.userData.noBake = true;
     group.add(halo);

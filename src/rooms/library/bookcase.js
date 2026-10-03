@@ -28,7 +28,19 @@ function bookGeometry() {
     for (const i of idx) { P.push(...verts[i]); N.push(...n); U.push(uvs[i][0] * cu, uvs[i][1] * cv); }
   };
   const s0 = A.spine[0], s1 = A.spine[1], c0 = A.cover[0], c1 = A.cover[1], p0 = A.pages[0], p1 = A.pages[1];
-  face([[-0.5, 0, 0.5], [0.5, 0, 0.5], [0.5, 1, 0.5], [-0.5, 1, 0.5]], [0, 0, 1], [[s0, 0], [s1, 0], [s1, 1], [s0, 1]]);
+  // rounded spine: a bulging strip (bulge 6% of depth) so the spines catch rim light
+  const NS = 8, BULGE = 0.06;
+  for (let k = 0; k < NS; k++) {
+    const a0 = k / NS, a1 = (k + 1) / NS;
+    const x0 = a0 - 0.5, x1 = a1 - 0.5;
+    const z0 = 0.5 + BULGE * Math.sin(a0 * Math.PI) - BULGE * 0.5, z1 = 0.5 + BULGE * Math.sin(a1 * Math.PI) - BULGE * 0.5;
+    const n0 = new THREE.Vector3(Math.cos(a0 * Math.PI) * -1.4, 0, 1).normalize(), n1 = new THREE.Vector3(Math.cos(a1 * Math.PI) * -1.4, 0, 1).normalize();
+    const u0 = s0 + (s1 - s0) * a0, u1 = s0 + (s1 - s0) * a1;
+    const V = [[x0, 0, z0], [x1, 0, z1], [x1, 1, z1], [x0, 1, z0]];
+    const NN = [n0, n1, n1, n0];
+    const UV = [[u0, 0], [u1, 0], [u1, 1], [u0, 1]];
+    for (const i of [0, 1, 2, 0, 2, 3]) { P.push(...V[i]); N.push(NN[i].x, NN[i].y, NN[i].z); U.push(UV[i][0] * cu, UV[i][1] * cv); }
+  }
   face([[0.5, 0, 0.5], [0.5, 0, -0.5], [0.5, 1, -0.5], [0.5, 1, 0.5]], [1, 0, 0], [[c0, 0], [c1, 0], [c1, 1], [c0, 1]]);
   face([[-0.5, 0, -0.5], [-0.5, 0, 0.5], [-0.5, 1, 0.5], [-0.5, 1, -0.5]], [-1, 0, 0], [[c0, 0], [c1, 0], [c1, 1], [c0, 1]]);
   face([[0.5, 0, -0.5], [-0.5, 0, -0.5], [-0.5, 1, -0.5], [0.5, 1, -0.5]], [0, 0, -1], [[c0, 0], [c1, 0], [c1, 1], [c0, 1]]);
@@ -216,7 +228,7 @@ export function buildBookcase(ctx, root, mat) {
           x += 0.16; propDone = true; continue;
         }
         // occasional horizontal stack
-        if (rnd.chance(0.06) && b - x > 0.3) {
+        if (rnd.chance(0.09) && b - x > 0.3) {
           const n = rnd.int(2, 5);
           const bw = rnd.range(0.17, 0.25), bd = rnd.range(0.15, 0.22);
           let yy = y0;
@@ -228,18 +240,18 @@ export function buildBookcase(ctx, root, mat) {
           x += bw + 0.02;
           continue;
         }
-        const w = rnd.chance(0.12) ? rnd.range(0.05, 0.075) : rnd.range(0.022, 0.048);
-        const h = Math.min(clear - 0.004, (rnd.chance(0.15) ? rnd.range(0.85, 0.97) : rnd.range(0.6, 0.86)) * clear);
+        const w = rnd.chance(0.14) ? rnd.range(0.05, 0.08) : rnd.range(0.018, 0.05);
+        const h = Math.min(clear - 0.004, (rnd.chance(0.2) ? rnd.range(0.86, 0.97) : rnd.range(0.52, 0.86)) * clear);
         const d = Math.min(C.shelfD - 0.04, h * rnd.range(0.62, 0.8));
         // a lean at the end of a run
-        if (rnd.chance(0.035) && x > a + 0.2) {
+        if (rnd.chance(0.06) && x > a + 0.2) {
           const lean = rnd.range(0.18, 0.32);
           books.push({ x: x + Math.sin(lean) * h * 0.5 + w / 2, y: y0, z: C.shelfD - d / 2 - 0.025, w, h, d, lean });
           x += Math.sin(lean) * h + w + 0.03;
           continue;
         }
         books.push({ x: x + w / 2, y: y0, z: C.shelfD - d / 2 - 0.012 - rnd.range(0, 0.025), w, h, d });
-        x += w + (rnd.chance(0.08) ? rnd.range(0.004, 0.012) : 0.0015);
+        x += w + (rnd.chance(0.1) ? rnd.range(0.004, 0.014) : 0.0015);
       }
     }
   });
@@ -259,7 +271,7 @@ export function buildBookcase(ctx, root, mat) {
     inst.setMatrixAt(i, m4);
     const v = rnd.int(0, 15);
     off[i * 2] = (v % 8) / 8; off[i * 2 + 1] = Math.floor(v / 8) / 2;
-    const br = rnd.range(0.7, 1.15);
+    const br = rnd.range(0.62, 1.1);
     col.setRGB(br, br * rnd.range(0.93, 1.0), br * rnd.range(0.85, 1.0));
     inst.setColorAt(i, col);
   });

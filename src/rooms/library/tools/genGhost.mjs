@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { headSdf, hairSdf, browSdf, cravatSdf, coatSdf, headColor, smax, smin } from './ghostSdf.mjs';
+import { headSdf, hairSdf, browSdf, cravatSdf, coatSdf, waistcoatSdf, headColor, smax, smin } from './ghostSdf.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.resolve(here, '../../../../public/assets/library/ghost.bin');
@@ -77,15 +77,28 @@ function surfaceNets(f, min, max, h) {
 }
 
 const parts = [
-  { name: 'head', f: headSdf, min: [-0.11, -0.16, -0.12], max: [0.11, 0.21, 0.15], h: H * 0.8, region: 'skin' },
+  { name: 'head', f: headSdf, min: [-0.1, -0.115, -0.115], max: [0.1, 0.2, 0.14], h: H * 0.8, region: 'skin' },
   {
-    name: 'hair', h: H,
-    f: (x, y, z) => smax(Math.min(hairSdf(x, y, z), browSdf(x, y, z)), -(headSdf(x, y, z) + 0.0004), 0.001),
-    min: [-0.12, 0.02, -0.13], max: [0.12, 0.24, 0.12], region: 'hair',
+    name: 'hair', h: H * 0.75,
+    f: (x, y, z) => smax(Math.min(hairSdf(x, y, z), browSdf(x, y, z)), -(headSdf(x, y, z) + 0.0002), 0.0006),
+    min: [-0.1, 0.02, -0.115], max: [0.1, 0.19, 0.11], region: 'hair',
   },
-  { name: 'cravat', f: cravatSdf, min: [-0.1, -0.3, -0.08], max: [0.1, -0.04, 0.14], h: H * 0.8, region: 'cravat' },
-  { name: 'coat', f: (x, y, z) => smax(coatSdf(x, y, z), -(cravatSdf(x, y, z) + 0.002), 0.004), min: [-0.27, -0.56, -0.16], max: [0.27, -0.04, 0.15], h: H * 3, region: 'coat' },
+  { name: 'cravat', f: cravatSdf, min: [-0.1, -0.29, -0.07], max: [0.1, -0.02, 0.135], h: H * 0.7, region: 'cravat' },
+  { name: 'waistcoat', f: (x, y, z) => smax(waistcoatSdf(x, y, z), -(cravatSdf(x, y, z) + 0.0015), 0.003), min: [-0.15, -0.52, -0.06], max: [0.15, -0.1, 0.13], h: H * 1.4, region: 'waistcoat' },
+  { name: 'coat', f: (x, y, z) => smax(coatSdf(x, y, z), -(cravatSdf(x, y, z) + 0.002), 0.004), min: [-0.26, -0.56, -0.16], max: [0.26, -0.04, 0.15], h: H * 1.8, region: 'coat' },
 ];
+// whole-figure field for ambient occlusion (creases, the stock shading the jaw, etc.)
+const all = (x, y, z) => Math.min(headSdf(x, y, z), cravatSdf(x, y, z), coatSdf(x, y, z), waistcoatSdf(x, y, z));
+function bakeAO(px, py, pz, nx, ny, nz) {
+  let occ = 0, w = 1;
+  for (let i = 1; i <= 6; i++) {
+    const hh = 0.0018 * i * i * 0.6 + 0.0008;
+    const d = all(px + nx * hh, py + ny * hh, pz + nz * hh);
+    occ += w * Math.max(0, hh - d);
+    w *= 0.62;
+  }
+  return Math.max(0, Math.min(1, 1 - occ * 45));
+}
 
 const meshes = [];
 for (const p of parts) {
@@ -94,21 +107,30 @@ for (const p of parts) {
   const col = new Uint8Array((m.pos.length / 3) * 4);
   for (let n = 0, c = 0; n < m.pos.length; n += 3, c += 4) {
     const rgb = headColor(m.pos[n], m.pos[n + 1], m.pos[n + 2], p.region === 'hair' ? 'hair' : p.region);
+    const ao = bakeAO(m.pos[n], m.pos[n + 1], m.pos[n + 2], m.nrm[n], m.nrm[n + 1], m.nrm[n + 2]);
+    const k = 0.5 + 0.5 * Math.pow(ao, 1.2);
+    rgb[0] *= k; rgb[1] *= k; rgb[2] *= k;
     const lin = (v) => { v = Math.min(1, Math.max(0, v)); return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
     col[c] = Math.round(lin(rgb[0]) * 255); col[c + 1] = Math.round(lin(rgb[1]) * 255); col[c + 2] = Math.round(lin(rgb[2]) * 255); col[c + 3] = 255;
   }
   const nrm8 = new Int8Array((m.pos.length / 3) * 4);
   for (let n = 0, c = 0; n < m.pos.length; n += 3, c += 4) { nrm8[c] = Math.round(m.nrm[n] * 127); nrm8[c + 1] = Math.round(m.nrm[n + 1] * 127); nrm8[c + 2] = Math.round(m.nrm[n + 2] * 127); }
-  meshes.push({ name: p.name, pos: m.pos, nrm: nrm8, col, idx: m.idx });
+  // quantise positions to int16 inside the part's bounds
+  const q = new Int16Array(m.pos.length);
+  const qmin = [Infinity, Infinity, Infinity], qmax = [-Infinity, -Infinity, -Infinity];
+  for (let n = 0; n < m.pos.length; n++) { const a = n % 3; qmin[a] = Math.min(qmin[a], m.pos[n]); qmax[a] = Math.max(qmax[a], m.pos[n]); }
+  const qs = [0, 1, 2].map((a) => Math.max(1e-9, qmax[a] - qmin[a]) / 65534);
+  for (let n = 0; n < m.pos.length; n++) { const a = n % 3; q[n] = Math.round((m.pos[n] - qmin[a]) / qs[a]) - 32767; }
+  meshes.push({ name: p.name, pos: q, qmin, qs, nrm: nrm8, col, idx: m.idx });
   console.log(`${p.name}: ${m.pos.length / 3} verts, ${m.idx.length / 3} tris, ${Date.now() - t0} ms`);
 }
 
 // layout: [u32 headerLen][header json padded to 4][buffers...]
-const header = { version: 1, parts: [] };
+const header = { version: 2, parts: [] };
 let offset = 0;
 const chunks = [];
 for (const m of meshes) {
-  const entry = { name: m.name, vertices: m.pos.length / 3, indices: m.idx.length };
+  const entry = { name: m.name, vertices: m.pos.length / 3, indices: m.idx.length, qmin: m.qmin, qs: m.qs };
   for (const [k, arr] of [['pos', m.pos], ['idx', m.idx], ['nrm', m.nrm], ['col', m.col]]) {
     entry[k] = offset; chunks.push(Buffer.from(arr.buffer, arr.byteOffset, arr.byteLength)); offset += arr.byteLength;
     const pad = (4 - (offset % 4)) % 4; if (pad) { chunks.push(Buffer.alloc(pad)); offset += pad; }
