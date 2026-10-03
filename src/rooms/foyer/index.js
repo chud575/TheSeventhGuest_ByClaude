@@ -712,7 +712,7 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
       // high and well forward, so the varnish glare reflects down onto the gallery floor, never back at the viewer
       // (no distance decay: a gallery picture light is designed to wash the canvas evenly; the cone's soft edge
       // is centred on the face and falls off towards the frame)
-      const pLight = new THREE.SpotLight(0xffb878, Number(ctx.params.get('plight') || 3.2), 0, 0.5, 0.75, 0);
+      const pLight = new THREE.SpotLight(0xffb878, Number(ctx.params.get('plight') || 4.8), 0, 0.5, 0.75, 0);
       pLight.position.set(DOORS.music.x - 0.25, PY + 1.3, Z0 + 1.6);
       pLight.target.position.set(DOORS.music.x, PY + 0.05, Z0);
       root.add(pLight, pLight.target);
@@ -731,6 +731,14 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
       s.add(new THREE.Mesh(G.frameGeometry(1.1, 0.8, { width: 0.1, depth: 0.06, uvScale: 1 }), mat.frame));
       s.position.set(X0 + 0.05, 2.95, 1.95); s.rotation.y = Math.PI / 2;
       add(s);
+      // its own little brass picture light: a warm accent that keeps the west wall, hall stand and mirror legible
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 10), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.75, 0.45).multiplyScalar(1.6) }));
+      tube.rotation.x = Math.PI / 2; tube.position.set(X0 + 0.2, 3.5, 1.95); tube.userData.noShadow = true; add(tube, { cast: false });
+      const hood = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.56, 16, 1, false, 0, Math.PI), mat.brass);
+      hood.rotation.x = Math.PI / 2; hood.rotation.y = Math.PI / 2; hood.position.set(X0 + 0.2, 3.52, 1.95); add(hood);
+      const sl = new THREE.SpotLight(0xffb070, 6, 6, 0.75, 0.85, 2);
+      sl.position.set(X0 + 0.32, 3.45, 1.95); sl.target.position.set(X0, 1.8, 1.95); sl.name = 'seaLight';
+      root.add(sl, sl.target);
     }
 
     // ancestors climbing the stair wall (east wall over the straight flight, then the curve)
@@ -873,6 +881,7 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
     sconceAt('back', lx.back(-3.3) - 0.0, 2.4, false);
     sconceAt('back', lx.back(DOORS.music.x) + 1.35, 2.4);
     sconceAt('left', lx.left(DOORS.dining.z) + 1.35, 2.4);
+    sconceAt('left', lx.left(DOORS.gallery.z) - 0.9, UF + 2.05);       // lights the way into the upstairs hall
     // a lone sconce on the curved stair wall, half way up
     {
       const a = -(5.62 - STAIR.straight) / STAIR.R, y = pitchY(5.62) + 1.45;
