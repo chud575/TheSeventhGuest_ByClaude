@@ -371,15 +371,27 @@ export function buildMansion(ctx, M) {
       tbox(0.36, 0.5, 0.06, s * (DOOR.w / 2 + 0.24), F + 0.25, z + 0.03, 0, M.doorWood);
       for (const fy of [0.33, 0.66]) tbox(0.36, 0.035, 0.05, s * (DOOR.w / 2 + 0.24), F + 0.5 + (DOOR.h - 0.5) * fy, z + 0.03, 0, M.sash);
     }
-    // transom fanlight (lit)
-    const tw = DOOR.w + 0.84;
-    win.shape(new THREE.CircleGeometry(0.5, 32, 0, Math.PI), mat4(0, F + DOOR.h + 0.05, z + 0.01, 0, 0, 0, tw, tw, 1), 0.38);
-    tbox(tw + 0.1, 0.1, 0.1, 0, F + DOOR.h + 0.05, z + 0.05, 0, M.sash);
-    for (let i = 1; i < 6; i++) {
-      const a = (i / 6) * Math.PI;
-      B.add(bevelBox(0.03, tw / 2, 0.04), M.sash, mat4(Math.cos(a) * tw / 4, F + DOOR.h + 0.1 + Math.sin(a) * tw / 4, z + 0.04, 0, 0, a - Math.PI / 2), { uvScale: 1 });
+    // transom: a low segmental fanlight that fits under the porch ceiling, radiating bars
+    const tw = DOOR.w + 0.84, trise = 0.27;
+    {
+      const sh = new THREE.Shape();
+      const Rr = (tw * tw / 4 + trise * trise) / (2 * trise), cy = trise - Rr, a0 = Math.atan2(-cy, tw / 2);
+      sh.moveTo(-tw / 2, 0);
+      for (let i = 0; i <= 24; i++) { const a = a0 + (Math.PI - 2 * a0) * (i / 24); sh.lineTo(Math.cos(a) * Rr, cy + Math.sin(a) * Rr); }
+      sh.lineTo(-tw / 2, 0);
+      const fg = new THREE.ShapeGeometry(sh, 24);
+      // 0..1-ish local coords for the flat glass gradient (centre bottom hottest)
+      win.shape(fg, mat4(0, F + DOOR.h + 0.05, z + 0.01), 0.38);
+      for (let i = 1; i < 8; i++) {
+        const a = a0 + (Math.PI - 2 * a0) * (i / 8);
+        const ex = Math.cos(a) * Rr, ey = cy + Math.sin(a) * Rr;
+        const len = Math.hypot(ex * 0.92, ey);
+        B.add(new THREE.BoxGeometry(0.025, len, 0.035), M.sash, mat4(ex * 0.46, F + DOOR.h + 0.05 + ey / 2, z + 0.04, 0, 0, Math.atan2(-ex * 0.92, ey)), { uvScale: 1 });
+      }
+      B.add(new THREE.CylinderGeometry(0.12, 0.12, 0.04, 16, 1, false, 0, Math.PI), M.sash, mat4(0, F + DOOR.h + 0.06, z + 0.04, Math.PI / 2, 0, -Math.PI / 2), { uv: 'keep' });
     }
-    B.add(archBand(tw - 0.02, tw / 2 - 0.01, 0.1, 0.12, 24), M.trim, mat4(0, F + DOOR.h + 0.08, z), { uvScale: 1 });
+    tbox(tw + 0.1, 0.1, 0.1, 0, F + DOOR.h + 0.05, z + 0.05, 0, M.sash);
+    B.add(archBand(tw + 0.04, trise + 0.02, 0.09, 0.12, 24), M.trim, mat4(0, F + DOOR.h + 0.04, z), { uvScale: 1 });
     // door leaves (separate group so they can swing open)
     const leafW = DOOR.w / 2;
     for (const s of [-1, 1]) {

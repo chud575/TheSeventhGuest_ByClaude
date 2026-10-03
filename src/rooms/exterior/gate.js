@@ -307,13 +307,14 @@ export function buildGate(ctx, M) {
   };
   fenceRun(-half - 0.85, -34, -1);
   fenceRun(half + 0.85, 34, 1);
-  group.add(spearBars(G, M, fenceBars, 'fence'));
+  const FM = { ...M, iron: M.fenceIron || M.iron };
+  group.add(spearBars(G, FM, fenceBars, 'fence'));
   const postGeo = G.mergeGeometries([
     new THREE.BoxGeometry(0.07, 2.0, 0.07).translate(0, 1.0, 0).toNonIndexed(),
     G.latheFromProfile([[0.0, 2.0], [0.06, 2.0], [0.07, 2.06], [0.03, 2.12], [0.06, 2.2], [0.0, 2.32]], 8).toNonIndexed(),
   ].map((g) => { for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k); return g; }));
-  group.add(instanced(postGeo, M.iron, posts, { name: 'fencePosts' }));
-  group.add(instanced(new THREE.BoxGeometry(1, 0.035, 0.03), M.iron, rails, { name: 'fenceRails', receive: false }));
+  group.add(instanced(postGeo, FM.iron, posts, { name: 'fencePosts' }));
+  group.add(instanced(new THREE.BoxGeometry(1, 0.035, 0.03), FM.iron, rails, { name: 'fenceRails', receive: false }));
 
   B.build(group, { name: 'gateStone' });
   return { group, leftLeaf, rightLeaf, lights, lanterns, y0 };

@@ -177,7 +177,10 @@ ${tipTerm} vec3 rn = normalize(normal); vec3 rv = normalize(vViewPosition);
   float fr = pow(1.0 - ndv, 3.0);
   float face = smoothstep(-0.15, 0.55, dot(rn, rl));
   float back = 0.35 + 0.65 * clamp(-dot(rv, rl) * 0.5 + 0.5, 0.0, 1.0);
-  gl_FragColor.rgb += uRimColor * (fr * face * back * uRimStrength * ${Number(m.userData.rim).toFixed(3)}) * ${mul}; }\n`;
+  // no rim on up-facing tops (cornice caps, sills): seen edge-on they alias into white speckle
+${(m.userData.groundShade || m.userData.rimTops) ? '' : `  float rup = (vec4(rn, 0.0) * viewMatrix).y;
+  fr *= 1.0 - smoothstep(0.45, 0.85, rup);
+`}  gl_FragColor.rgb += uRimColor * (fr * face * back * uRimStrength * ${Number(m.userData.rim).toFixed(3)}) * ${mul}; }\n`;
 }
 /** Ground grime: darken + green the bottom of a surface (moss, rising damp) between world y0 and y0+h. */
 function grimeChunk(m) {
@@ -216,7 +219,7 @@ export function patchFog(material, U) {
   };
   const key = material.customProgramCacheKey?.bind(material);
   const ud = material.userData;
-  material.customProgramCacheKey = () => (key ? key() : '') + '|hfog' + (ud.groundShade ? 'g' : '') + (ud.rim ? `r${ud.rim}${ud.rimTip ? 't' : ''}` : '') + (ud.grime ? `m${ud.grime.y0},${ud.grime.h},${ud.grime.moss ?? 1}` : '');
+  material.customProgramCacheKey = () => (key ? key() : '') + '|hfog' + (ud.groundShade ? 'g' : '') + (ud.rim ? `r${ud.rim}${ud.rimTip ? 't' : ''}${ud.rimTops ? 'T' : ''}` : '') + (ud.grime ? `m${ud.grime.y0},${ud.grime.h},${ud.grime.moss ?? 1}` : '');
   material.needsUpdate = true;
   return material;
 }

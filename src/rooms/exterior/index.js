@@ -120,12 +120,13 @@ export default {
     // the gate's own ironwork: same paint, a stronger moon rim so bars read as silhouette-with-highlights
     M.gateIron = M.iron.clone(); M.gateIron.name = 'gateIron'; M.gateIron.envMapIntensity = 2.2;
     M.rock.userData.groundShade = true;
+    M.stepStone.userData.rimTops = true;
     M.pierStone.userData.rim = 0.35;
     M.grave.userData.grime = M.graveDark.userData.grime = { y0: -1.9, h: 0.85, moss: 0.75 };
     M.pierStone.userData.grime = { y0: -3.4, h: 1.3, moss: 0.85 };
     for (const k of ['siding', 'slate', 'ashlar', 'stoneDark']) applyMacroVariation(M[k], { amount: 0.3, scale: 0.18 });
     // backlit silhouettes: grazing moon rim on everything that should catch a silver edge
-    for (const [k, r] of [['siding', 0.45], ['trim', 0.9], ['stepStone', 0.5], ['doorWood', 0.4], ['slate', 1.3], ['slateDark', 1.3], ['iron', 0.5], ['gateIron', 1.3], ['brick', 0.9], ['ashlar', 0.7], ['stoneDark', 0.6], ['grave', 0.8], ['graveDark', 0.8], ['terracotta', 0.8]]) M[k].userData.rim = r;
+    for (const [k, r] of [['siding', 0.45], ['trim', 0.65], ['stepStone', 0.5], ['doorWood', 0.4], ['slate', 1.3], ['slateDark', 1.3], ['iron', 0.5], ['gateIron', 1.3], ['brick', 0.9], ['ashlar', 0.7], ['stoneDark', 0.6], ['grave', 0.8], ['graveDark', 0.8], ['terracotta', 0.8]]) M[k].userData.rim = r;
 
     // ------------------------------------------------------------ sky
     const sky = createSky({ timeUniform: ctx.time, moonDir: MOON_DIR });
@@ -140,7 +141,7 @@ export default {
     groundMat.userData.rim = 0.35;
     const terrain = buildTerrain({ material: groundMat });
     root.add(terrain);
-    const pathMat = pbr(TX.path, { name: 'path', alphaTest: 0.5, color: 0xa29c92, envMapIntensity: 1.0 });
+    const pathMat = pbr(TX.path, { name: 'path', alphaTest: 0.5, color: 0x7a7268, envMapIntensity: 1.0 });
     pathMat.userData.groundShade = true;
     pathMat.envMapIntensity = 0.55;
     pathMat.polygonOffset = true; pathMat.polygonOffsetFactor = -2; pathMat.polygonOffsetUnits = -2;
@@ -196,7 +197,7 @@ export default {
     root.add(house.group);
 
     // ------------------------------------------------------------ gate + fence + medallion lock
-    const gate = buildGate(ctx, { ...M, iron: M.gateIron });
+    const gate = buildGate(ctx, { ...M, iron: M.gateIron, fenceIron: M.iron });
     root.add(gate.group);
     const med = createMedallion(ctx);
     med.group.position.set(-0.03, 1.5, 0.05);
@@ -230,9 +231,14 @@ export default {
       { seed: 101, x: -9.5, z: 14.5, ry: 2.0, s: 1.0, height: 10, trunkR: 0.45 },
       { seed: 113, x: 12.5, z: 18.5, ry: 0.7, s: 1.1, height: 11, trunkR: 0.5 },
     ];
+    // the near proscenium oak: a softer bark response so it reads as a dark mass with a
+    // thin silver edge, not as engraved line-work
+    const barkNear = barkMat.clone(); barkNear.name = 'barkNear';
+    barkNear.normalScale.set(0.3, 0.3); barkNear.color.set(0x6a645e);
+    barkNear.userData.rim = 0.16;
     for (const t of trees) {
       const g = gnarledTree({ seed: t.seed, height: t.height, trunkR: t.trunkR, spread: t.spread ?? 1, depth: 5, lean: t.lean || 0, reach: t.reach || null, reachW: t.reachW ?? 0.8 });
-      root.add(placeTree(g, barkMat, t));
+      root.add(placeTree(g, t.seed === 83 ? barkNear : barkMat, t));
     }
 
     // ------------------------------------------------------------ foreground dressing
@@ -313,6 +319,34 @@ export default {
       pl.position.set(x, F + 2.5, TOWER.z1 + 0.42);
       root.add(pl);
       porchLights.push(pl);
+    }
+    // hanging porch lantern on a chain from the ceiling in front of the door: the key
+    // light of the money shot (warms the door's varnish, the steps and the column faces)
+    {
+      const H = new THREE.Group();
+      H.position.set(0, PORCH.roof - 0.95, TOWER.z1 + 1.55);
+      const hb = new Bucket();
+      for (let i = 0; i < 7; i++) hb.add(new THREE.TorusGeometry(0.022, 0.0055, 5, 10), M.iron, mat4(0, 0.5 + i * 0.055, 0, 0, i % 2 ? Math.PI / 2 : 0, 0), { uv: 'keep' });
+      hb.add(ctx.geometry.latheFromProfile([[0, 0.43], [0.06, 0.43], [0.16, 0.36], [0.2, 0.33], [0.2, 0.31], [0, 0.31]], 6), M.iron, null, { uv: 'keep' });
+      hb.add(ctx.geometry.latheFromProfile([[0, -0.08], [0.06, -0.08], [0.15, -0.02], [0.16, 0.0], [0, 0.0]], 6), M.iron, null, { uv: 'keep' });
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2;
+        hb.add(new THREE.BoxGeometry(0.014, 0.32, 0.014), M.iron, mat4(Math.cos(a) * 0.15, 0.155, Math.sin(a) * 0.15), { uv: 'keep' });
+      }
+      hb.add(new THREE.TorusGeometry(0.152, 0.008, 5, 6), M.iron, mat4(0, 0.2, 0, Math.PI / 2, 0, Math.PI / 6), { uv: 'keep' });
+      hb.add(ctx.geometry.latheFromProfile([[0, -0.08], [0.02, -0.1], [0.012, -0.16], [0, -0.2]], 8), M.iron, null, { uv: 'keep' });
+      hb.build(H, { name: 'porchLantern' });
+      const pane = new THREE.Mesh(new THREE.CylinderGeometry(0.145, 0.145, 0.3, 6, 1, true), sconceGlass);
+      pane.position.y = 0.155; pane.renderOrder = 7; H.add(pane);
+      const fl = ctx.fx.flame({ height: 0.07, width: 0.02, intensity: 3.2, seed: 11 });
+      fl.position.y = 0.06; H.add(fl);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: halo, color: 0xffa860, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+      sp.scale.set(1.5, 1.5, 1); sp.position.y = 0.14; sp.renderOrder = 9; sp.userData.noBake = true; H.add(sp);
+      root.add(H);
+      const hl = new THREE.PointLight(0xffa458, Number(P.get('plk') || 4.2), 7.5, 2);
+      hl.position.set(0, PORCH.roof - 0.8, TOWER.z1 + 1.55);
+      root.add(hl);
+      porchLights.push(hl);
     }
     // warm bounce off the porch floor and the top steps (keeps treads out of pure black)
     const bounce = new THREE.PointLight(0xff9a50, Number(P.get('bounce') || 1.3), 4.0, 2);
@@ -537,9 +571,9 @@ export default {
       // the strike: a hard key from behind the house (front faces stay dark -> silhouette),
       // fog and mist light up, the camera-side fill sinks; afterwards the eye adapts (dip)
       const dip = forceFlash != null ? 0 : dipAt(t, strikeAt);
-      bolt.intensity = f * 24;
+      bolt.intensity = f * 8;
       U.uHFogFlash.value = f * 0.28;
-      mist.uniforms.uFlash.value = f * 0.35;
+      mist.uniforms.uFlash.value = f * 0.15;
       fill.intensity = fillBase * (1 - f * 0.6) * (1 - dip * 0.45);
       hemi.intensity = hemiBase * (1 - dip * 0.5);
       moon.intensity = moonBase * (1 - dip * 0.35);
@@ -560,7 +594,7 @@ export default {
       ghost.visible = ghostFade.v > 0.01;
       // lamps flicker gently
       const fl = 0.93 + 0.07 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1.0);
-      porchLights.forEach((l, i) => { l.intensity = 5.5 * (i ? fl : 2 - fl - 0.0) * 0.98; });
+      porchLights.forEach((l, i) => { l.intensity = (i === 2 ? 4.2 : 5.5) * (i % 2 ? fl : 2 - fl) * 0.98; });
       graves.votive.userData.light.intensity = 0.9 * (0.85 + 0.15 * Math.sin(t * 9.1) * Math.sin(t * 4.3 + 0.7));
       gate.lights.forEach((l, i) => { l.intensity = 4.0 * (0.92 + 0.08 * Math.sin(t * (5.1 + i) + i * 2.0)); });
     };

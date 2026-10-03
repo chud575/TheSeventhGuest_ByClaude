@@ -53,12 +53,13 @@ void main() {
   float n = fxFbm(p);
   float n2 = fxNoise(vWorld * vec3(0.5, 1.2, 0.5) + wind * 0.4 + vSeed * 3.0);
   float top = smoothstep(1.0, 0.25 + 0.35 * n, vUv.y);
-  float a = sx * bottom * top * smoothstep(0.4, 0.85, n * 0.8 + n2 * 0.32);
+  // wispy, broken banks (not flat sheets): high-contrast noise, density thinning with height
+  float a = sx * bottom * top * smoothstep(0.48, 0.95, n * 0.8 + n2 * 0.34) * mix(1.0, 0.55, vUv.y);
   // fade when the camera walks into it
   a *= smoothstep(2.5, 9.0, vCamDist);
   vec3 vd = normalize(vWorld - cameraPosition);
   float mo = max(dot(vd, uMoonDir), 0.0);
-  vec3 col = uDark + uLit * (0.25 + pow(mo, 4.0) * 1.2 + pow(mo, 24.0) * 1.6) * (0.75 + 0.5 * n2);
+  vec3 col = uDark + uLit * (0.3 + pow(mo, 4.0) * 0.55 + pow(mo, 24.0) * 0.7) * (0.7 + 0.6 * n2);
   col *= 1.0 + uFlash * 4.0;
   gl_FragColor = vec4(col, a * uOpacity);
 }`;

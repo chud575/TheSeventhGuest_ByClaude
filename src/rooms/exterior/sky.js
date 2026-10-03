@@ -188,7 +188,7 @@ export function createSky({ timeUniform, moonDir }) {
     uBoltTop: { value: 0.66 },
     uHorizon: { value: new THREE.Color(0.009, 0.014, 0.034) },
     uZenith: { value: new THREE.Color(0.0035, 0.005, 0.016) },
-    uCloudCover: { value: 0.72 },
+    uCloudCover: { value: 0.86 },
     uStars: { value: 1.0 },
   };
   const mat = new THREE.ShaderMaterial({

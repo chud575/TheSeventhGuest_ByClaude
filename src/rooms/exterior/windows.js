@@ -168,7 +168,7 @@ export class WindowKit {
         const t = g.tint;
         if (t >= 0.9) c.setRGB(1.0, 0.46, 0.15);
         else c.setRGB(1.0, 0.56 + t * 0.3, 0.26 + t * 0.35);
-        c.multiplyScalar(g.lit * 3.2);
+        c.multiplyScalar(g.lit * 2.6);
       } else c.setRGB(0, 0, 0);
       return c;
     };
@@ -307,12 +307,12 @@ vec3 interiorRoom(vec3 ro, vec3 rd, vec2 sc, float seed, out float curtA, out ve
     col = vec3(0.3, 0.15, 0.08) * (0.85 + 0.15 * step(0.5, fract(m.z * 3.2)));
   }
   // furniture silhouette: a high-backed chair and a table shape against the light
-  vec3 lit = col * (0.06 + lamp * 2.2);
+  vec3 lit = col * (0.05 + lamp * 1.25);
   // the lamp itself (shade glow)
   vec3 rp = ro + rd * ((L.z - ro.z) / rd.z);
   vec2 lq = vec2(rp.x * sc.x - L.x, rp.y * sc.y - (L.y + 0.18));
   float shade = smoothstep(0.16, 0.12, length(lq * vec2(1.0, 1.6)));
-  lit = mix(lit, vec3(2.6, 1.7, 0.9), shade * step(L.z, ro.z));
+  lit = mix(lit, vec3(2.2, 1.4, 0.75), shade * step(L.z, ro.z));
   // curtain layer just behind the glass
   vec3 cp = ro + rd * ((-0.07 - ro.z) / rd.z);
   vec4 cu = texture2D(emissiveMap, cp.xy + 0.5);
@@ -329,7 +329,7 @@ vec3 interiorRoom(vec3 ro, vec3 rd, vec2 sc, float seed, out float curtA, out ve
     vec3 rd = normalize(vIntDir);
     vec3 room = ${flat ? 'vec3(1.0, 0.62, 0.3) * (0.35 + 0.9 * smoothstep(0.55, 0.0, length(vIntPos.xy - vec2(0.0, -0.05)))); cA = 0.0; cC = vec3(0.0);' : 'interiorRoom(vIntPos, rd, vIntScale, vIntSeed, cA, cC);'}
     // curtains: lit from behind (translucent velvet / lace)
-    vec3 curtLit = cC * (0.35 + 0.65 * (1.0 - cA)) * 1.6;
+    vec3 curtLit = cC * (0.25 + 0.45 * (1.0 - cA));
     vec3 e = mix(room, curtLit, cA);
     totalEmissiveRadiance = e;
 #if defined( USE_INSTANCING_COLOR ) || defined( USE_COLOR )
@@ -346,13 +346,13 @@ vec3 interiorRoom(vec3 ro, vec3 rd, vec2 sc, float seed, out float curtA, out ve
 
 /** Curtains behind the glass: velvet drapes tied back to the sides, a lace sheer, a pelmet (RGBA). */
 export function curtainTexture(ctx) {
-  return ctx.textures.canvas('ext:curtains1', 256, 512, (g, w, h) => {
+  return ctx.textures.canvas('ext:curtains3', 256, 512, (g, w, h) => {
     g.clearRect(0, 0, w, h);
     // lace sheer across the middle: faint, patterned
     for (let y = 0; y < h; y += 8) for (let x = ((y / 8) % 2) * 4; x < w; x += 8) {
-      g.fillStyle = 'rgba(235,205,160,0.10)'; g.fillRect(x, y, 4, 4);
+      g.fillStyle = 'rgba(235,205,160,0.16)'; g.fillRect(x, y, 4, 4);
     }
-    g.fillStyle = 'rgba(230,200,150,0.06)'; g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(230,200,150,0.05)'; g.fillRect(0, 0, w, h);
     // velvet drapes with folds, tied back (hourglass outline)
     for (const side of [0, 1]) {
       g.save();

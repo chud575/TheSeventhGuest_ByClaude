@@ -233,8 +233,8 @@ void surface(vec2 uv, inout Surface s) {
   // Painted trim wood (bargeboards, casings, cornices): bone-white lead paint gone grey
   // with grime, darker in long vertical runs and soft blotches, fine grain showing
   // through, no speckles. Lighter than the body so the trim reads as trim.
-  const trim = T.generate('ext:trim3', {
-    size: 1024, normalStrength: 1.6,
+  const trim = T.generate('ext:trim4', {
+    size: 1024, normalStrength: 1.0,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   float grain = fbm(uv, vec2(3.0, 60.0), 5) * 0.5 + 0.5;
@@ -252,7 +252,7 @@ void surface(vec2 uv, inout Surface s) {
   col *= 1.0 - crack * 0.11 * (0.4 + n2);
   col *= 0.94 + 0.12 * grain;
   s.albedo = col;
-  s.height = grain * 0.05 - crack * 0.04 + n * 0.03;
+  s.height = grain * 0.04 + n * 0.03;   // crazing stays in albedo only (normal edges sparkled at grazing angles)
   s.rough = 0.5 + 0.3 * streak + 0.15 * grime;
   s.metal = 0.0;
   s.ao = 1.0 - crack * 0.25;
