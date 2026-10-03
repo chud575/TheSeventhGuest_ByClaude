@@ -65,18 +65,18 @@ export function headSdf(px, py, pz) {
   d = smax(d, -ell(ax, py, pz, 0.088, 0.095, 0.045, 0.02, 0.028, 0.03), 0.02);
   // face mass, broad through the cheeks, narrowing gently to the chin
   const tx = px * (1 + 2.8 * Math.max(0, 0.03 - py));
-  d = smin(d, ell(tx, py, pz, 0, 0.044, 0.034, 0.064, 0.084, 0.067), 0.03);
+  d = smin(d, ell(tx, py, pz, 0, 0.044, 0.032, 0.0675, 0.084, 0.068), 0.042);
   // forehead slope
   d = smin(d, ell(px, py, pz, 0, 0.102, 0.034, 0.062, 0.056, 0.057), 0.02);
   // cheekbones (zygomatic arch)
-  d = smin(d, ell(ax, py, pz, 0.051, 0.05, 0.056, 0.018, 0.011, 0.018), 0.016);
+  d = smin(d, ell(ax, py, pz, 0.05, 0.052, 0.052, 0.018, 0.011, 0.018), 0.02);
   // hollow under the cheekbone (gaunt)
-  d = smax(d, -ell(ax, py, pz, 0.062, 0.03, 0.068, 0.013, 0.015, 0.0035), 0.02);
+  d = smax(d, -ell(ax, py, pz, 0.066, 0.026, 0.062, 0.014, 0.016, 0.004), 0.022);
   // jaw + chin
-  d = smin(d, ell(tx, py, pz, 0, -0.013, 0.038, 0.052, 0.031, 0.053), 0.02);
+  d = smin(d, ell(tx, py, pz, 0, -0.013, 0.038, 0.048, 0.031, 0.053), 0.024);
   d = smin(d, ell(px, py, pz, 0, -0.037, 0.077, 0.019, 0.016, 0.015), 0.013);
   // sagging jowls hanging below the jaw line either side of the chin
-  d = smin(d, ell(ax, py, pz, 0.04, -0.016, 0.056, 0.014, 0.016, 0.013), 0.018);
+  d = smin(d, ell(ax, py, pz, 0.037, -0.014, 0.055, 0.012, 0.015, 0.012), 0.02);
   // under-chin / wattle
   d = smin(d, ell(px, py, pz, 0, -0.049, 0.036, 0.032, 0.017, 0.03), 0.02);
   // muzzle (around the mouth)
@@ -100,14 +100,14 @@ export function headSdf(px, py, pz) {
     d = smin(d, low, 0.004);
     d = smin(d, ell(ax, py, pz, EYE.x + 0.001, EYE.y - 0.0155, 0.087, 0.012, 0.0045, 0.0045), 0.009); // bags
     // tear trough under the bag
-    d = smax(d, -cap(ax, py, pz, EYE.x - 0.012, EYE.y - 0.016, 0.093, EYE.x + 0.012, EYE.y - 0.024, 0.088, 0.0012), 0.003);
+    // (tear trough left soft: a hard groove read as a dash at distance)
   }
 
   // nose: long, faintly aquiline, not caricatured
   d = smin(d, cap(px, py, pz, 0, 0.079, 0.097, 0, 0.037, 0.121, 0.0052, 0.0068), 0.008);
   d = smin(d, sph(px, py, pz, 0, 0.059, 0.108, 0.0052), 0.006); // dorsal bump
-  d = smin(d, ell(px, py, pz, 0, 0.032, 0.119, 0.0085, 0.0082, 0.0078), 0.007);
-  d = smin(d, ell(ax, py, pz, 0.0108, 0.0275, 0.107, 0.0058, 0.0052, 0.0068), 0.008);
+  d = smin(d, ell(px, py, pz, 0, 0.032, 0.118, 0.0076, 0.0082, 0.0078), 0.008);
+  d = smin(d, ell(ax, py, pz, 0.0102, 0.0285, 0.105, 0.0055, 0.0048, 0.0066), 0.012);
   // alar crease
   d = smax(d, -cap(ax, py, pz, 0.0148, 0.034, 0.106, 0.0158, 0.023, 0.104, 0.0011), 0.0025);
   // columella / under-nose
@@ -133,7 +133,7 @@ export function headSdf(px, py, pz) {
     d = smax(d, -fold, 0.0045);
     d = smin(d, ell(ax, py, pz, 0.034, 0.02, 0.076, 0.014, 0.018, 0.012), 0.014);
     // marionette lines from the mouth corners down to the jowls
-    d = smax(d, -cap(ax, py, pz, 0.024, -0.01, 0.087, 0.029, -0.026, 0.077, 0.0004), 0.006);
+    d = smax(d, -cap(ax, py, pz, 0.024, -0.01, 0.086, 0.028, -0.022, 0.078, 0.0002), 0.008);
   }
   // chin crease
   d = smax(d, -cap(px, py, pz, -0.012, -0.023, 0.091, 0.012, -0.023, 0.091, 0.0018), 0.003);
@@ -239,9 +239,9 @@ export function browSdf(px, py, pz) {
   let b = cap(ax, py, pz, 0.01, 0.0875, 0.101, 0.03, 0.09, 0.096, 0.0028, 0.0036);
   b = smin(b, cap(ax, py, pz, 0.03, 0.09, 0.096, 0.049, 0.0858, 0.082, 0.0036, 0.0024), 0.002);
   // stray long hairs
-  for (let i = 0; i < 6; i++) {
-    const x0 = 0.016 + i * 0.0055, y0 = 0.0885 + 0.002 * rnd(i + 40), z0 = 0.099 - i * 0.0026;
-    b = Math.min(b, cap(ax, py, pz, x0, y0, z0, x0 + 0.004 + 0.003 * rnd(i), y0 + 0.004 + 0.004 * rnd(i + 3), z0 + 0.003, 0.0008, 0.0005));
+  for (let i = 0; i < 5; i++) {
+    const x0 = 0.02 + i * 0.006, y0 = 0.089 + 0.0015 * rnd(i + 40), z0 = 0.098 - i * 0.003;
+    b = smin(b, cap(ax, py, pz, x0, y0, z0, x0 + 0.006 + 0.003 * rnd(i), y0 + 0.0012 * rnd(i + 3), z0 - 0.001, 0.0009, 0.0006), 0.0015);
   }
   return b - 0.0016 * (n - 0.35);
 }
@@ -382,7 +382,7 @@ export function headColor(px, py, pz, region) {
     return [0.74 + vein * 0.05, 0.69 - vein * 0.12, 0.64 - vein * 0.1];               // sclera (aged)
   }
   // shadowy sockets and lids (darker, a little violet)
-  const sock = smoothstep(0.024, 0.01, len3(ex * 0.8, ey * 1.1, (pz - 0.09) * 0.5));
+  const sock = smoothstep(0.02, 0.008, len3(ex * 0.9, ey * 1.2, (pz - 0.09) * 0.5));
   r = mix(r, 0.48, sock * 0.5); g = mix(g, 0.38, sock * 0.55); b = mix(b, 0.42, sock * 0.5);
   // ruddy nose + cheeks, ear rims, broken capillaries
   const nose = smoothstep(0.02, 0.0, len3(px, py - 0.032, pz - 0.114));

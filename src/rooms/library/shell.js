@@ -250,7 +250,7 @@ export function buildShell(ctx, root, mat) {
     outline.push([-r, 0], [r, 0], [r, o.h - r]);
     for (let k = 1; k < 24; k++) { const a = (k / 24) * Math.PI; outline.push([Math.cos(a) * r, o.h - r + Math.sin(a) * r]); }
     outline.push([-r, o.h - r]);
-    const leaf = mesh(extrudeOutline(outline, 0.06, { bevel: 0.006 }), mat.doorWood, 'door-leaf');
+    const leaf = mesh(extrudeOutline(outline, 0.06, { bevel: 0.006 }), mat.doorPlank || mat.doorWood, 'door-leaf');
     leaf.position.set(0, 0, -0.06);
     g.add(leaf);
     // plank grooves (thin dark strips) + iron straps

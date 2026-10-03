@@ -55,6 +55,7 @@ export default {
       brick: new THREE.MeshStandardMaterial({ map: brickRep.map, normalMap: brickRep.normalMap, normalScale: new THREE.Vector2(1.0, 1.0), roughnessMap: brickRep.roughnessMap, aoMap: brickRep.aoMap, aoMapIntensity: 1, roughness: 1, metalness: 0, envMapIntensity: 0.35, name: 'brick' }),
       timber: timberMat(timberH),
       timberV: timberMat(timberV),
+      doorPlank: (() => { const m = timberMat(tm.withRepeat(1 / 1.6, 1 / 0.4, Math.PI / 2)); m.color.setRGB(1.5, 1.4, 1.3); return m; })(),
       timberDark: M.create('wood', { species: 'walnut', boards: 0, polish: 0.4, wear: 0.4, tint: [0.42, 0.36, 0.33], repeat: [1, 1], physical: true, clearcoat: 0.3, clearcoatRoughness: 0.35 }),
       beam: M.create('wood', { species: 'oak', boards: 0, polish: 0.2, wear: 0.5, figure: 0.9, tint: [0.24, 0.18, 0.14], repeat: [1 / 1.2, 1 / 0.6], normalScale: 1.6, roughness: 1.2, envMapIntensity: 0.1 }),
       beamMould: M.create('wood', { species: 'walnut', boards: 0, polish: 0.5, wear: 0.4, tint: [0.4, 0.33, 0.28], repeat: [3, 3], physical: true, clearcoat: 0.3, clearcoatRoughness: 0.35 }),
