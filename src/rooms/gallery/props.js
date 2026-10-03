@@ -182,3 +182,44 @@ export function makePlaque(ctx, mat, text, w = 0.3, h = 0.07) {
   const m = new THREE.Mesh(new ctx.geometry.RoundedBoxGeometry(w, h, 0.006, 2, 0.002), new THREE.MeshStandardMaterial({ map: tex, metalness: 0.85, roughness: 0.35, name: 'plaque' }));
   return m;
 }
+
+/** Hanging hexagonal gas lantern on a chain. Origin at the ceiling. Returns { group, glass, lightPos }. */
+export function makeLantern(ctx, mat, drop = 0.95) {
+  const G = ctx.geometry;
+  const g = new THREE.Group();
+  g.name = 'lantern';
+  const canopy = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.07, 0], [0.065, -0.015], [0.03, -0.04], [0.012, -0.06], [0, -0.065]], 24), mat.brass);
+  g.add(canopy);
+  // chain of alternating links
+  const linkGeo = new THREE.TorusGeometry(0.012, 0.0028, 6, 12);
+  const n = Math.floor((drop - 0.45) / 0.02);
+  for (let i = 0; i < n; i++) {
+    const l = new THREE.Mesh(linkGeo, mat.brass);
+    l.position.y = -0.07 - i * 0.02; l.rotation.y = (i % 2) * Math.PI / 2; l.scale.set(1, 1.5, 1);
+    g.add(l);
+  }
+  const y0 = -drop;                         // bottom of the lantern
+  const body = new THREE.Group();
+  body.position.y = y0;
+  g.add(body);
+  const hh = 0.34, r = 0.13;
+  // crown, roof, smoke bell
+  body.add(new THREE.Mesh(G.latheFromProfile([[0, hh + 0.13], [0.012, hh + 0.12], [0.02, hh + 0.09], [0.05, hh + 0.07], [0.1, hh + 0.04], [r + 0.025, hh + 0.01], [r + 0.025, hh - 0.005], [0, hh - 0.005]], 6), mat.brass));
+  body.add(new THREE.Mesh(G.latheFromProfile([[0, -0.07], [0.02, -0.065], [0.05, -0.04], [r + 0.02, -0.01], [r + 0.02, 0.01], [0, 0.01]], 6), mat.brass));
+  const fin = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.018, 0.0], [0.012, -0.03], [0.004, -0.06], [0, -0.07]], 12), mat.brass); fin.position.y = -0.07; body.add(fin);
+  // six corner posts + glass panes
+  const glass = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.97, r * 0.97, hh - 0.01, 6, 1, true), mat.lanternGlass);
+  glass.position.y = hh / 2; glass.rotation.y = Math.PI / 6; glass.name = 'lanternGlass'; glass.userData.noShadow = true;
+  body.add(glass);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, hh, 6), mat.brass);
+    post.position.set(Math.cos(a) * r, hh / 2, Math.sin(a) * r); body.add(post);
+  }
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.005, 6, 6), mat.brass); ring.rotation.x = Math.PI / 2; ring.position.y = hh * 0.55; body.add(ring);
+  // gas mantle burner inside
+  const burner = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.08, 8), mat.brass); burner.position.y = 0.05; body.add(burner);
+  const flame = ctx.fx.flame({ height: 0.07, width: 0.025, intensity: 8 });
+  flame.position.y = 0.1; body.add(flame);
+  return { group: g, glass, lightPos: new THREE.Vector3(0, y0 + 0.16, 0), flame };
+}

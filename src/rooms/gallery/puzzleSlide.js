@@ -106,9 +106,12 @@ export function createSlidePuzzle(ctx, { material, backMaterial, edgeMaterial, t
     let moving = 0;
     const k = 1 - Math.exp(-dt * 16);
     for (const [t, p] of targets) {
-      const d = t.position.distanceTo(p);
-      if (d > 0.0004) { t.position.lerp(p, Math.min(1, ctx.shot ? 1 : k)); moving++; }
-      else t.position.copy(p);
+      const d = Math.hypot(t.position.x - p.x, t.position.y - p.y);
+      if (d > 0.0004) {
+        const f = Math.min(1, ctx.shot ? 1 : k);
+        t.position.x += (p.x - t.position.x) * f; t.position.y += (p.y - t.position.y) * f;
+        moving++;
+      } else { t.position.x = p.x; t.position.y = p.y; }
       // a slight lift while moving
       t.position.z = d > 0.002 ? 0.006 : 0;
     }

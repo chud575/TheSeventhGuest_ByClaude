@@ -3,7 +3,7 @@ import { mergeStatic } from '../../engine/lib/contrib/foyer-merge.js';
 import { flicker } from '../../engine/fx/index.js';
 import { X0, X1, Z0, Z1, H, DADO, BAYS, BAY_CENTERS, DOORS, ARCH, WIN, PUZZLE, PIL } from './layout.js';
 import { buildShell, buildWindow, buildLanding, makeDoor, mount } from './architecture.js';
-import { makeSconce, makeFramed, makeClock, makeConsole, makeBench, makePlaque } from './props.js';
+import { makeSconce, makeFramed, makeClock, makeConsole, makeBench, makePlaque, makeLantern } from './props.js';
 import { runnerTexture, nightSky } from './textures.js';
 import { makePortraitMaterial, createGaze } from './portraits.js';
 import { createSlidePuzzle, meta as slideMeta, SLIDE_ID } from './puzzleSlide.js';
@@ -41,8 +41,8 @@ export default {
 
     // ================================================================ materials
     const mat = {
-      wall: M.create('damask', { base: [0.035, 0.06, 0.2], motif: [0.07, 0.1, 0.28], accent: [0.5, 0.4, 0.22], accentStrength: 0.12, sheen: 0.7, aging: 0.5, variant: 0, repeat: [1 / 0.46, 1 / 0.46], size: hiTex }),
-      floor: M.create('floorboards', { species: 'walnut', boards: 6, boardLength: 0.5, polish: 0.6, wear: 0.5, tint: [0.62, 0.52, 0.46], repeat: [1 / 3.2, 1 / 1.0] }),
+      wall: M.create('damask', { base: [0.06, 0.1, 0.3], motif: [0.1, 0.15, 0.38], accent: [0.5, 0.4, 0.22], accentStrength: 0.12, sheen: 0.7, aging: 0.45, variant: 0, normalScale: 0.45, repeat: [1 / 0.46, 1 / 0.46], size: hiTex }),
+      floor: M.create('floorboards', { species: 'walnut', boards: 6, boardLength: 0.5, polish: 0.85, wear: 0.45, tint: [0.62, 0.52, 0.46], repeat: [1 / 3.2, 1 / 1.0] }),
       ceiling: M.create('plaster', { color: [0.2, 0.23, 0.32], cracks: 0.3, stains: 0.45, repeat: [0.45, 0.45] }),
       beam: M.create('plaster', { color: [0.24, 0.27, 0.36], cracks: 0.15, stains: 0.3, repeat: [0.8, 0.8] }),
       plasterLight: M.create('plaster', { color: [0.42, 0.44, 0.5], cracks: 0.3, stains: 0.4, repeat: [0.8, 0.8] }),
@@ -70,7 +70,8 @@ export default {
       porcelainBlue: M.basic('porcelain', { color: 0xc8d2ec }),
       stem: M.basic('black', { color: 0x1a1a0e, roughness: 0.9 }),
       rose: M.basic('black', { color: 0x3a0c10, roughness: 0.85 }),
-      shade: new THREE.MeshStandardMaterial({ color: 0x2a2014, emissive: new THREE.Color(1.0, 0.6, 0.3), emissiveIntensity: 1.8, roughness: 0.35, transparent: true, opacity: 0.9, name: 'sconceShade' }),
+      shade: new THREE.MeshStandardMaterial({ color: 0x3a2610, emissive: new THREE.Color(1.0, 0.55, 0.24), emissiveIntensity: 1.3, roughness: 0.35, transparent: true, opacity: 0.92, name: 'sconceShade' }),
+      lanternGlass: new THREE.MeshStandardMaterial({ color: 0x302010, emissive: new THREE.Color(1.0, 0.6, 0.28), emissiveIntensity: 0.55, roughness: 0.2, metalness: 0, transparent: true, opacity: 0.55, depthWrite: false, name: 'lanternGlass' }),
     };
     const skyTex = nightSky(ctx);
     mat.sky = new THREE.MeshBasicMaterial({ map: skyTex.map, color: new THREE.Color(1, 1, 1).multiplyScalar(3.4), toneMapped: false, name: 'sky' });
@@ -129,7 +130,7 @@ export default {
         const lp = s.lightPos.clone().add(V3(0, 0, PIL.d + 0.005));
         holder.updateMatrixWorld(true);
         const wp = lp.applyMatrix4(holder.matrixWorld);
-        const pl = new THREE.PointLight(0xffae6a, 2.9, 6.5, 2);
+        const pl = new THREE.PointLight(0xffb878, 2.9, 6.5, 2);
         pl.position.copy(wp);
         root.add(pl);
         sconces.push({ light: pl, shade: s.shade, flame: s.flame, base: 2.9, seed: 7 + k * 3.3, dying: k === 6 });
@@ -147,12 +148,25 @@ export default {
           f *= cut * (0.85 + 0.15 * Math.sin(t * 31.0));
         }
         s.light.intensity = s.base * f;
-        s.shade.material.emissiveIntensity = 1.8 * f;
+        s.shade.material.emissiveIntensity = 1.3 * f;
         if (s.flame) s.flame.visible = f > 0.3;
       }
     });
     // the shades share one material; give the dying sconce its own so it can dim alone
     for (const s of sconces) if (s.dying) s.shade.material = s.shade.material.clone();
+
+    // hanging lanterns in bays 2 and 4 (break up the ceiling, warm pools on the runner)
+    const lanterns = [];
+    for (const z of [BAY_CENTERS[1], BAY_CENTERS[3]]) {
+      const ln = makeLantern(ctx, mat, 1.05);
+      ln.group.position.set(0, H, z);
+      root.add(ln.group);
+      const pl = new THREE.PointLight(0xffb070, 2.2, 6, 2);
+      pl.position.set(0, H + ln.lightPos.y, z);
+      root.add(pl);
+      lanterns.push({ light: pl, seed: z * 1.7 });
+    }
+    ctx.onUpdate((dt, t) => { for (const l of lanterns) l.light.intensity = 2.2 * flicker(t, l.seed); });
 
     // ================================================================ portraits (eyes follow)
     const portraits = [];
@@ -220,17 +234,17 @@ export default {
       mount(gir, -1, PUZZLE.z + s * 0.86, PUZZLE.y + 0.12, 0.03);
       root.add(gir);
     }
-    const puzzleLight = new THREE.PointLight(0xffa860, 1.5, 4, 2);
-    puzzleLight.position.set(X0 + 0.42, PUZZLE.y + 0.45, PUZZLE.z);
+    const puzzleLight = new THREE.PointLight(0xffa860, 1.1, 4, 2);
+    puzzleLight.position.set(X0 + 0.6, PUZZLE.y + 0.75, PUZZLE.z);
     root.add(puzzleLight);
-    ctx.onUpdate((dt, t) => { puzzleLight.intensity = 1.5 * flicker(t, 9.1); });
+    ctx.onUpdate((dt, t) => { puzzleLight.intensity = 1.1 * flicker(t, 9.1); });
     let solvedFx = 0;
     const slide = createSlidePuzzle(ctx, {
       material: toyMat,
       backMaterial: M.basic('black', { color: 0x080605, roughness: 0.7 }),
       edgeMaterial: mat.mahogany,
       random: ctx.random.fork('gallery-slide'),
-      camera: { position: [X0 + 1.15, PUZZLE.y, PUZZLE.z], target: [X0, PUZZLE.y, PUZZLE.z], fov: 42 },
+      camera: { position: [X0 + 1.7, PUZZLE.y - 0.02, PUZZLE.z], target: [X0, PUZZLE.y - 0.02, PUZZLE.z], fov: 40 },
       onSolvedCb: async () => {
         applySolved(true);
         ctx.audio.sfx('door');
@@ -250,46 +264,64 @@ export default {
     if (ctx.state.isSolved(SLIDE_ID)) applySolved(false);
 
     // ================================================================ ghost (a grey lady in the moonlight)
-    const ghostMat = fx.ghostMaterial({ color: 0x86a4ff, rimColor: 0xdfe8ff, opacity: 0.32, intensity: 1.0, dissolveY: 0.25, dissolveSoft: 0.9 });
-    const ghost = new THREE.Mesh(ctx.geometry.latheFromProfile([
-      [0.0, 1.66], [0.05, 1.655], [0.085, 1.61], [0.095, 1.55], [0.085, 1.49], [0.055, 1.45], [0.05, 1.41], [0.15, 1.36], [0.17, 1.28], [0.15, 1.15],
-      [0.12, 1.02], [0.16, 0.9], [0.24, 0.6], [0.3, 0.3], [0.36, 0.02], [0.0, 0.0],
-    ], 40), ghostMat);
+    const ghostMat = fx.ghostMaterial({ color: 0x86a4ff, rimColor: 0xdfe8ff, opacity: 0.45, intensity: 1.1, dissolveY: 0.25, dissolveSoft: 0.9 });
+    const ghostProfile = new THREE.SplineCurve([
+      [0.0, 1.69], [0.055, 1.675], [0.088, 1.625], [0.097, 1.565], [0.088, 1.5], [0.062, 1.46], [0.05, 1.43], [0.1, 1.395], [0.168, 1.355],
+      [0.184, 1.29], [0.168, 1.18], [0.135, 1.08], [0.15, 0.98], [0.2, 0.78], [0.26, 0.5], [0.31, 0.22], [0.35, 0.02], [0.0, 0.0],
+    ].map(([r, y]) => new THREE.Vector2(r, y))).getPoints(90).map((v) => [Math.max(v.x, 0), v.y]);
+    const ghost = new THREE.Mesh(ctx.geometry.latheFromProfile(ghostProfile, 48), ghostMat);
     ghost.scale.set(1, 1, 0.75);
-    ghost.position.set(-0.35, 0.0, -7.2);
+    ghost.position.set(0.32, 0.0, -8.15);
     ghost.renderOrder = 7;
     ghost.name = 'ghost';
     root.add(ghost);
     ctx.onUpdate((dt, t) => {
       ghost.position.y = Math.sin(t * 0.7) * 0.02;
-      ghost.rotation.y = 0.4 + Math.sin(t * 0.25) * 0.15;
+      ghost.rotation.y = -0.3 + Math.sin(t * 0.25) * 0.15;
     });
 
     // ================================================================ moonlight + fills
-    const moon = new THREE.SpotLight(0xa8bcff, 1100, 30, 0.2, 0.45, 2);
-    moon.position.set(0.9, 7.2, Z0 - 6.0);
-    moon.target.position.set(-0.25, 0.0, -6.2);
+    const moon = new THREE.SpotLight(0xa8bcff, 850, 30, 0.2, 0.45, 2);
+    moon.position.set(0.35, 7.2, Z0 - 6.0);
+    moon.target.position.set(-0.1, 0.0, -6.2);
     moon.castShadow = ctx.quality.shadows;
     moon.shadow.mapSize.set(ctx.quality.shadowMapSize, ctx.quality.shadowMapSize);
     moon.shadow.bias = -0.0004; moon.shadow.normalBias = 0.025; moon.shadow.radius = ctx.quality.shadowRadius;
     moon.shadow.camera.near = 3; moon.shadow.camera.far = 22;
     root.add(moon, moon.target);
-    root.add(new THREE.HemisphereLight(0x4a66b0, 0x1c120a, 0.8));
-    root.add(fx.areaLight({ center: [0, WIN.sill + 1.2, Z0 + 0.05], normal: [0, -0.65, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 4 }));
+    root.add(new THREE.HemisphereLight(0x3d5cc0, 0x1a1210, 1.15));
+    root.add(fx.areaLight({ center: [0, WIN.sill + 1.2, Z0 + 0.05], normal: [0, -0.65, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 1.6 }));
     // warm glow from the foyer chandelier below the landing balustrade
-    const foyerGlow = new THREE.PointLight(0xffa860, 14, 9, 2);
-    foyerGlow.position.set(0, -1.0, Z1 + 4.0);
+    const foyerGlow = new THREE.PointLight(0xffa860, 55, 14, 2);
+    foyerGlow.position.set(0, -0.9, Z1 + 5.4);
+    // the crown of the foyer chandelier, glimpsed below the balustrade
+    {
+      const ch = new THREE.Group();
+      ch.position.set(0, -0.75, Z1 + 5.4);
+      const ringM = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.012, 8, 48), mat.brass); ringM.rotation.x = Math.PI / 2; ch.add(ringM);
+      const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.01, 8, 40), mat.brass); ring2.rotation.x = Math.PI / 2; ring2.position.y = 0.3; ch.add(ring2);
+      const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 3.2, 8), mat.brass); rod.position.y = 1.9; ch.add(rod);
+      for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; const r = i % 2 ? 0.36 : 0.62; const yy = i % 2 ? 0.3 : 0; const f = fx.flame({ height: 0.05, width: 0.014, intensity: 9 }); f.position.set(Math.cos(a) * r, yy + 0.07, Math.sin(a) * r); ch.add(f); const cnd = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.07, 8), M.basic('bone')); cnd.position.set(Math.cos(a) * r, yy + 0.035, Math.sin(a) * r); ch.add(cnd); }
+      root.add(ch);
+    }
     root.add(foyerGlow);
-    const landingFill = new THREE.PointLight(0xffb070, 1.6, 5, 2);
-    landingFill.position.set(0, 2.6, Z1 + 1.2);
+    const landingFill = new THREE.PointLight(0xffb070, 0.9, 5, 2);
+    landingFill.position.set(1.4, 2.2, Z1 + 2.2);
+    // a great dark landscape over the stairwell, lit from below by the chandelier
+    {
+      const pw = 2.2, ph = 1.45;
+      const f = makeFramed(ctx, mat, M.create('painting', { subject: 0, seed: 11, aspect: pw / ph, size: 1024 }), pw, ph, { frameW: 0.16, cords: false });
+      f.group.position.set(0, 2.0, Z1 + 8.55); f.group.rotation.y = Math.PI;
+      root.add(f.group);
+    }
     root.add(landingFill);
 
     // volumetric moon beam, dust in it, floor mist
-    const winC = V3(0, WIN.sill + WIN.h * 0.5, Z0 - 0.05);
+    const winC = V3(0, WIN.sill + 0.4 + (WIN.h - 0.4) * 0.5, Z0 - 0.05);
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
     const shaft = fx.shaft({
-      center: winC, right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h * 0.5, 0), direction: beamDir, length: 7.5,
-      color: 0x9fb6ff, intensity: 0.4, softness: 0.3, falloff: 0.9, panes: [2, 4], mullion: 0.03, noise: 0.7,
+      center: winC, right: V3(WIN.w / 2, 0, 0), up: V3(0, (WIN.h - 0.4) * 0.5, 0), direction: beamDir, length: 7.5,
+      color: 0x9fb6ff, intensity: 0.6, softness: 0.3, falloff: 0.8, panes: [2, 4], mullion: 0.03, noise: 0.7,
     });
     root.add(shaft);
     root.add(fx.dust({ box: new THREE.Box3(V3(X0 + 0.1, 0.05, Z0 + 0.1), V3(X1 - 0.1, 3.2, -2.5)), count: 2600, shafts: [shaft], size: 0.011, intensity: 2.2, ambient: 0.04 }));
@@ -312,16 +344,16 @@ export default {
     // ================================================================ navigation
     const nodes = {
       main: { position: [0.28, 1.62, 7.35], target: [-0.08, 1.48, -9.0], fov: 56, label: 'The gallery', look: { yaw: [-55, 55], pitch: [-28, 26] } },
-      back: { position: [0.28, 1.62, 7.1], target: [0.0, 1.25, 14.0], fov: 58, label: 'The stair landing' },
-      bedroom: { position: [-0.62, 1.62, 3.75], target: [1.6, 1.5, 2.85], fov: 56, label: 'The bedroom door' },
+      back: { position: [0.2, 1.62, 5.6], target: [0.0, 1.35, 14.0], fov: 58, label: 'The stair landing' },
+      bedroom: { position: [-0.95, 1.62, 4.1], target: [1.6, 1.62, 2.75], fov: 58, label: 'The bedroom door' },
       portraits: { position: [0.62, 1.62, 1.15], target: [-1.6, 1.68, -0.75], fov: 56, label: 'The Toymaker', look: { yaw: [-60, 60], pitch: [-28, 26] } },
-      gamedoor: { position: [-0.62, 1.62, -2.75], target: [1.6, 1.5, -3.95], fov: 56, label: 'The game room door' },
+      gamedoor: { position: [-0.95, 1.62, -2.4], target: [1.6, 1.62, -4.05], fov: 58, label: 'The game room door' },
       far: { position: [0.12, 1.62, -3.4], target: [0.0, 1.62, -9.0], fov: 56, label: 'The window', look: { yaw: [-60, 60], pitch: [-28, 28] } },
       _texdbg: { position: [0, 1.5, 37.0], target: [0, 1.5, 40], fov: 50 },
-      attic: { position: [0.55, 1.62, -6.2], target: [-1.6, 1.35, -7.3], fov: 56, label: 'The attic door' },
+      attic: { position: [0.85, 1.62, -5.6], target: [-1.6, 1.45, -7.4], fov: 58, label: 'The attic door' },
     };
     const edges = [
-      ['main', 'back', null, { hotspot: { back: { position: [0.0, 1.4, 9.2], radius: 0.9 }, main: { position: [0.0, 1.5, 3.5], radius: 0.8 } } }],
+      ['main', 'back', null, { hotspot: { back: { position: [0.0, 1.4, 8.6], radius: 0.8 }, main: { position: [0.0, 1.5, 2.0], radius: 0.8 } } }],
       ['main', 'bedroom', [[0.1, 1.62, 5.4]]],
       ['main', 'portraits', [[0.4, 1.62, 3.6]]],
       ['bedroom', 'portraits', [[-0.1, 1.62, 2.4]]],
@@ -360,13 +392,13 @@ export default {
       { id: 'clock', nodes: ['far', 'attic', 'gamedoor'], box: clockBox, cursor: 'examine', label: 'The long-case clock', onActivate: () => { ctx.audio.chimeClock?.(1); ctx.ui.caption('Its hands are stopped at five minutes to midnight. Yet you can hear it ticking.', { title: 'The Clock' }); } },
       { id: 'window', nodes: ['far', 'attic'], box: { min: [-WIN.w / 2, WIN.sill + 0.1, Z0 - WIN.depth], max: [WIN.w / 2, WIN.sill + WIN.h, Z0 - WIN.depth + 0.2] }, cursor: 'examine', label: 'The window', onActivate: examine('The Window', 'The moon hangs over the grounds like a coin on a dead man\'s eye. Down in the garden nothing moves. Nothing at all.') },
       { id: 'attic-locked', nodes: ['attic', 'far'], box: dBox(DOORS.attic, 0.05), cursor: 'examine', label: 'A narrow door', enabled: () => !ctx.state.isSolved(SLIDE_ID), onActivate: async () => { ctx.audio.sfx('thud'); await ctx.ui.caption('Latched fast. The keyhole is shaped like a tiny eye — and it is shut.', { title: 'The Attic Door' }); } },
-      { id: 'ghost', nodes: ['far', 'attic', 'main'], sphere: { center: [-0.35, 1.0, -7.2], radius: 0.5 }, cursor: 'ghost', label: 'A grey shape', onActivate: () => ctx.cinematic(async (c, h) => {
+      { id: 'ghost', nodes: ['far', 'attic', 'main'], sphere: { center: [0.32, 1.0, -8.15], radius: 0.5 }, cursor: 'ghost', label: 'A grey shape', onActivate: () => ctx.cinematic(async (c, h) => {
         ctx.post.set({ saturation: 0.6, vignette: 0.6 }, 0.8);
         ghostMat.uniforms.uOpacity.value = 0.8;
-        await ctx.nav.lookAt(V3(-0.35, 1.45, -7.2), 1.2);
+        await ctx.nav.lookAt(V3(0.32, 1.45, -8.15), 1.2);
         await ctx.say({ text: 'She walks the gallery every night, looking for the child she lost. She never looks *up*.', speaker: 'stauf', speakerName: 'Stauf' });
         await h.wait(0.4);
-        ghostMat.uniforms.uOpacity.value = 0.32;
+        ghostMat.uniforms.uOpacity.value = 0.45;
         ctx.post.reset(1.2);
         await ctx.nav.returnToNode(1.0);
       }) },
@@ -410,7 +442,7 @@ export default {
       scene: root,
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
-      grade: { exposure: 1.85, contrast: 1.1, saturation: 1.0, bloomStrength: 0.38, bloomThreshold: 1.0, godRayWeight: 0.35, godRayThreshold: 2.5, vignette: 0.48, aoIntensity: 1.1, aoRadius: 0.4 },
+      grade: { exposure: 1.85, contrast: 1.1, saturation: 1.05, shadowTint: [0.76, 0.92, 1.28], splitAmount: 0.65, bloomStrength: 0.38, bloomThreshold: 1.0, godRayWeight: 0.35, godRayThreshold: 2.5, vignette: 0.48, aoIntensity: 1.1, aoRadius: 0.4 },
       environment: { position: [0.0, 1.7, 0.4], intensity: 0.8 },
       onEnter() {
         if (!ctx.state.has('gallery.greeted')) {

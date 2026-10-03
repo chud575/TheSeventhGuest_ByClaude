@@ -107,7 +107,7 @@ export function runnerTexture(ctx) {
 export const HEAD_C = [0.0, 0.11];
 export const HEAD_R = [0.15, 0.198];
 export const EYE_OFF = [0.36, 0.06];      // in head-normalised units
-export const EYE_R = [0.12, 0.05];        // sclera radii (head-normalised)
+export const EYE_R = [0.105, 0.044];        // sclera radii (head-normalised)
 
 export const SITTERS = {
   // name: { sex 0 man / 1 woman / 2 child, age 0..1, hair rgb, bg rgb, coat rgb, beard, hat, iris rgb }
@@ -122,7 +122,7 @@ export const SITTERS = {
 export function portraitTexture(ctx, name, aspect = 0.78, size = 1024) {
   const s = SITTERS[name];
   return ctx.textures.generate(`gallery:portrait:${name}:${aspect}`, {
-    size, aspect, tile: false, normalStrength: 0.6, seed: name.length * 3.7 + s.age * 11.0,
+    size, aspect, tile: false, normalStrength: 0.22, seed: name.length * 3.7 + s.age * 11.0,
     uniforms: {
       uSex: s.sex, uAge: s.age, uHair: s.hair, uBg: s.bg, uCoat: s.coat, uBeard: s.beard, uHat: s.hat, uScale: s.scale,
       uHeadC: HEAD_C, uHeadR: HEAD_R, uEyeOff: EYE_OFF, uEyeR: EYE_R,

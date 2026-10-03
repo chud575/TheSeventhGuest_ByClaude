@@ -255,8 +255,14 @@ export function buildShell(ctx, root, mat) {
     const m = new THREE.Mesh(G.sweepProfile(prof, path, { closed: true, uvScale: 3 }), mat.giltPlain);
     add(m, 'coffer');
     const zc = (za + zb) / 2;
-    const rose = new THREE.Mesh(G.latheFromProfile([[0.0, 0], [0.3, 0], [0.3, -0.015], [0.26, -0.03], [0.2, -0.026], [0.15, -0.045], [0.09, -0.05], [0.04, -0.08], [0.0, -0.09]], 40), mat.giltPlain);
+    // plaster ceiling rose: stepped rings + leafy scallops, a gilt boss in the centre
+    const roseProf = [[0.0, 0], [0.34, 0], [0.34, -0.012], [0.32, -0.02], [0.3, -0.018], [0.28, -0.03], [0.24, -0.034], [0.22, -0.026], [0.2, -0.03], [0.17, -0.05], [0.13, -0.056], [0.1, -0.05], [0.085, -0.06], [0.0, -0.062]];
+    const rose = new THREE.Mesh(G.latheFromProfile(roseProf, 48), mat.beam);
     rose.position.set(0, H, zc); add(rose, 'rose');
+    const leaves = new THREE.Mesh(G.latheFromProfile([[0.12, 0], [0.2, -0.01], [0.24, -0.03], [0.2, -0.045], [0.12, -0.04]], 16), mat.beam);
+    leaves.position.set(0, H - 0.005, zc); leaves.scale.set(1, 1, 1); add(leaves);
+    const boss = new THREE.Mesh(G.latheFromProfile([[0.0, 0], [0.07, 0], [0.065, -0.02], [0.04, -0.045], [0.015, -0.07], [0.0, -0.075]], 24), mat.giltCap);
+    boss.position.set(0, H - 0.055, zc); add(boss, 'boss');
   }
 }
 
@@ -467,7 +473,6 @@ export function buildLanding(ctx, root, mat) {
   // walls left/right and the back of the hall wall
   root.add(new THREE.Mesh(vRect(xa, zB + 3, xa, zA, 0, H, 0), mat.wall));
   root.add(new THREE.Mesh(vRect(xb, zA, xb, zB + 3, 0, H, 0), mat.wall));
-  root.add(new THREE.Mesh(vRect(xb, zA, xa, zA, 0, H, 0), mat.wall));
   // ceiling
   const c = new THREE.Mesh(G.planeUV(xb - xa, 6, 1), mat.ceiling); c.rotation.x = Math.PI / 2; c.position.set(0, H, zA + 3); root.add(c);
   // balustrade overlooking the stair well (open void beyond)
