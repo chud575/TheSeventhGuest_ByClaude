@@ -68,7 +68,7 @@ export default {
     // deep navy silk velvet: almost black where it faces you, a saturated blue-violet sheen
     // rolling over the fold crests (no grey specular: that is what made it read as plastic)
     const velvet = M.create('velvet', { color: [0.045, 0.005, 0.009], crush: 0.45, repeat: [2, 2], side: THREE.DoubleSide });
-    velvet.sheen = 1.0; velvet.sheenRoughness = 0.35; velvet.sheenColor = new THREE.Color(0xb0405a).multiplyScalar(0.8);
+    velvet.sheen = 0.7; velvet.sheenRoughness = 0.4; velvet.sheenColor = new THREE.Color(0.42, 0.07, 0.13);
     velvet.roughness = 0.92; velvet.metalness = 0; velvet.envMapIntensity = 0.15; velvet.specularIntensity = 0.25;
     const seatVelvet = M.create('velvet', { color: [0.3, 0.04, 0.06], crush: 0.4, repeat: [3, 3] });
     const brass = M.create('brass', { tarnish: 0.35, polish: 0.7, repeat: [2, 2] });
@@ -368,35 +368,13 @@ export default {
     const fringeGeo = new THREE.CylinderGeometry(0.0035, 0.003, 1, 4); fringeGeo.translate(0, -0.5, 0);
     for (const wx of WIN.xs) {
       for (const side of [-1, 1]) {
-        // drawn back on tiebacks: the drapes carve a waisted silhouette against the moonlit glass
-        const cg = curtain({ width: 0.84, height: 3.3, folds: 9, depth: 0.14, tieback: 0, pool: 0.12, seed: wx * 3 + side + 5, segX: 96, segY: 72 });
-        {
-          // classic tie-back: from the full-width heading the drape sweeps diagonally in to the
-          // holdback, is gathered tight there, then flares out again to pool on the floor
-          const P = cg.attributes.position, W0 = 0.84, Hc = 3.3, vt = 0.62;
-          for (let i = 0; i < P.count; i++) {
-            const x = P.getX(i), y = P.getY(i), z = P.getZ(i);
-            const v = Math.min(1, Math.max(0, -y / Hc));
-            const pull = v < vt ? Math.pow(v / vt, 1.35) : 1 - 0.7 * Math.pow((v - vt) / (1 - vt), 0.8);
-            const u = x / W0 + 0.5;                                   // 0 = outer edge .. 1 = window edge
-            const nx = (u * (1 - 0.68 * pull) - 0.5) * W0 - pull * 0.02;
-            P.setXYZ(i, nx, y, z * (1 + pull * 0.9) + pull * 0.03);
-          }
-          cg.computeVertexNormals();
-        }
+        // full drapes hanging straight beside the glass (deep folds, pooled hems)
+        const cg = curtain({ width: 0.7, height: 3.3, folds: 7, depth: 0.14, tieback: 0, pool: 0.14, seed: wx * 3 + side + 5, segX: 96, segY: 64 });
         const c = new THREE.Mesh(cg, velvet);
-        c.position.set(wx + side * (WIN.w / 2 + 0.1), WIN.sill + WIN.h + 0.28, Z0 + 0.15);
+        c.position.set(wx + side * (WIN.w / 2 + 0.2), WIN.sill + WIN.h + 0.28, Z0 + 0.15);
         if (side > 0) c.scale.x = -1;   // outer edge (u = 0) away from the glass
         c.name = 'curtain';
         add(c);
-        // gilt rosette holdback + a silk rope and tassel where the drape is gathered
-        const hx = wx + side * (WIN.w / 2 + 0.39), hy = WIN.sill + WIN.h + 0.28 - 3.3 * 0.62;
-        const rosette = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.05, 0], [0.048, 0.012], [0.03, 0.022], [0.012, 0.03], [0, 0.032]], 24), giltPlain);
-        rosette.rotation.x = Math.PI / 2; rosette.position.set(hx, hy, Z0 + 0.03); add(rosette);
-        const rope = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.009, 8, 28, Math.PI * 1.15), new THREE.MeshPhysicalMaterial({ color: 0x6a4a1c, roughness: 0.55, sheen: 0.6, sheenColor: new THREE.Color(0.9, 0.7, 0.3) }));
-        rope.position.set(hx, hy - 0.02, Z0 + 0.22); rope.rotation.set(0.25, side > 0 ? Math.PI : 0, -0.3); add(rope);
-        const tassel = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.012, 0.01], [0.022, 0.04], [0.03, 0.12], [0.028, 0.13], [0, 0.135]], 16), fringeMat);
-        tassel.position.set(hx - side * 0.04, hy - 0.26, Z0 + 0.24); add(tassel);
       }
       const VW = WIN.w + 1.0;
       const val = new THREE.Mesh(swagGeometry(VW, 0.46, 0.08, 4), velvet);
@@ -675,12 +653,15 @@ export default {
     for (const wx of WIN.xs) {
       const shaft = fx.shaft({
         center: V3(wx, WIN.sill + WIN.h * 0.47, Z0 - 0.02), right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h * 0.5, 0),
-        direction: beamDir, length: 4.2, color: 0xaebfee, intensity: 0.42, softness: 0.22, falloff: 1.2, panes: [2, 4], mullion: 0.035, noise: 1.0,
+        direction: beamDir, length: 4.2, color: 0xaebfee, intensity: 0.26, softness: 0.22, falloff: 1.2, panes: [2, 4], mullion: 0.035, noise: 1.0,
       });
       add(shaft); shafts.push(shaft);
     }
     const dust = add(fx.dust({ box: new THREE.Box3(V3(-3.4, 0.1, Z0 + 0.05), V3(3.4, 3.4, 1.2)), count: 2600, shafts, size: 0.011, intensity: 2.0, ambient: 0.05 }));
-    add(fx.fog({ box: new THREE.Box3(V3(X0 + 0.2, 0, Z0 + 0.1), V3(X1 - 0.2, 0.5, Z1 - 0.3)), color: 0x0b111e, litColor: 0x31405e, density: 0.3, heightFalloff: 4 }));
+    const fog = add(fx.fog({ box: new THREE.Box3(V3(X0 + 0.2, 0, Z0 + 0.1), V3(X1 - 0.2, 0.5, Z1 - 0.3)), color: 0x0b111e, litColor: 0x31405e, density: 0.3, heightFalloff: 4 }));
+    // looking straight into the bay (the harp view) the shafts and floor mist sit between the camera
+    // and everything else: thin them there so the cello, drapes and parquet keep their colour
+    const veil = { k: 1 };
 
     // ================================================================ puzzle
     let solvedScenePlayed = false;
@@ -713,7 +694,7 @@ export default {
     const nodes = {
       main: { position: [1.75, 1.6, 2.35], target: [-1.75, 1.32, -1.8], fov: 56, label: 'The music room', look: { yaw: [-50, 50], pitch: [-25, 30] } },
       piano: { position: pianoToWorld(2.0, 1.66, 0.25).toArray(), target: pianoToWorld(-0.3, 0.98, -0.05).toArray(), fov: 50, label: 'The piano' },
-      harp: { position: [1.35, 1.55, -0.35], target: [1.7, 1.0, -3.8], fov: 54, label: 'The harp, the cello and the windows', look: { yaw: [-60, 60], pitch: [-25, 30] }, grade: { exposure: 0.95, bloomThreshold: 1.4 } },
+      harp: { position: [1.35, 1.55, -0.35], target: [1.7, 1.0, -3.8], fov: 54, label: 'The harp, the cello and the windows', look: { yaw: [-60, 60], pitch: [-25, 30] }, grade: { exposure: 0.85, bloomThreshold: 1.4 } },
       hearth: { position: [0.9, 1.6, 1.4], target: [-4.0, 1.45, 0.45], fov: 54, label: 'The fireplace' },
       door: { position: [0.6, 1.62, 0.9], target: [0.0, 1.45, 5.5], fov: 56, label: 'The doors' },
     };
@@ -812,6 +793,10 @@ export default {
       fire.userData.bedMat.emissiveIntensity = 1.6 + 0.3 * Math.sin(t * 0.9 + 0.5);
       fire.userData.logMat.emissiveIntensity = 1.8 + 0.4 * Math.sin(t * 1.7 + 2.0);
       dust.visible = window.__game?.mode !== 'puzzle';
+      const veilT = ctx.nav.current === 'harp' ? 0.4 : 1;
+      veil.k += (veilT - veil.k) * (dt > 0 ? Math.min(1, dt * 1.5) : 1);
+      for (const sh of shafts) if (sh.material?.uniforms?.uIntensity) sh.material.uniforms.uIntensity.value = 0.26 * veil.k;
+      if (fog.material?.uniforms?.uDensity) fog.material.uniforms.uDensity.value = 0.3 * (0.35 + 0.65 * veil.k);
       for (const [i, pl] of sconceLights.entries()) pl.intensity = (i < 2 ? 3.6 : i === 2 ? 2.6 : 2.4) * (0.97 + 0.03 * Math.sin(t * 9.1 + i) * Math.sin(t * 3.7));
       keyFill.intensity += ((window.__game?.mode === 'puzzle' ? 3.6 : 0.5) - keyFill.intensity) * Math.min(1, dt * 3);
       torchLight.intensity = 7.0 * (0.94 + 0.06 * Math.sin(t * 8.3) * Math.sin(t * 2.9 + 0.4));
