@@ -147,13 +147,14 @@ export default {
       curtain: M.create('velvet', { color: [0.055, 0.08, 0.21], crush: 0.85, repeat: [1.4, 1.4], side: THREE.DoubleSide, sheen: 0.45, sheenRoughness: 0.4, sheenColor: [0.3, 0.36, 0.6], envMapIntensity: 0.25 }),
       buttons: M.basic('black', { color: 0x0a0a12, roughness: 0.4 }),
       clockFace: new THREE.MeshStandardMaterial({ map: clockFace(ctx), roughness: 0.4 }),
-      glass: new THREE.MeshBasicMaterial({ color: 0x0a1020, transparent: true, opacity: 0.18, depthWrite: false, name: 'winGlass' }),
+      glass: M.create('glass', { dirt: 0.7, opacity: 0.16, repeat: [1.5, 1.5], depthWrite: false, envMapIntensity: 0.8, normalScale: 0.6 }),
       plasterRose: M.create('plaster', { color: [0.62, 0.6, 0.58], cracks: 0.5, stains: 0.8, repeat: [4, 4] }),
       atticBoard: M.create('wood', { species: 'oak', boards: 3, boardLength: 1.2, polish: 0.1, wear: 0.9, tint: [0.55, 0.5, 0.46], repeat: [1, 1], side: THREE.DoubleSide, clearcoat: 0 }),
       atticBeam: M.create('wood', { species: 'oak', boards: 0, polish: 0.05, wear: 0.8, tint: [0.42, 0.36, 0.32], repeat: [1.5, 1.5], clearcoat: 0 }),
       atticPlaster: M.create('plaster', { color: [0.42, 0.42, 0.44], cracks: 0.8, stains: 0.8, repeat: [0.8, 0.8], side: THREE.DoubleSide }),
       rug: M.create('rug', { palette: 'faded', aspect: 3.0 / 4.0, knots: 560, wear: 0.6, fringe: 0, seed: 11, size: 2048, normalScale: 1.4 }),
     };
+    addDust(mats.canopyWood, 0.4);
     const clothCache = new Map();
     const hairSet = ctx.textures.generate('bedroom:hair', { size: 256, tile: true, normalStrength: 2.5, glsl: /* glsl */ `
       void surface(vec2 uv, inout Surface s) {
@@ -410,7 +411,7 @@ export default {
     const chest = buildChest(ctx, mats, { w: 1.18, d: 0.58 });
     chest.position.set(CHEST.x, 0, CHEST.z); chest.rotation.y = Math.PI / 2; add(chest);
     const boardField = 0.82 * 0.61 * (5 / 6);     // field size in metres (matches the board texture)
-    const puzzleCam = { position: [CHEST.x + 0.74, 1.2, CHEST.z], target: [CHEST.x + 0.02, 0.5, CHEST.z], fov: 40 };
+    const puzzleCam = { position: [CHEST.x + 0.68, 1.28, CHEST.z], target: [CHEST.x + 0.02, 0.5, CHEST.z], fov: 40 };
     const boneSet = boneGrain(ctx).withRepeat(3, 3);
     const ebonySet = ebonyGrain(ctx).withRepeat(3, 3);
     const wardrobe = buildWardrobe(ctx, mats);
@@ -524,10 +525,11 @@ export default {
       wardrobe.userData.back.visible = false;
       for (const l of stairLights) l.visible = true;
       const [l, r] = wardrobe.userData.doors;
-      if (instant) { l.rotation.y = -1.6; r.rotation.y = 1.6; return; }
+      const OPEN = 2.35;     // swung right back so the stair is in full view
+      if (instant) { l.rotation.y = -OPEN; r.rotation.y = OPEN; return; }
       const t0 = performance.now();
       ctx.audio.sfx?.('door');
-      const step = () => { const k = Math.min(1, (performance.now() - t0) / 2200); const e = 1 - (1 - k) ** 3; l.rotation.y = -1.6 * e; r.rotation.y = 1.6 * e; if (k < 1) requestAnimationFrame(step); };
+      const step = () => { const k = Math.min(1, (performance.now() - t0) / 2200); const e = 1 - (1 - k) ** 3; l.rotation.y = -OPEN * e; r.rotation.y = OPEN * e; if (k < 1) requestAnimationFrame(step); };
       requestAnimationFrame(step);
     }
 
@@ -599,7 +601,7 @@ export default {
     // moonlight bounced off the floorboards up onto the ceiling, so the plaster separates from black
     root.add(fx.areaLight({ center: [WIN.x - 0.4, 0.05, -1.4], normal: [0, 1, 0], width: 2.6, height: 2.6, color: 0x7f92c8, intensity: 1.6 }));
     // moonlight bounced off the floor and the bed: a soft cold fill on the front (door / wardrobe) wall
-    const frontFill = new THREE.PointLight(0x8094d0, 1.6, 5.5, 2); frontFill.position.set(-0.3, 2.6, 1.6); root.add(frontFill);
+    const frontFill = new THREE.PointLight(0x8094d0, 2.4, 5.5, 2); frontFill.position.set(-0.3, 2.6, 1.6); root.add(frontFill);
     root.add(fx.areaLight({ center: [WIN.x, WIN.sill + 1.2, Z0 + 0.04], normal: [0, -0.35, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 5 }));
 
     const winCenter = V3(WIN.x, WIN.sill + WIN.h * 0.47, Z0 - 0.02);

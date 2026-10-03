@@ -1022,7 +1022,7 @@ export function buildAtticStair(ctx, mats, { w = 1.1, y0 = 0.16, steps = 8, rise
   const sky = mesh(new THREE.PlaneGeometry(0.42, 0.6), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 0.65, 1.0).multiplyScalar(2.2), toneMapped: true, name: 'atticSky' }), 0.28, roofY + 0.62, endZ - 0.15, g);
   sky.rotation.set(-Math.PI / 2, 0, 0); sky.rotateY(0.95); sky.userData.noShadow = true;
   // cold light pouring down the stair from the skylight
-  const spot = new THREE.SpotLight(0x9fb4ff, 60, 9, 0.5, 0.6, 1.6);
+  const spot = new THREE.SpotLight(0x9fb4ff, 110, 9, 0.5, 0.6, 1.6);
   spot.position.set(0.2, roofY + 0.5, endZ - 0.2);
   spot.target.position.set(0, y0, z0 + 0.2);
   spot.castShadow = ctx.quality.shadows;
@@ -1030,7 +1030,7 @@ export function buildAtticStair(ctx, mats, { w = 1.1, y0 = 0.16, steps = 8, rise
   spot.shadow.camera.near = 0.3; spot.shadow.camera.far = 9;
   g.add(spot, spot.target);
   // soft cold fill so the stairwell is not a black hole
-  const fill = new THREE.PointLight(0x7f95d8, 2.2, 4.5, 2); fill.position.set(0, topY - 0.3, endZ + 1.0); g.add(fill);
+  const fill = new THREE.PointLight(0x7f95d8, 4.0, 4.5, 2); fill.position.set(0, topY - 0.3, endZ + 1.0); g.add(fill);
   g.userData = { light: spot, fill, topY, endZ, roofY, z0 };
   return g;
 }

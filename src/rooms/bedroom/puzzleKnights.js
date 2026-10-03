@@ -188,8 +188,16 @@ export function createKnightsPuzzle(ctx, { parent, center, size, mats, camera, o
 
   function squareAt(ndc, p) {
     const hits = p.raycast([group], ndc);
-    // a tall knight in front may hide the one behind: prefer any knight along the ray that can leap
-    for (const h of hits) if (h.object.userData.piece !== undefined && canMove(pieces[h.object.userData.piece].sq)) return pieces[h.object.userData.piece].sq;
+    // a knight in front may intercept the ray aimed at the one behind (the ray clips its base on
+    // the way down): among the knights along the ray that can leap, take the one struck highest,
+    // i.e. the head the player is actually pointing at
+    let best = null;
+    for (const h of hits) {
+      const pi = h.object.userData.piece;
+      if (pi === undefined || !canMove(pieces[pi].sq)) continue;
+      if (!best || h.point.y > best.point.y) best = h;
+    }
+    if (best) return pieces[best.object.userData.piece].sq;
     for (const h of hits) {
       if (h.object.userData.piece !== undefined) return pieces[h.object.userData.piece].sq;
       if (h.object === pick) {

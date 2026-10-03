@@ -14,7 +14,7 @@ const res = await page.evaluate(async () => {
   const g = window.__game; const k = window.__debug.bedroom.knights; const p = g.puzzle;
   const ndcOf = (sq) => {
     const piece = k.pieces.find((q) => q.sq === sq);
-    const v = new (g.camera.position.constructor)(); piece.mesh.getWorldPosition(v); v.y += 0.03; v.project(g.camera); return { x: v.x, y: v.y };
+    const v = new (g.camera.position.constructor)(); piece.mesh.getWorldPosition(v); v.y += 0.065; v.project(g.camera); return { x: v.x, y: v.y };
   };
   const click = (sq) => { const n = ndcOf(sq); p.def.onPointer('move', { button: 0 }, n, p.pctx); p.def.onPointer('up', { button: 0 }, n, p.pctx); };
   const out = { open: p?.def?.id, start: k.state().rows };
@@ -35,7 +35,7 @@ const res2 = await page.evaluate(async () => {
   for (let i = 0; i < SOLUTION.length; i++) {
     const sq = SOLUTION[i];
     const piece = k.pieces.find((q) => q.sq === sq);
-    piece.mesh.getWorldPosition(v); v.y += 0.03; v.project(g.camera);
+    piece.mesh.getWorldPosition(v); v.y += 0.065; v.project(g.camera);
     p.def.onPointer('move', { button: 0 }, { x: v.x, y: v.y }, p.pctx);
     p.def.onPointer('up', { button: 0 }, { x: v.x, y: v.y }, p.pctx);
     for (let f = 0; f < 20; f++) g.fx.update(1 / 30, 3 + i + f / 30);   // finish the leap animation

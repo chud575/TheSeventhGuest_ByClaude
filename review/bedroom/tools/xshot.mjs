@@ -12,7 +12,7 @@ try {
     await page.goto(`${server.url}?room=bedroom&shot=1&time=2&${q}`, { timeout: 600000 });
     await page.waitForFunction(() => window.__SHOT_READY === true, null, { timeout: 600000, polling: 250 });
     const err = await page.evaluate(() => window.__SHOT_ERROR || null);
-    await page.screenshot({ path: out });
+    await page.screenshot({ path: out, timeout: 300000 });
     console.log(out, ((Date.now() - t) / 1000).toFixed(1) + 's', err || '', errs.slice(0, 5).join(' | '));
     await page.close();
   }
