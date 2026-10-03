@@ -155,6 +155,25 @@ export function buildRange(ctx, mat) {
     g.add(mk(cover(R), edge, x, HOB, z));
     g.add(mk(new THREE.BoxGeometry(0.024, 0.008, 0.012), mat.soot, x + R * 0.8, HOB + 0.009, z));
   }
+  // hotplate seams: the hob is cast in sections, the joints filled with black lead and ash
+  for (const z of [-0.335]) g.add(mk(new THREE.BoxGeometry(W - 0.02, 0.003, 0.006), mat.soot, 0, HOB + 0.0005, z));
+  for (const x of [-0.275, 0.01, 0.29]) g.add(mk(new THREE.BoxGeometry(0.006, 0.003, 0.24), mat.soot, x, HOB + 0.0005, -0.22));
+  // the fire shows as a thin red line round the lifted edge of one cover
+  {
+    const glowMat = emberMat.clone(); glowMat.emissiveIntensity = 0.9; glowMat.emissiveMap = null; glowMat.name = 'hobGlow';
+    const ring = mk(new THREE.TorusGeometry(0.103, 0.0018, 4, 48), glowMat, 0.15, HOB + 0.002, -0.22, Math.PI / 2);
+    ring.userData.noBake = true; g.add(ring);
+  }
+  // the cover lifter left on the hob: a forged bar with a hooked end and a coiled-wire cool handle
+  {
+    const lf = new THREE.Group();
+    lf.add(mk(new THREE.CylinderGeometry(0.0045, 0.0045, 0.17, 8), edge, 0.085, 0, 0, 0, 0, Math.PI / 2));
+    lf.add(mk(tube([[0.17, 0, 0], [0.185, 0, 0], [0.19, -0.012, 0], [0.18, -0.016, 0]], 0.0045, 10, 6), edge));
+    const coil = []; for (let k = 0; k <= 90; k++) { const t = k / 90; coil.push([-0.09 * t, Math.cos(t * 60) * 0.009, Math.sin(t * 60) * 0.009]); }
+    lf.add(mk(tube(coil, 0.0022, 360, 4), mat.steel));
+    lf.position.set(0.38, HOB + 0.012, -0.08); lf.rotation.y = 0.5;
+    g.add(lf);
+  }
   // ash dust and rust blooms on the hob slab (a decal under the covers)
   {
     const HW = W + 0.04, HD = D + 0.02, hz = -D / 2 + 0.005;
@@ -650,11 +669,24 @@ export function buildWindsorChair(G, mat) {
 /** A brace of cock pheasants hung by the neck. origin = hook point; birds hang down -Y. */
 export function buildPheasant(G, mat, seed = 0) {
   const g = new THREE.Group();
-  const body = new THREE.SphereGeometry(0.075, 20, 14);
+  // hung by the neck: a heavy, rounded breast low down, the back tapering into the tail
+  const body = new THREE.SphereGeometry(0.075, 32, 20);
   const p = body.attributes.position;
-  for (let i = 0; i < p.count; i++) { const y = p.getY(i); p.setXYZ(i, p.getX(i) * (1 - y * 2.5) * 0.95, y * 2.0, p.getZ(i) * (1 - y * 2.2) * 0.8); }
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const t = y / 0.075;                                        // -1 bottom (breast) .. 1 top (neck)
+    const w = 1.05 - 0.55 * Math.max(0, t) ** 1.5 + 0.08 * (1 - t * t);
+    const breast = z > 0 ? 1 + 0.25 * Math.max(0, -t + 0.3) : 0.85;
+    p.setXYZ(i, x * w * 0.9, y * 1.8, z * w * breast * 0.85);
+  }
   body.computeVertexNormals();
-  g.add(mk(body, mat.plumage, 0, -0.24, 0));
+  g.add(mk(body, mat.plumage, 0, -0.22, 0));
+  // folded wings, hanging a little loose from the shoulders
+  for (const s of [-1, 1]) {
+    const wg = new THREE.SphereGeometry(0.05, 16, 10);
+    wg.scale(0.35, 1.7, 1.0);
+    g.add(mk(wg, mat.plumage, s * 0.058, -0.2, -0.01, 0.12, 0, s * 0.12));
+  }
   // neck + head (copper-green sheen) + white collar + red wattle
   g.add(mk(new THREE.CylinderGeometry(0.013, 0.02, 0.12, 10), mat.pheasantHead, 0, -0.07, 0));
   g.add(mk(new THREE.TorusGeometry(0.019, 0.005, 6, 14), mat.collar, 0, -0.125, 0, Math.PI / 2));
@@ -664,7 +696,7 @@ export function buildPheasant(G, mat, seed = 0) {
   // tail: long tapering barred feathers sweeping down
   for (let k = 0; k < 4; k++) {
     const len = 0.32 + k * 0.06;
-    const f = new THREE.PlaneGeometry(0.03 - k * 0.004, len, 1, 8);
+    const f = new THREE.PlaneGeometry(0.022 - k * 0.003, len, 1, 8);
     f.translate(0, -len / 2, 0);
     const fp = f.attributes.position;
     for (let i = 0; i < fp.count; i++) { const y = fp.getY(i); fp.setX(i, fp.getX(i) * (1 + y * 1.5)); fp.setZ(i, y * y * 0.4); }
@@ -772,7 +804,7 @@ export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0
   const pos = [], col = [], uvs = [], suv = [], idx = [];
   const rnd = (k) => hash3(seed * 1.7, k * 3.1, 0.5);
   const lean = [(rnd(1) - 0.5) * 0.5 * slump * r, (rnd(2) - 0.5) * 0.35 * slump * r];
-  const creases = [0, 1, 2, 3].slice(0, 3 + (seed % 2)).map((k) => ({ a: rnd(10 + k) * Math.PI * 2, t: 0.35 + rnd(20 + k) * 0.4, tilt: (rnd(30 + k) - 0.5) * 3.0, depth: 0.11 + rnd(40 + k) * 0.08 }));
+  const creases = [0, 1, 2, 3].slice(0, 3 + (seed % 2)).map((k) => ({ a: rnd(10 + k) * Math.PI * 2, t: 0.35 + rnd(20 + k) * 0.4, tilt: (rnd(30 + k) - 0.5) * 3.0, depth: 0.16 + rnd(40 + k) * 0.1 }));
   const sagBands = [0.48 + rnd(50) * 0.1, 0.62 + rnd(51) * 0.08];
   const tNeck = 1 - neck / h * 1.0;          // where the neck starts
   for (let j = 0; j <= NV; j++) {
@@ -809,7 +841,7 @@ export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0
       for (const c of creases) {
         let da = Math.atan2(Math.sin(a - c.a - c.tilt * (t - c.t)), Math.cos(a - c.a - c.tilt * (t - c.t)));
         const band = Math.exp(-((t - c.t) ** 2) / 0.05);
-        fold += (-c.depth * Math.exp(-(da * da) / 0.012) + c.depth * 0.35 * Math.exp(-((Math.abs(da) - 0.2) ** 2) / 0.01)) * band;
+        fold += (-c.depth * Math.exp(-(da * da) / 0.006) + c.depth * 0.4 * Math.exp(-((Math.abs(da) - 0.16) ** 2) / 0.006)) * band;
       }
       // lumpy fill (flour settles unevenly) - kept low so the silhouette stays taut, not a beanbag
       const lump = (fbm3(ca * 2.2 + seed, t * 3.0, sa * 2.2, 3) - 0.5) * 0.09;
@@ -819,7 +851,7 @@ export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0
       const fphase = a * nF * 0.5 + seed * 1.3 + (t - tNeck) * 4.0 * (rnd(60) - 0.5);
       const vfold = 1 - Math.pow(Math.abs(Math.sin(fphase)), 0.35);
       const wr = -gath * gath * (0.3 * vfold) + gath * 0.05 * Math.sin(a * 11 + t * 30 + seed);
-      const twist = t > tNeck ? Math.sin(a * 6 + (t - tNeck) * 60 + seed) * 0.22 - 0.12 * vfold + (t > tNeck + (1 - tNeck) * 0.5 ? 0.45 * Math.sin(a * 7 + seed) * ((t - tNeck) / (1 - tNeck)) : 0) : 0;
+      const twist = t > tNeck ? Math.sin(a * 6 + (t - tNeck) * 60 + seed) * 0.22 - 0.12 * vfold + (t > tNeck + (1 - tNeck) * 0.5 ? 0.22 * Math.sin(a * 9 + seed) * ((t - tNeck) / (1 - tNeck)) : 0) : 0;
       // the side seams: the sack was sewn from a flat tube, so two crisp ridges run up its sides
       const seamA = Math.min(Math.abs(Math.atan2(Math.sin(a), Math.cos(a))), Math.abs(Math.atan2(Math.sin(a - Math.PI), Math.cos(a - Math.PI))));
       const seamR = 0.035 * Math.exp(-(seamA * seamA) / 0.004) - 0.02 * Math.exp(-((seamA - 0.12) ** 2) / 0.003);

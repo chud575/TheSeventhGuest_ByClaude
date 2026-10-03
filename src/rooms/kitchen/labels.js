@@ -103,7 +103,7 @@ function drawLabel(g, i, letter, mode, H, style, family = 0) {
 
   // ---------------------------------------------------------------- ground
   if (paper) {
-    g.fillStyle = C ? '#e4d8b8' : ORM.paper; g.fillRect(0, 0, W, H);
+    g.fillStyle = C ? '#d8c8a0' : ORM.paper; g.fillRect(0, 0, W, H);
     if (C) {
       // laid paper: chain lines, fibres, a little foxing
       g.save(); g.globalAlpha = 0.07; g.fillStyle = '#5a4020';
@@ -286,11 +286,11 @@ function drawLabel(g, i, letter, mode, H, style, family = 0) {
       g.font = '600 15px Cinzel, Georgia, serif'; g.fillStyle = ink('#8a1e16'); spaced(g, soup, cx + 118, cy - 4, 1.5, 120);
       g.fillStyle = ink('#1c120c'); g.font = 'italic 13px "IM Fell English", Georgia, serif'; g.fillText(WEIGHTS[i % WEIGHTS.length], cx + 118, cy + 16);
     } else {
-      g.font = '700 30px Cinzel, Georgia, serif'; spaced(g, 'STAUF’S', cx, top + 22, 4, 210);
-      g.fillStyle = ink('#8a1e16'); g.font = '400 15px "IM Fell English SC", Georgia, serif'; spaced(g, 'SUPERIOR SOUPS', cx, top + 44, 3, 200);
-      g.fillStyle = ink('#1c120c'); g.font = '600 24px Cinzel, Georgia, serif'; spaced(g, soup, cx, bot - 32, 1.5, 200);
+      g.font = '700 26px Cinzel, Georgia, serif'; spaced(g, 'STAUF’S', cx, top + 19, 4, 200);
+      g.fillStyle = ink('#8a1e16'); g.font = '400 14px "IM Fell English SC", Georgia, serif'; spaced(g, 'SUPERIOR SOUPS', cx, top + 39, 3, 190);
+      g.fillStyle = ink('#1c120c'); g.font = '600 22px Cinzel, Georgia, serif'; spaced(g, soup, cx, bot - 30, 1.5, 200);
       g.fillStyle = ink('#8a1e16'); g.fillRect(cx - 95, bot - 52, 190, 1.5); g.fillRect(cx - 95, bot - 13, 190, 1.5);
-      ry = cy + 2; rr = Math.min(52, (bot - 60 - (top + 56)) * 0.5);
+      ry = (top + 52 + bot - 56) / 2; rr = Math.min(72, (bot - 56 - (top + 52)) * 0.5);
     }
     g.strokeStyle = ink('#8a1e16'); g.lineWidth = 3; g.beginPath(); g.arc(cx, ry, rr, 0, Math.PI * 2); g.stroke();
     g.lineWidth = 1; g.beginPath(); g.arc(cx, ry, rr - 5, 0, Math.PI * 2); g.stroke();

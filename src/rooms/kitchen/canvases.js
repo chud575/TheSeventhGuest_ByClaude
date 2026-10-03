@@ -152,13 +152,19 @@ export function kitchenCanvases(forge) {
     g.closePath(); g.fill();
     for (let i = 0; i < 1600; i++) { g.fillStyle = `rgba(80,60,30,${R() * 0.08})`; g.fillRect(R() * w, R() * h, 2, 2); }
   });
-  out.plumage = forge.canvas('kitchen:plumage', 256, 256, (g, w, h) => {
-    g.fillStyle = '#6a3a1a'; g.fillRect(0, 0, w, h);
+  out.plumage = forge.canvas('kitchen:plumage2', 512, 512, (g, w, h) => {
+    // cock pheasant: burnished copper-chestnut feathers, each with a black crescent tip and a pale shaft
+    g.fillStyle = '#4a2612'; g.fillRect(0, 0, w, h);
     const R = rng(12);
-    for (let y = 0; y < h; y += 7) for (let x = (y / 7) % 2 ? 0 : 6; x < w; x += 12) {
-      g.fillStyle = R() > 0.5 ? '#8a4c1e' : '#4a2410'; g.beginPath(); g.ellipse(x, y, 6, 4, 0, 0, Math.PI); g.fill();
-      g.fillStyle = '#1a0e08'; g.beginPath(); g.ellipse(x, y + 2, 2.2, 1.6, 0, 0, Math.PI * 2); g.fill();
+    for (let y = -8; y < h + 8; y += 9) for (let x = (Math.floor(y / 9) % 2) ? 0 : 7; x < w + 8; x += 14) {
+      const tone = R();
+      g.fillStyle = tone > 0.6 ? '#7a3e18' : tone > 0.25 ? '#6a3414' : '#56301a';
+      g.beginPath(); g.ellipse(x, y, 8, 7, 0, 0, Math.PI); g.fill();
+      g.strokeStyle = 'rgba(20,10,6,0.85)'; g.lineWidth = 2.2; g.beginPath(); g.ellipse(x, y + 1, 6.5, 5.5, 0, 0.15, Math.PI - 0.15); g.stroke();
+      g.strokeStyle = 'rgba(200,160,110,0.35)'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(x, y - 2); g.lineTo(x, y + 5); g.stroke();
     }
+    // a purple-green sheen on some feather tips
+    for (let k = 0; k < 140; k++) { g.fillStyle = `rgba(${R() > 0.5 ? '70,40,90' : '30,70,50'},0.25)`; g.beginPath(); g.ellipse(R() * w, R() * h, 4, 2, 0, 0, Math.PI * 2); g.fill(); }
   });
   out.tail = forge.canvas('kitchen:tail', 64, 256, (g, w, h) => {
     g.fillStyle = '#8a6a3a'; g.fillRect(0, 0, w, h);

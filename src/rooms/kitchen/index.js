@@ -88,14 +88,14 @@ export default {
     const grime = (m, o = {}) => applyGrime(m, { plumes: PLUMES, ...o });
     // grease & smoke on the glazed tile: either side of the range recess, round the sink, under each gas bracket
     const TILE_GREASE = [
-      [CH.ax0 - 0.12, Z0 + CH.d, 0.55, 0.75, 0.3], [CH.ax1 + 0.12, Z0 + CH.d, 0.55, 0.75, 0.3],
-      [(CH.ax0 + CH.ax1) / 2, Z0 + 0.05, 0.5, 0.9, 0.45], [WIN.x, Z0, 0.7, 0.35, 0.5],
+      [CH.ax0 - 0.1, Z0 + CH.d, 0.45, 0.85, 0.32], [CH.ax1 + 0.1, Z0 + CH.d, 0.45, 0.85, 0.32],
+      [(CH.ax0 + CH.ax1) / 2, Z0 + 0.05, 0.4, 1.0, 0.5], [WIN.x, Z0, 0.7, 0.4, 0.5],
       [X0 + 0.02, 0.15, 0.9, 0.35, 0.22], [X1 - 0.02, -0.42, 0.9, 0.35, 0.22], [0.12, Z0 + 0.02, 0.9, 0.35, 0.22], [2.7, Z1 - 0.02, 0.95, 0.3, 0.2],
     ];
     const mat = {
       flags: grime(matFrom(quarryTileTexture(forge, 2048), { repeat: [1 / 2.4, 1 / 2.4], physical: true, clearcoat: 0.12, clearcoatRoughness: 0.45, name: 'quarry' }),
         { tiles: { grid: [8, 8], amp: 0.16, hue: 0.02, rough: 0.25, tilt: 0.03 }, ceiling: [9, 0.1, 0], floor: [0, 0], path: [[(CH.ax0 + CH.ax1) / 2, Z0 + 0.9], [BLOCK.x - 0.3, BLOCK.z - 0.55], [BLOCK.x - 0.9, BLOCK.z + 0.6], [0.55, Z1 - 0.3]], pathWidth: 0.42, pathStrength: 0.55, noise: 0.35, tag: 'floor' }),
-      tile: applyGrime(matFrom(wallTileTexture(forge, 2048), { repeat: [1 / 1.2, 1 / 1.2], physical: true, clearcoat: 0.45, clearcoatRoughness: 0.16, name: 'walltile' }), { plumes: TILE_GREASE, tiles: { grid: [8, 16], offset: 1, amp: 0.17, hue: 0.07, rough: 0.7, tilt: 0.15 }, floor: [0.55, 0.7], noise: 0.2, tag: 'tile' }),
+      tile: applyGrime(matFrom(wallTileTexture(forge, 2048), { repeat: [1 / 1.2, 1 / 1.2], physical: true, clearcoat: 0.45, clearcoatRoughness: 0.16, name: 'walltile' }), { plumes: TILE_GREASE, tiles: { grid: [8, 16], offset: 1, amp: 0.17, hue: 0.07, rough: 0.7, tilt: 0.15 }, floor: [0.55, 0.7], noise: 0.2, sootTint: [0.85, 0.66, 0.38], sootTintAmt: 0.85, tag: 'tile' }),
       border: grime(matFrom(borderTileTexture(forge, 512), { repeat: [1 / 0.15, 1 / 0.15], physical: true, clearcoat: 0.8, clearcoatRoughness: 0.1, name: 'bordertile' }), { tiles: { grid: [1, 1], amp: 0.25, hue: 0.08, rough: 0.5, tilt: 0.06 }, tag: 'border' }),
       glazeGreen: new THREE.MeshPhysicalMaterial({ color: 0x0d2a22, roughness: 0.2, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.08, name: 'glazeGreen' }),
       plaster: grime(matFrom(limewashTexture(forge, { color: [0.31, 0.39, 0.47], stain: 1, size: 2048, key: 'wall' }), { repeat: [0.5, 0.5], name: 'limewash' }), { ceiling: [H, 0.75, 0.42], noise: 0.3, tag: 'plaster' }),
@@ -649,6 +649,21 @@ export default {
         add(os);
         add(mk(tube([[2.32, RAIL_Y + 0.055, Z0 + 0.012], [2.32, RAIL_Y + 0.07, Z0 + 0.035], [2.32, RAIL_Y + 0.04, Z0 + 0.06], [2.32, RAIL_Y + 0.02, Z0 + 0.07]], 0.0025, 12, 5), mat.brass));
       }
+      // a second salt box by the service end, hung on a nail through its shaped back board
+      {
+        const sb = new THREE.Group();
+        const back = new THREE.Shape(); back.moveTo(-0.11, 0); back.lineTo(0.11, 0); back.lineTo(0.11, 0.3); back.quadraticCurveTo(0.11, 0.36, 0, 0.38); back.quadraticCurveTo(-0.11, 0.36, -0.11, 0.3); back.lineTo(-0.11, 0);
+        const hole = new THREE.Path(); hole.absarc(0, 0.33, 0.012, 0, Math.PI * 2, true); back.holes.push(hole);
+        sb.add(mk(G.applyBoxUVs(new THREE.ExtrudeGeometry(back, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 1, curveSegments: 12 }), 1), mat.pineDark, 0, -0.04, 0));
+        sb.add(mk(rbox(G, 0.2, 0.2, 0.14, 0.006), mat.pineDark, 0, 0.06, 0.082));
+        sb.add(mk(rbox(G, 0.21, 0.014, 0.17, 0.004), mat.pineDark, 0, 0.175, 0.095, 0.32, 0, 0));
+        sb.add(mk(new THREE.CylinderGeometry(0.0035, 0.0035, 0.18, 6), mat.brass, 0, 0.163, 0.024, 0, 0, Math.PI / 2));
+        const lab = forge.canvas('kitchen:saltlabel', 256, 96, (g2, w, h) => { g2.fillStyle = '#d4c6a2'; g2.fillRect(0, 0, w, h); g2.strokeStyle = '#2a1a10'; g2.lineWidth = 3; g2.strokeRect(6, 6, w - 12, h - 12); g2.fillStyle = '#2a1a10'; g2.font = '700 52px Cinzel, Georgia, serif'; g2.textAlign = 'center'; g2.textBaseline = 'middle'; g2.fillText('SALT', w / 2, h / 2 + 3); }, { tile: false });
+        sb.add(mk(new THREE.PlaneGeometry(0.12, 0.045), new THREE.MeshStandardMaterial({ map: lab, roughness: 0.9, name: 'saltLabel' }), 0, 0.06, 0.153));
+        sb.position.set(X1, 1.5, -0.2); sb.rotation.y = -Math.PI / 2;
+        add(sb);
+        add(mk(new THREE.CylinderGeometry(0.003, 0.003, 0.05, 6), mat.iron, X1 - 0.02, 1.5 + 0.29, -0.2, 0, 0, Math.PI / 2));
+      }
       // a chipped enamel advertising sign over the dumbwaiter
       {
         const sign = forge.canvas('kitchen:enamelsign', 768, 448, (g2, W2, H2) => {
@@ -874,15 +889,34 @@ export default {
       }
       for (const s of [rx0, rx1]) add(mk(rbox(G, 0.025, 0.66, 0.2, 0.004), mat.dresserPaint, s, ry + 0.3, Z0 + 0.1));
       const plateGeo = lathe(G, [[0, 0], [0.07, 0], [0.075, 0.004], [0.1, 0.008], [0.12, 0.016], [0.118, 0.019], [0.095, 0.012], [0.07, 0.006], [0, 0.006]], 40);
-      const willow = forge.canvas('kitchen:willow', 256, 256, (g2, w) => {
-        g2.fillStyle = '#e8e4da'; g2.fillRect(0, 0, w, w);
-        g2.translate(w / 2, w / 2);
-        g2.strokeStyle = '#1f3d8a'; g2.fillStyle = '#2a4a9a';
-        g2.lineWidth = 10; g2.beginPath(); g2.arc(0, 0, 118, 0, Math.PI * 2); g2.stroke();
-        g2.lineWidth = 2; g2.beginPath(); g2.arc(0, 0, 80, 0, Math.PI * 2); g2.stroke();
-        for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; g2.beginPath(); g2.arc(Math.cos(a) * 100, Math.sin(a) * 100, 7, 0, Math.PI * 2); g2.fill(); }
-        g2.globalAlpha = 0.8; g2.beginPath(); g2.moveTo(-50, 30); g2.lineTo(-10, -20); g2.lineTo(30, 30); g2.closePath(); g2.fill();
-        g2.fillRect(-60, 30, 120, 6); g2.beginPath(); g2.arc(30, -30, 16, 0, Math.PI * 2); g2.fill();
+      const willow = forge.canvas('kitchen:willow2', 512, 512, (g2, w) => {
+        const c = w / 2, B = '#1d3a84';
+        g2.fillStyle = '#ece8dc'; g2.fillRect(0, 0, w, w);
+        g2.translate(c, c);
+        // rim border: a dense band of diaper and fret with a scalloped inner edge
+        g2.fillStyle = B; g2.beginPath(); g2.arc(0, 0, 246, 0, Math.PI * 2); g2.arc(0, 0, 196, 0, Math.PI * 2, true); g2.fill();
+        g2.fillStyle = '#ece8dc';
+        for (let k = 0; k < 48; k++) { const a = (k / 48) * Math.PI * 2; g2.save(); g2.rotate(a); g2.fillRect(-3, -240, 6, 12); g2.beginPath(); g2.arc(0, -214, 7, 0, Math.PI * 2); g2.fill(); g2.restore(); }
+        for (let k = 0; k < 24; k++) { const a = (k / 24) * Math.PI * 2; g2.save(); g2.rotate(a); g2.beginPath(); g2.moveTo(-18, -196); g2.quadraticCurveTo(0, -178, 18, -196); g2.fill(); g2.restore(); }
+        g2.strokeStyle = B; g2.lineWidth = 3;
+        for (let k = 0; k < 24; k++) { const a = (k / 24) * Math.PI * 2; g2.save(); g2.rotate(a); g2.beginPath(); g2.moveTo(-18, -194); g2.quadraticCurveTo(0, -172, 18, -194); g2.stroke(); g2.restore(); }
+        g2.lineWidth = 2; g2.beginPath(); g2.arc(0, 0, 150, 0, Math.PI * 2); g2.stroke();
+        // the scene: pagoda on the right, willow tree, a bridge with three figures, a boat, two birds
+        g2.fillStyle = B; g2.strokeStyle = B;
+        g2.fillRect(30, -40, 70, 50); g2.beginPath(); g2.moveTo(15, -40); g2.lineTo(65, -78); g2.lineTo(115, -40); g2.fill();
+        g2.beginPath(); g2.moveTo(40, -78); g2.lineTo(65, -100); g2.lineTo(90, -78); g2.fill();
+        g2.fillStyle = '#ece8dc'; for (let k = 0; k < 3; k++) g2.fillRect(40 + k * 20, -28, 10, 16); g2.fillStyle = B;
+        g2.lineWidth = 6; g2.beginPath(); g2.moveTo(-40, 60); g2.quadraticCurveTo(-55, 0, -70, -50); g2.stroke();
+        for (let k = 0; k < 12; k++) { g2.lineWidth = 2; g2.beginPath(); const sx = -70 + (k % 4) * 8, sy = -50 + Math.floor(k / 4) * 12; g2.moveTo(sx, sy); g2.quadraticCurveTo(sx - 30 + k * 4, sy + 30, sx - 20 + k * 5, sy + 70); g2.stroke(); }
+        g2.lineWidth = 4; g2.beginPath(); g2.moveTo(-120, 70); g2.quadraticCurveTo(-60, 30, 0, 70); g2.stroke();
+        for (let k = 0; k < 3; k++) { g2.beginPath(); g2.arc(-95 + k * 30, 48 - Math.sin((k + 1) / 4 * Math.PI) * 14, 6, 0, Math.PI * 2); g2.fill(); g2.fillRect(-99 + k * 30, 52 - Math.sin((k + 1) / 4 * Math.PI) * 14, 8, 14); }
+        g2.beginPath(); g2.moveTo(10, 100); g2.lineTo(70, 100); g2.lineTo(60, 112); g2.lineTo(20, 112); g2.fill();
+        for (const [bx, by] of [[-20, -110], [20, -125]]) { g2.lineWidth = 3; g2.beginPath(); g2.moveTo(bx - 14, by); g2.quadraticCurveTo(bx - 6, by - 10, bx, by); g2.quadraticCurveTo(bx + 6, by - 10, bx + 14, by); g2.stroke(); }
+        // water lines and the fence
+        g2.lineWidth = 1.5; for (let k = 0; k < 6; k++) { g2.beginPath(); g2.moveTo(-130 + k * 12, 90 + k * 6); g2.lineTo(-20 + k * 20, 90 + k * 6); g2.stroke(); }
+        for (let x = -140; x < 140; x += 14) { g2.beginPath(); g2.moveTo(x, 120); g2.lineTo(x + 7, 128); g2.lineTo(x + 14, 120); g2.stroke(); }
+        // the transfer print blurs slightly in the glaze
+        g2.globalAlpha = 0.25; g2.filter = 'blur(2px)'; g2.drawImage(g2.canvas, -c, -c); g2.filter = 'none'; g2.globalAlpha = 1;
       }, { tile: false });
       const plateMat = new THREE.MeshPhysicalMaterial({ map: willow, roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.05, name: 'willowPlate' });
       // planar UV for the plate face
@@ -1713,18 +1747,32 @@ export default {
         pr.add(bk);
       }
       add(pr);
-      // copper fish kettle hung on two hooks above the foyer door
+      // copper fish kettle standing on two iron brackets above the foyer door: stadium plan, rolled rim, domed lid
+      // with a strap handle, a drop handle at each end
       {
         const fk = new THREE.Group();
-        const body = new THREE.SphereGeometry(0.1, 36, 16);
-        body.scale(2.6, 0.75, 0.95);
-        { const pp = body.attributes.position; for (let k = 0; k < pp.count; k++) { if (pp.getY(k) < -0.03) pp.setY(k, -0.03 - (pp.getY(k) + 0.03) * 0.15); if (pp.getY(k) > 0.04) pp.setY(k, 0.04 + (pp.getY(k) - 0.04) * 0.4); } body.computeVertexNormals(); }
-        fk.add(mk(body, mat.copper));
-        for (const sx of [-1, 1]) fk.add(mk(new THREE.TorusGeometry(0.03, 0.006, 8, 16, Math.PI), mat.brass, sx * 0.26, 0.01, 0, 0, 0, sx > 0 ? -Math.PI / 2 : Math.PI / 2));
-        fk.add(mk(tube([[-0.06, 0.055, 0], [-0.03, 0.08, 0], [0.03, 0.08, 0], [0.06, 0.055, 0]], 0.006, 12, 6), mat.brass));
-        fk.position.set(DOORS.foyer.x, DOORS.foyer.h + 0.3, Z1 - 0.12); fk.rotation.set(0, 0, 0.03);
+        const L2 = 0.58, W2 = 0.2, Hb = 0.15;
+        const stadium = (l, w) => { const sh = new THREE.Shape(); const r = w / 2; sh.moveTo(-l / 2 + r, -r); sh.lineTo(l / 2 - r, -r); sh.absarc(l / 2 - r, 0, r, -Math.PI / 2, Math.PI / 2, false); sh.lineTo(-l / 2 + r, r); sh.absarc(-l / 2 + r, 0, r, Math.PI / 2, Math.PI * 1.5, false); return sh; };
+        const body = new THREE.ExtrudeGeometry(stadium(L2, W2), { depth: Hb, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.01, bevelSegments: 4, curveSegments: 24 });
+        body.rotateX(-Math.PI / 2); G.applyBoxUVs(body, 3);
+        fk.add(mk(body, mat.copper, 0, 0.012, 0));
+        // rolled rim bead and the lid
+        const rimPts = []; { const sh = stadium(L2 + 0.02, W2 + 0.02); rimPts.push(...sh.getSpacedPoints(80).map((p) => V3(p.x, 0, -p.y))); }
+        fk.add(mk(tube(rimPts, 0.005, 120, 6, true), mat.copper, 0, Hb + 0.02, 0));
+        const lid = new THREE.ExtrudeGeometry(stadium(L2 - 0.01, W2 - 0.01), { depth: 0.012, bevelEnabled: true, bevelThickness: 0.025, bevelSize: 0.012, bevelSegments: 5, curveSegments: 24 });
+        lid.rotateX(-Math.PI / 2); G.applyBoxUVs(lid, 3);
+        fk.add(mk(lid, mat.copper, 0, Hb + 0.024, 0));
+        fk.add(mk(tube([[-0.16, Hb + 0.06, 0], [-0.13, Hb + 0.1, 0], [0.13, Hb + 0.1, 0], [0.16, Hb + 0.06, 0]], 0.007, 20, 8), mat.brass));
+        for (const sx of [-1, 1]) {
+          fk.add(mk(new THREE.TorusGeometry(0.035, 0.0065, 8, 18, Math.PI), mat.brass, sx * (L2 / 2 + 0.012), Hb * 0.72, 0, 0, sx > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI / 2));
+          for (const z of [-0.035, 0.035]) fk.add(mk(new THREE.SphereGeometry(0.006, 8, 6), mat.copper, sx * (L2 / 2 + 0.008), Hb * 0.72, z));
+          // iron brackets under it
+          const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(0.22, 0); sh.quadraticCurveTo(0.05, -0.03, 0, -0.18); sh.lineTo(0, 0);
+          add(mk(G.applyBoxUVs(new THREE.ExtrudeGeometry(sh, { depth: 0.018, bevelEnabled: false }), 1), mat.iron, DOORS.foyer.x + sx * 0.2 - 0.009, DOORS.foyer.h + 0.32, Z1, 0, Math.PI / 2, 0));
+        }
+        add(mk(rbox(G, 0.66, 0.02, 0.23, 0.004), mat.dresserPaint, DOORS.foyer.x, DOORS.foyer.h + 0.33, Z1 - 0.115));
+        fk.position.set(DOORS.foyer.x, DOORS.foyer.h + 0.34, Z1 - 0.12);
         add(fk);
-        for (const sx of [-1, 1]) add(mk(new THREE.TorusGeometry(0.02, 0.004, 6, 12, Math.PI * 1.4), mat.iron, DOORS.foyer.x + sx * 0.26, DOORS.foyer.h + 0.32, Z1 - 0.025, 0, Math.PI / 2, Math.PI * 0.7));
       }
       // a grocer's calendar on a nail by the side table
       {
@@ -2159,7 +2207,7 @@ export default {
     passageLight.position.set(DOORS.foyer.x - 0.2, 1.9, Z1 + 0.55);
     add(passageLight);
     // moonlight through the sash window
-    const moon = new THREE.SpotLight(0xa7bcff, 1050, 18, 0.3, 0.65, 2);
+    const moon = new THREE.SpotLight(0xa7bcff, 1500, 18, 0.3, 0.55, 2);
     moon.map = CV.gobo;
     moon.position.set(WIN.x + 1.6, 5.6, Z0 - 4.2);
     moon.target.position.set(BLOCK.x + 0.15, 0.4, BLOCK.z + 0.6);
@@ -2177,7 +2225,7 @@ export default {
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
     const shaft = fx.shaft({
       center: winCenter, right: V3(WIN.w / 2 - 0.03, 0, 0), up: V3(0, WIN.h * 0.3, 0), direction: beamDir, length: 2.6,
-      color: 0xa4b8ff, intensity: 0.9, softness: 0.55, falloff: 1.6, panes: [3, 2], mullion: 0.03, noise: 0.8,
+      color: 0xa4b8ff, intensity: 0.5, softness: 0.5, falloff: 1.8, panes: [3, 2], mullion: 0.03, noise: 0.8,
     });
     add(shaft);
     add(fx.dust({ box: new THREE.Box3(V3(0.4, 0.6, Z0 + 0.15), V3(2.4, 2.8, -0.6)), count: 800, shafts: [shaft], size: 0.0065, intensity: 2.0, ambient: 0.015, random: ctx.random.fork('dust') }));
@@ -2401,8 +2449,8 @@ function stencilSack(material, tex) {
   if (st.x > 0.0 && st.x < 1.0 && st.y > 0.0 && st.y < 1.0) {
     float ink = texture2D(sStencil, vec2(st.x, st.y)).r;
     // ink sits on the yarn tops: the burlap's own brightness gates it
-    float top = smoothstep(0.015, 0.07, dot(diffuseColor.rgb, vec3(0.33)));
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.06, 0.07, 0.11), ink * top * 0.78);
+    float top = 0.7 + 0.3 * smoothstep(0.02, 0.12, dot(diffuseColor.rgb, vec3(0.33)));
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.008, 0.012, 0.03), ink * top * 0.92);
   }
 }`);
   };

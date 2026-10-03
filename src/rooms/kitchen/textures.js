@@ -72,7 +72,7 @@ export function flagstoneTexture(forge, size = 2048) {
 
 /** Glazed cream tiles in running bond (0.15 x 0.075 m): per-tile glaze drift, crackle crazing, chips, odd replaced tiles. 1 tile = 1.2 x 1.2 m. */
 export function wallTileTexture(forge, size = 2048) {
-  return forge.generate('kitchen:walltile4', {
+  return forge.generate('kitchen:walltile6', {
     size, normalStrength: 2.6,
     glsl: /* glsl */ `
     void surface(vec2 uv, inout Surface s) {
@@ -98,14 +98,14 @@ export function wallTileTexture(forge, size = 2048) {
       // glaze pools darker toward the edges
       col *= 0.88 + 0.12 * smoothstep(0.0, 0.012, de);
       // crackle crazing (fine voronoi), stained by grease
-      float craze = 1.0 - smoothstep(0.0, 0.004, voronoiEdge(uv * 34.0 + h3.xy * 3.0, vec2(34.0), 1.0));
-      float craze2 = 1.0 - smoothstep(0.0, 0.005, voronoiEdge(uv * 90.0 + h3.yz, vec2(90.0), 1.0));
+      float craze = 1.0 - smoothstep(0.0, 0.035, voronoiEdge(uv * 34.0 + h3.xy * 3.0, vec2(34.0), 1.0));
+      float craze2 = 1.0 - smoothstep(0.0, 0.06, voronoiEdge(uv * 70.0 + h3.yz, vec2(70.0), 1.0));
       craze = max(craze, craze2 * 0.7) * (1.0 - replaced) * smoothstep(0.15, 0.6, fbm(uv + h3.z, vec2(10.0), 3) * 0.5 + 0.5);
       // a through-crack across some tiles
       float tc = cracked * (1.0 - smoothstep(0.0, 0.03, abs(f.y - 0.5 - 0.3 * sin(f.x * 4.0 + h4.z * 6.0) * (f.x - 0.3))));
       float grime = smoothstep(0.42, 0.9, fbm(uv + 5.0, vec2(6.0), 5) * 0.5 + 0.5);
       col = mix(col, col * vec3(0.72, 0.64, 0.5), grime * 0.55);
-      col = mix(col, col * vec3(0.55, 0.5, 0.42), craze * 0.55);
+      col = mix(col, col * vec3(0.5, 0.42, 0.32), craze * 0.6);
       col = mix(col, vec3(0.3, 0.26, 0.2), tc * 0.8);
       // chipped arrises revealing the biscuit
       float chipN = vnoise(uv * 140.0 + h3.xy * 10.0, vec2(140.0));
@@ -113,7 +113,7 @@ export function wallTileTexture(forge, size = 2048) {
       // knocked corners: about one tile in three has lost a corner, showing the buff biscuit (dirty)
       vec2 cc = step(0.5, h3.yz);
       float cdist = length((f - cc) * vec2(0.15, 0.075));
-      float corner = step(0.66, h4.z) * (1.0 - smoothstep(0.0045, 0.0065, cdist + (chipN - 0.5) * 0.004 - h3.x * 0.003));
+      float corner = step(0.62, h4.z) * (1.0 - smoothstep(0.008, 0.011, cdist + (chipN - 0.5) * 0.006 - h3.x * 0.005));
       chip = max(chip, corner);
       col = mix(col, vec3(0.5, 0.41, 0.31) * (0.8 + 0.3 * chipN), chip);
       vec3 groutCol = vec3(0.3, 0.28, 0.25) * (0.75 + 0.5 * grime);
@@ -179,7 +179,7 @@ export function borderTileTexture(forge, size = 512) {
 /** End-grain butcher block: glued blocks of irregular size (40-90 mm) with soft radial growth rings, knife scoring,
  *  a worn polished hollow, oiled dark perimeter, stains, flour in the seams. Non-tiling, aspect w/h. */
 export function butcherBlockTexture(forge, { aspect = 2, size = 2048 } = {}) {
-  return forge.generate(`kitchen:butcher3:${aspect}`, {
+  return forge.generate(`kitchen:butcher4:${aspect}`, {
     size, aspect, tile: false, normalStrength: 1.5,
     uniforms: { uAsp: aspect },
     glsl: /* glsl */ `
@@ -233,7 +233,7 @@ export function butcherBlockTexture(forge, { aspect = 2, size = 2048 } = {}) {
       }
       score *= 0.25 + hollow * 0.9;
       // stains: blood/wine/grease blotches
-      float stn = fbm(uv + 3.0, vec2(2.0 * uAsp, 2.0), 5) * 0.5 + 0.5;
+      float stn = fbm(uv + 3.0, vec2(floor(2.0 * uAsp + 0.5), 2.0), 5) * 0.5 + 0.5;
       float st = smoothstep(0.62, 0.85, stn);
       float ring2 = stroke(stn - 0.64, 0.0, 0.006);
       col = mix(col, col * vec3(0.6, 0.38, 0.32), st * 0.55);
@@ -242,12 +242,12 @@ export function butcherBlockTexture(forge, { aspect = 2, size = 2048 } = {}) {
       // oiled, handled perimeter: a dark band round the edge where hands and oil rags go
       vec2 em = min(uv, 1.0 - uv) * vec2(uAsp, 1.0) * 0.78;
       float edge = 1.0 - smoothstep(0.0, 0.07, min(em.x, em.y));
-      edge *= 0.75 + 0.5 * fbm(uv + 44.0, vec2(6.0 * uAsp, 6.0), 3);
+      edge *= 0.75 + 0.5 * fbm(uv + 44.0, vec2(floor(6.0 * uAsp + 0.5), 6.0), 3);
       col = mix(col, col * vec3(0.5, 0.38, 0.3), clamp(edge, 0.0, 1.0) * 0.65);
       col = mix(col, col * 0.55, seam * 0.6);
       col = mix(col, vec3(0.8, 0.7, 0.55), score * 0.22);   // pale fresh cuts
       // flour: dusted over the left (pastry) end, packed into the seams and knife scores
-      float fl0 = fbm(uv + 17.0, vec2(3.0 * uAsp, 3.0), 4) * 0.5 + 0.5;
+      float fl0 = fbm(uv + 17.0, vec2(floor(3.0 * uAsp + 0.5), 3.0), 4) * 0.5 + 0.5;
       float flourZone = smoothstep(0.62, 0.15, uv.x);
       float flour = smoothstep(0.45, 0.85, fl0) * flourZone;
       float flourSeam = (seam + score * 0.6) * smoothstep(0.3, 0.6, fl0) * smoothstep(0.85, 0.2, uv.x);
@@ -302,12 +302,12 @@ export function blockSideTexture(forge, size = 1024) {
 
 /** Scrubbed pine for the block's legs, aprons and pot board: bleached grain, grey dirt in the pores. 1 tile = 1 m. */
 export function scrubbedPineTexture(forge, size = 1024) {
-  return forge.generate('kitchen:scrubpine2', {
+  return forge.generate('kitchen:scrubpine3', {
     size, normalStrength: 1.2,
     glsl: /* glsl */ `
     void surface(vec2 uv, inout Surface s) {
       vec2 p = uv * vec2(1.0, 1.0);
-      float w = fbm(vec2(p.x * 3.0, p.y * 0.4), vec2(3.0, 0.4), 4);
+      float w = fbm(p, vec2(9.0, 1.0), 4);
       float rings = sin((p.x * 40.0 + w * 6.0) * 3.14159) * 0.5 + 0.5;
       rings = pow(rings, 4.0);
       float pores = fbm(vec2(p.x * 1.0, p.y * 1.0) + 5.0, vec2(300.0, 12.0), 3) * 0.5 + 0.5;
@@ -734,7 +734,7 @@ const FOOT_GLSL = /* glsl */ `
       press = max(press, (1.0 - smoothstep(-0.01, 0.006, heel)) * (0.75 + 0.25 * smoothstep(0.0, -0.08, heel)));
       press = max(press, (1.0 - smoothstep(-0.01, 0.006, ball)) * (0.7 + 0.3 * smoothstep(0.0, -0.06, ball)));
       press = max(press, (1.0 - smoothstep(-0.01, 0.006, outer)) * 0.22);
-      press = max(press, (1.0 - smoothstep(-0.008, 0.004, toes)) * 0.85);
+      press = max(press, (1.0 - smoothstep(-0.006, 0.01, toes)) * 0.45);
       return press;
     }`;
 
@@ -747,7 +747,7 @@ const FOOT_GLSL = /* glsl */ `
  */
 export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 7.2], block = [0.2, -0.6], blockHalf = [0.7, 0.34], kerb = [-1.97, -0.63, -3.1], sack = [-1.1, -1.45], sacks = [], tile = [-3.2, 3.4, 0.3], trail = [[0.05, -0.62], [2.95, -1.2]] } = {}) {
   const S = sacks.slice(0, 4); while (S.length < 4) S.push([99, 99, 0.01]);
-  return forge.generate('kitchen:flour11', {
+  return forge.generate('kitchen:flour13', {
     size, aspect: rect[2] / rect[3], tile: false, normalStrength: 1.6,
     uniforms: { uRect: rect, uBlock: [...block, ...blockHalf], uKerb: kerb, uSack: sack, uS0: S[0], uS1: S[1], uS2: S[2], uS3: S[3], uTile: tile, uP0: trail[0], uP1: trail[1] },
     glsl: /* glsl */ `
@@ -815,10 +815,10 @@ export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 
       float body = smoothstep(0.34, 0.5, edgeV);
       // powder: scattered grains and puffs thrown just beyond the margin, densest close to it
       float halo = smoothstep(0.12, 0.34, edgeV) * (1.0 - body);
-      float puff = halo * smoothstep(0.55, 0.85, grain2 * 0.6 + n5 * 0.6) * 0.55 + halo * step(0.9, grain) * 0.4;
+      float puff = halo * smoothstep(0.62, 0.9, n5 * 0.8 + grain2 * 0.3) * 0.5;
       // a thin dusting (tracked flour) as a fine grained veil, never a fog
-      float dustV = smoothstep(0.08, 0.3, dust) * (0.25 + 0.5 * step(0.62, grain * grain2 * 1.5 + n5 * 0.3)) * 0.4;
-      float cov = max(body * (0.86 + 0.14 * n5), max(puff, dustV));
+      float dustV = smoothstep(0.08, 0.3, dust) * (0.35 + 0.4 * smoothstep(0.4, 0.8, grain2 * 0.5 + n5 * 0.6)) * 0.3;
+      float cov = max(body * (0.72 + 0.2 * smoothstep(0.5, 1.1, a) + 0.08 * n5), max(puff, dustV));
       float thin = 1.0 - body;
       cov += joint * smoothstep(0.1, 0.32, edgeV) * thin * 0.22;
       float alpha = clamp(cov, 0.0, 1.0) * 0.92;
@@ -850,7 +850,7 @@ export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 
 
 /** The trail of small bare footprints from the spill to the dumbwaiter: rect = [x0, z0, w, d] (z0 = max z). */
 export function flourPrintsTexture(forge, { size = 2048, rect = [0.0, -0.3, 3.2, 1.2], trail = [[0.05, -0.62], [2.95, -1.2]], steps = 9 } = {}) {
-  return forge.generate('kitchen:prints3', {
+  return forge.generate('kitchen:prints4', {
     size, aspect: rect[2] / rect[3], tile: false, normalStrength: 0.6,
     uniforms: { uRect: rect, uP0: trail[0], uP1: trail[1], uSteps: steps },
     glsl: /* glsl */ `
@@ -880,9 +880,9 @@ export function flourPrintsTexture(forge, { size = 2048, rect = [0.0, -0.3, 3.2,
         float patchy = smoothstep(0.15 + (1.0 - fade) * 0.35, 0.6, blot + pr * 0.25);
         fp = max(fp, pr * (0.35 + 0.65 * fade) * patchy);
       }
-      float alpha = smoothstep(0.12, 0.45, fp) * smoothstep(0.2, 0.55, grain * 0.6 + fp * 0.6);
+      float alpha = smoothstep(0.12, 0.5, fp) * smoothstep(0.25, 0.65, grain * 0.5 + blot * 0.3 + fp * 0.5);
       s.albedo = vec3(0.8, 0.77, 0.7) * (0.92 + 0.08 * grain);
-      s.alpha = saturate(alpha * 0.48);
+      s.alpha = saturate(alpha * 0.34);
       s.height = 0.5 + alpha * 0.2;
       s.rough = 0.92; s.metal = 0.0; s.ao = 1.0;
     }`,
@@ -1039,7 +1039,7 @@ export function flourGrainTexture(forge, size = 512) {
 /** Ceiling boards between the beams: adzed pine boards running along V (≈16 cm wide, random lengths, butt joints),
  *  limewashed once long ago and smoked brown since. 1 tile = 2 m. */
 export function ceilingBoardTexture(forge, size = 2048) {
-  return forge.generate('kitchen:ceilboards', {
+  return forge.generate('kitchen:ceilboards2', {
     size, normalStrength: 2.4,
     glsl: /* glsl */ `
     void surface(vec2 uv, inout Surface s) {
@@ -1056,14 +1056,14 @@ export function ceilingBoardTexture(forge, size = 2048) {
       float gap = 1.0 - smoothstep(0.0, 0.004, min(bf, 1.0 - bf) * bw);
       float butt = 1.0 - smoothstep(0.0, 0.003, min(jf, 1.0 - jf) * L);
       // grain along the board, adze scallops across it
-      float grain = fbm(vec2(bf * 3.0 + h.z * 9.0, m.y * 0.6), vec2(3.0, 1.2), 4) * 0.5 + 0.5;
+      float grain = fbm(vec2(bf + h.z * 3.0, m.y * 0.5), vec2(3.0, 1.0), 4) * 0.5 + 0.5;
       float rings = sin((bf * 8.0 + grain * 3.0) * 3.14159) * 0.5 + 0.5;
       float adze = sin(m.y * 34.0 + h2.x * 6.0 + sin(bf * 3.0) * 0.6) * 0.5 + 0.5;
       // old limewash surviving in the hollows, smoke over everything
       float lime = smoothstep(0.5, 0.8, fbm(m * 1.5 + h.xy * 7.0, vec2(3.0), 4) * 0.5 + 0.5) * (1.0 - adze * 0.6);
       vec3 wood = mix(vec3(0.3, 0.21, 0.14), vec3(0.38, 0.28, 0.18), h2.y) * (0.85 + 0.15 * rings) * (0.92 + 0.12 * grain);
       vec3 col = mix(wood, vec3(0.52, 0.48, 0.4), lime * 0.55);
-      float smoke = fbm(m * 0.7 + 3.0, vec2(1.4), 4) * 0.5 + 0.5;
+      float smoke = fbm(m + 3.0, vec2(1.0), 4) * 0.5 + 0.5;
       col *= 0.72 + 0.28 * smoke;
       col = mix(col, vec3(0.03, 0.025, 0.02), max(gap, butt) * 0.9);
       // nail heads at each joist line

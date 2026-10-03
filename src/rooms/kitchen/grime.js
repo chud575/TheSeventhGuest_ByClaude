@@ -12,7 +12,7 @@ import * as THREE from 'three';
  * plumes: [[x, z, yBase, strength, width]]  path: [[x, z], ...] (polyline, max 4 points)
  */
 export function applyGrime(material, {
-  plumes = [], ceiling = [3.4, 0.7, 0.45], floor = [0.35, 0.35], path = null, pathWidth = 0.45, pathStrength = 0.5, noise = 0.25, tag = 'g', tiles = null,
+  plumes = [], ceiling = [3.4, 0.7, 0.45], floor = [0.35, 0.35], path = null, pathWidth = 0.45, pathStrength = 0.5, noise = 0.25, tag = 'g', tiles = null, sootTint = [0.92, 0.88, 0.8], sootTintAmt = 0.5,
 } = {}) {
   const T = tiles ? { grid: [8, 8], offset: 0, amp: 0.1, hue: 0.03, rough: 0.25, tilt: 0.0, ...tiles } : null;
   const P = plumes.slice(0, 8);
@@ -29,6 +29,7 @@ export function applyGrime(material, {
       gPlumes: { value: plumeA }, gPlumeW: { value: plumeW },
       gCeil: { value: new THREE.Vector3(...ceiling) }, gFloor: { value: new THREE.Vector2(...floor) },
       gPath: { value: pts }, gPathW: { value: pathWidth }, gPathS: { value: pathStrength }, gNoise: { value: noise },
+      gSootTint: { value: new THREE.Vector4(...sootTint, sootTintAmt) },
     });
     if (T) Object.assign(shader.uniforms, { gTGrid: { value: new THREE.Vector2(...T.grid) }, gTP: { value: new THREE.Vector4(T.amp, T.hue, T.rough, T.tilt) }, gTOff: { value: T.offset } });
     shader.vertexShader = shader.vertexShader
@@ -43,6 +44,7 @@ uniform vec3 gCeil;
 uniform vec2 gFloor;
 uniform vec2 gPath[4];
 uniform float gPathW, gPathS, gNoise;
+uniform vec4 gSootTint;
 float gH(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float gN(vec3 x) {
   vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
@@ -91,7 +93,7 @@ float gPathV = gPathS * gPathMask() * (0.7 + 0.5 * gn2) * step(vGW.y, 0.05);
 float gDark = 1.0 - clamp(gSootV + gCeilV + gFloorV, 0.0, 0.88);
 diffuseColor.rgb *= gDark * (1.0 + (gn - 0.5) * gNoise);
 diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.78, 0.74, 0.72), gPathV);
-diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.92, 0.88, 0.8), clamp(gSootV, 0.0, 1.0) * 0.5);
+diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * gSootTint.rgb, clamp(gSootV * 1.6, 0.0, 1.0) * gSootTint.a);
 ${T ? `vec4 gTh = gTileH(vMapUv);
 diffuseColor.rgb *= 1.0 + (gTh.x - 0.5) * gTP.x;
 diffuseColor.rgb *= 1.0 + (vec3(gTh.y, 0.5, 1.0 - gTh.y) - 0.5) * gTP.y;` : ''}`)
