@@ -25,7 +25,7 @@ export const infectionMeta = {
   ],
 };
 
-const BLUE_COL = new THREE.Color(0.1, 0.32, 0.95), GREEN_COL = new THREE.Color(0.3, 0.85, 0.12);
+const BLUE_COL = new THREE.Color(0.03, 0.16, 1.0), GREEN_COL = new THREE.Color(0.22, 0.95, 0.04);
 
 /** organic cell blob: a flattened, slightly lumpy dome with a nucleus dimple */
 function blobGeometry(r) {
@@ -58,7 +58,7 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
 
   // ---------------------------------------------------------------- plate
   const plateTex = plateTexture(ctx.textures, { cell: cellU });
-  const plateMat = new THREE.MeshPhysicalMaterial({ map: plateTex, roughness: 0.18, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.06, emissive: new THREE.Color(1, 1, 1), emissiveMap: plateTex, emissiveIntensity: 0.12, envMapIntensity: 1.2, name: 'specimenPlate' });
+  const plateMat = new THREE.MeshPhysicalMaterial({ map: plateTex, roughness: 0.3, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.28, emissive: new THREE.Color(1, 1, 1), emissiveMap: plateTex, emissiveIntensity: 0.12, envMapIntensity: 1.2, name: 'specimenPlate' });
   const plate = new THREE.Mesh(new THREE.CircleGeometry(plateRadius, 96).rotateX(-Math.PI / 2), plateMat);
   plate.receiveShadow = true;
   group.add(plate);
@@ -73,8 +73,22 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
 
   // ---------------------------------------------------------------- cells (two instanced cultures)
   const blob = blobGeometry(c * 0.8);
-  const mkCellMat = (col, glow) => new THREE.MeshPhysicalMaterial({ color: col.clone().multiplyScalar(0.55), emissive: col.clone(), emissiveIntensity: glow, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.08, sheen: 0.6, sheenColor: col.clone().lerp(new THREE.Color(1, 1, 1), 0.5), envMapIntensity: 1.0, name: 'culture' });
-  const blueMat = mkCellMat(BLUE_COL, 0.55), greenMat = mkCellMat(GREEN_COL, 0.42);
+  // cell skin: a dark nucleus on the crown (top pole of the sphere UVs), granular cytoplasm, a pale membrane at the rim
+  const cellTex = ctx.textures.canvas('attic:cell', 128, 256, (g, w, h) => {
+    for (let y = 0; y < h; y++) {
+      const v = 1 - y / h;                         // 1 = top pole
+      const nuc = Math.max(0, 1 - Math.abs(v - 0.94) / 0.07);
+      const mem = Math.max(0, 1 - Math.abs(v - 0.5) / 0.05);
+      for (let x = 0; x < w; x += 4) {
+        const n = 0.82 + 0.18 * Math.sin(x * 0.7 + y * 1.3) * Math.sin(x * 0.23 - y * 0.41);
+        const k = Math.max(0.12, (1 - nuc * 0.88) * n) + mem * 0.35;
+        const c = Math.round(Math.min(1, k) * 255);
+        g.fillStyle = `rgb(${c},${c},${c})`; g.fillRect(x, y, 4, 1);
+      }
+    }
+  }, { tile: false });
+  const mkCellMat = (col, glow) => new THREE.MeshPhysicalMaterial({ map: cellTex, emissiveMap: cellTex, color: col.clone().multiplyScalar(0.6), emissive: col.clone(), emissiveIntensity: glow, roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.18, envMapIntensity: 0.5, name: 'culture' });
+  const blueMat = mkCellMat(BLUE_COL, 0.32), greenMat = mkCellMat(GREEN_COL, 0.22);
   const blues = new THREE.InstancedMesh(blob, blueMat, H.N + 1);
   const greens = new THREE.InstancedMesh(blob, greenMat, H.N + 1);
   for (const im of [blues, greens]) { im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; group.add(im); }
@@ -317,6 +331,8 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
       phase = 'player'; syncScales(true); writeInstances(0); writeRings(0);
     },
     select(i) { selected = i; },
+    /** QA: let the computer play one blue move at the given level */
+    aiMove(lvl = 1, seed = 11) { if (phase !== 'player') return false; const m = H.chooseMove(board, H.BLUE, { level: lvl, rand: H.prng(seed + moves), foresight: 0.55 }); return m ? playerMove(m.from, m.to) : false; },
     legal: () => H.legalMoves(board, H.BLUE),
   };
 }

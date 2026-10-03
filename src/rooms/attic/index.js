@@ -49,7 +49,7 @@ const BENCH = new THREE.Vector3(-1.35, 0, Z0 + 0.42);
 const ROOM_GRADE = {
   exposure: 2.3, contrast: 1.1, saturation: 0.96, toneMapping: 'aces',
   shadowTint: [0.78, 0.92, 1.22], highlightTint: [1.14, 1.0, 0.82], splitAmount: 0.6,
-  vignette: 0.5, grain: 0.04, bloomStrength: 0.45, bloomThreshold: 1.0,
+  vignette: 0.5, grain: 0.04, bloomStrength: 0.32, bloomThreshold: 2.0,
   godRayWeight: 0.45, godRayThreshold: 2.0, aoIntensity: 1.15, aoRadius: 0.4,
 };
 
@@ -131,7 +131,7 @@ export default {
       handle: paint(0x5a3a1e, { clearcoat: 0.3, roughness: 0.6, name: 'handle' }),
       toyRed: paint(0x8a1410, { name: 'toyRed' }), toyBlue: paint(0x16306e, { name: 'toyBlue' }), toyGold: paint(0xb08a30, { metalness: 0.6, name: 'toyGold' }),
       toyWhite: paint(0xd8d0c0, { name: 'toyWhite' }), toyBlack: paint(0x0c0a0a, { name: 'toyBlack' }), toyGreen: paint(0x1f4a24, { name: 'toyGreen' }),
-      vellum: new THREE.MeshStandardMaterial({ color: 0xcfc2a0, roughness: 0.7, name: 'vellum' }),
+      vellum: new THREE.MeshStandardMaterial({ color: 0x8a7e66, roughness: 0.7, name: 'vellum' }),
       hair: new THREE.MeshStandardMaterial({ color: 0x2a170c, roughness: 0.8, name: 'hair' }),
       glassEye: new THREE.MeshPhysicalMaterial({ color: 0x0a0806, roughness: 0.05, clearcoat: 1, name: 'glassEye' }),
       horse: paint(0x7c766c, { name: 'horse' }),
@@ -146,7 +146,7 @@ export default {
       liquidRed: new THREE.MeshStandardMaterial({ color: 0x5a0808, roughness: 0.1, transparent: true, opacity: 0.85, name: 'liqR' }),
       liquidAmber: new THREE.MeshStandardMaterial({ color: 0x7a4a0a, roughness: 0.1, transparent: true, opacity: 0.85, name: 'liqA' }),
       ruby: new THREE.MeshPhysicalMaterial({ color: 0x6a0a0a, roughness: 0.1, clearcoat: 1, transmission: 0, emissive: new THREE.Color(0.5, 0.05, 0.02), emissiveIntensity: 0.2, name: 'rubyGlass' }),
-      chimney: new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.05, transparent: true, opacity: 0.16, depthWrite: false, name: 'lampChimney' }),
+      chimney: new THREE.MeshBasicMaterial({ color: 0xffd9a8, transparent: true, opacity: 0.07, depthWrite: false, name: 'lampChimney' }),
       dressForm: new THREE.MeshStandardMaterial({ color: 0x4a4038, roughness: 0.85, name: 'dressForm' }),
       tape: new THREE.MeshStandardMaterial({ color: 0xc8b070, roughness: 0.6, name: 'tape' }),
       string: new THREE.MeshBasicMaterial({ color: 0x8a8070, name: 'string' }),
@@ -297,6 +297,9 @@ export default {
       // outer skin (to block the moon everywhere but the oculus)
       const back = gable(Z0 - WALL_T, [oc.clone()], mat.brickDark, false);
       void back;
+      // black mask ring behind the walls: hides hairline triangulation cracks against the bright sky card
+      const mask = add(new THREE.Mesh(new THREE.RingGeometry(OCULUS.r - 0.01, 3.2, 96, 1), new THREE.MeshBasicMaterial({ color: 0x000000, name: 'skyMask' })));
+      mask.position.set(OCULUS.x, OCULUS.y, Z0 - WALL_T - 0.02); mask.userData.noShadow = true;
       // stone surround of the oculus: moulded ring + keystones
       const ringProf = [V2(OCULUS.r - 0.0, 0), V2(OCULUS.r + 0.02, 0.0), V2(OCULUS.r + 0.03, 0.04), V2(OCULUS.r + 0.09, 0.05), V2(OCULUS.r + 0.12, 0.03), V2(OCULUS.r + 0.16, 0.03), V2(OCULUS.r + 0.17, 0.0)];
       const ring = new THREE.Mesh(new THREE.LatheGeometry(ringProf.map((p) => V2(p.x, p.y)), 72), mat.stone);
@@ -479,7 +482,7 @@ export default {
     const LAMP_X = PLATE.x + 0.05, LAMP_Z = TRUSS_Z[0] + 0.11;
     const lamp = dyn(buildHangingLamp(ctx, mat, { drop: COLLAR_Y - 0.11 - 2.05 }));
     lamp.position.set(LAMP_X, COLLAR_Y - 0.11, LAMP_Z); add(lamp);
-    const lampFlame = fx.flame({ height: 0.05, width: 0.016, intensity: 8, seed: 11 });
+    const lampFlame = fx.flame({ height: 0.045, width: 0.014, intensity: 4, seed: 11 });
     lampFlame.position.set(0, lamp.userData.flameY, 0); lamp.add(lampFlame);
     const LAMP_Y = COLLAR_Y - 0.11 + lamp.userData.flameY + 0.04;
 
@@ -574,7 +577,7 @@ export default {
     const moonAim = V3(PLATE.x + 0.15, 0.0, -0.4);
     const moonDir = moonAim.clone().sub(ocC).normalize();
     const moonPos = ocC.clone().addScaledVector(moonDir, -9);
-    const moon = new THREE.SpotLight(0xa8bcff, 2600, 26, 0.105, 0.35, 2);
+    const moon = new THREE.SpotLight(0xa8bcff, 1500, 26, 0.105, 0.35, 2);
     moon.position.copy(moonPos); moon.target.position.copy(moonAim);
     moon.castShadow = Q.shadows;
     moon.shadow.mapSize.set(Math.max(1024, Q.shadowMapSize), Math.max(1024, Q.shadowMapSize));
@@ -591,7 +594,7 @@ export default {
     lampSpot.shadow.mapSize.set(1024, 1024); lampSpot.shadow.bias = -0.0012; lampSpot.shadow.normalBias = 0.02; lampSpot.shadow.radius = 5;
     lampSpot.shadow.camera.near = 0.1; lampSpot.shadow.camera.far = 5;
     root.add(lampSpot, lampSpot.target);
-    const lampGlow = new THREE.PointLight(0xffa050, 4.0, 8, 2); lampGlow.position.set(LAMP_X, LAMP_Y + 0.06, LAMP_Z); root.add(lampGlow);
+    const lampGlow = new THREE.PointLight(0xffa050, 3.0, 8, 2); lampGlow.position.set(LAMP_X, LAMP_Y - 0.06, LAMP_Z); root.add(lampGlow);
     // workbench candles
     const candleLight = new THREE.PointLight(0xff9a48, 1.8, 3.5, 2); candleLight.position.set(-1.9, BT + 0.3, BENCH.z + 0.25); root.add(candleLight);
     // the furnace light from the stair beyond the door: a shadowed spot through the gap + red fill
@@ -651,19 +654,20 @@ export default {
       ln.add(at(new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.07, 6), mat.tin), 0, 0.25, 0));
       ln.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.004, 6, 14), mat.iron), 0, 0.31, 0));
       for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; ln.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.2, 0.008), mat.tin), Math.cos(a) * 0.058, 0.12, Math.sin(a) * 0.058)); }
-      const lg = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.058, 0.19, 6, 1, true), mat.glass); lg.position.y = 0.12; lg.userData.noShadow = true; ln.add(lg);
+      const lg = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.058, 0.19, 6, 1, true), mat.chimney); lg.position.y = 0.12; lg.userData.noShadow = true; ln.add(lg);
       const cnd = fx.candle({ height: 0.07, radius: 0.016, light: false, seed: 31 }); cnd.position.y = 0.025; ln.add(cnd);
       ln.position.set(-3.08, 0.36 + 0.13, 0.45); add(ln);
       const ll = new THREE.PointLight(0xff9448, 1.6, 4, 2); ll.position.set(-3.0, 0.62, 0.45); root.add(ll);
       ctx.onUpdate((dt, t) => { ll.intensity = 1.6 * (0.9 + 0.1 * Math.sin(t * 8.1) * Math.sin(t * 2.7)); });
     }
 
+    let solvedCine = false, puzzleActive = false;
     // ================================================================ volumetrics
     const shafts = [];
     {
       // round moon beam: a LightShaft with its cross-section made circular and the spoke pattern carved in
       const right = V3(OCULUS.r * 0.95, 0, 0), up = V3(0, OCULUS.r * 0.95, 0);
-      const sh = new LightShaft({ timeUniform: ctx.time, steps: Q.volumetricSteps, center: V3(OCULUS.x, OCULUS.y, Z0 + 0.03), right, up, direction: moonDir, length: 6.8, color: 0x9fb6ff, intensity: 0.5, softness: 0.22, falloff: 0.9, panes: [0, 0], noise: 0.75 });
+      const sh = new LightShaft({ timeUniform: ctx.time, steps: Q.volumetricSteps, center: V3(OCULUS.x, OCULUS.y, Z0 + 0.03), right, up, direction: moonDir, length: 6.8, color: 0x9fb6ff, intensity: 0.42, softness: 0.22, falloff: 0.9, panes: [0, 0], noise: 0.75 });
       sh.material.fragmentShader = sh.material.fragmentShader
         .replace('vec2 e = 1.0 - smoothstep(1.0 - uSoftness, 1.0, abs(b.xy));\n  float edge = e.x * e.y;',
           `vec2 bq = b.xy * (1.0 + b.z * 0.04);
@@ -681,9 +685,23 @@ export default {
       const dsh = fx.shaft({ center: V3(DOOR.x0 + dw + 0.02, 0.98, Z0 + 0.05), right: V3(dw, 0, 0), up: V3(0, 0.93, 0), direction: V3(-0.35, -0.22, 1).normalize(), length: 3.6, color: 0xff6a30, intensity: 0.5, softness: 0.4, falloff: 1.3, panes: [0, 0], noise: 0.8 });
       add(dsh); shafts.push(dsh);
       for (const hs of holeShafts) { const sh2 = fx.shaft({ ...hs, direction: moonDir, length: 5.5, color: 0x9fb6ff, intensity: 0.3, softness: 0.75, falloff: 0.7, panes: [0, 0], noise: 0.8 }); add(sh2); shafts.push(sh2); }
-      // lamp haze cone
-      const lsh = fx.shaft({ center: V3(LAMP_X, LAMP_Y - 0.12, LAMP_Z), right: V3(0.16, 0, 0), up: V3(0, 0, 0.16), direction: V3(0, -1, 0), length: 0.8, color: 0xffb070, intensity: 0.12, softness: 0.7, falloff: 0.8, panes: [0, 0], noise: 0.9 });
-      add(lsh); shafts.push(lsh);
+      // soft-saturate the in-scattering so a beam seen end-on does not white out the frame
+      for (const sh of shafts) { sh.material.fragmentShader = sh.material.fragmentShader.replace('float v = acc / steps * lenW;', 'float v = acc / steps * lenW; v = (1.0 - exp(-v * 1.6)) / 1.6;'); sh.material.needsUpdate = true; }
+    }
+    // fade beams the camera stands inside (the haze would otherwise fill the whole screen)
+    {
+      const camB = new THREE.Vector3();
+      const beams = shafts.map((sh) => ({ sh, i0: sh.material.uniforms.uIntensity.value }));
+      ctx.onUpdate(() => {
+        if (puzzleActive) return;
+        for (const b of beams) {
+          const u = b.sh.material.uniforms;
+          camB.copy(ctx.camera.position).sub(u.uOrigin.value).applyMatrix3(u.uInv.value);
+          const r = Math.hypot(camB.x, camB.y);
+          const inside = camB.z > -0.05 && camB.z < 1.05 ? 1 - THREE.MathUtils.smoothstep(r, 0.9, 2.2) : 0;
+          u.uIntensity.value = b.i0 * (1 - 0.8 * inside);
+        }
+      });
     }
     const dust = fx.dust({ box: new THREE.Box3(V3(-2.0, 0.2, Z0 + 0.2), V3(2.6, 3.4, 1.5)), count: 3200, shafts, size: 0.011, intensity: 2.2, ambient: 0.05 });
     add(dust);
@@ -691,16 +709,16 @@ export default {
     add(fx.fog({ box: new THREE.Box3(V3(-2.5, 1.0, Z0 + 0.2), V3(2.5, 3.8, 1.0)), color: 0x10141e, litColor: 0x3a4664, density: 0.12, heightFalloff: 0.5 }));
 
     // ================================================================ the infection puzzle
-    let solvedCine = false, puzzleActive = false;
     const inf = createInfectionPuzzle(ctx, {
       parent: root,
       center: PLATE.clone().add(V3(0, 0.004, 0)),
       plateRadius: PLATE_R,
       mats: { brass: mat.brass },
-      camera: { position: [PLATE.x, PLATE.y + 0.56, PLATE.z + 0.3], target: [PLATE.x, PLATE.y, PLATE.z + 0.015], fov: 46 },
+      camera: { position: [PLATE.x, PLATE.y + 0.6, PLATE.z + 0.34], target: [PLATE.x, PLATE.y, PLATE.z + 0.035], fov: 50 },
       onSolved: async () => {
         ctx.state.set('attic.infectionWon', true);
         solvedCine = true;
+        if (ctx.shot) doorOpen(1);
         await ctx.say({ text: 'No... *no!* My beautiful germs... You think you have *won*? Then come — come up the stairs, and claim your prize!', speaker: 'stauf', speakerName: 'Stauf' });
       },
     });
@@ -708,8 +726,8 @@ export default {
     {
       const pz = inf.puzzle, setup0 = pz.setup, teardown0 = pz.teardown;
       const i0 = shafts.map((s) => s.material.uniforms.uIntensity.value);
-      pz.setup = (p) => { puzzleActive = true; dust.visible = false; shafts.forEach((s, i) => { s.material.uniforms.uIntensity.value = i0[i] * 0.15; }); ctx.post.set({ godRayWeight: 0.05, vignette: 0.6, dof: null }, ctx.shot ? 0 : 0.8); return setup0(p); };
-      pz.teardown = (p) => { puzzleActive = false; dust.visible = true; shafts.forEach((s, i) => { s.material.uniforms.uIntensity.value = i0[i]; }); ctx.post.set({ godRayWeight: ROOM_GRADE.godRayWeight, vignette: ROOM_GRADE.vignette }, 0.8); return teardown0(p); };
+      pz.setup = (p) => { puzzleActive = true; dust.visible = false; shafts.forEach((s, i) => { s.material.uniforms.uIntensity.value = i0[i] * 0.15; }); ctx.post.set({ exposure: 1.55, bloomStrength: 0.25, godRayWeight: 0.05, vignette: 0.6, dof: null }, ctx.shot ? 0 : 0.8); return setup0(p); };
+      pz.teardown = (p) => { puzzleActive = false; dust.visible = true; shafts.forEach((s, i) => { s.material.uniforms.uIntensity.value = i0[i]; }); ctx.post.set({ exposure: ROOM_GRADE.exposure, bloomStrength: ROOM_GRADE.bloomStrength, godRayWeight: ROOM_GRADE.godRayWeight, vignette: ROOM_GRADE.vignette }, 0.8); return teardown0(p); };
     }
     if (ctx.state.isSolved(INFECTION_ID)) inf.applySolved();
     const hx = ctx.params.get('hexx');
@@ -734,11 +752,11 @@ export default {
       main: { position: [0.55, 1.62, 3.85], target: [-0.25, 1.62, -5.2], fov: 60, label: 'The attic', look: { yaw: [-55, 55], pitch: [-30, 30] } },
       stairs: { position: [-2.2, 1.62, 1.15], target: [-0.4, 1.4, -5.0], fov: 60, label: 'Top of the stairs', look: { yaw: [-60, 60], pitch: [-35, 25] } },
       stairs_down: { position: [-2.2, 1.62, 1.15], target: [-2.2, -0.6, 4.2], fov: 60, label: 'The stairs down' },
-      table: { position: [0.25, 1.58, 0.05], target: [0.85, 0.85, -1.55], fov: 55, label: 'The microscope table', look: { yaw: [-60, 60], pitch: [-40, 25] } },
+      table: { position: [1.6, 1.55, -0.2], target: [0.55, 0.82, -1.5], fov: 55, label: 'The microscope table', look: { yaw: [-60, 60], pitch: [-40, 25] } },
       bench: { position: [-1.25, 1.52, -2.85], target: [-1.35, 1.12, -5.2], fov: 56, label: 'Stauf\'s workbench', look: { yaw: [-60, 60], pitch: [-35, 35] } },
       window: { position: [-1.3, 1.5, -3.15], target: [-0.3, 2.7, -5.2], fov: 55, label: 'The round window', look: { yaw: [-50, 50], pitch: [-30, 40] } },
       door: { position: [1.05, 1.6, -2.75], target: [1.85, 1.05, -5.2], fov: 58, label: 'The glowing door', look: { yaw: [-50, 50], pitch: [-30, 25] } },
-      back: { position: [0.2, 1.62, -3.1], target: [-0.6, 1.25, 4.6], fov: 60, label: 'Looking back', look: { yaw: [-60, 60], pitch: [-30, 30] } },
+      back: { position: [1.1, 1.62, -3.3], target: [-0.9, 1.2, 4.6], fov: 60, label: 'Looking back', look: { yaw: [-60, 60], pitch: [-30, 30] } },
     };
     const edges = [
       ['stairs', 'stairs_down'],
@@ -813,7 +831,7 @@ export default {
       dbg.states.attic = () => ({ ...inf.state(), isSolved: ctx.state.isSolved(INFECTION_ID), doorOpen: doorPivot.rotation.y > DOOR.open + 0.3 });
       dbg.solve ||= (id) => (dbg.solvers[id] ? dbg.solvers[id]() : Promise.reject(new Error(`no solver for ${id}`)));
       dbg.state ||= (id) => (dbg.states[id] ? dbg.states[id]() : null);
-      dbg.attic = { inf, move: inf.move, staufNow: inf.staufNow, simulate: inf.simulate, reset: inf.reset, legal: inf.legal, doorOpen };
+      dbg.attic = { inf, aiMove: inf.aiMove, move: inf.move, staufNow: inf.staufNow, simulate: inf.simulate, reset: inf.reset, legal: inf.legal, doorOpen };
     }
 
     // review/debug: ?atOff=moon,lamp,hell,hemi,area,candle
@@ -840,7 +858,7 @@ export default {
     root.traverse((o) => { if (o.name === 'backGable' || o.name === 'sarking') o.castShadow = true; });
     root.userData.merge = mergeStatic(root);
 
-    const godRays = [{ position: V3(OCULUS.x, OCULUS.y, Z0 - 1.5), color: new THREE.Color(0.72, 0.8, 1.0), strength: 0.8, radius: 0.16 }];
+    const godRays = [{ position: V3(OCULUS.x, OCULUS.y, Z0 - 1.5), color: new THREE.Color(0.72, 0.8, 1.0), strength: 0.8, radius: 0.075 }];
 
     return {
       scene: root,
