@@ -462,3 +462,122 @@ void surface(vec2 uv, inout Surface s) {
 }`,
   });
 }
+
+/**
+ * Oil portrait of the composer (canvas): a three-quarter bust in Rembrandt
+ * chiaroscuro — umber ground, black coat, white stock, a gaunt lit face with a
+ * wild grey mane — finished with brush texture, canvas weave, craquelure and
+ * yellowed varnish. Authored for this room.
+ */
+export function portraitTexture(forge, { w = 1024, h = 1348 } = {}) {
+  return forge.canvas('music:portrait:v2', w, h, (g) => {
+    let sd = 1879; const rnd = () => { sd = (sd * 9301 + 49297) % 233280; return sd / 233280; };
+    const X = (v) => v * w, Y = (v) => v * h;
+    const ell = (cx, cy, rx, ry, color, rot = 0) => { g.save(); g.translate(X(cx), Y(cy)); g.rotate(rot); g.scale(X(rx), Y(ry)); g.beginPath(); g.arc(0, 0, 1, 0, Math.PI * 2); g.restore(); g.fillStyle = color; g.fill(); };
+    const soft = (cx, cy, r, color, a) => { const gr = g.createRadialGradient(X(cx), Y(cy), 0, X(cx), Y(cy), X(r)); gr.addColorStop(0, color.replace('A', a)); gr.addColorStop(1, color.replace('A', 0)); g.fillStyle = gr; g.fillRect(0, 0, w, h); };
+    // ground: warm umber, lit behind the head on the left
+    const bg = g.createRadialGradient(X(0.36), Y(0.3), X(0.05), X(0.45), Y(0.45), X(0.9));
+    bg.addColorStop(0, '#5a4630'); bg.addColorStop(0.45, '#2c2016'); bg.addColorStop(1, '#0d0906');
+    g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 900; i++) { const x = rnd() * w, y = rnd() * h, l = 20 + rnd() * 60; g.strokeStyle = `rgba(${60 + rnd() * 40},${45 + rnd() * 25},${25 + rnd() * 15},${0.05 + rnd() * 0.06})`; g.lineWidth = 6 + rnd() * 10; g.beginPath(); g.moveTo(x, y); g.lineTo(x + l * Math.cos(rnd() * 6), y + l * Math.sin(rnd() * 6)); g.stroke(); }
+    // coat: broad black shoulders with a dull highlight on the lit shoulder
+    g.fillStyle = '#0a0807';
+    g.beginPath(); g.moveTo(X(-0.05), Y(1.0)); g.bezierCurveTo(X(0.0), Y(0.78), X(0.18), Y(0.66), X(0.36), Y(0.62)); g.lineTo(X(0.62), Y(0.62));
+    g.bezierCurveTo(X(0.82), Y(0.66), X(0.98), Y(0.76), X(1.05), Y(1.0)); g.closePath(); g.fill();
+    soft(0.2, 0.74, 0.22, 'rgba(70,60,50,A)', 0.45);
+    // lapels
+    g.strokeStyle = 'rgba(40,34,30,0.9)'; g.lineWidth = X(0.008);
+    g.beginPath(); g.moveTo(X(0.38), Y(0.66)); g.lineTo(X(0.3), Y(1.0)); g.moveTo(X(0.6), Y(0.66)); g.lineTo(X(0.7), Y(1.0)); g.stroke();
+    // white stock and shirt front, with folds
+    g.fillStyle = '#d9cfb8';
+    g.beginPath(); g.moveTo(X(0.4), Y(0.6)); g.bezierCurveTo(X(0.42), Y(0.7), X(0.44), Y(0.82), X(0.49), Y(1.0)); g.lineTo(X(0.56), Y(1.0));
+    g.bezierCurveTo(X(0.58), Y(0.82), X(0.6), Y(0.7), X(0.6), Y(0.6)); g.closePath(); g.fill();
+    ell(0.5, 0.63, 0.1, 0.045, '#e4dbc6');
+    for (let i = 0; i < 14; i++) { g.strokeStyle = `rgba(120,105,85,${0.25 + rnd() * 0.25})`; g.lineWidth = 2 + rnd() * 3; const x = 0.43 + rnd() * 0.15; g.beginPath(); g.moveTo(X(x), Y(0.6 + rnd() * 0.05)); g.quadraticCurveTo(X(x + 0.02), Y(0.7), X(x + (rnd() - 0.5) * 0.04), Y(0.8 + rnd() * 0.15)); g.stroke(); }
+    soft(0.58, 0.72, 0.12, 'rgba(20,15,10,A)', 0.6);
+    // neck in shadow
+    ell(0.5, 0.56, 0.065, 0.06, '#5a3c2a');
+    // head: gaunt oval, turned three-quarters to the left, lit from upper left
+    const fx0 = 0.49, fy0 = 0.38;
+    g.save();
+    g.beginPath(); g.ellipse(X(fx0), Y(fy0 + 0.01), X(0.105), Y(0.15), -0.08, 0, Math.PI * 2);
+    g.ellipse(X(fx0 + 0.005), Y(fy0 + 0.12), X(0.07), Y(0.05), 0, 0, Math.PI * 2);
+    g.clip();
+    g.filter = 'blur(6px)';
+    g.fillStyle = '#6e4a34'; g.fillRect(0, 0, w, h);
+    soft(fx0 - 0.05, fy0 - 0.05, 0.15, 'rgba(226,186,148,A)', 0.9);       // light on forehead / cheek
+    soft(fx0 - 0.03, fy0 + 0.06, 0.06, 'rgba(210,160,125,A)', 0.5);
+    soft(fx0 + 0.1, fy0 + 0.03, 0.09, 'rgba(30,18,12,A)', 0.85);           // shadow side
+    soft(fx0 + 0.02, fy0 + 0.17, 0.07, 'rgba(40,24,16,A)', 0.6);           // under the jaw
+    g.filter = 'blur(2px)';
+    // clip the soft light to the head shape: repaint the outside with the ground (cheap mask)
+    // (done by drawing hair + coat afterwards, which cover the edges)
+    // brows, sockets, eyes
+    for (const [ex, sz] of [[fx0 - 0.055, 1.0], [fx0 + 0.05, 0.85]]) {
+      ell(ex, fy0 - 0.015, 0.036 * sz, 0.022, 'rgba(60,36,24,0.55)');
+      ell(ex, fy0 - 0.012, 0.016 * sz, 0.008, '#1a100a');
+      ell(ex - 0.004, fy0 - 0.015, 0.004, 0.003, 'rgba(240,230,210,0.9)');
+      g.strokeStyle = 'rgba(70,60,55,0.95)'; g.lineWidth = X(0.009); g.lineCap = 'round';
+      g.beginPath(); g.moveTo(X(ex - 0.03 * sz), Y(fy0 - 0.035)); g.quadraticCurveTo(X(ex), Y(fy0 - 0.05), X(ex + 0.03 * sz), Y(fy0 - 0.036)); g.stroke();
+      g.strokeStyle = 'rgba(70,40,28,0.5)'; g.lineWidth = X(0.003);
+      g.beginPath(); g.moveTo(X(ex - 0.02 * sz), Y(fy0 + 0.004)); g.quadraticCurveTo(X(ex), Y(fy0 + 0.012), X(ex + 0.02 * sz), Y(fy0 + 0.004)); g.stroke();
+    }
+    // nose: lit bridge, shadow on the right, nostril
+    g.strokeStyle = 'rgba(245,215,180,0.7)'; g.lineWidth = X(0.008); g.beginPath(); g.moveTo(X(fx0 - 0.008), Y(fy0 - 0.01)); g.quadraticCurveTo(X(fx0 - 0.012), Y(fy0 + 0.04), X(fx0 - 0.004), Y(fy0 + 0.065)); g.stroke();
+    g.strokeStyle = 'rgba(50,28,18,0.75)'; g.lineWidth = X(0.01); g.beginPath(); g.moveTo(X(fx0 + 0.012), Y(fy0 + 0.0)); g.quadraticCurveTo(X(fx0 + 0.02), Y(fy0 + 0.05), X(fx0 + 0.01), Y(fy0 + 0.075)); g.stroke();
+    ell(fx0 + 0.006, fy0 + 0.078, 0.022, 0.01, 'rgba(60,32,20,0.8)');
+    ell(fx0 - 0.004, fy0 + 0.07, 0.012, 0.008, 'rgba(240,205,170,0.6)');
+    // hollow cheeks + nasolabial folds
+    soft(fx0 - 0.07, fy0 + 0.07, 0.04, 'rgba(70,40,28,A)', 0.4);
+    soft(fx0 + 0.07, fy0 + 0.07, 0.04, 'rgba(30,18,12,A)', 0.5);
+    g.strokeStyle = 'rgba(80,48,32,0.55)'; g.lineWidth = X(0.004);
+    g.beginPath(); g.moveTo(X(fx0 - 0.03), Y(fy0 + 0.075)); g.quadraticCurveTo(X(fx0 - 0.045), Y(fy0 + 0.1), X(fx0 - 0.04), Y(fy0 + 0.125)); g.stroke();
+    // mouth: thin, downturned; grey moustache
+    g.strokeStyle = 'rgba(55,25,18,0.95)'; g.lineWidth = X(0.006);
+    g.beginPath(); g.moveTo(X(fx0 - 0.04), Y(fy0 + 0.118)); g.quadraticCurveTo(X(fx0 - 0.005), Y(fy0 + 0.108), X(fx0 + 0.035), Y(fy0 + 0.12)); g.stroke();
+    ell(fx0 - 0.004, fy0 + 0.13, 0.028, 0.008, 'rgba(150,90,70,0.45)');
+    for (let i = 0; i < 40; i++) { const s = rnd() < 0.5 ? -1 : 1; const x = fx0 + s * (0.005 + rnd() * 0.035); g.strokeStyle = `rgba(${170 + rnd() * 50},${165 + rnd() * 40},${155 + rnd() * 30},0.5)`; g.lineWidth = 1.5 + rnd() * 2; g.beginPath(); g.moveTo(X(fx0), Y(fy0 + 0.098)); g.quadraticCurveTo(X(x), Y(fy0 + 0.1), X(x + s * 0.01), Y(fy0 + 0.125 + rnd() * 0.01)); g.stroke(); }
+    g.restore();
+    g.filter = 'blur(1px)';
+    // hair: long grey mane swept back from the brow, falling to the collar, lit on the left
+    // dark mass first, then locks
+    g.fillStyle = 'rgba(40,36,32,0.85)';
+    g.beginPath(); g.moveTo(X(fx0 - 0.1), Y(fy0 - 0.06)); g.bezierCurveTo(X(fx0 - 0.08), Y(fy0 - 0.2), X(fx0 + 0.12), Y(fy0 - 0.22), X(fx0 + 0.16), Y(fy0 - 0.08));
+    g.bezierCurveTo(X(fx0 + 0.19), Y(fy0 + 0.05), X(fx0 + 0.17), Y(fy0 + 0.2), X(fx0 + 0.14), Y(fy0 + 0.26));
+    g.lineTo(X(fx0 + 0.1), Y(fy0 + 0.1)); g.bezierCurveTo(X(fx0 + 0.09), Y(fy0 - 0.05), X(fx0 + 0.02), Y(fy0 - 0.12), X(fx0 - 0.1), Y(fy0 - 0.06)); g.fill();
+    g.beginPath(); g.moveTo(X(fx0 - 0.1), Y(fy0 - 0.06)); g.bezierCurveTo(X(fx0 - 0.14), Y(fy0 + 0.02), X(fx0 - 0.13), Y(fy0 + 0.14), X(fx0 - 0.12), Y(fy0 + 0.2));
+    g.lineTo(X(fx0 - 0.1), Y(fy0 + 0.06)); g.closePath(); g.fill();
+    for (let i = 0; i < 420; i++) {
+      // locks start along the hairline and sweep back (to the right) and down
+      const t = rnd();
+      const x0 = fx0 - 0.09 + t * 0.12 + (rnd() - 0.5) * 0.02, y0 = fy0 - 0.08 - Math.sin(t * Math.PI) * 0.09 + (rnd() - 0.5) * 0.02;
+      const len = 0.1 + rnd() * 0.16;
+      const x1 = x0 + len * (0.55 + rnd() * 0.3), y1 = y0 + len * (0.35 + t * 0.9);
+      const lit = 1 - t;
+      const v = 70 + lit * 120 + rnd() * 25;
+      g.strokeStyle = `rgba(${v},${v * 0.97},${v * 0.92},${0.22 + rnd() * 0.3})`; g.lineWidth = 1.5 + rnd() * 3;
+      g.beginPath(); g.moveTo(X(x0), Y(y0)); g.bezierCurveTo(X(x0 + len * 0.3), Y(y0 - 0.04), X(x1 - 0.02), Y(y1 - len * 0.4), X(x1), Y(y1)); g.stroke();
+    }
+    for (let i = 0; i < 90; i++) { const y0 = fy0 - 0.03 + rnd() * 0.2; const x0 = fx0 - 0.105 - rnd() * 0.02; const v = 130 + rnd() * 70; g.strokeStyle = `rgba(${v},${v},${v * 0.94},0.3)`; g.lineWidth = 1.5 + rnd() * 2; g.beginPath(); g.moveTo(X(x0), Y(y0)); g.quadraticCurveTo(X(x0 - 0.02), Y(y0 + 0.05), X(x0 - 0.005), Y(y0 + 0.1)); g.stroke(); }
+    g.filter = 'none';
+    // side-whiskers
+    for (let i = 0; i < 120; i++) { const s = rnd() < 0.5 ? -1 : 1; const x = fx0 + s * (0.105 + rnd() * 0.02); const y = fy0 + rnd() * 0.08; const v = s < 0 ? 170 + rnd() * 50 : 60 + rnd() * 40; g.strokeStyle = `rgba(${v},${v},${v * 0.95},0.4)`; g.lineWidth = 2; g.beginPath(); g.moveTo(X(x), Y(y)); g.lineTo(X(x - s * 0.01), Y(y + 0.03)); g.stroke(); }
+    // brush texture over everything + canvas weave
+    for (let i = 0; i < 2500; i++) { const x = rnd() * w, y = rnd() * h; const l = 6 + rnd() * 16; const a = rnd() * Math.PI; g.strokeStyle = `rgba(${rnd() < 0.5 ? '255,240,210' : '0,0,0'},${0.03 + rnd() * 0.04})`; g.lineWidth = 2 + rnd() * 4; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke(); }
+    g.fillStyle = 'rgba(0,0,0,0.05)';
+    for (let y = 0; y < h; y += 3) g.fillRect(0, y, w, 1);
+    for (let x = 0; x < w; x += 3) g.fillRect(x, 0, 1, h);
+    // craquelure: a network of fine dark cracks
+    g.strokeStyle = 'rgba(15,10,5,0.35)'; g.lineWidth = 1;
+    for (let i = 0; i < 700; i++) {
+      let x = rnd() * w, y = rnd() * h; g.beginPath(); g.moveTo(x, y);
+      for (let k = 0; k < 4; k++) { x += (rnd() - 0.5) * 40; y += (rnd() - 0.5) * 40; g.lineTo(x, y); }
+      g.stroke();
+    }
+    // yellowed varnish + darkened edges
+    g.fillStyle = 'rgba(120,90,20,0.12)'; g.fillRect(0, 0, w, h);
+    const vg = g.createRadialGradient(w / 2, h * 0.42, w * 0.3, w / 2, h / 2, w * 0.85);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(10,6,2,0.65)');
+    g.fillStyle = vg; g.fillRect(0, 0, w, h);
+  }, { tile: false });
+}

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeStatic } from '../../engine/lib/contrib/foyer-merge.js';
-import { nightLawnTexture, wallpaperTexture } from './textures.js';
+import { nightLawnTexture, wallpaperTexture, portraitTexture } from './textures.js';
 import { buildPiano, KEY } from './piano.js';
 import { buildHarp, buildCello, buildMusicStand, buildBench } from './instruments.js';
 import { buildFireplace, buildTorchere, buildCabinet, buildChair, buildGasolier, buildSconce, buildGramophone } from './furniture.js';
@@ -61,8 +61,8 @@ export default {
     const giltFluted = M.create('gilded', { pattern: 5, repeats: 2, wear: 0.4, dirt: 0.5, repeat: [1 / 0.3, 1] });
     const giltPlain = M.create('gold', { wear: 0.5, dirt: 0.5, repeat: [2, 1] });
     const plateGold = new THREE.MeshPhysicalMaterial({ color: 0xb8892e, metalness: 0.8, roughness: 0.35, clearcoat: 0.4, clearcoatRoughness: 0.3 });
-    const doorWoodV = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], rotation: Math.PI / 2, clearcoat: 0.6, clearcoatRoughness: 0.2, color: [1.0, 0.78, 0.66] });
-    const doorWoodH = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], clearcoat: 0.6, clearcoatRoughness: 0.2, color: [1.0, 0.78, 0.66] });
+    const doorWoodV = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], rotation: Math.PI / 2, clearcoat: 0.5, clearcoatRoughness: 0.35, envMapIntensity: 0.45, color: [1.0, 0.78, 0.66] });
+    const doorWoodH = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], clearcoat: 0.5, clearcoatRoughness: 0.35, envMapIntensity: 0.45, color: [1.0, 0.78, 0.66] });
     const velvet = M.create('velvet', { color: [0.05, 0.07, 0.22], crush: 0.55, repeat: [2, 2], side: THREE.DoubleSide });
     const seatVelvet = M.create('velvet', { color: [0.3, 0.04, 0.06], crush: 0.4, repeat: [3, 3] });
     const brass = M.create('brass', { tarnish: 0.35, polish: 0.7, repeat: [2, 2] });
@@ -333,7 +333,7 @@ export default {
         tie.position.set(wx + side * (WIN.w / 2 + 0.36), 1.25, Z0 + 0.06); add(tie);
       }
       const val = new THREE.Mesh(curtain({ width: WIN.w + 0.9, height: 0.4, folds: 12, depth: 0.05, gather: 1, seed: wx + 9, segX: 110, segY: 10 }), velvet);
-      val.position.set(wx, WIN.sill + WIN.h + 0.36, Z0 + 0.17); add(val);
+      val.position.set(wx, WIN.sill + WIN.h + 0.36, Z0 + 0.17); val.name = 'curtain'; add(val);
       const pelmet = new THREE.Mesh(G.boxUV(WIN.w + 1.0, 0.12, 0.2, 1), giltFrame);
       pelmet.position.set(wx, WIN.sill + WIN.h + 0.42, Z0 + 0.1); add(pelmet);
     }
@@ -427,7 +427,7 @@ export default {
     const portrait = new THREE.Group();
     {
       const pw = 0.95, ph = 1.25;
-      portrait.add(new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), M.create('painting', { subject: 1, seed: 21, aspect: pw / ph, size: 2048, cracks: 0.6, varnish: 0.8, clearcoat: 0.6, clearcoatRoughness: 0.18 })));
+      portrait.add(new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshPhysicalMaterial({ map: portraitTexture(ctx.textures), roughness: 0.55, clearcoat: 0.7, clearcoatRoughness: 0.22 })));
       portrait.add(new THREE.Mesh(G.frameGeometry(pw, ph, { width: 0.13, depth: 0.07, uvScale: 1 }), giltFrame));
       portrait.position.set(X0 + 0.04, 2.45, FIRE.z); portrait.rotation.y = Math.PI / 2;
       portrait.userData.dynamic = true;
@@ -517,19 +517,22 @@ export default {
     const gas = buildGasolier(ctx, { brass, crystal });
     gas.position.set(-0.5, H, -0.6);
     add(gas);
-    const gasLight = new THREE.PointLight(0xffb070, 4.0, 12, 2);
+    const gasLight = new THREE.PointLight(0xffb070, 3.2, 12, 2);
     gasLight.position.set(-0.5, gas.userData.lightY + H, -0.6);
     add(gasLight);
 
     // ================================================================ moonlight
-    const moon = new THREE.SpotLight(0xbcc8ec, 620, 22, 0.42, 0.22, 2);
-    moon.position.set(-3.2, 7.2, Z0 - 6.5);
-    moon.target.position.set(0.4, 0, -0.6);
+    const moon = new THREE.SpotLight(0xbcc8ec, 1100, 26, 0.42, 0.18, 2);
+    // high and almost straight behind the bay, so each window lays its own pane pattern
+    // into the room: the centre one across the rug in front of the piano
+    moon.position.set(5.0, 6.5, Z0 - 7.5);
+    moon.target.position.set(0.2, 0, -0.4);
     moon.castShadow = ctx.quality.shadows;
     moon.shadow.mapSize.set(ctx.quality.shadowMapSize, ctx.quality.shadowMapSize);
     moon.shadow.bias = -0.0004; moon.shadow.normalBias = 0.02; moon.shadow.radius = ctx.quality.shadowRadius;
     moon.shadow.camera.near = 2; moon.shadow.camera.far = 20;
     add(moon); add(moon.target);
+
     add(new THREE.HemisphereLight(0x5068a8, 0x2a1a10, 1.25));
     for (const wx of WIN.xs) add(fx.areaLight({ center: [wx, WIN.sill + 1.3, Z0 + 0.05], normal: [0, -0.35, 1], width: WIN.w, height: WIN.h, color: 0x9aaee0, intensity: 0.3 }));
 
@@ -538,7 +541,7 @@ export default {
     for (const wx of WIN.xs) {
       const shaft = fx.shaft({
         center: V3(wx, WIN.sill + WIN.h * 0.47, Z0 - 0.02), right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h * 0.5, 0),
-        direction: beamDir, length: 4.4, color: 0xaebfee, intensity: 0.6, softness: 0.3, falloff: 1.0, panes: [2, 4], mullion: 0.035, noise: 0.7,
+        direction: beamDir, length: 4.2, color: 0xaebfee, intensity: 0.42, softness: 0.22, falloff: 1.2, panes: [2, 4], mullion: 0.035, noise: 1.0,
       });
       add(shaft); shafts.push(shaft);
     }
@@ -559,8 +562,8 @@ export default {
     };
     const nocturne = createPianoPuzzle({ keys, ghost, desk: piano.userData.desk, onSolvedScene: solvedScene });
     const puzzleCam = (() => {
-      const pos = pianoToWorld(0.03, 1.2, 0.6), tgt = pianoToWorld(0.03, 0.87, -0.05);
-      return { position: pos.toArray(), target: tgt.toArray(), fov: 48 };
+      const pos = pianoToWorld(0.03, 1.16, 0.5), tgt = pianoToWorld(0.03, 0.829, -0.15);
+      return { position: pos.toArray(), target: tgt.toArray(), fov: 52 };
     })();
     // the engine reads `camera` as the puzzle starts (before the camera flight): the ghost
     // gives up his seat right then, so the camera never passes through him
@@ -702,14 +705,14 @@ export default {
       if (!o.isMesh) return;
       const m = Array.isArray(o.material) ? o.material[0] : o.material;
       const fxLike = o.isPoints || m?.isShaderMaterial || m?.isMeshBasicMaterial || (m?.transparent && (m.opacity ?? 1) < 0.6) || o.userData.noBake || o.userData.noShadow;
-      o.castShadow = !fxLike && !['floor', 'ceiling', 'rug'].includes(o.name);
+      o.castShadow = !fxLike && !['floor', 'ceiling', 'rug', 'curtain'].includes(o.name);
       o.receiveShadow = !m?.isShaderMaterial && !m?.isMeshBasicMaterial;
     });
     gas.traverse((o) => { o.castShadow = false; });
     const merged = mergeStatic(root);
     root.userData.merged = merged;
 
-    const godRays = WIN.xs.map((wx) => ({ position: V3(wx * 1.4 - 1.2, WIN.sill + 1.6, Z0 - 2.0), color: new THREE.Color(0.7, 0.8, 1.0), strength: 0.5, radius: 0.18 }));
+    const godRays = WIN.xs.map((wx) => ({ position: V3(wx, WIN.sill + 1.7, Z0).addScaledVector(beamDir, -2.2), color: new THREE.Color(0.72, 0.8, 1.0), strength: 0.5, radius: 0.18 }));
 
     return {
       scene: root,

@@ -311,16 +311,16 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
   }
   // fallboard folded open: a bevelled board just behind the keys with the gilt name
   {
-    const lacquer = new THREE.MeshPhysicalMaterial({ color: 0x060505, roughness: 0.38, clearcoat: 0.6, clearcoatRoughness: 0.32 });
+    const lacquer = new THREE.MeshPhysicalMaterial({ color: 0x070606, roughness: 0.5, clearcoat: 0.35, clearcoatRoughness: 0.45, envMapIntensity: 0.5 });
     const fb = add(new THREE.Mesh(new G.RoundedBoxGeometry(1.33, 0.11, 0.03, 2, 0.008), lacquer));
     fb.position.set(0, KEY.top + 0.06, -0.005);
     fb.rotation.x = -0.12;
-    const name = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.052), new THREE.MeshStandardMaterial({ map: nameboardTexture(ctx.textures), transparent: true, metalness: 0.9, roughness: 0.3, color: 0xffffff, depthWrite: false }));
-    name.position.set(0, KEY.top + 0.062, 0.0115);
+    const name = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.052), new THREE.MeshStandardMaterial({ map: nameboardTexture(ctx.textures), transparent: true, metalness: 0.7, roughness: 0.35, color: 0xffffff, depthWrite: false, emissiveMap: nameboardTexture(ctx.textures), emissive: new THREE.Color(0.35, 0.25, 0.1), polygonOffset: true, polygonOffsetFactor: -2 }));
+    name.position.set(0, KEY.top + 0.062, 0.0135);
     name.rotation.x = -0.12;
     add(name);
-    const top = add(new THREE.Mesh(new G.RoundedBoxGeometry(1.33, 0.025, 0.12, 2, 0.008), ebony));
-    top.position.set(0, KEY.top + 0.12, -0.06);
+    const top = add(new THREE.Mesh(new G.RoundedBoxGeometry(1.33, 0.025, 0.2, 2, 0.008), lacquer));
+    top.position.set(0, KEY.top + 0.12, -0.1);
   }
   // music desk with fretwork + a score
   const desk = new THREE.Group();

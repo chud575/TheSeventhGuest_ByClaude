@@ -282,7 +282,7 @@ export function buildGasolier(ctx, { brass, crystal }) {
     [0.04, -0.34], [0.05, -0.38], [0.02, -0.44], [0.035, -0.5], [0, -0.56]], 32), brass);
   body.position.y = y0; g.add(body);
   const globes = [];
-  const globeMat = new THREE.MeshPhysicalMaterial({ color: 0xfff2dc, emissive: new THREE.Color(1.0, 0.74, 0.45), emissiveIntensity: 1.3, roughness: 0.55, transmission: 0, transparent: true, opacity: 0.96 });
+  const globeMat = new THREE.MeshPhysicalMaterial({ color: 0xfff2dc, emissive: new THREE.Color(1.0, 0.74, 0.45), emissiveIntensity: 0.4, roughness: 0.55, transmission: 0, transparent: true, opacity: 0.96 });
   const cupProf = [[0, 0], [0.022, 0], [0.04, 0.025], [0.045, 0.035], [0.03, 0.04], [0, 0.04]];
   const globeProf = [[0.024, 0], [0.05, 0.025], [0.066, 0.07], [0.06, 0.12], [0.038, 0.155], [0.04, 0.165], [0.036, 0.17]];
   const tier = (n, r, yArm, yTip, rot, scale) => {

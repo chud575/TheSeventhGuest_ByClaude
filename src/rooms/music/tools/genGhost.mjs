@@ -92,7 +92,7 @@ function bodyTint(x, y, z) {
 }
 function headTint(x, y, z) {
   // hair darker than the face
-  const face = z < 0.0 - Math.max(0, y - 0.035) * 0.75 + 0.02 && y > -0.12;
+  const face = z < -0.055 + Math.max(0, y - 0.06) * 0.3 - Math.max(0, 0.06 - y) * 0.5 && y > -0.12;
   return face ? 1 : 0.35;
 }
 
@@ -120,21 +120,19 @@ function head(x, y, z) {
   d = smin(d, ell(x, y, z, [0, -0.059, -0.089], [0.026, 0.01, 0.014]), 0.008);
   d = smax(d, -ell(x, y, z, [0, -0.061 - 0.004 * x * x * 400, -0.101], [0.025, 0.0025, 0.012]), 0.004);
   for (const s of [-1, 1]) d = smin(d, rcone(x, y, z, [s * 0.004, -0.047, -0.104], [s * 0.03, -0.066, -0.093], 0.006, 0.003), 0.005);
-  // hair: a swept-back mane falling to the collar, wild at the sides; receding temples; side-whiskers
-  let hr = ell(x, y, z, [0, 0.036, 0.016], [0.079, 0.084, 0.094]);
-  // a few broad swept-back locks (large-scale, so they read without aliasing)
-  for (const [lx, ly, lz, a] of [[0.0, 0.1, -0.02, 0], [0.035, 0.09, -0.01, 0.25], [-0.035, 0.09, -0.01, -0.25], [0.06, 0.06, 0.02, 0.5], [-0.06, 0.06, 0.02, -0.5]]) {
-    hr = smin(hr, rcone(x, y, z, [lx, ly, lz], [lx * 1.25, ly - 0.03, lz + 0.11], 0.016, 0.022), 0.012);
-    void a;
-  }
-  hr = smin(hr, ell(x, y, z, [0, -0.03, 0.05], [0.066, 0.065, 0.04]), 0.03);          // nape, falls to the collar
+  // hair: a long Lisztian mane swept back from the brow and falling to the collar,
+  // full over the ears; medium-scale lumps break the silhouette into locks
+  let hr = ell(x, y, z, [0, 0.03, 0.02], [0.082, 0.088, 0.097]);
+  hr = smin(hr, ell(x, y, z, [0, -0.04, 0.055], [0.078, 0.085, 0.055]), 0.04);          // back of the head, to the collar
   for (const s of [-1, 1]) {
-    hr = smin(hr, ell(x, y, z, [s * 0.074, 0.005, 0.035], [0.026, 0.07, 0.065]), 0.025); // full sides
-    hr = smin(hr, ell(x, y, z, [s * 0.072, -0.045, -0.015], [0.012, 0.04, 0.02]), 0.012); // side-whiskers
+    hr = smin(hr, ell(x, y, z, [s * 0.072, -0.025, 0.035], [0.03, 0.075, 0.06]), 0.03);  // over the ears
+    hr = smin(hr, ell(x, y, z, [s * 0.066, -0.075, 0.05], [0.026, 0.045, 0.04]), 0.03);  // ends curling at the collar
   }
-  const ang = Math.atan2(x, z + 0.05);
-  hr = smax(hr, -(z + 0.03 - Math.max(0, y - 0.035) * 0.75 + 0.02 * Math.abs(x) / 0.06), 0.018); // receding hairline
-  hr = smax(hr, -(y + 0.08 - Math.max(0, z) * 0.9), 0.02);                         // nothing under the jaw
+  const lump = Math.sin(x * 70 + Math.sin(z * 50) * 2) * Math.sin(y * 55 + z * 30) * Math.sin(z * 45 + x * 20);
+  hr += 0.0045 * lump;
+  hr = smax(hr, -(z + 0.06 - Math.max(0, y - 0.06) * 0.3 + Math.max(0, 0.06 - y) * 0.5), 0.012);                  // hairline: off the face and brow
+  hr = smax(hr, -(y + 0.13), 0.02);                                                   // not below the collar
+  for (const s of [-1, 1]) hr = smin(hr, ell(x, y, z, [s * 0.072, -0.045, -0.015], [0.011, 0.04, 0.018]), 0.012); // side-whiskers
   return smin(d, hr, 0.006);
 }
 
@@ -240,7 +238,7 @@ function surfaceNets(f, min, max, h, tf) {
 // ------------------------------------------------------------------ build + write
 const parts = [
   { name: 'body', f: body, tint: bodyTint, min: [-0.3, 0.0, 0.2 - 0.1], max: [0.3, 1.24, 0.9], h: 0.0075 },
-  { name: 'head', f: head, tint: headTint, min: [-0.11, -0.13, -0.13], max: [0.11, 0.14, 0.15], h: 0.0032 },
+  { name: 'head', f: head, tint: headTint, min: [-0.12, -0.17, -0.14], max: [0.12, 0.15, 0.16], h: 0.0032 },
   { name: 'armL', f: makeArm(-1), tint: armTint(-1), min: [-0.12, -0.36, -0.56], max: [0.12, 0.08, 0.08], h: 0.005 },
   { name: 'armR', f: makeArm(1), tint: armTint(1), min: [-0.12, -0.36, -0.56], max: [0.12, 0.08, 0.08], h: 0.005 },
 ];
