@@ -476,7 +476,7 @@ export default {
       const fm = new THREE.MeshStandardMaterial({ color: 0x1c2326, roughness: 0.6, name: 'sashPaint' });
       const bar = (w, h, x, y, z, d = 0.06) => sg.add(mk(new THREE.BoxGeometry(w, h, d), fm, x, y, z));
       // old crown glass: grime in the corners, condensation beads and runs low down, faint moonlit haze
-      const grimeTex = forge.canvas('kitchen:paneGrime', 256, 256, (g2, w, h) => {
+      const grimeTex = forge.canvas('kitchen:paneGrime2', 256, 256, (g2, w, h) => {
         g2.clearRect(0, 0, w, h);
         const R = (() => { let a = 77; return () => { a = (a * 16807) % 2147483647; return a / 2147483647; }; })();
         g2.fillStyle = 'rgba(150,165,185,0.10)'; g2.fillRect(0, 0, w, h);
@@ -486,9 +486,9 @@ export default {
         for (let i = 0; i < 40; i++) { const x = R() * w, y = R() * h, r = 8 + R() * 30; const gr = g2.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(70,66,58,${0.08 + R() * 0.12})`); gr.addColorStop(1, 'rgba(70,66,58,0)'); g2.fillStyle = gr; g2.fillRect(x - r, y - r, 2 * r, 2 * r); }
         // condensation: a misted band at the bottom, beads, and a few runs
         const mist = g2.createLinearGradient(0, h, 0, h * 0.45);
-        mist.addColorStop(0, 'rgba(190,200,215,0.45)'); mist.addColorStop(1, 'rgba(190,200,215,0)');
+        mist.addColorStop(0, 'rgba(170,182,200,0.32)'); mist.addColorStop(1, 'rgba(190,200,215,0)');
         g2.fillStyle = mist; g2.fillRect(0, 0, w, h);
-        for (let i = 0; i < 260; i++) { const x = R() * w, y = h * (0.4 + 0.6 * R() ** 0.6), r = 0.6 + R() * 2.2; g2.fillStyle = `rgba(220,228,240,${0.25 + R() * 0.35})`; g2.beginPath(); g2.arc(x, y, r, 0, Math.PI * 2); g2.fill(); }
+        for (let i = 0; i < 140; i++) { const x = R() * w, y = h * (0.55 + 0.45 * R() ** 0.6), r = 0.5 + R() * 1.6; g2.fillStyle = `rgba(200,210,225,${0.12 + R() * 0.2})`; g2.beginPath(); g2.arc(x, y, r, 0, Math.PI * 2); g2.fill(); }
         g2.strokeStyle = 'rgba(30,34,40,0.35)'; g2.lineWidth = 1.6;
         for (let i = 0; i < 9; i++) { const x = R() * w; let y = h * (0.45 + R() * 0.3); g2.beginPath(); g2.moveTo(x, y); for (let k = 0; k < 8; k++) { y += 6 + R() * 8; g2.lineTo(x + (R() - 0.5) * 3, y); } g2.stroke(); }
       }, { tile: false });
@@ -1417,7 +1417,7 @@ export default {
       const drop = new THREE.Shape(); drop.moveTo(-0.11, 0); drop.lineTo(0.11, 0); drop.quadraticCurveTo(0.11, -0.2, 0, -0.26); drop.quadraticCurveTo(-0.11, -0.2, -0.11, 0);
       ck.add(mk(G.applyBoxUVs(new THREE.ExtrudeGeometry(drop, { depth: 0.05, bevelEnabled: true, bevelSize: 0.006, bevelThickness: 0.006, bevelSegments: 2 }), 1), mat.mahogany, 0, -0.13, 0.0));
       ck.add(mk(new THREE.CircleGeometry(0.03, 20), new THREE.MeshPhysicalMaterial({ color: 0x1a1410, roughness: 0.05, clearcoat: 1, name: 'pendWindow' }), 0, -0.3, 0.06));
-      ck.position.set(0.75, 2.78, Z0 + 0.0);
+      ck.position.set(0.42, 2.74, Z0 + 0.0);
       add(ck);
     }
 

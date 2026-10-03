@@ -155,6 +155,37 @@ export function buildRange(ctx, mat) {
     g.add(mk(cover(R), edge, x, HOB, z));
     g.add(mk(new THREE.BoxGeometry(0.024, 0.008, 0.012), mat.soot, x + R * 0.8, HOB + 0.009, z));
   }
+  // ash dust and rust blooms on the hob slab (a decal under the covers)
+  {
+    const HW = W + 0.04, HD = D + 0.02, hz = -D / 2 + 0.005;
+    const covers = [[-0.42, -0.22, 0.12], [-0.13, -0.22, 0.1], [0.15, -0.22, 0.1], [0.43, -0.22, 0.12], [-0.28, -0.45, 0.09], [0.3, -0.45, 0.09]];
+    const tex = ctx.textures.canvas('kitchen:hobAsh', 1024, 512, (c, w, h) => {
+      c.clearRect(0, 0, w, h);
+      const toPx = (x, z) => [((x + HW / 2) / HW) * w, ((z - hz + HD / 2) / HD) * h];
+      let a = 9;
+      const R = () => { a = (a * 16807) % 2147483647; return a / 2147483647; };
+      // rust halos round each cover (the iron rusts where steam condenses)
+      for (const [x, z, r] of covers) {
+        const [px, py] = toPx(x, z), rp = (r / HW) * w;
+        const gr = c.createRadialGradient(px, py, rp * 0.98, px, py, rp * 1.35);
+        gr.addColorStop(0, 'rgba(120,52,18,0.85)'); gr.addColorStop(0.4, 'rgba(105,48,20,0.45)'); gr.addColorStop(1, 'rgba(90,40,18,0)');
+        c.fillStyle = gr; c.beginPath(); c.arc(px, py, rp * 1.4, 0, Math.PI * 2); c.fill();
+        for (let k = 0; k < 14; k++) { const an = R() * Math.PI * 2, rr = rp * (1.02 + R() * 0.25); c.fillStyle = `rgba(140,62,22,${0.3 + R() * 0.4})`; c.beginPath(); c.arc(px + Math.cos(an) * rr, py + Math.sin(an) * rr, 1 + R() * 4, 0, Math.PI * 2); c.fill(); }
+      }
+      // grey ash: drifted toward the front edge and the fire door, fingered smears
+      for (let k = 0; k < 900; k++) {
+        const x = R() * w, y = h * (0.55 + 0.45 * R() ** 0.6);
+        c.fillStyle = `rgba(150,146,138,${0.05 + R() * 0.12})`; c.beginPath(); c.arc(x, y, 1 + R() * 3.5, 0, Math.PI * 2); c.fill();
+      }
+      for (let k = 0; k < 20; k++) { const x = R() * w, y = R() * h; const gr = c.createRadialGradient(x, y, 0, x, y, 30 + R() * 60); gr.addColorStop(0, 'rgba(140,136,128,0.22)'); gr.addColorStop(1, 'rgba(140,136,128,0)'); c.fillStyle = gr; c.fillRect(x - 90, y - 90, 180, 180); }
+      c.strokeStyle = 'rgba(30,26,22,0.35)'; c.lineWidth = 7; c.lineCap = 'round';
+      for (let k = 0; k < 4; k++) { const x = w * (0.3 + R() * 0.4), y = h * (0.75 + R() * 0.2); c.beginPath(); c.moveTo(x, y); c.lineTo(x + 30 + R() * 30, y - 6 + R() * 12); c.stroke(); }
+    }, { tile: false });
+    const am = new THREE.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, name: 'hobAsh' });
+    const pl = new THREE.Mesh(new THREE.PlaneGeometry(HW, HD), am);
+    pl.rotation.x = -Math.PI / 2; pl.position.set(0, HOB + 0.0006, hz); pl.renderOrder = 1;
+    g.add(pl);
+  }
   // brass towel rail on brackets
   g.add(mk(new THREE.CylinderGeometry(0.011, 0.011, W + 0.1, 16), brass, 0, 0.745, 0.11, 0, 0, Math.PI / 2));
   for (const x of [-W / 2 - 0.02, W / 2 + 0.02]) {
