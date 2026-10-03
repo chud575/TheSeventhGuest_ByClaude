@@ -7,7 +7,7 @@ import { makeFramed, makeClock, makeConsole, makeBench, makePlaque, makeLantern 
 import { runnerTexture, nightSky, treeLine, branchCard } from './textures.js';
 import { makePortraitMaterial, createGaze } from './portraits.js';
 import { patchWallpaper, makeReflectiveFloor, giltMaterial, mahoganyTexture } from './look.js';
-import { makeGasBracket, makeGlobeMaterial, makeLightPool, makeGhostCard, silhouetteTexture, makeOvalFrame, makeGiltFrame, makePictureLight, makeSideChair, makeCoveredBust, makeBirdcage, transomTexture } from './dressing.js';
+import { makeGasBracket, makeGlobeMaterial, makeLightPool, makeGhostCard, silhouetteTexture, makeOvalFrame, makeGiltFrame, makePictureLight, makeSideChair, makeCoveredBust, makeBirdcage, transomTexture, linenTexture } from './dressing.js';
 import { createSlidePuzzle, meta as slideMeta, SLIDE_ID } from './puzzleSlide.js';
 
 /**
@@ -43,7 +43,7 @@ export default {
 
     // ================================================================ materials
     const mat = {
-      wall: M.create('damask', { base: [0.05, 0.08, 0.25], motif: [0.09, 0.13, 0.36], accent: [0.5, 0.4, 0.22], accentStrength: 0.06, sheen: 0.75, aging: 0.5, variant: 0, normalScale: 0.15, repeat: [1 / 0.1777, 1 / 0.1777], size: hiTex }),
+      wall: M.create('damask', { base: [0.05, 0.078, 0.24], motif: [0.06, 0.092, 0.275], accent: [0.5, 0.4, 0.22], accentStrength: 0.03, sheen: 0.95, aging: 0.45, variant: 0, normalScale: 0.12, repeat: [2 / 0.1777, 2 / 0.1777], size: hiTex }),
       floor: M.create('floorboards', { species: 'walnut', boards: 6, boardLength: 0.5, polish: 0.9, wear: 0.5, tint: [1.05, 0.86, 0.72], roughness: 0.85, repeat: [1 / 3.2, 1 / 1.0] }),
       ceiling: M.create('plaster', { color: [0.2, 0.23, 0.32], cracks: 0.3, stains: 0.45, repeat: [0.45, 0.45] }),
       beam: M.create('plaster', { color: [0.24, 0.27, 0.36], cracks: 0.15, stains: 0.3, repeat: [0.8, 0.8] }),
@@ -57,22 +57,22 @@ export default {
       frieze: M.create('gilded', { pattern: 6, repeats: 3, ground: 1, groundColor: [0.03, 0.04, 0.09], wear: 0.35, dirt: 0.55, repeat: [1 / 0.7, 1] }),
       doorFrieze: M.create('gilded', { pattern: 1, repeats: 3, ground: 1, groundColor: [0.12, 0.04, 0.03], wear: 0.4, dirt: 0.6, repeat: [1 / 0.4, 1] }),
       soffit: M.create('gilded', { pattern: 2, repeats: 4, ground: 1, groundColor: [0.05, 0.06, 0.12], wear: 0.4, dirt: 0.6, repeat: [1 / 0.9, 1] }),
-      giltFrame: M.create('gold', { wear: 0.5, dirt: 0.6, repeat: [2, 1], color: new THREE.Color(0.9, 0.82, 0.7) }),
+      giltFrame: M.create('gold', { wear: 0.5, dirt: 0.6, repeat: [2, 1], color: new THREE.Color(0.9, 0.82, 0.7), roughness: 1.4, envMapIntensity: 0.6 }),
       gilt: giltMaterial(ctx),
-      sheet: M.basic('cloth', { color: 0x8c887e }),
       felt: M.create('velvet', { color: [0.03, 0.09, 0.05], crush: 0.3, repeat: [6, 6] }),
-      giltPlain: M.create('gold', { wear: 0.5, dirt: 0.55, repeat: [2, 1] }),
-      giltCap: M.create('gold', { wear: 0.3, dirt: 0.4, repeat: [3, 3] }),
-      brass: M.create('brass', { tarnish: 0.4, polish: 0.7, repeat: [3, 3] }),
+      giltPlain: M.create('gold', { wear: 0.5, dirt: 0.55, repeat: [2, 1], roughness: 1.35, envMapIntensity: 0.65 }),
+      giltCap: M.create('gold', { wear: 0.3, dirt: 0.4, repeat: [3, 3], roughness: 1.3, envMapIntensity: 0.65 }),
+      brass: M.create('brass', { tarnish: 0.45, polish: 0.6, repeat: [3, 3], roughness: 1.25, envMapIntensity: 0.7 }),
       brassBright: M.create('brass', { tarnish: 0.1, polish: 0.95, repeat: [3, 3] }),
       velvet: M.create('velvet', { color: [0.05, 0.08, 0.24], crush: 0.55, repeat: [2, 2], side: THREE.DoubleSide }),
-      velvetSeat: M.create('velvet', { color: [0.3, 0.04, 0.06], crush: 0.4, repeat: [3, 3] }),
+      velvetSeat: M.create('velvet', { color: [0.3, 0.04, 0.06], crush: 0.4, repeat: [3, 3], sheen: 1.0, sheenRoughness: 0.4, sheenColor: new THREE.Color(0.42, 0.12, 0.22) }),
+      seatFabric: M.create('damask', { base: [0.22, 0.04, 0.05], motif: [0.27, 0.07, 0.07], accent: [0.6, 0.45, 0.2], accentStrength: 0.0, sheen: 0.8, aging: 0.6, variant: 1, normalScale: 0.4, repeat: [7, 7], size: 1024 }),
       marble: M.create('marble', { type: 'nero', polish: 0.8, repeat: [1, 1] }),
       glass: M.create('glass', { dirt: 0.55, transparent: true, opacity: 0.12 }),
       black: M.basic('black', { color: 0x020203, roughness: 0.9 }),
       windowFrame: M.basic('black', { color: 0x110c0a, roughness: 0.55 }),
       cord: M.basic('black', { color: 0x3a2a12, roughness: 0.8 }),
-      porcelainBlue: M.basic('porcelain', { color: 0xc8d2ec }),
+      porcelainBlue: null,
       stem: M.basic('black', { color: 0x1a1a0e, roughness: 0.9 }),
       rose: M.basic('black', { color: 0x3a0c10, roughness: 0.85 }),
       mantle: new THREE.MeshBasicMaterial({ color: new THREE.Color(4.0, 2.5, 1.2), name: 'mantle' }),
@@ -81,18 +81,39 @@ export default {
     {
       const mt = mahoganyTexture(ctx).withRepeat(1 / 0.5, 1 / 1.0);
       mat.doorWood = new THREE.MeshPhysicalMaterial({ map: mt.map, normalMap: mt.normalMap, roughnessMap: mt.roughnessMap, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 1, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.3, color: new THREE.Color(1.1, 1.0, 1.0), name: 'doorMahogany' });
+      const lt = mahoganyTexture(ctx).withRepeat(4, 4);
+      mat.tileLacquer = new THREE.MeshPhysicalMaterial({ map: lt.map, normalMap: lt.normalMap, normalScale: new THREE.Vector2(0.2, 0.2), roughness: 0.55, metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.35, color: new THREE.Color(0.55, 0.42, 0.36), envMapIntensity: 0.5, name: 'tileLacquer' });
     }
     // sconce jet positions (needed for soot on the wallpaper): pilaster face + bracket reach
     const jetPos = [];
     for (const z of BAYS) for (const side of [-1, 1]) jetPos.push(V3(side < 0 ? X0 + PIL.d + 0.2 : X1 - PIL.d - 0.2, 1.98 + 0.11, z));
     patchWallpaper(mat.wall, jetPos);
+    {
+      // blue-and-white ginger jar: painted cobalt scrolls on a greyed glaze (not a white blob)
+      const jt = ctx.textures.canvas('gallery:jar', 512, 256, (g, w, h) => {
+        g.fillStyle = '#b9bfc8'; g.fillRect(0, 0, w, h);
+        g.strokeStyle = '#1e2f6e'; g.fillStyle = '#23367a';
+        g.lineWidth = 6; for (const y of [18, 34, h - 30, h - 16]) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+        g.lineWidth = 3;
+        for (let i = 0; i < 6; i++) {
+          const cx = i * w / 6 + 40, cy = h / 2;
+          g.beginPath(); for (let k = 0; k <= 40; k++) { const t = k / 40, a = t * 4.5, r = 34 * (1 - t * 0.8); g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.9); } g.stroke();
+          for (let k = 0; k < 5; k++) { g.beginPath(); g.ellipse(cx + 20 + k * 6, cy - 30 + k * 14, 9, 4, 0.7, 0, Math.PI * 2); g.fill(); }
+        }
+      }, { tile: true });
+      mat.porcelainBlue = new THREE.MeshPhysicalMaterial({ map: jt, color: new THREE.Color(0.75, 0.75, 0.78), roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.15, envMapIntensity: 0.5, name: 'jar' });
+    }
+    {
+      const ln = linenTexture(ctx).withRepeat(5, 5);
+      mat.sheet = new THREE.MeshPhysicalMaterial({ map: ln.map, normalMap: ln.normalMap, normalScale: new THREE.Vector2(0.5, 0.5), color: new THREE.Color(0.95, 0.94, 0.9), roughness: 0.9, metalness: 0, sheen: 0.6, sheenRoughness: 0.8, sheenColor: new THREE.Color(0.85, 0.85, 0.9), side: THREE.DoubleSide, envMapIntensity: 0.4, name: 'dustSheet' });
+      mat.pedestal = M.create('ebony', { repeat: [3, 3], roughness: 3.0, clearcoat: 0.25, clearcoatRoughness: 0.45 });
+    }
     const skyTex = nightSky(ctx);
     mat.sky = new THREE.MeshBasicMaterial({ map: skyTex.map, color: new THREE.Color(1, 1, 1).multiplyScalar(2.6), toneMapped: false, name: 'sky' });
     mat.skipFloor = true;
     const runnerSet = runnerTexture(ctx);
     const RUN_W = 1.05;
-    const runRep = runnerSet.withRepeat(1, 1);
-    mat.runner = new THREE.MeshPhysicalMaterial({ map: runRep.map, normalMap: runRep.normalMap, roughnessMap: runRep.ormMap, aoMap: runRep.ormMap, roughness: 1, metalness: 0, sheen: 0.7, sheenRoughness: 0.55, sheenColor: new THREE.Color(0.7, 0.3, 0.28), envMapIntensity: 0.4, name: 'runner' });
+    mat.runner = new THREE.MeshPhysicalMaterial({ roughness: 1, metalness: 0, sheen: 0.6, sheenRoughness: 0.6, sheenColor: new THREE.Color(0.6, 0.28, 0.26), envMapIntensity: 0.3, normalScale: new THREE.Vector2(1.2, 1.2), name: 'runner' });
 
     // ================================================================ architecture
     buildShell(ctx, root, mat);
@@ -112,23 +133,54 @@ export default {
       floor.receiveShadow = true;
       root.add(floor);
     }
-    // runner carpet down the centre of the hall (metre UVs, one medallion per RUN_W)
+    // runner carpet down the centre of the hall: a 7 mm slab with softened edges, contact shadow,
+    // knotted fringe at both ends and brass pins along the selvedge
     {
-      const len = (Z1 + 0.9) - (Z0 + 0.55);
-      const g = new THREE.PlaneGeometry(RUN_W, len);
-      const uv = g.attributes.uv;
-      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i), uv.getY(i) * len / RUN_W);
-      g.rotateX(-Math.PI / 2);
+      const G = ctx.geometry;
+      const zA = Z0 + 0.55, zB = Z1 + 0.9, len = zB - zA, TH = 0.007;
+      const rep = runnerSet.withRepeat(1, len / (RUN_W / 2));
+      mat.runner.map = rep.map; mat.runner.normalMap = rep.normalMap; mat.runner.roughnessMap = rep.ormMap; mat.runner.aoMap = rep.ormMap;
+      mat.runner.roughness = 1; mat.runner.needsUpdate = true;
+      const g = new G.RoundedBoxGeometry(RUN_W, TH, len, 2, 0.0028);
       const run = new THREE.Mesh(g, mat.runner);
-      run.position.set(0, 0.007, (Z1 + 0.9 + Z0 + 0.55) / 2);
+      run.position.set(0, TH / 2 + 0.0005, (zA + zB) / 2);
       run.name = 'runner';
       root.add(run);
-      // brass stair-rod style edge pins every metre (tiny but they catch the light)
+      // soft contact shadow hugging the edges
+      const cs = ctx.textures.canvas('gallery:runnerShadow', 64, 64, (c, w, h) => {
+        const img = c.createImageData(w, h);
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+          const d = Math.min(x + 0.5, w - x - 0.5, y + 0.5, h - y - 0.5) / (w * 0.5);
+          const a = Math.min(1, d / 0.35); const i = (y * w + x) * 4;
+          img.data[i + 3] = Math.round(200 * a * a);
+        }
+        c.putImageData(img, 0, 0);
+      }, { tile: false });
+      const sh = new THREE.Mesh(new THREE.PlaneGeometry(RUN_W + 0.05, len + 0.05), new THREE.MeshBasicMaterial({ map: cs, transparent: true, depthWrite: false, color: 0x000000, name: 'runnerShadow' }));
+      sh.rotation.x = -Math.PI / 2; sh.position.set(0, 0.0012, (zA + zB) / 2); sh.renderOrder = 1; sh.userData.noShadow = true;
+      root.add(sh);
+      // fringe: knotted ivory warp ends
+      const wool = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.55, 0.5, 0.4), roughness: 0.95, name: 'fringe' });
+      const strand = new THREE.CylinderGeometry(0.0016, 0.0012, 0.055, 4); strand.rotateX(Math.PI / 2); strand.translate(0, 0, 0.0275);
+      const N = 150;
+      const fr = new THREE.InstancedMesh(strand, wool, N * 2);
+      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1), pv = new THREE.Vector3();
+      const rnd = ctx.random.fork('gallery-fringe');
+      for (let e = 0; e < 2; e++) for (let i = 0; i < N; i++) {
+        const x = -RUN_W / 2 + 0.01 + (i / (N - 1)) * (RUN_W - 0.02) + (rnd.next() - 0.5) * 0.003;
+        const dir = e ? 1 : -1;
+        q.setFromEuler(new THREE.Euler(-0.04 * dir, (e ? 0 : Math.PI) + (rnd.next() - 0.5) * 0.35, 0));
+        sc.set(1, 1, 0.75 + rnd.next() * 0.5);
+        pv.set(x, 0.0025, e ? zB - 0.004 : zA + 0.004);
+        m4.compose(pv, q, sc); fr.setMatrixAt(e * N + i, m4);
+      }
+      fr.castShadow = false; fr.receiveShadow = true;
+      root.add(fr);
+      // brass stair-rod style edge pins every 90 cm
       const pinGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.004, 8);
       const n = Math.floor(len / 0.9);
       const pins = new THREE.InstancedMesh(pinGeo, mat.brass, n * 2);
-      const m4 = new THREE.Matrix4();
-      for (let i = 0; i < n; i++) for (const s of [-1, 1]) { m4.makeTranslation(s * (RUN_W / 2 - 0.012), 0.009, Z0 + 0.9 + i * 0.9); pins.setMatrixAt(i * 2 + (s > 0 ? 1 : 0), m4); }
+      for (let i = 0; i < n; i++) for (const s of [-1, 1]) { m4.makeTranslation(s * (RUN_W / 2 - 0.012), TH + 0.0015, zA + 0.35 + i * 0.9); pins.setMatrixAt(i * 2 + (s > 0 ? 1 : 0), m4); }
       root.add(pins);
     }
 
@@ -258,10 +310,10 @@ export default {
     cage.position.set(-0.3, 0.857, 0.12); cage.scale.setScalar(0.9);
     consoleT.group.add(cage);
     {
-      const mirrorMat = new THREE.MeshStandardMaterial({ color: 0x6a6862, metalness: 1.0, roughness: 0.07, envMapIntensity: 0.6, name: 'mirror' });
+      const mirrorMat = new THREE.MeshStandardMaterial({ color: 0x6e7076, metalness: 1.0, roughness: 0.08, envMapIntensity: 0.16, name: 'mirror' });
       const foxing = M.textures('plaster', { color: [0.5, 0.5, 0.5], cracks: 0.0, stains: 0.9 });
       mirrorMat.roughnessMap = foxing.withRepeat(1.4, 1.4).map;
-      mirrorMat.roughness = 0.12;
+      mirrorMat.roughness = 0.1;
       const mf = makeGiltFrame(ctx, mat, mirrorMat, 0.72, 1.12, { fw: 0.1 });
       mount(mf.group, -1, BAY_CENTERS[3], 1.82, 0.03);
       root.add(mf.group);
@@ -290,6 +342,10 @@ export default {
     const clock = makeClock(ctx, mat);
     mount(clock, 1, BAY_CENTERS[4] + 0.2, 0, 0.02);
     root.add(clock);
+    {
+      const pend = clock.userData.pendulum;
+      ctx.onUpdate((dt, t) => { pend.rotation.z = Math.sin(t * Math.PI) * 0.045; });
+    }
 
     // ================================================================ puzzle panel (left wall, middle bay)
     const toyMat = await makePortraitMaterial(ctx, 'toymaker');
@@ -322,15 +378,24 @@ export default {
       mount(gir, -1, PUZZLE.z + s * 0.86, PUZZLE.y + 0.12, 0.03);
       root.add(gir);
     }
-    const puzzleLight = new THREE.PointLight(0xffa860, 1.1, 4, 2);
-    puzzleLight.position.set(X0 + 0.6, PUZZLE.y + 0.75, PUZZLE.z);
+    // a soft warm source high and well out from the panel (a lamp held by someone behind you):
+    // a rect light gives broad gradients on the gilt instead of pin-point hot spots
+    const puzzleLight = fx.areaLight({ center: [X0 + 1.05, PUZZLE.y + 0.95, PUZZLE.z], normal: [-0.6, -0.9, 0], width: 0.6, height: 0.1, color: 0xffb274, intensity: 24 });
     root.add(puzzleLight);
-    ctx.onUpdate((dt, t) => { puzzleLight.intensity = 1.1 * flicker(t, 9.1); });
+    ctx.onUpdate((dt, t) => { puzzleLight.intensity = 24 * (0.9 + 0.1 * flicker(t, 9.1)); });
+    // each girandole candle throws its own small flickering pool on the paper
+    for (const s of [-1, 1]) {
+      const cl = new THREE.PointLight(0xff9a40, 0.4, 1.2, 2);
+      cl.position.set(X0 + 0.24, PUZZLE.y + 0.12 + 0.07 + 0.2, PUZZLE.z + s * 0.86);
+      root.add(cl);
+      ctx.onUpdate((dt, t) => { cl.intensity = 0.4 * flicker(t, 31 + s * 4); });
+    }
     let solvedFx = 0;
     const slide = createSlidePuzzle(ctx, {
       material: toyMat,
       backMaterial: mat.felt,
-      edgeMaterial: mat.brass,
+      edgeMaterial: mat.tileLacquer,
+      trayMaterial: mat.doorWood,
       random: ctx.random.fork('gallery-slide'),
       camera: { position: [X0 + 1.7, PUZZLE.y - 0.02, PUZZLE.z], target: [X0, PUZZLE.y - 0.02, PUZZLE.z], fov: 40 },
       onSolvedCb: async () => {
@@ -354,39 +419,46 @@ export default {
     // ================================================================ ghost (a grey lady in the moonlight)
     const ghostCard = await makeGhostCard(ctx);
     const ghost = ghostCard.mesh;
-    ghost.position.set(0.32, 0.9, -8.15);
+    ghost.position.set(0.32, 1.02, -8.15);
     root.add(ghost);
     const ghostU = ghostCard.uniforms;
     let ghostBoost = 0;
     ctx.onUpdate((dt, t) => {
-      ghost.position.y = 0.9 + Math.sin(t * 0.7) * 0.02;
+      ghost.position.y = 1.02 + Math.sin(t * 0.7) * 0.025;
       ghost.rotation.y = Math.atan2(ctx.camera.position.x - ghost.position.x, ctx.camera.position.z - ghost.position.z);
       // she comes and goes: never fully readable for long
       const cyc = Math.sin(t * 0.33) * 1.6 + 0.35 + Math.sin(t * 1.9) * 0.08;
-      ghostU.uFade.value = THREE.MathUtils.clamp(cyc, 0, 1) * 0.85 + ghostBoost;
+      ghostU.uFade.value = THREE.MathUtils.clamp(cyc, 0, 1) * 0.55 + ghostBoost;
     });
 
     // ================================================================ moonlight + fills
-    const moon = new THREE.SpotLight(0xa8bcff, 900, 30, 0.24, 0.75, 2);
+    const moon = new THREE.SpotLight(0xa8bcff, 520, 30, 0.24, 0.75, 2);
     moon.position.set(0.35, 7.2, Z0 - 6.0);
     moon.target.position.set(-0.1, 0.0, -6.2);
     moon.castShadow = ctx.quality.shadows;
-    moon.shadow.mapSize.set(ctx.quality.shadowMapSize, ctx.quality.shadowMapSize);
-    moon.shadow.bias = -0.0004; moon.shadow.normalBias = 0.025; moon.shadow.radius = Math.max(6, ctx.quality.shadowRadius || 0); moon.shadow.blurSamples = 16;
+    moon.shadow.mapSize.set(Math.max(2048, ctx.quality.shadowMapSize || 0), Math.max(2048, ctx.quality.shadowMapSize || 0));
+    moon.shadow.bias = -0.0005; moon.shadow.normalBias = 0.02; moon.shadow.radius = 2.5; moon.shadow.blurSamples = 12;
     moon.shadow.camera.near = 3; moon.shadow.camera.far = 22;
     root.add(moon, moon.target);
-    root.add(new THREE.HemisphereLight(0x3d5cc0, 0x1a1210, 1.15));
+    root.add(new THREE.HemisphereLight(0x3d5cc0, 0x1a1210, 1.0));
+    // dim moonlit fill so the cornice, beams and rose read instead of a black void
+    root.add(new THREE.HemisphereLight(0x2a3550, 0x2a3550, 0.55));
+    // the moon pool on the boards bounces a little cold light back up at the far ceiling
+    root.add(fx.areaLight({ center: [0, 0.03, -6.9], normal: [0, 1, 0.15], width: 1.3, height: 1.8, color: 0x6f80b8, intensity: 1.6 }));
     root.add(fx.areaLight({ center: [0, WIN.sill + 1.2, Z0 + 0.05], normal: [0, -0.65, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 1.6 }));
     // warm glow from the foyer chandelier below the landing balustrade (the fitting itself is out of sight)
     const foyerGlow = new THREE.PointLight(0xffa860, 40, 14, 2);
     foyerGlow.position.set(0, -1.6, Z1 + 5.4);
     root.add(foyerGlow);
     // a gas lamp on the right-hand newel post lights the landing
-    const landingFill = new THREE.PointLight(0xffb070, 2.5, 6, 2);
+    const landingFill = new THREE.PointLight(0xffb070, 5, 7, 2);
     {
       const G = ctx.geometry;
       const lamp = new THREE.Group();
-      lamp.position.set(2.35, 1.15, Z1 + 2.6);
+      lamp.position.set(1.15, 1.15, Z1 + 2.6);
+      // an intermediate newel in the balustrade carries the lamp, in view through the arch
+      const newel = new THREE.Mesh(G.applyBoxUVs(new G.RoundedBoxGeometry(0.14, 1.15, 0.14, 2, 0.01), 1), mat.mahogany); newel.position.set(1.15, 0.575, Z1 + 2.6); root.add(newel);
+      const cap = new THREE.Mesh(G.applyBoxUVs(new G.RoundedBoxGeometry(0.18, 0.04, 0.18, 2, 0.008), 1), mat.mahogany); cap.position.set(1.15, 1.15, Z1 + 2.6); root.add(cap);
       const stem = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.07, 0], [0.072, 0.02], [0.04, 0.04], [0.03, 0.1], [0.018, 0.14], [0.016, 0.42], [0.026, 0.45], [0.012, 0.47], [0.03, 0.5], [0, 0.5]], 20), mat.brass);
       lamp.add(stem);
       const globeMat = makeGlobeMaterial(ctx);
@@ -394,8 +466,8 @@ export default {
       globe.position.y = 0.5; globe.renderOrder = 2; lamp.add(globe);
       const mant = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.016, 0.04, 12), mat.mantle); mant.position.y = 0.58; lamp.add(mant);
       root.add(lamp);
-      landingFill.position.set(2.2, 1.85, Z1 + 2.5);
-      ctx.onUpdate((dt, t) => { const f = flicker(t, 12.7); landingFill.intensity = 2.5 * f; globeMat.emissiveIntensity = 0.8 * f; });
+      landingFill.position.set(1.15, 1.78, Z1 + 2.5);
+      ctx.onUpdate((dt, t) => { const f = flicker(t, 12.7); landingFill.intensity = 5 * f; globeMat.emissiveIntensity = 0.8 * f; });
     }
     // a pendant lantern over the landing, its spill reaching back through the arch
     {
@@ -416,6 +488,33 @@ export default {
       const f = makeFramed(ctx, mat, M.create('painting', { subject: 0, seed: 11, aspect: pw / ph, size: 1024 }), pw, ph, { frameW: 0.16, cords: false });
       f.group.position.set(0, 2.0, Z1 + 8.55); f.group.rotation.y = Math.PI;
       root.add(f.group);
+      // its own brass picture light, so the canvas reads as a painting and not a hole in the wall
+      const pl = makePictureLight(ctx, mat, 1.3);
+      pl.position.set(0, 2.0 + ph / 2 + 0.16 + 0.06, Z1 + 8.6); pl.rotation.y = Math.PI; root.add(pl);
+      root.add(fx.areaLight({ center: [0, 2.0 + ph / 2 + 0.2, Z1 + 8.4], normal: [0, -1.2, -1], width: 1.4, height: 0.06, color: 0xffb877, intensity: 22 }));
+      // gas brackets either side of it
+      for (const sx of [-1, 1]) {
+        const gm = makeGlobeMaterial(ctx);
+        const b = makeGasBracket(ctx, mat, gm, mat.mantle);
+        b.group.position.set(sx * 1.55, 1.75, Z1 + 8.58); b.group.rotation.y = Math.PI; root.add(b.group);
+        const l = new THREE.PointLight(0xffb070, 2.4, 5, 2); l.position.set(sx * 1.55, 1.9, Z1 + 8.38); root.add(l);
+        ctx.onUpdate((dt, t) => { const f = flicker(t, 40 + sx * 3); l.intensity = 2.4 * f; gm.emissiveIntensity = 0.8 * f; });
+      }
+    }
+    // a dim, low-turned bracket by the arch on the left wall so the near corner keeps its shape
+    {
+      const gm = makeGlobeMaterial(ctx);
+      const b = makeGasBracket(ctx, mat, gm, mat.mantle);
+      const holder = new THREE.Group(); holder.add(b.group);
+      mount(holder, -1, Z1 - 0.45, 1.98, 0.0);
+      root.add(holder);
+      const l = new THREE.PointLight(0xffa860, 1.2, 4.5, 2); l.position.set(X0 + 0.22, 2.12, Z1 - 0.45); root.add(l);
+      ctx.onUpdate((dt, t) => { const f = flicker(t, 77.7); l.intensity = 1.2 * f; gm.emissiveIntensity = 0.55 * f; });
+      for (const off of [-1, 1]) {
+        const pool = makeLightPool(ctx, { w: 0.9, h: 1.7, intensity: 0.12 });
+        pool.position.x = off * 0.45;
+        const ph2 = new THREE.Group(); ph2.add(pool); mount(ph2, -1, Z1 - 0.45, 2.09, 0.004); ph2.userData.dynamic = true; root.add(ph2);
+      }
     }
     root.add(landingFill);
 
@@ -435,23 +534,26 @@ export default {
       const G = ctx.geometry;
       const fr = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.0025, 0.0018, 0.05, 4), mat.velvetSeat, 120);
       const m4 = new THREE.Matrix4();
-      for (let i = 0; i < 120; i++) { m4.makeTranslation(-WIN.w / 2 + 0.03 + i * ((WIN.w - 0.06) / 119), WIN.sill + 0.015, Z0 - WIN.depth / 2 + (WIN.depth - 0.05) / 2 + 0.005); fr.setMatrixAt(i, m4); }
+      for (let i = 0; i < 120; i++) { m4.makeTranslation(-WIN.w / 2 + 0.05 + i * ((WIN.w - 0.1) / 119), WIN.sill + 0.005, Z0 + 0.068); fr.setMatrixAt(i, m4); }
       root.add(fr);
       for (const sx of [-1, 1]) {
         const bol = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.22, 6, 16), mat.velvet);
-        bol.rotation.z = Math.PI / 2; bol.rotation.y = sx * 0.25; bol.position.set(sx * (WIN.w / 2 - 0.2), WIN.sill + 0.19, Z0 - WIN.depth / 2 - 0.05); root.add(bol);
-        for (const e of [-1, 1]) { const tas = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.012, 0.0], [0.02, -0.03], [0.008, -0.05], [0, -0.05]], 8), mat.giltCap); tas.position.set(sx * (WIN.w / 2 - 0.2) + e * 0.19 * Math.cos(sx * 0.25), WIN.sill + 0.19, Z0 - WIN.depth / 2 - 0.05 - e * sx * 0.05); tas.rotation.z = e * Math.PI / 2; root.add(tas); }
+        bol.rotation.z = Math.PI / 2; bol.rotation.y = sx * 0.25; bol.position.set(sx * (WIN.w / 2 - 0.2), WIN.sill + 0.175, Z0 - WIN.depth / 2 - 0.05); root.add(bol);
+        for (const e of [-1, 1]) { const tas = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.012, 0.0], [0.02, -0.03], [0.008, -0.05], [0, -0.05]], 8), mat.giltCap); tas.position.set(sx * (WIN.w / 2 - 0.2) + e * 0.19 * Math.cos(sx * 0.25), WIN.sill + 0.175, Z0 - WIN.depth / 2 - 0.05 - e * sx * 0.05); tas.rotation.z = e * Math.PI / 2; root.add(tas); }
       }
     }
     // ---- the game-room door: a leaded stained-glass transom lit faintly from the room beyond
     {
       const d = DOORS.gameroom;
-      const tm = new THREE.MeshStandardMaterial({ map: transomTexture(ctx), emissiveMap: transomTexture(ctx), emissive: new THREE.Color(1.0, 0.8, 0.6), emissiveIntensity: 0.45, roughness: 0.15, metalness: 0, name: 'transom' });
+      const tt = transomTexture(ctx);
+      const tm = new THREE.MeshStandardMaterial({ map: tt, emissiveMap: tt, emissive: new THREE.Color(1.0, 0.72, 0.45), emissiveIntensity: 0.6, roughness: 0.12, metalness: 0, envMapIntensity: 0.8, name: 'transom' });
+      tm.color.setScalar(0.35);
       const t = new THREE.Mesh(new THREE.PlaneGeometry(d.w + 0.2, 0.17), tm);
       const g = new THREE.Group(); g.add(t); t.position.set(0, 0, 0.056);
       mount(g, 1, d.z, d.h + 0.24, 0.0);
-      tm.color.setScalar(0.6);
       root.add(g);
+      // faint coloured spill from the lit room beyond, up onto the cornice and soffit
+      root.add(fx.areaLight({ center: [X1 - 0.08, d.h + 0.24, d.z], normal: [-1, 0.5, 0], width: d.w, height: 0.15, color: 0xc88a50, intensity: 1.4 }));
     }
     // ---- the attic: a narrow, steep stair glimpsed behind the low door
     {
@@ -473,10 +575,10 @@ export default {
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
     const shaft = fx.shaft({
       center: winC, right: V3(WIN.w / 2, 0, 0), up: V3(0, (WIN.h - 0.4) * 0.5, 0), direction: beamDir, length: 7.5,
-      color: 0x9fb6ff, intensity: 0.17, softness: 0.35, falloff: 1.1, panes: [2, 4], mullion: 0.03, noise: 0.7,
+      color: 0x9fb6ff, intensity: 0.075, softness: 0.35, falloff: 1.1, panes: [2, 4], mullion: 0.03, noise: 0.35,
     });
     root.add(shaft);
-    root.add(fx.dust({ box: new THREE.Box3(V3(X0 + 0.1, 0.05, Z0 + 0.1), V3(X1 - 0.1, 3.2, -2.5)), count: 1300, shafts: [shaft], size: 0.009, intensity: 1.6, ambient: 0.04 }));
+    root.add(fx.dust({ box: new THREE.Box3(V3(X0 + 0.1, 0.05, Z0 + 0.1), V3(X1 - 0.1, 3.2, -2.5)), count: 800, shafts: [shaft], size: 0.008, intensity: 1.3, ambient: 0.03 }));
     root.add(fx.fog({ box: new THREE.Box3(V3(X0 + 0.05, 0, Z0 + 0.3), V3(X1 - 0.05, 0.6, Z1 - 0.2)), color: 0x080c18, litColor: 0x121a2e, density: 0.18, heightFalloff: 4 }));
 
     // ================================================================ navigation

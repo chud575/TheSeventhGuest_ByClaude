@@ -24,7 +24,9 @@ export function patchWallpaper(mat, sconces = []) {
       .replace('#include <common>', `#include <common>
 varying vec3 vGWorld; varying vec3 vGNrm;
 uniform vec3 uSconce[${n}];
-float gHash(float x) { return fract(sin(x * 91.17) * 43758.5); }`)
+float gHash(float x) { return fract(sin(x * 91.17) * 43758.5); }
+float gH2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float gVN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(gH2(i), gH2(i + vec2(1, 0)), f.x), mix(gH2(i + vec2(0, 1)), gH2(i + vec2(1, 1)), f.x), f.y); }`)
       .replace('#include <map_fragment>', `#include <map_fragment>
 {
   float along = abs(vGNrm.x) > 0.5 ? vGWorld.z : vGWorld.x;
@@ -45,9 +47,17 @@ float gHash(float x) { return fract(sin(x * 91.17) * 43758.5); }`)
     soot += 0.55 * exp(-(dot(d.xz, d.xz)) / (w * w)) * smoothstep(-0.05, 0.25, d.y) * (1.0 - 0.55 * up);
   }
   diffuseColor.rgb *= 1.0 - clamp(soot, 0.0, 0.7);
+  // large-scale fading and grime on world coordinates (breaks up the repeat): sun-faded patches,
+  // darker damp bloom low on the wall, faint tide lines
+  vec2 wq = vec2(along, vGWorld.y);
+  float big = gVN(wq * 0.55) * 0.6 + gVN(wq * 1.7 + 4.0) * 0.4;
+  diffuseColor.rgb *= 0.86 + 0.24 * big;
+  float damp = smoothstep(1.4, 0.95, vGWorld.y) * smoothstep(0.45, 0.75, gVN(wq * vec2(0.9, 0.5) + 9.0));
+  diffuseColor.rgb *= 1.0 - 0.22 * damp;
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.33))) * vec3(1.0, 0.95, 0.85), 0.18 * smoothstep(0.55, 0.85, big));
 }`);
   };
-  mat.customProgramCacheKey = () => `gallery-wallpaper-${n}`;
+  mat.customProgramCacheKey = () => `gallery-wallpaper2-${n}`;
   mat.needsUpdate = true;
   return mat;
 }
@@ -180,16 +190,18 @@ export function frameGeometry(w, h, profile) {
   return ng;
 }
 
-export function giltMaterial(ctx, { tone = 1.0, rough = 0.3, wear = 0.45 } = {}) {
+export function giltMaterial(ctx, { tone = 1.0, rough = 0.42, wear = 0.45 } = {}) {
   const set = ctx.materials.textures('gilded', { pattern: 4, wear, dirt: 0.5 });
   const t = set.withRepeat(1, 1);
   const m = new THREE.MeshPhysicalMaterial({
     color: new THREE.Color(0.83 * tone, 0.62 * tone, 0.3 * tone),
     metalness: 1, roughness: rough, roughnessMap: t.roughnessMap, normalMap: t.normalMap, normalScale: new THREE.Vector2(0.25, 0.25),
-    vertexColors: true, envMapIntensity: 1.0, clearcoat: 0.0, name: 'gallery-gilt',
+    vertexColors: true, envMapIntensity: 0.6, clearcoat: 0.0, name: 'gallery-gilt',
   });
   // cavity colour multiplies albedo AND darkens recesses toward brown (bole), raised areas stay bright
   m.onBeforeCompile = (sh) => {
+    sh.uniforms.uGiltMinRough = { value: rough };
+    sh.fragmentShader = 'uniform float uGiltMinRough;\n' + sh.fragmentShader;
     sh.fragmentShader = sh.fragmentShader.replace('#include <color_fragment>', `
 #ifdef USE_COLOR
   float gCav = vColor.r;
@@ -198,9 +210,12 @@ export function giltMaterial(ctx, { tone = 1.0, rough = 0.3, wear = 0.45 } = {})
 #endif`).replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
 #ifdef USE_COLOR
   roughnessFactor = mix(0.65, roughnessFactor, smoothstep(0.2, 0.9, vColor.r));
-#endif`);
+#endif
+  // old water-gilt is burnished, not chromed: keep a floor under the roughness so point lights
+  // spread into soft sheens instead of pin-point hot spots
+  roughnessFactor = max(roughnessFactor, uGiltMinRough);`);
   };
-  m.customProgramCacheKey = () => 'gallery-gilt';
+  m.customProgramCacheKey = () => 'gallery-gilt2';
   return m;
 }
 

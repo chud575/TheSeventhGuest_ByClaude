@@ -149,32 +149,64 @@ export function makeLightPool(ctx, { w = 1.1, h = 2.2, color = 0xffa25a, intensi
 }
 
 // ============================================================================ ghost card
+/**
+ * The grey lady: a soft painted card (no scan-lines) whose density is modulated by slow 3D
+ * noise drifting upward, brightest at her silhouette (a fresnel stand-in taken from the alpha
+ * gradient), dissolving at the hem. A second, larger, fainter card behind gives her volume.
+ */
 export async function makeGhostCard(ctx) {
   const tex = await new THREE.TextureLoader().loadAsync(ctx.assetUrl('ghost.png'));
   tex.colorSpace = THREE.SRGBColorSpace;
-  const uniforms = { tMap: { value: tex }, uTime: ctx.time, uFade: { value: 1 }, uTint: { value: new THREE.Color(0.62, 0.74, 1.0) }, uGain: { value: 1.1 } };
-  const mat = new THREE.ShaderMaterial({
-    uniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-    vertexShader: /* glsl */ `varying vec2 vUv; uniform float uTime;
-      void main() { vUv = uv; vec3 p = position; p.x += sin(uv.y * 7.0 + uTime * 1.1) * 0.02 * (1.0 - uv.y); gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }`,
-    fragmentShader: /* glsl */ `varying vec2 vUv; uniform sampler2D tMap; uniform float uTime; uniform float uFade; uniform vec3 uTint; uniform float uGain;
-      void main() {
-        vec2 uv = vUv;
-        uv.x += sin(uv.y * 90.0 + uTime * 4.0) * 0.0025 + sin(uv.y * 13.0 - uTime * 1.3) * 0.004;
-        vec4 t = texture2D(tMap, uv);
-        float scan = 0.82 + 0.18 * sin(uv.y * 520.0 + uTime * 12.0);
-        float breath = 0.85 + 0.15 * sin(uTime * 2.3 + uv.y * 4.0);
-        // edge-bright: the denser the figure the more transparent its core reads
-        float edge = smoothstep(0.05, 0.4, t.a) * (1.0 - 0.3 * smoothstep(0.7, 1.0, t.a));
-        vec3 c = pow(t.rgb, vec3(1.6)) * uTint * edge * scan * breath * uFade * uGain;
-        gl_FragColor = vec4(c, 1.0);
-      }`,
-  });
-  mat.userData.noBake = true;
-  const card = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 1.74), mat);
+  const mk = (seed, gain) => {
+    const uniforms = { tMap: { value: tex }, uTime: ctx.time, uFade: { value: 1 }, uTint: { value: new THREE.Color(0.66, 0.76, 1.0) }, uGain: { value: gain }, uSeed: { value: seed } };
+    const mat = new THREE.ShaderMaterial({
+      uniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      vertexShader: /* glsl */ `varying vec2 vUv; varying vec3 vW; uniform float uTime; uniform float uSeed;
+        void main() {
+          vUv = uv; vec3 p = position;
+          // the hem stirs as if in a draught; the head stays still
+          float sway = (1.0 - smoothstep(0.35, 1.0, uv.y));
+          p.x += (sin(uv.y * 5.0 + uTime * 0.9 + uSeed) * 0.018 + sin(uv.y * 11.0 - uTime * 0.6) * 0.006) * sway;
+          vec4 w = modelMatrix * vec4(p, 1.0); vW = w.xyz;
+          gl_Position = projectionMatrix * viewMatrix * w;
+        }`,
+      fragmentShader: /* glsl */ `varying vec2 vUv; varying vec3 vW; uniform sampler2D tMap; uniform float uTime; uniform float uFade; uniform vec3 uTint; uniform float uGain; uniform float uSeed;
+        float h31(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+        float vn(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(mix(h31(i), h31(i + vec3(1,0,0)), f.x), mix(h31(i + vec3(0,1,0)), h31(i + vec3(1,1,0)), f.x), f.y),
+                     mix(mix(h31(i + vec3(0,0,1)), h31(i + vec3(1,0,1)), f.x), mix(h31(i + vec3(0,1,1)), h31(i + vec3(1,1,1)), f.x), f.y), f.z); }
+        float fbm3(vec3 p) { return vn(p) * 0.55 + vn(p * 2.03 + 7.1) * 0.3 + vn(p * 4.1 + 3.3) * 0.15; }
+        void main() {
+          vec2 uv = vUv;
+          // slow smoke drift upward through the figure
+          vec3 q = vec3(vW.x * 2.2, vW.y * 1.6 - uTime * 0.18, vW.z * 2.2 + uSeed);
+          vec2 wob = vec2(fbm3(q * 0.7) - 0.5, fbm3(q * 0.7 + 11.0) - 0.5) * 0.02;
+          vec4 t = texture2D(tMap, uv + wob * (1.0 - smoothstep(0.75, 0.9, uv.y)));
+          float n = fbm3(q);
+          float a = t.a;
+          // rim: the thin part of the silhouette glows, the dense core is see-through
+          float rim = smoothstep(0.03, 0.22, a) * (1.0 - 0.45 * smoothstep(0.35, 0.7, a));
+          float face = smoothstep(0.78, 0.86, uv.y);                 // keep her face legible
+          float dens = mix(rim * (0.45 + 0.75 * n), a * 1.15, face);
+          dens *= smoothstep(0.0, 0.25, uv.y + 0.15 * (n - 0.5));    // ragged mist at the hem
+          vec3 c = mix(vec3(dot(t.rgb, vec3(0.33))), t.rgb, 0.6) * uTint * dens * uFade * uGain;
+          gl_FragColor = vec4(c, 1.0);
+        }`,
+    });
+    mat.userData.noBake = true;
+    return { mat, uniforms };
+  };
+  const A = mk(0.0, 0.95), B = mk(5.3, 0.3);
+  const card = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 1.74), A.mat);
   card.name = 'ghost';
   card.renderOrder = 8;
   card.userData.noShadow = true;
+  const halo = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 1.74), B.mat);
+  halo.scale.set(1.12, 1.04, 1); halo.position.set(0.015, 0.02, -0.07);
+  halo.renderOrder = 7; halo.userData.noShadow = true; halo.name = 'ghostHalo';
+  card.add(halo);
+  // both cards share uFade through a proxy
+  const uniforms = { uFade: { get value() { return A.uniforms.uFade.value; }, set value(v) { A.uniforms.uFade.value = v; B.uniforms.uFade.value = v; } } };
   return { mesh: card, uniforms };
 }
 
@@ -270,8 +302,9 @@ export function makePictureLight(ctx, mat, width = 0.42) {
   const hood = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, width, 20, 1, true, Math.PI * 0.15, Math.PI * 1.1), mat.brass);
   hood.rotation.z = Math.PI / 2; hood.position.set(0, 0.02, 0.17); hood.material = mat.brass; g.add(hood);
   for (const s of [-1, 1]) { const cap = new THREE.Mesh(new THREE.CircleGeometry(0.035, 16), mat.brass); cap.position.set(s * width / 2, 0.02, 0.17); cap.rotation.y = s * Math.PI / 2; g.add(cap); }
-  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, width - 0.04, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(3.0, 2.0, 1.1), name: 'picLamp' }));
-  tube.rotation.z = Math.PI / 2; tube.position.set(0, 0.008, 0.17); g.add(tube);
+  // the lamp tube sits up inside the hood; warm and below the bloom threshold so only the hood lip reads
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, width - 0.04, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.78, 0.54).multiplyScalar(0.55), name: 'picLamp' }));
+  tube.rotation.z = Math.PI / 2; tube.position.set(0, 0.03, 0.172); g.add(tube);
   return g;
 }
 
@@ -280,45 +313,149 @@ export function makeSideChair(ctx, mat) {
   const G = ctx.geometry;
   const g = new THREE.Group();
   g.name = 'chair';
-  const seat = new THREE.Mesh(new G.RoundedBoxGeometry(0.44, 0.09, 0.42, 4, 0.035), mat.velvetSeat); seat.position.set(0, 0.47, 0.25); g.add(seat);
-  const rail = new THREE.Mesh(new G.RoundedBoxGeometry(0.46, 0.06, 0.44, 2, 0.01), mat.mahogany); rail.position.set(0, 0.415, 0.25); g.add(rail);
-  const legF = G.latheFromProfile([[0.02, 0], [0.014, 0.03], [0.02, 0.1], [0.016, 0.2], [0.024, 0.3], [0.02, 0.38], [0.026, 0.4], [0, 0.4]], 12);
+  // seat rail (serpentine front) + a crowned, piped velvet cushion with brass nailheads
+  const rail = new THREE.Mesh(G.applyBoxUVs(new G.RoundedBoxGeometry(0.46, 0.065, 0.44, 2, 0.012), 1), mat.mahogany); rail.position.set(0, 0.41, 0.25); g.add(rail);
+  const cush = makeCushion(ctx, 0.45, 0.06, 0.43, mat.velvetSeat, { crown: 0.03, radius: 0.022, piping: mat.velvetSeat });
+  cush.position.set(0, 0.442, 0.25); g.add(cush);
+  const nail = new THREE.SphereGeometry(0.0045, 8, 5);
+  const nails = [];
+  for (let i = 0; i <= 22; i++) nails.push([-0.225 + i * (0.45 / 22), 0.25 + 0.218]);
+  for (let i = 1; i < 20; i++) { const z = 0.25 + 0.215 - i * (0.43 / 20); nails.push([-0.228, z], [0.228, z]); }
+  const nm = new THREE.InstancedMesh(nail, mat.brass, nails.length);
+  const m4 = new THREE.Matrix4();
+  nails.forEach(([x, z], i) => {
+    const onFront = Math.abs(z - 0.468) < 0.001;
+    m4.makeTranslation(onFront ? x : x + Math.sign(x) * 0.004, 0.452, onFront ? z + 0.004 : z);
+    nm.setMatrixAt(i, m4);
+  });
+  g.add(nm);
+  // cabriole-ish turned front legs
+  const legF = G.latheFromProfile([[0.02, 0], [0.014, 0.03], [0.02, 0.1], [0.016, 0.2], [0.024, 0.3], [0.02, 0.36], [0.026, 0.38], [0, 0.38]], 14);
   for (const x of [-0.19, 0.19]) { const l = new THREE.Mesh(legF, mat.mahogany); l.position.set(x, 0, 0.43); g.add(l); }
-  // sabre back legs continue up into the balloon back
+  // sabre back legs sweep up into the balloon back
   for (const x of [-0.18, 0.18]) {
-    const c = new THREE.CatmullRomCurve3([V3(x, 0, 0.0), V3(x, 0.2, 0.05), V3(x, 0.42, 0.06), V3(x * 0.95, 0.62, 0.04), V3(x * 1.05, 0.8, 0.0)]);
-    g.add(new THREE.Mesh(new THREE.TubeGeometry(c, 16, 0.016, 8), mat.mahogany));
+    const c = new THREE.CatmullRomCurve3([V3(x, 0, -0.02), V3(x, 0.2, 0.05), V3(x, 0.42, 0.065), V3(x * 0.96, 0.62, 0.045), V3(x * 1.05, 0.8, 0.0)]);
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(c, 20, 0.017, 10), mat.mahogany));
   }
-  const balloon = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.017, 8, 40), mat.mahogany);
-  balloon.position.set(0, 0.8, 0.0); balloon.scale.set(1.0, 0.82, 1.0); g.add(balloon);
-  const splat = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 6, 20), mat.mahogany); splat.position.set(0, 0.74, 0.0); splat.scale.set(1.2, 0.8, 1); g.add(splat);
-  const cross = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.36, 8), mat.mahogany); cross.rotation.z = Math.PI / 2; cross.position.set(0, 0.64, 0.03); g.add(cross);
+  const balloon = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.019, 10, 48), mat.mahogany);
+  balloon.position.set(0, 0.81, 0.0); balloon.scale.set(1.0, 0.8, 1.0); g.add(balloon);
+  // pierced fiddle-back splat: vase silhouette with three cut-outs
+  const sp = new THREE.Shape();
+  sp.moveTo(-0.035, 0); sp.bezierCurveTo(-0.075, 0.04, -0.03, 0.08, -0.045, 0.12); sp.bezierCurveTo(-0.07, 0.17, -0.09, 0.2, -0.055, 0.25);
+  sp.lineTo(0.055, 0.25); sp.bezierCurveTo(0.09, 0.2, 0.07, 0.17, 0.045, 0.12); sp.bezierCurveTo(0.03, 0.08, 0.075, 0.04, 0.035, 0); sp.lineTo(-0.035, 0);
+  const h1 = new THREE.Path(); h1.absellipse(0, 0.19, 0.022, 0.035, 0, Math.PI * 2, true); sp.holes.push(h1);
+  const h2 = new THREE.Path(); h2.absellipse(-0.022, 0.1, 0.009, 0.025, 0, Math.PI * 2, true); sp.holes.push(h2);
+  const h3 = new THREE.Path(); h3.absellipse(0.022, 0.1, 0.009, 0.025, 0, Math.PI * 2, true); sp.holes.push(h3);
+  const sg = G.applyBoxUVs(new THREE.ExtrudeGeometry(sp, { depth: 0.014, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 2, curveSegments: 16 }), 1);
+  const splat = new THREE.Mesh(sg, mat.mahogany); splat.position.set(0, 0.6, 0.035); splat.rotation.x = -0.08; g.add(splat);
+  const cross = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.36, 10), mat.mahogany); cross.rotation.z = Math.PI / 2; cross.position.set(0, 0.6, 0.045); g.add(cross);
   return g;
 }
 
-/** Pedestal with a bust under a dust sheet. Origin at the floor, facing +Z. */
-export function makeCoveredBust(ctx, mat, random) {
+/**
+ * Pedestal with a bust under a dust sheet. Origin at the floor, facing +Z.
+ * The sheet is a dense (96 x 72) radial drape: it follows the bust's head/shoulder form where it
+ * rests, then hangs free from the shoulder line in folds that start at the contact points,
+ * deepen toward the hem and swing out at the four corners of the cloth.
+ */
+export function makeCoveredBust(ctx, mat) {
   const G = ctx.geometry;
   const g = new THREE.Group();
   g.name = 'coveredBust';
-  const ped = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.2, 0], [0.2, 0.05], [0.16, 0.08], [0.15, 0.12], [0.11, 0.16], [0.1, 0.9], [0.13, 0.94], [0.17, 0.98], [0.17, 1.02], [0, 1.02]], 32), mat.marble);
-  g.add(ped);
-  // sheet: bust silhouette lathe, flaring into hanging cloth with vertical folds
-  const prof = [[0, 1.62], [0.06, 1.61], [0.095, 1.57], [0.105, 1.5], [0.09, 1.44], [0.07, 1.39], [0.1, 1.36], [0.2, 1.32], [0.24, 1.26], [0.25, 1.16], [0.24, 1.06], [0.23, 1.0], [0.24, 0.9], [0.25, 0.8], [0.255, 0.74]];
-  const geo = G.latheFromProfile(prof, 64);
-  const p = geo.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-    const a = Math.atan2(z, x), r = Math.hypot(x, z);
-    const hang = THREE.MathUtils.smoothstep(1.32, 0.9, y);
-    const fold = (Math.sin(a * 9 + Math.sin(a * 3) * 1.5) * 0.6 + Math.sin(a * 17 + 1.3) * 0.4) * 0.03 * hang;
-    const drape = THREE.MathUtils.smoothstep(1.4, 1.25, y) * 0.012 * Math.sin(a * 5 + y * 20);
-    const nr = r + fold + drape;
-    // the bust is narrower front-to-back
-    p.setXYZ(i, Math.cos(a) * nr, y, Math.sin(a) * nr * (y > 1.0 ? 0.72 : 0.85));
+  // ---- turned ebonised column on a square plinth, moulded capital + square abacus
+  const plinth = new THREE.Mesh(G.applyBoxUVs(new G.RoundedBoxGeometry(0.36, 0.08, 0.36, 2, 0.006), 1), mat.pedestal); plinth.position.y = 0.04; g.add(plinth);
+  const prof = [[0, 0.08], [0.16, 0.08], [0.165, 0.09], [0.15, 0.1], [0.155, 0.115], [0.14, 0.13], [0.12, 0.135], [0.118, 0.15], [0.105, 0.17], [0.1, 0.2], [0.094, 0.5], [0.088, 0.8], [0.086, 0.84], [0.1, 0.85], [0.1, 0.865], [0.088, 0.875], [0.1, 0.9], [0.13, 0.93], [0.145, 0.95], [0.145, 0.96], [0, 0.96]];
+  const col = new THREE.Mesh(G.latheFromProfile(prof, 48), mat.pedestal); g.add(col);
+  // fluting: thin dark reeds around the shaft
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    const f = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.58, 6), mat.black);
+    f.position.set(Math.cos(a) * 0.088, 0.52, Math.sin(a) * 0.088); f.scale.set(1, 1, 0.5); f.rotation.y = -a; g.add(f);
   }
+  const abacus = new THREE.Mesh(G.applyBoxUVs(new G.RoundedBoxGeometry(0.32, 0.04, 0.32, 2, 0.005), 1), mat.pedestal); abacus.position.y = 0.98; g.add(abacus);
+  const TOP = 1.0;
+  // ---- the hidden form: radius of the bust at height y and azimuth a (front = +z)
+  const ell = (a, rx, rz) => 1 / Math.sqrt((Math.cos(a) / rx) ** 2 + (Math.sin(a) / rz) ** 2);
+  const formR = (y, a) => {
+    const h = y - TOP;
+    if (h > 0.43) return 0;
+    if (h > 0.28) { const t = (h - 0.28) / 0.15; const head = Math.sqrt(Math.max(0, 1 - t * t)) * 0.1; return head * ell(a, 1.0, 1.12) + (Math.sin(a) > 0.9 ? 0.012 * Math.max(0, 1 - Math.abs(t - 0.1) * 5) : 0); }
+    if (h > 0.22) return 0.06 * ell(a, 1, 1);                 // neck
+    if (h > 0.1) { const t = (0.22 - h) / 0.12; return (0.06 + 0.18 * Math.sin(Math.min(1, t) * Math.PI / 2)) * ell(a, 1.0, 0.62); }
+    // the sheet's fall clears the corners of the square abacus below the bust
+    return h > 0.02 ? 0.24 * ell(a, 1.0, 0.62) : Math.max(0.24 * ell(a, 1.0, 0.62), 0.245);
+  };
+  // ---- sheet: rings by arc length from the crown; each column walks down the form, then hangs
+  const NA = 96, NS = 72, SL = 0.98;                              // azimuth segments, rings, cloth radius (m)
+  const pos = new Float32Array((NA + 1) * (NS + 1) * 3), uvs = new Float32Array((NA + 1) * (NS + 1) * 2);
+  const hash = (i) => { const x = Math.sin(i * 127.1) * 43758.5453; return x - Math.floor(x); };
+  const foldN = (a) => 0.55 * Math.sin(a * 7 + 0.6 * Math.sin(a * 3)) + 0.3 * Math.sin(a * 13 + 1.7) + 0.15 * Math.sin(a * 23 + 0.4);
+  for (let j = 0; j <= NA; j++) {
+    const a = (j / NA) * Math.PI * 2;
+    // corners of a square sheet hang lower (cloth radius grows toward the diagonals)
+    const corner = Math.pow(Math.abs(Math.cos(2 * (a - 0.35))), 3);
+    const len = SL * (0.88 + 0.22 * corner);
+    // the cloth wraps the convex hull of the form's silhouette at this azimuth: it tents from
+    // the crown of the head over the chin straight to the shoulder edge, then hangs plumb
+    const ys = [], rs = [];
+    for (let yy = TOP + 0.43; yy > TOP - 1.2; yy -= 0.004) { ys.push(yy); rs.push(formR(yy, a)); }
+    // upper hull of r(y) (monotone chain over points ordered by y), then interpolate back
+    const H = [];
+    for (let p = ys.length - 1; p >= 0; p--) {
+      while (H.length >= 2) {
+        const o = H[H.length - 2], m = H[H.length - 1];
+        const cross = (ys[m] - ys[o]) * (rs[p] - rs[o]) - (rs[m] - rs[o]) * (ys[p] - ys[o]);
+        if (cross >= 0) H.pop(); else break;
+      }
+      H.push(p);
+    }
+    const hull = new Float32Array(ys.length);
+    for (let k = 0; k < H.length - 1; k++) {
+      const p0 = H[k], p1 = H[k + 1];
+      for (let p = p0; p >= p1; p--) hull[p] = rs[p0] + (rs[p1] - rs[p0]) * ((ys[p] - ys[p0]) / ((ys[p1] - ys[p0]) || 1));
+    }
+    const col0 = [];
+    let s = 0, contactS = -1;
+    for (let p = 0; p < ys.length; p++) {
+      if (p > 0) s += Math.hypot(hull[p] - hull[p - 1], ys[p] - ys[p - 1]);
+      col0.push([s, hull[p], ys[p]]);
+      if (contactS < 0 && ys[p] < TOP + 0.1) contactS = s;
+      if (s > len) break;
+    }
+    for (let i = 0; i <= NS; i++) {
+      const si = (i / NS) * len;
+      let k = 0; while (k < col0.length - 1 && col0[k][0] < si) k++;
+      let [, rr, yy] = col0[k];
+      // free hang below contact: folds grow, slight flare at the hem
+      const free = Math.max(0, si - contactS);
+      const fa = Math.min(1, free / 0.35);
+      const amp = 0.028 * fa + 0.012 * Math.min(1, free / 0.8) * corner;
+      rr += foldN(a + hash(j) * 0.02) * amp + free * 0.05 * (0.6 + corner);
+      // gentle pooling folds over the shoulders where it first drapes
+      if (free <= 0) rr += 0.004 * Math.sin(a * 11 + si * 30) * Math.min(1, si / 0.2);
+      // hem lifts slightly where a fold kicks out
+      if (i === NS) yy += 0.01 * foldN(a * 1.3);
+      const idx = (j * (NS + 1) + i);
+      pos[idx * 3] = Math.cos(a) * rr; pos[idx * 3 + 1] = yy; pos[idx * 3 + 2] = Math.sin(a) * rr;
+      uvs[idx * 2] = Math.cos(a) * si * 2 + 2; uvs[idx * 2 + 1] = Math.sin(a) * si * 2 + 2;
+    }
+  }
+  const index = [];
+  for (let j = 0; j < NA; j++) for (let i = 0; i < NS; i++) {
+    const a0 = j * (NS + 1) + i, b0 = (j + 1) * (NS + 1) + i;
+    index.push(a0, a0 + 1, b0, b0, a0 + 1, b0 + 1);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geo.setIndex(index);
   geo.computeVertexNormals();
+  // make normals face outward
+  const n = geo.attributes.normal;
+  let out = 0; for (let i = 0; i < n.count; i++) out += n.getX(i) * pos[i * 3] + n.getZ(i) * pos[i * 3 + 2];
+  if (out < 0) { for (let i = 0; i < index.length; i += 3) { const t = index[i + 1]; index[i + 1] = index[i + 2]; index[i + 2] = t; } geo.setIndex(index); geo.computeVertexNormals(); }
   const sheet = new THREE.Mesh(geo, mat.sheet);
+  sheet.name = 'dustSheet';
   g.add(sheet);
   return g;
 }
@@ -350,28 +487,143 @@ export function makeBirdcage(ctx, mat) {
   return g;
 }
 
-/** Leaded stained-glass transom texture */
+/**
+ * Leaded stained-glass transom: a sunburst fan between quarry-glazed side lights, in a muted
+ * jewel palette (oxblood, bottle green, amber, cobalt), seedy/hammered glass, 3 px lead cames
+ * with a rounded highlight, and grime gathered at the edges.
+ */
 export function transomTexture(ctx) {
-  return ctx.textures.canvas('gallery:transom', 512, 160, (g, w, h) => {
-    const cols = ['#7a1418', '#16406e', '#b8892a', '#2a5a2a', '#5a1a5a', '#c8b890'];
-    g.fillStyle = '#0a0806'; g.fillRect(0, 0, w, h);
-    const cx = w / 2, cy = h;
-    for (let ring = 0; ring < 3; ring++) {
-      const r0 = 30 + ring * 45, r1 = r0 + 42;
-      const n = 6 + ring * 4;
+  return ctx.textures.canvas('gallery:transom2', 1024, 136, (g, w, h) => {
+    let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const pal = ['#5a1216', '#173a24', '#9a6a1c', '#1a2c5c', '#6e5a2a', '#3c1830', '#8a7a52'];
+    const panes = [];   // [path builder, colour]
+    const cx = w / 2, cy = h + 4;
+    // sunburst fan (two rings) in the middle third
+    const R0 = 34, R1 = 82, R2 = 128;
+    for (let ring = 0; ring < 2; ring++) {
+      const n = ring ? 11 : 7, ra = ring ? R1 : R0, rb = ring ? R2 : R1;
       for (let i = 0; i < n; i++) {
         const a0 = Math.PI + (i / n) * Math.PI, a1 = Math.PI + ((i + 1) / n) * Math.PI;
-        g.beginPath(); g.arc(cx, cy, r1, a0, a1); g.arc(cx, cy, r0, a1, a0, true); g.closePath();
-        g.fillStyle = cols[(i + ring * 2) % cols.length]; g.fill();
-        g.strokeStyle = '#141008'; g.lineWidth = 4; g.stroke();
+        panes.push([(c) => { c.beginPath(); c.arc(cx, cy, rb, a0, a1); c.arc(cx, cy, ra, a1, a0, true); c.closePath(); }, ring ? pal[[0, 2, 3, 2, 1, 2, 0, 2, 3, 2, 1][i]] : pal[[4, 6, 4, 6, 4, 6, 4][i]]]);
       }
     }
-    // side diamonds
-    for (const side of [0, 1]) for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) {
-      const x = (side ? w - 90 : 10) + i * 22 + (j % 2) * 11, y = 20 + j * 60;
-      g.beginPath(); g.moveTo(x, y + 30); g.lineTo(x + 11, y); g.lineTo(x + 22, y + 30); g.lineTo(x + 11, y + 60); g.closePath();
-      g.fillStyle = cols[(i + j + side) % cols.length]; g.fill(); g.strokeStyle = '#141008'; g.lineWidth = 3; g.stroke();
+    panes.push([(c) => { c.beginPath(); c.arc(cx, cy, R0, Math.PI, 0); c.closePath(); }, '#b08a3a']);
+    // side lights: diamond quarries in a border
+    for (const side of [0, 1]) {
+      const x0 = side ? cx + R2 + 14 : 10, x1 = side ? w - 10 : cx - R2 - 14;
+      const qw = 46, qh = 58, rows = 3;
+      for (let r = -1; r < rows; r++) for (let q = -1; q * qw < x1 - x0 + qw; q++) {
+        const x = x0 + q * qw + (r % 2 ? qw / 2 : 0), y = 10 + r * qh / 2 + qh / 2;
+        const col = (q + r + side) % 5 === 0 ? pal[(q + r * 3 + 7) % 4] : '#5c5f50';
+        panes.push([(c) => { c.save(); c.beginPath(); c.rect(x0, 10, x1 - x0, h - 20); c.clip(); c.beginPath(); c.moveTo(x, y - qh / 2); c.lineTo(x + qw / 2, y); c.lineTo(x, y + qh / 2); c.lineTo(x - qw / 2, y); c.closePath(); c.restore(); }, col, [x0, x1]]);
+      }
     }
-    g.strokeStyle = '#141008'; g.lineWidth = 8; g.strokeRect(0, 0, w, h);
+    g.fillStyle = '#5c5f50'; g.fillRect(0, 0, w, h);
+    // fill panes with hammered glass: base colour * cell noise
+    for (const [path, col, clip] of panes) {
+      g.save();
+      if (clip) { g.beginPath(); g.rect(clip[0], 10, clip[1] - clip[0], h - 20); g.clip(); }
+      path(g); g.fillStyle = col; g.fill();
+      g.restore();
+    }
+    // seedy / hammered texture over everything
+    const img = g.getImageData(0, 0, w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const ham = 0.82 + 0.3 * (0.5 + 0.25 * Math.sin(x * 0.9 + Math.sin(y * 0.7) * 2) + 0.25 * Math.sin(y * 1.1 + Math.sin(x * 0.5) * 2));
+      const seedB = rnd() < 0.004 ? 1.5 : 1.0;
+      const ex = Math.min(x, w - 1 - x, y * 6, (h - 1 - y) * 6) / 60;           // grime toward the frame
+      const grime = 0.45 + 0.55 * Math.min(1, ex);
+      for (let k = 0; k < 3; k++) img.data[i + k] = Math.min(255, img.data[i + k] * ham * seedB * grime);
+    }
+    g.putImageData(img, 0, 0);
+    // lead cames: dark 4 px line with a soft highlight on top
+    const lead = (path, clip) => {
+      g.save(); if (clip) { g.beginPath(); g.rect(clip[0], 10, clip[1] - clip[0], h - 20); g.clip(); }
+      path(g); g.strokeStyle = '#0d0b09'; g.lineWidth = 4; g.stroke();
+      path(g); g.strokeStyle = 'rgba(120,110,95,0.35)'; g.lineWidth = 1; g.stroke();
+      g.restore();
+    };
+    for (const [path, , clip] of panes) lead(path, clip);
+    g.strokeStyle = '#0d0b09'; g.lineWidth = 6;
+    for (const side of [0, 1]) { const x0 = side ? cx + R2 + 14 : 10, x1 = side ? w - 10 : cx - R2 - 14; g.strokeRect(x0, 10, x1 - x0, h - 20); }
+    g.lineWidth = 12; g.strokeRect(0, 0, w, h);
   }, { tile: false });
+}
+
+// ============================================================================ upholstery
+/**
+ * Crowned, piped, button-tufted cushion. Origin at the centre of its base, top facing +Y.
+ * opts: crown (m), buttons [[nx,nz],...] in -1..1, piping material, button material, dimple depth.
+ */
+export function makeCushion(ctx, w, h, d, fabric, { crown = 0.02, radius = 0.025, buttons = [], piping = null, buttonMat = null, dimple = 0.012, seg = 10 } = {}) {
+  const G = ctx.geometry;
+  const g = new THREE.Group();
+  g.name = 'cushion';
+  const geo = new G.RoundedBoxGeometry(w, h, d, seg, radius);
+  const p = geo.attributes.position;
+  const bpos = buttons.map(([nx, nz]) => [nx * w / 2, nz * d / 2]);
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const t = THREE.MathUtils.smoothstep(y, -h * 0.1, h / 2);           // top faces move most
+    const fx = 1 - Math.pow(Math.min(1, Math.abs(x) / (w / 2)), 2.2), fz = 1 - Math.pow(Math.min(1, Math.abs(z) / (d / 2)), 2.2);
+    let dy = crown * fx * fz * t;
+    // tufting: dimples pulled down toward each button, with soft pleats radiating between
+    for (const [bx, bz] of bpos) {
+      const r2 = ((x - bx) ** 2 + (z - bz) ** 2) / (0.045 * 0.045);
+      dy -= dimple * Math.exp(-r2) * t;
+    }
+    // sides bulge a little
+    const side = (1 - Math.abs(y) / (h / 2)) * 0.006;
+    const sx = Math.sign(x) * side * THREE.MathUtils.smoothstep(Math.abs(x), w / 2 - radius * 1.2, w / 2);
+    const sz = Math.sign(z) * side * THREE.MathUtils.smoothstep(Math.abs(z), d / 2 - radius * 1.2, d / 2);
+    p.setXYZ(i, x + sx, y + h / 2 + dy, z + sz);
+  }
+  geo.computeVertexNormals();
+  // metre UVs on the top for patterned fabrics
+  const uv = geo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, p.getX(i) + w / 2, p.getZ(i) + d / 2);
+  const body = new THREE.Mesh(geo, fabric);
+  g.add(body);
+  if (piping) {
+    // piping cord around the top and bottom seams (rounded-rectangle loops)
+    for (const yy of [h - radius * 0.32, radius * 0.32]) {
+      const ix = w / 2 - radius * 0.3, iz = d / 2 - radius * 0.3, rr = radius * 0.7;
+      const shape = new THREE.Path();
+      shape.moveTo(-ix + rr, -iz); shape.lineTo(ix - rr, -iz); shape.quadraticCurveTo(ix, -iz, ix, -iz + rr); shape.lineTo(ix, iz - rr);
+      shape.quadraticCurveTo(ix, iz, ix - rr, iz); shape.lineTo(-ix + rr, iz); shape.quadraticCurveTo(-ix, iz, -ix, iz - rr); shape.lineTo(-ix, -iz + rr); shape.quadraticCurveTo(-ix, -iz, -ix + rr, -iz);
+      const pts = shape.getSpacedPoints(160).map((q) => V3(q.x, yy, q.y));
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 240, 0.0045, 6, true), piping);
+      g.add(tube);
+    }
+  }
+  if (buttonMat) {
+    const bg = new THREE.SphereGeometry(0.009, 10, 6);
+    for (const [bx, bz] of bpos) {
+      const b = new THREE.Mesh(bg, buttonMat);
+      const fx = 1 - Math.pow(Math.abs(bx) / (w / 2), 2.2), fz = 1 - Math.pow(Math.abs(bz) / (d / 2), 2.2);
+      b.position.set(bx, h + crown * fx * fz - dimple + 0.003, bz); b.scale.set(1, 0.55, 1);
+      g.add(b);
+    }
+  }
+  return g;
+}
+
+/** linen weave normal/roughness set for dust sheets */
+export function linenTexture(ctx) {
+  return ctx.textures.generate('gallery:linen', {
+    size: 512, tile: true, normalStrength: 1.0,
+    glsl: /* glsl */ `
+    void surface(vec2 uv, inout Surface s) {
+      vec2 p = uv * 64.0;
+      float wx = sin(p.x * 6.2832) * 0.5 + 0.5, wy = sin(p.y * 6.2832) * 0.5 + 0.5;
+      float over = step(0.5, fract((floor(p.x) + floor(p.y)) * 0.5));
+      float thread = mix(wx, wy, over);
+      float slub = fbm(vec2(uv.x * 8.0, uv.y * 64.0), vec2(8.0, 64.0), 3) * 0.5 + 0.5;
+      float stain = fbm(uv * 3.0, vec2(3.0), 4) * 0.5 + 0.5;
+      s.albedo = vec3(0.62, 0.6, 0.55) * (0.88 + 0.12 * thread) * (0.92 + 0.1 * slub) * (1.0 - 0.18 * smoothstep(0.55, 0.8, stain));
+      s.height = 0.5 + 0.3 * thread + 0.1 * slub;
+      s.rough = 0.88; s.metal = 0.0; s.ao = 0.9 + 0.1 * thread;
+    }`,
+  });
 }

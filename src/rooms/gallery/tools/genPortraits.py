@@ -253,8 +253,9 @@ def paint_portrait(spec):
 
     # ---- composite the face with a feathered head mask
     fm = Image.new('L', (fs, fs), 0); fd = ImageDraw.Draw(fm)
-    fd.ellipse([fs * 0.06, fs * 0.03, fs * 0.94, fs * 1.06], fill=255)
-    fm = fm.filter(ImageFilter.GaussianBlur(fs * 0.045))
+    mi = spec.get('maskInset', (0.06, 0.03))
+    fd.ellipse([fs * mi[0], fs * mi[1], fs * (1 - mi[0]), fs * 1.06], fill=255)
+    fm = fm.filter(ImageFilter.GaussianBlur(fs * spec.get('maskBlur', 0.045)))
     fmask = np.asarray(fm, np.float32) / 255
     # fade the bottom of the crop (its own clothes) into our costume
     fy = np.linspace(0, 1, fs)[:, None]
@@ -338,50 +339,34 @@ def _scroll(d, cx, cy, sx, sy, scale, gold, dark):
 
 
 def toymaker_extra(img, W, H, u, v):
-    """gilt scroll spandrels in all four corners + painted inscription band: every tile carries detail."""
-    pil = to_img(img); d = ImageDraw.Draw(pil, 'RGBA')
-    gold = (186, 140, 62, 255); dk = (50, 32, 12, 255)
-    band_y = int(H * 0.86)
-    mx, my = W * 0.06, H * 0.035
-    # dark spandrels outside a painted oval
-    om = Image.new('L', (W, H), 0); ImageDraw.Draw(om).ellipse([mx, my, W - mx, band_y - 8], fill=255)
-    o = np.asarray(om.filter(ImageFilter.GaussianBlur(3)), np.float32)[..., None] / 255
-    span = np.asarray(pil, np.float32) / 255 * 0.25 + np.array([0.05, 0.035, 0.025]) * (0.7 + 0.6 * noise(H, W, 50, 7)[..., None])
-    pil = to_img(np.asarray(pil, np.float32) / 255 * o + span * (1 - o)); d = ImageDraw.Draw(pil, 'RGBA')
-    d.ellipse([mx, my, W - mx, band_y - 8], outline=dk, width=14)
-    d.ellipse([mx, my, W - mx, band_y - 8], outline=gold, width=7)
-    d.ellipse([mx + 16, my + 16, W - mx - 16, band_y - 24], outline=(110, 78, 32, 255), width=3)
-    for (sx, sy) in [(1, 1), (-1, 1), (1, -1), (-1, -1)]:
-        cx = 70 if sx > 0 else W - 70; cy = 70 if sy > 0 else band_y - 70
-        _scroll(d, cx, cy, sx, sy, 62, gold, dk)
-        # rosette
-        rx = 34 if sx > 0 else W - 34; ry = 34 if sy > 0 else band_y - 30
-        for k in range(8):
-            a = k * math.pi / 4
-            d.ellipse([rx + math.cos(a) * 14 - 8, ry + math.sin(a) * 14 - 8, rx + math.cos(a) * 14 + 8, ry + math.sin(a) * 14 + 8], fill=gold, outline=dk)
-        d.ellipse([rx - 7, ry - 7, rx + 7, ry + 7], fill=(120, 30, 20, 255), outline=dk)
+    """one coherent oil portrait: deepened ground toward the corners, and only a faint
+    gilt-lettered band along the bottom edge (so only the bottom row of tiles carries text)."""
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    band_y = int(H * 0.885)
+    # darken the corners like a feigned oval, but painterly and soft (no hard ring)
+    r = np.sqrt(((xx / W - 0.5) / 0.56) ** 2 + ((yy / band_y - 0.47) / 0.6) ** 2)
+    vig = 1 - 0.3 * smoothstep(0.8, 1.2, r + 0.08 * (noise(H, W, 60, 71) - 0.5))
+    # lift the umber ground so every piece of the scrambled board carries readable paint
+    out = np.clip(img * vig[..., None] * 1.12 + np.array([0.035, 0.026, 0.016]), 0, 1)
+    pil = to_img(out); d = ImageDraw.Draw(pil, 'RGBA')
+    # inscription band: dark brown bole with two worn gilt fillets and faded letters
+    d.rectangle([0, band_y, W, H], fill=(28, 18, 11, 255))
+    d.line([0, band_y + 5, W, band_y + 5], fill=(150, 112, 52, 255), width=4)
+    d.line([0, H - 10, W, H - 10], fill=(120, 90, 40, 255), width=3)
     try:
-        f = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf', 58)
-        f2 = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf', 50)
+        f2 = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf', 44)
     except Exception:
-        f = f2 = ImageFont.load_default()
-    for sx, ch in ((1, 'H'), (-1, 'S')):
-        x = 165 if sx > 0 else W - 165; y = 205
-        d.ellipse([x - 46, y - 46, x + 46, y + 46], fill=(40, 22, 14, 255), outline=gold, width=5)
-        d.text((x, y + 2), ch, font=f, fill=gold, anchor='mm')
-    # inscription band
-    d.rectangle([0, band_y, W, H], fill=(34, 21, 13, 255))
-    d.line([0, band_y + 6, W, band_y + 6], fill=gold, width=5)
-    d.line([0, H - 12, W, H - 12], fill=gold, width=3)
-    d.text((W / 2, band_y + (H - band_y) / 2 + 2), 'H · S T A U F · TOYMAKER · 1889', font=f2, fill=(200, 160, 82, 255), anchor='mm')
-    out = np.asarray(pil, np.float32) / 255
-    # soften only what we drew into paint
-    diff = np.abs(out - img).sum(-1)
-    m = np.asarray(to_img(np.stack([np.clip(diff * 8, 0, 1)] * 3, -1)).filter(ImageFilter.GaussianBlur(3)).convert('L'), np.float32)[..., None] / 255
-    soft = kuwahara(out, 2)
-    gl = noise(H, W, 30, 8)[..., None]
-    out = out * (1 - m) + soft * (0.8 + 0.35 * gl) * m
-    return np.clip(out, 0, 1)
+        f2 = ImageFont.load_default()
+    d.text((W / 2, band_y + (H - band_y) / 2 + 3), 'HENRY  STAUF   ·   MDCCCLXXXIX', font=f2, fill=(168, 128, 64, 255), anchor='mm')
+    res = np.asarray(pil, np.float32) / 255
+    # wear the gilt: rub some of the letters back to bole
+    wear = smoothstep(0.55, 0.75, noise(H, W, 24, 72, 3))[..., None]
+    band = (yy >= band_y)[..., None]
+    res = np.where(band, res * (1 - 0.55 * wear) + np.array([0.11, 0.07, 0.045]) * 0.55 * wear, res)
+    m = band.astype(np.float32)
+    soft = np.asarray(to_img(res).filter(ImageFilter.GaussianBlur(0.8)), np.float32) / 255
+    res = res * (1 - m) + soft * m
+    return np.clip(res, 0, 1)
 
 
 # ----------------------------------------------------------------------------- specs
@@ -391,60 +376,76 @@ SPECS = {
     'elder':   dict(face='s8', H=1314, seed=37, coat=(24, 27, 40), faceW=0.6, faceY=0.08, shirt=True, shirtW=0.15, shirtDepth=0.18, cravat=(225, 220, 205), shoulderW=0.55),
     'child':   dict(face='s6', H=1331, seed=41, faceW=0.62, faceY=0.12, coat=(70, 84, 104), collar=0.2, oval=(18, 14, 12), shoulderW=0.46),
     'widow':   dict(face='v3_7', H=1314, seed=53, faceW=0.58, faceY=0.1, coat=(14, 13, 15), sheen=0.5, brooch=True, collar=0.14, shoulderW=0.5),
-    'toymaker': dict(face='v8_4', W=1024, H=1024, seed=67, faceW=0.64, faceY=0.1, coat=(22, 20, 18), shirt=True, shirtW=0.12, shirtDepth=0.12, cravat=(90, 18, 16), shoulderW=0.56, shoulder=0.92, extra=toymaker_extra, bgMul=0.55),
+    'toymaker': dict(face='v8_4', W=1024, H=1024, seed=67, faceW=0.64, faceY=0.1, coat=(22, 20, 18), shirt=True, shirtW=0.12, shirtDepth=0.12, cravat=(90, 18, 16), shoulderW=0.56, shoulder=0.92, extra=toymaker_extra, bgMul=0.55, maskInset=(0.13, 0.1), maskBlur=0.075),
 }
 
 
 def ghost_card():
-    """grey lady: painted face + long nightgown silhouette as an RGBA card (white-ish, alpha = density)."""
+    """grey lady: painted face + veil + long nightgown as an RGBA card (white-ish, alpha = density).
+    No streaks: the gown is a handful of broad soft folds; the hem dissolves into ragged mist."""
     W, H = 512, 1536
     face = Image.open(os.path.join(HERE, 'src_faces', 'm2.png')).convert('RGB')
-    fs = 300
-    fu = np.asarray(face.resize((fs, fs), Image.LANCZOS), np.float32) / 255
+    fs = 250
+    fu = np.asarray(face.resize((fs, fs), Image.LANCZOS).filter(ImageFilter.GaussianBlur(1.1)), np.float32) / 255
     yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
     u = xx / W; v = yy / H
-    lum = np.zeros((H, W), np.float32); alpha = np.zeros((H, W), np.float32)
-    # gown silhouette widening to the floor, arms folded
+    cx = W / 2
+    # ---- gown silhouette: sloping shoulders, slight waist, skirt flaring and trailing
     m = Image.new('L', (W, H), 0); d = ImageDraw.Draw(m)
-    pts = []
-    for t in np.linspace(0, 1, 50):
-        y = 250 + t * (H - 270)
-        w = 30 + 130 * smoothstep(0.0, 0.12, t) + 60 * t ** 1.5
-        pts.append((W / 2 - w, y))
-    for t in np.linspace(1, 0, 50):
-        y = 250 + t * (H - 270)
-        w = 30 + 130 * smoothstep(0.0, 0.12, t) + 60 * t ** 1.5
-        pts.append((W / 2 + w, y))
+    top = 285
+    def half(t):
+        y = top + t * (H - top - 20)
+        w = 30 + 112 * smoothstep(-0.02, 0.16, t) ** 0.8 - 14 * smoothstep(0.12, 0.3, t) * (1 - smoothstep(0.3, 0.5, t)) + 70 * max(0.0, t - 0.3) ** 1.4
+        return y, w
+    pts = [(cx - half(t)[1], half(t)[0]) for t in np.linspace(0, 1, 80)] + [(cx + half(t)[1], half(t)[0]) for t in np.linspace(1, 0, 80)]
     d.polygon(pts, fill=255)
-    gm = np.asarray(m.filter(ImageFilter.GaussianBlur(14)), np.float32) / 255
-    folds = stretched_noise(H, W, 14, 400, 5) * 0.6 + stretched_noise(H, W, 5, 160, 6) * 0.4
-    glum = (0.45 + 0.55 * folds) * (1 - 0.3 * v)
-    galpha = gm * (0.55 + 0.45 * folds) * (1 - smoothstep(0.55, 1.0, v))
-    # hair veil around the face
-    lum += glum * gm; alpha = np.maximum(alpha, galpha)
-    fx0, fy0 = W // 2 - fs // 2, 40
+    gm = np.asarray(m.filter(ImageFilter.GaussianBlur(10)), np.float32) / 255
+    # broad folds: few, soft, slightly wavering; deeper toward the hem
+    warp = (noise(H, W, 260, 5, 2) - 0.5) * 40
+    fx = (xx - cx + warp) / W
+    folds = 0.5 + 0.5 * np.sin(fx * 2 * math.pi * 4.2 + v * 3.0) * (0.35 + 0.65 * smoothstep(0.25, 0.8, v))
+    folds = np.asarray(to_img(np.stack([folds] * 3, -1)).filter(ImageFilter.GaussianBlur(6)).convert('L'), np.float32) / 255
+    # arms folded at the waist: a soft lighter band with a darker underside
+    arms = 0.45 * np.exp(-(((xx - cx) / 80) ** 2 + ((yy - 590) / 40) ** 2)) - 0.25 * np.exp(-(((xx - cx) / 80) ** 2 + ((yy - 640) / 30) ** 2))
+    mist = noise(H, W, 90, 9, 4)
+    glum = (0.62 + 0.3 * folds + 0.25 * arms) * (1 - 0.25 * v)
+    hem = smoothstep(0.45, 0.92, v + 0.18 * (mist - 0.5))                  # ragged dissolve
+    galpha = gm * (0.5 + 0.25 * folds + 0.15 * arms) * (1 - hem) * (0.8 + 0.35 * mist)
+    # ---- veil: hood falling from the crown to the shoulders
+    vm = Image.new('L', (W, H), 0); vd = ImageDraw.Draw(vm)
+    vd.ellipse([cx - 120, 20, cx + 120, 330], fill=255)
+    vd.polygon([(cx - 120, 180), (cx + 120, 180), (cx + 150, 420), (cx - 150, 420)], fill=255)
+    vmask = np.asarray(vm.filter(ImageFilter.GaussianBlur(22)), np.float32) / 255
+    lum = np.maximum(glum * gm, 0.55 * vmask)
+    alpha = np.maximum(galpha, vmask * 0.32 * (0.8 + 0.4 * mist))
+    # ---- face
+    fx0, fy0 = int(cx - fs // 2), 60
     fm = Image.new('L', (fs, fs), 0); fd = ImageDraw.Draw(fm)
-    fd.ellipse([fs * 0.08, 0, fs * 0.92, fs * 1.02], fill=255)
-    fmask = np.asarray(fm.filter(ImageFilter.GaussianBlur(18)), np.float32) / 255
-    fmask = fmask * (1 - smoothstep(0.72, 0.97, np.linspace(0, 1, fs)[:, None]))
+    fd.ellipse([fs * 0.2, fs * 0.08, fs * 0.8, fs * 0.94], fill=255)
+    fmask = np.asarray(fm.filter(ImageFilter.GaussianBlur(20)), np.float32) / 255
     flum = fu @ np.array([0.3, 0.59, 0.11], np.float32)
-    flum = np.clip((flum - 0.12) * 1.25, 0, 1)
+    flum = np.clip(0.25 + (flum - 0.2) * 0.95, 0, 1)
     sl = (slice(fy0, fy0 + fs), slice(fx0, fx0 + fs))
     lum[sl] = lum[sl] * (1 - fmask) + flum * fmask
-    alpha[sl] = np.maximum(alpha[sl], fmask * (0.35 + 0.65 * flum))
+    alpha[sl] = np.maximum(alpha[sl], fmask * (0.3 + 0.55 * flum))
+    alpha = np.asarray(Image.fromarray((np.clip(alpha, 0, 1) * 255).astype(np.uint8), 'L').filter(ImageFilter.GaussianBlur(2.5)), np.float32) / 255
     rgb = np.stack([lum * 0.86, lum * 0.92, lum * 1.0], -1)
     out = np.concatenate([np.clip(rgb, 0, 1), np.clip(alpha, 0, 1)[..., None]], -1)
     Image.fromarray((out * 255).astype(np.uint8), 'RGBA').save(os.path.join(OUT, '..', 'ghost.png'), optimize=True)
 
 
 if __name__ == '__main__':
-    data = {}
+    import sys
+    only = sys.argv[1:]
+    jp = os.path.join(ROOT, 'src/rooms/gallery/portraitData.json')
+    data = json.load(open(jp)) if only and os.path.exists(jp) else {}
     for name, spec in SPECS.items():
+        if only and name not in only: continue
         img, bump, eyes = paint_portrait(spec)
         to_img(img).save(os.path.join(OUT, f'{name}.jpg'), quality=88, optimize=True)
         Image.fromarray((bump * 255).astype(np.uint8), 'L').resize((bump.shape[1] // 2, bump.shape[0] // 2), Image.BILINEAR).save(os.path.join(OUT, f'{name}_bump.png'), optimize=True)
         data[name] = eyes
         print(name, eyes)
-    ghost_card()
+    if not only or 'ghost' in only: ghost_card()
     with open(os.path.join(ROOT, 'src/rooms/gallery/portraitData.json'), 'w') as f:
         json.dump(data, f, indent=1)

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { X0, X1, Z0, Z1, H, DADO, CROWN_H, FRIEZE_H, RAIL_Y, BAYS, PIL, BEAM, DOORS, ARCH, WIN, LANDING } from './layout.js';
+import { makeCushion } from './dressing.js';
 
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 const V2 = (x, y) => new THREE.Vector2(x, y);
@@ -36,7 +37,7 @@ export function mount(obj, side, along, y = 0, inset = 0) {
 }
 
 /** Inward-facing reveal (jambs + semicircular soffit) for an arched opening, local XY facing +Z, from z=0 back to z=-depth. */
-export function archReveal(w, bottom, spring, depth, segs = 28) {
+export function archReveal(w, bottom, spring, depth, segs = 64) {
   const r = w / 2;
   const pts = [];
   pts.push([-r, bottom]);
@@ -65,7 +66,7 @@ export function archReveal(w, bottom, spring, depth, segs = 28) {
 }
 
 /** Arched path (open), local XY at z, for casings: from (−r, bottom) up, over, down to (r, bottom). */
-function archPath(w, bottom, spring, z = 0, segs = 24) {
+function archPath(w, bottom, spring, z = 0, segs = 64) {
   const r = w / 2;
   const p = [V3(-r, bottom, z)];
   for (let i = 0; i <= segs; i++) { const a = Math.PI - (i / segs) * Math.PI; p.push(V3(Math.cos(a) * r, spring + Math.sin(a) * r, z)); }
@@ -119,7 +120,7 @@ export function buildShell(ctx, root, mat) {
     add(new THREE.Mesh(vRect(-r, Z0, r, Z0, 0, WIN.sill, 1), mat.wall), 'wall');
     const sp = new THREE.Shape();
     sp.moveTo(-r, spring); sp.lineTo(-r, H); sp.lineTo(r, H); sp.lineTo(r, spring); sp.absarc(0, spring, r, 0, Math.PI, false);
-    const sg = new THREE.ShapeGeometry(sp, 24);
+    const sg = new THREE.ShapeGeometry(sp, 64);
     const suv = sg.attributes.uv; for (let i = 0; i < suv.count; i++) suv.setXY(i, suv.getX(i) + 2, suv.getY(i));
     const spand = new THREE.Mesh(sg, mat.wall); spand.position.z = Z0; add(spand, 'wall');
     // reveal + sill + window seat
@@ -127,17 +128,25 @@ export function buildShell(ctx, root, mat) {
     rev.position.set(0, 0, Z0); add(rev, 'reveal');
     const back = new THREE.Mesh(vRect(-r - 0.3, Z0 - WIN.depth - 0.01, r + 0.3, Z0 - WIN.depth - 0.01, WIN.sill - 0.6, H, 0), mat.black);
     back.visible = false; // (placeholder kept invisible)
-    // window seat box built into the reveal
-    const seat = new THREE.Mesh(G.boxUV(WIN.w + 0.002, WIN.sill - 0.0, WIN.depth + 0.12, 1), mat.wainscot);
+    // window seat: a panelled mahogany box with a moulded nosing and a tufted, piped cushion
+    const seat = new THREE.Mesh(G.boxUV(WIN.w + 0.002, WIN.sill - 0.0, WIN.depth + 0.12, 1), mat.doorWood);
     seat.position.set(0, WIN.sill / 2, Z0 - WIN.depth / 2 + 0.06); add(seat, 'seat');
-    const seatTop = new THREE.Mesh(new G.RoundedBoxGeometry(WIN.w + 0.06, 0.05, WIN.depth + 0.2, 2, 0.012), mat.mahogany);
-    seatTop.position.set(0, WIN.sill + 0.0, Z0 - WIN.depth / 2 + 0.09); add(seatTop, 'seatTop');
-    const cushion = new THREE.Mesh(new G.RoundedBoxGeometry(WIN.w - 0.04, 0.09, WIN.depth - 0.05, 4, 0.04), mat.velvetSeat);
-    cushion.position.set(0, WIN.sill + 0.07, Z0 - WIN.depth / 2 - 0.0); add(cushion, 'cushion');
-    for (const x of [-0.42, 0.0, 0.42]) {
-      const p = new THREE.Mesh(G.raisedPanel(0.36, WIN.sill - 0.2, { border: 0.04, bevel: 0.015 }), mat.wainscot);
-      p.position.set(x, WIN.sill / 2 - 0.02, Z0 + 0.121); add(p);
+    const nose = new THREE.Mesh(G.sweepProfile([V2(0, 0), V2(0.02, 0), V2(0.032, 0.008), V2(0.036, 0.022), V2(0.03, 0.036), V2(0.012, 0.042), V2(0, 0.042)], [V3(-WIN.w / 2 - 0.03, WIN.sill - 0.042, Z0 + 0.12), V3(WIN.w / 2 + 0.03, WIN.sill - 0.042, Z0 + 0.12)], { uvScale: 2 }), mat.mahogany);
+    add(nose, 'seatNose');
+    const seatTop = new THREE.Mesh(G.boxUV(WIN.w + 0.03, 0.03, WIN.depth + 0.12, 1), mat.doorWood);
+    seatTop.position.set(0, WIN.sill - 0.015, Z0 - WIN.depth / 2 + 0.07); add(seatTop, 'seatTop');
+    // apron: three fielded panels in a frame, skirting at the floor
+    for (const x of [-0.47, 0.0, 0.47]) {
+      const p = new THREE.Mesh(G.raisedPanel(0.4, WIN.sill - 0.22, { border: 0.045, bevel: 0.018 }), mat.doorWood);
+      p.position.set(x, WIN.sill / 2 + 0.03, Z0 + 0.121); add(p);
     }
+    const skirt = new THREE.Mesh(G.sweepProfile(G.PROFILES.baseboard(0.12, 0.02), [V3(-WIN.w / 2, 0, Z0 + 0.121), V3(WIN.w / 2, 0, Z0 + 0.121)], { uvScale: 1 }), mat.mahogany);
+    add(skirt, 'seatSkirt');
+    const cushion = makeCushion(ctx, WIN.w - 0.05, 0.085, WIN.depth + 0.04, mat.seatFabric, {
+      crown: 0.018, radius: 0.03, dimple: 0.014, piping: mat.velvetSeat, buttonMat: mat.velvetSeat,
+      buttons: [-0.75, -0.45, -0.15, 0.15, 0.45, 0.75].flatMap((nx, i) => [[nx, i % 2 ? 0.35 : -0.35]]).concat([-0.6, -0.3, 0, 0.3, 0.6].map((nx, i) => [nx, i % 2 ? -0.35 : 0.35])),
+    });
+    cushion.position.set(0, WIN.sill, Z0 - WIN.depth / 2 + 0.04); add(cushion, 'cushion');
     // casing around the arch
     const cas = new THREE.Mesh(G.sweepProfile(ARCHITRAVE(0.14, 0.04), archPath(WIN.w + 0.02, WIN.sill + 0.03, spring, 0), { up: V3(0, 0, 1), uvScale: 2, flipOutward: true }), mat.giltPlain);
     cas.position.z = Z0 + 0.002; add(cas, 'casing');
@@ -152,7 +161,7 @@ export function buildShell(ctx, root, mat) {
     add(new THREE.Mesh(vRect(-r, Z1, X0, Z1, 0, H, X1 + r), mat.wall), 'wall');
     const sp = new THREE.Shape();
     sp.moveTo(-r, spring); sp.lineTo(-r, H); sp.lineTo(r, H); sp.lineTo(r, spring); sp.absarc(0, spring, r, 0, Math.PI, false);
-    const sg = new THREE.ShapeGeometry(sp, 24);
+    const sg = new THREE.ShapeGeometry(sp, 64);
     const spand = new THREE.Mesh(sg, mat.wall); spand.position.z = Z1; spand.rotation.y = Math.PI; add(spand, 'wall');
     const rev = new THREE.Mesh(archReveal(ARCH.w, 0, spring, T + 0.1), mat.wainscot);
     rev.position.set(0, 0, Z1); rev.rotation.y = Math.PI; add(rev, 'reveal');
