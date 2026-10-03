@@ -49,7 +49,8 @@ export default {
     const parquet = M.create('parquet', { species: 'walnut', ratio: 5, planksAcross: 2, repeat: [0.9, 0.9], polish: 0.7, wear: 0.35 });
     const ebony = M.create('ebony', { repeat: [2, 2], color: [0.55, 0.55, 0.6], clearcoat: 1.0, clearcoatRoughness: 0.06, roughness: 0.6 });
     const mahogany = M.create('mahogany', { repeat: [1.2, 1.2] });
-    const panelWood = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.75, repeat: [1.2, 1.2], clearcoat: 0.5, clearcoatRoughness: 0.25, color: [0.55, 0.4, 0.36] });
+    // (satin, not gloss: a sharp clearcoat on the panel bevels mirrored the bright bay as white slits)
+    const panelWood = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.6, repeat: [1.2, 1.2], clearcoat: 0.2, clearcoatRoughness: 0.5, envMapIntensity: 0.5, color: [0.55, 0.4, 0.36] });
     const celloWood = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.7, figure: 0.8, repeat: [1, 1], clearcoat: 0.45, clearcoatRoughness: 0.18, envMapIntensity: 0.18, color: [1.1, 0.55, 0.28] });
     const harpWood = M.create('walnut', { repeat: [2, 2], color: [1.0, 0.85, 0.7] });
     const plaster = M.create('plaster', { color: [0.3, 0.33, 0.42], cracks: 0.3, stains: 0.4, repeat: [0.45, 0.45] });
@@ -558,10 +559,11 @@ export default {
     // outside the cone): no flat hot pool on the paper, which gets the etched scallop decal instead
     const sconceLight = (sc, intensity) => {
       sc.updateMatrixWorld(true);
-      const pl = new THREE.SpotLight(0xffa860, intensity, 8, 1.25, 0.9, 2);
-      pl.position.copy(sc.localToWorld(V3(0, 0.12, 0.24)));
-      pl.target.position.copy(sc.localToWorld(V3(0, -0.6, 1.3)));
-      add(pl); add(pl.target); sconceLights.push(pl);
+      // the light sits well out from the paper (0.42 m), so the wall gets a broad soft gradient
+      // rather than a hot disc behind the shade; the etched scallop decal adds the up/down fans
+      const pl = new THREE.PointLight(0xffa860, intensity, 8, 2);
+      pl.position.copy(sc.localToWorld(V3(0, 0.05, 0.42)));
+      add(pl); sconceLights.push(pl);
     };
     for (const s of [-1, 1]) {
       const sc = buildSconce(ctx, { brass });
@@ -646,7 +648,7 @@ export default {
     // window glow: the rect spans exactly the glazing (sill to arch); it used to hang below the sill
     // and lit the wainscot bevels from point-blank range, which read as light leaks
     // (one rect for the whole bay: three LTC area lights per pixel were the single biggest shading cost)
-    add(fx.areaLight({ center: [0, WIN.sill + WIN.h / 2 + 0.05, Z0 - 0.05], normal: [0, -0.3, 1], width: 2 * WIN.xs[2] + WIN.w * 0.9, height: WIN.h * 0.9, color: 0x9aaee0, intensity: 0.16 }));
+    add(fx.areaLight({ center: [0, WIN.sill + WIN.h / 2 + 0.05, Z0 - 0.05], normal: [0, -0.3, 1], width: 2 * WIN.xs[2] + WIN.w * 0.9, height: WIN.h * 0.9, color: 0x9aaee0, intensity: 0.12 }));
 
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
     const shafts = [];
@@ -696,7 +698,7 @@ export default {
       piano: { position: pianoToWorld(2.0, 1.66, 0.25).toArray(), target: pianoToWorld(-0.3, 0.98, -0.05).toArray(), fov: 50, label: 'The piano' },
       harp: { position: [1.35, 1.55, -0.35], target: [1.7, 1.0, -3.8], fov: 54, label: 'The harp, the cello and the windows', look: { yaw: [-60, 60], pitch: [-25, 30] }, grade: { exposure: 0.85, bloomThreshold: 1.4 } },
       hearth: { position: [0.9, 1.6, 1.4], target: [-4.0, 1.45, 0.45], fov: 54, label: 'The fireplace' },
-      door: { position: [0.6, 1.62, 0.9], target: [0.0, 1.45, 5.5], fov: 56, label: 'The doors' },
+      door: { position: [0.6, 1.62, 0.9], target: [0.0, 1.45, 5.5], fov: 56, label: 'The doors', grade: { exposure: 1.55 } },
     };
     const edges = [
       ['main', 'piano', [[1.6, 1.6, 1.5]]],

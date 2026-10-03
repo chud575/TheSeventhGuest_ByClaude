@@ -103,7 +103,7 @@ void main() {
   float mist = 0.5;
   if (d0 < 2.0) mist = fxFbm(vLocal * vec3(9.0, 3.0, 9.0) + vec3(0.0, -uTime * 0.8, 0.0));
   // linen + skin (tint 1) read paler than the black coat (tint ~0.2)
-  float val = mix(0.45, 1.15, vTint);
+  float val = mix(0.22, 1.2, vTint);
   vec3 body = mix(uShadow, uColor * val, (0.12 + 0.88 * key * key) * occ);
   vec3 col = body * (0.55 + 0.45 * occ) + uRim * fres * (1.1 + 0.4 * vTint);
   col *= 0.85 + 0.3 * flow;
@@ -111,7 +111,7 @@ void main() {
   float hands = uHandBoost * smoothstep(0.3, 0.17, vLocal.z) * step(vLocal.y, 0.86);
   // facing planes stay mostly clear, but the moonlit ones (brow, cheekbones, nose, beard, hands)
   // gain body so the face reads as a face rather than a hollow mask
-  float a = mix(0.17, 0.8, fres) + (0.12 + 0.4 * key) * occ * mix(0.55, 1.25, vTint) + hands;
+  float a = mix(0.17, 0.8, fres) + (0.12 + 0.4 * key) * occ * mix(0.4, 1.3, vTint) + hands;
   a *= (0.8 + 0.35 * flow) * mix(0.6, 1.0, occ);
   // dissolve below uDissolveY into drifting wisps
   float d = d0 + (mist - 0.5) * 1.8;

@@ -362,8 +362,8 @@ export function buildSconce(ctx, { brass }) {
   const outer = G.latheFromProfile(prof, 64);
   const inner = G.latheFromProfile(prof.map(([r, y]) => [Math.max(0.001, r - 0.003), y + 0.001]).reverse(), 64);
   const glassMat = new THREE.MeshPhysicalMaterial({
-    color: 0xfff1dc, roughness: 0.5, metalness: 0, transparent: true, opacity: 0.9, side: THREE.DoubleSide,
-    emissive: new THREE.Color(1.0, 0.68, 0.4), emissiveMap: etch, emissiveIntensity: 0.55, clearcoat: 0.6, clearcoatRoughness: 0.15, depthWrite: false,
+    color: 0x2a2018, roughness: 0.5, metalness: 0, transparent: true, opacity: 0.92, side: THREE.DoubleSide,   // (dark albedo: it glows by its own flame, not by the room light hitting it)
+    emissive: new THREE.Color(1.0, 0.68, 0.4), emissiveMap: etch, emissiveIntensity: 0.85, clearcoat: 0.6, clearcoatRoughness: 0.15, depthWrite: false,
   });
   glassMat.userData.noBake = true;
   const shade = new THREE.Group();
@@ -381,10 +381,11 @@ export function buildSconce(ctx, { brass }) {
       const dy = v - 0.42;
       const spread = dy > 0 ? 0.12 + dy * 1.25 : 0.12 - dy * 0.9;
       const across = Math.exp(-((u / spread) ** 2) * 1.6);
-      const along = dy > 0 ? Math.exp(-dy * 4.2) * (1 - Math.exp(-dy * 30)) : Math.exp(dy * 9.5) * (1 - Math.exp(dy * 40));
+      const along = dy > 0 ? Math.exp(-dy * 5.5) * (1 - Math.exp(-dy * 30)) : 0.8 * Math.exp(dy * 8.0) * (1 - Math.exp(dy * 40));
       const edge = 1 + 0.6 * Math.exp(-(((Math.abs(u) - spread * 0.9) / 0.05) ** 2)) * (dy > 0 ? 1 : 0.5);   // brighter scallop rim
       const core = 0.9 * Math.exp(-((u * u + dy * dy * 4) / 0.004));
-      const a = Math.min(1, across * along * edge * 0.75 + core);
+      const ss = (e0, e1, t) => { const k = Math.max(0, Math.min(1, (t - e0) / (e1 - e0))); return k * k * (3 - 2 * k); };
+      const a = Math.min(1, across * along * edge * 0.75 + core) * ss(1.0, 0.8, v) * ss(0.0, 0.12, v) * ss(1.0, 0.75, Math.abs(u));
       const k = (y * w + x) * 4;
       img.data[k] = 255; img.data[k + 1] = 190; img.data[k + 2] = 120; img.data[k + 3] = Math.round(a * 255);
     }

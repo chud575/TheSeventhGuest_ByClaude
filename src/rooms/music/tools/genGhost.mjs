@@ -45,24 +45,30 @@ function panel(x, y, z, a, b, r1, r2, squash) {
 }
 export function body(x, y, z) {
   let d = ell(x, y, z, [0, 0.63, 0.6], [0.175, 0.1, 0.15]);                        // pelvis / seat
-  d = smin(d, rcone(x, y, z, [0, 0.66, 0.6], [0, 0.95, 0.51], 0.15, 0.17), 0.06);  // torso, leaning to the keys
+  d = smin(d, panel(x, y, z, [0, 0.66, 0.6], [0, 0.95, 0.51], 0.15, 0.17, 1.35), 0.06);  // torso (a chest, not a barrel), leaning to the keys
   d = smin(d, ell(x, y, z, [0, 1.0, 0.5], [0.235, 0.075, 0.12]), 0.07);           // broad shoulders (padded coat)
   for (const s of [-1, 1]) d = smin(d, sph(x, y, z, [s * 0.2, 1.01, 0.5], 0.06), 0.06);
   d = smin(d, rcone(x, y, z, [0, 1.03, 0.49], [0, 1.22, 0.45], 0.05, 0.042), 0.03); // neck
   // high stand collar with points, white stock and a full cravat bow
   d = smin(d, rcone(x, y, z, [0, 1.06, 0.48], [0, 1.12, 0.465], 0.06, 0.056), 0.012);
-  d = smin(d, ell(x, y, z, [0, 1.06, 0.405], [0.05, 0.05, 0.03]), 0.015);
-  for (const s of [-1, 1]) d = smin(d, ell(x, y, z, [s * 0.035, 1.075, 0.4], [0.035, 0.02, 0.016]), 0.01);
+  d = smin(d, ell(x, y, z, [0, 1.04, 0.39], [0.05, 0.045, 0.03]), 0.015);
+  for (const s of [-1, 1]) d = smin(d, ell(x, y, z, [s * 0.036, 1.055, 0.37], [0.036, 0.02, 0.016]), 0.01);
   // rolled coat collar standing behind the neck
   d = smin(d, rcone(x, y, z, [-0.075, 1.09, 0.52], [0.075, 1.09, 0.52], 0.032, 0.032), 0.03);
   d = smin(d, rcone(x, y, z, [0, 1.06, 0.55], [0, 1.13, 0.53], 0.05, 0.03), 0.03);
   // shirt front / waistcoat: a raised V between the lapels
-  d = smin(d, ell(x, y, z, [0, 0.93, 0.425], [0.06, 0.1, 0.02]), 0.03);
+  d = smin(d, ell(x, y, z, [0, 0.93, 0.392], [0.06, 0.1, 0.02]), 0.02);
   // lapels: broad rolled ridges from collar to waist
   for (const s of [-1, 1]) {
-    d = smin(d, rcone(x, y, z, [s * 0.1, 1.03, 0.44], [s * 0.035, 0.8, 0.44], 0.022, 0.012), 0.015);
-    d = smin(d, rcone(x, y, z, [s * 0.13, 1.0, 0.45], [s * 0.1, 0.92, 0.43], 0.014, 0.01), 0.012);
+    // broad silk-faced lapels rolling back from the collar to the waist, with a notch
+    d = smin(d, panel(x, y, z, [s * 0.105, 1.02, 0.378], [s * 0.04, 0.8, 0.428], 0.036, 0.018, 2.6), 0.01);
+    d = smin(d, rcone(x, y, z, [s * 0.135, 0.99, 0.392], [s * 0.1, 0.93, 0.396], 0.016, 0.011), 0.01);
+    d = smax(d, -sph(x, y, z, [s * 0.118, 0.975, 0.372], 0.012), 0.004);              // the notch
   }
+  // waistcoat buttons + watch chain across the front
+  for (let k = 0; k < 4; k++) { const yy = 0.9 - k * 0.035; d = smin(d, sph(x, y, z, [0, yy, 0.49 - (yy - 0.66) * 0.37 - 0.014], 0.0075), 0.003); }
+  d = smin(d, rcone(x, y, z, [-0.05, 0.83, 0.42], [0.0, 0.81, 0.416], 0.003, 0.003), 0.002);
+  d = smin(d, rcone(x, y, z, [0.0, 0.81, 0.416], [0.05, 0.83, 0.42], 0.003, 0.003), 0.002);
   // waist seam of the tailcoat + cut-away fronts
   d += 0.004 * Math.exp(-((y - 0.77) ** 2) / 0.0002) * (z < 0.55 ? 1 : 0.3);
   // vent between the tails
@@ -78,16 +84,16 @@ export function body(x, y, z) {
     d = smin(d, rcone(x, y, z, [s * 0.115, 0.585, 0.2], [s * 0.125, 0.09, 0.27], 0.056, 0.045), 0.03);
   }
   // cloth folds: creases across the back, belly and the bend of the knees
-  d += 0.0035 * Math.sin(y * 70 + Math.sin(x * 20) * 2) * Math.max(0, 1 - Math.abs(y - 0.8) * 3);
+  d += 0.0015 * Math.sin(y * 70 + Math.sin(x * 20) * 2) * Math.max(0, 1 - Math.abs(y - 0.8) * 3) * (z > 0.5 ? 1 : 0.3);
   d += 0.003 * Math.sin(z * 60 + x * 8) * Math.max(0, 1 - Math.abs(y - 0.6) * 8) * (z < 0.5 ? 1 : 0);
   return d;
 }
 
 // value regions (0 = dark cloth, 1 = linen / skin): lets the coat, shirt and cravat read apart
 export function bodyTint(x, y, z) {
-  let d = ell(x, y, z, [0, 1.06, 0.405], [0.06, 0.06, 0.04]);
-  for (const s of [-1, 1]) d = Math.min(d, ell(x, y, z, [s * 0.035, 1.075, 0.4], [0.045, 0.03, 0.03]));
-  d = Math.min(d, ell(x, y, z, [0, 0.93, 0.425], [0.05, 0.11, 0.035]));
+  let d = ell(x, y, z, [0, 1.04, 0.39], [0.06, 0.055, 0.04]);
+  for (const s of [-1, 1]) d = Math.min(d, ell(x, y, z, [s * 0.036, 1.055, 0.37], [0.046, 0.03, 0.03]));
+  d = Math.min(d, ell(x, y, z, [0, 0.93, 0.392], [0.05, 0.11, 0.035]));
   d = Math.min(d, rcone(x, y, z, [0, 1.06, 0.48], [0, 1.13, 0.465], 0.065, 0.06));
   return d < 0.004 ? 1 : 0;
 }
@@ -135,7 +141,7 @@ export function head(x, y, z) {
   const sweepTop = Math.sin(x * 330 + Math.sin(z * 30) * 3 + Math.sin(y * 21));
   const sweepSide = Math.sin((y + z * 0.6) * 300 + Math.sin(x * 25) * 2);
   const topW = Math.max(0, Math.min(1, (y + 0.01) * 18));
-  hr += 0.0035 * lump + 0.0014 * (sweepTop * topW + sweepSide * (1 - topW));
+  hr += 0.0028 * lump + 0.0012 * sweepTop * topW + 0.0005 * sweepSide * (1 - topW);
   hr = smax(hr, -(z + 0.05 - Math.max(0, y - 0.05) * 0.4 + Math.max(0, 0.05 - y) * 0.6), 0.014);  // receding hairline, off the face
   hr = smax(hr, -(y + 0.16), 0.02);                                                   // not below the collar
   // beard: a full, squared beard from the side-whiskers round the jaw, falling onto the cravat,
@@ -280,7 +286,7 @@ import { pathToFileURL } from 'node:url';
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
 function main() {
 const parts = [
-  { name: 'body', f: body, tint: bodyTint, min: [-0.3, 0.0, 0.2 - 0.1], max: [0.3, 1.24, 0.9], h: 0.0075 },
+  { name: 'body', f: body, tint: bodyTint, min: [-0.3, 0.0, 0.2 - 0.1], max: [0.3, 1.24, 0.9], h: 0.0055 },
   { name: 'head', f: head, tint: headTint, min: [-0.13, -0.22, -0.15], max: [0.13, 0.16, 0.17], h: 0.0026 },
   { name: 'armL', f: makeArm(-1), tint: armTint(-1), min: [-0.12, -0.36, -0.56], max: [0.12, 0.08, 0.08], h: 0.003 },
   { name: 'armR', f: makeArm(1), tint: armTint(1), min: [-0.12, -0.36, -0.56], max: [0.12, 0.08, 0.08], h: 0.003 },
