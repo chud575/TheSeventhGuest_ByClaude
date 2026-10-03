@@ -71,7 +71,7 @@ export function headSdf(px, py, pz) {
   // cheekbones (zygomatic arch)
   d = smin(d, ell(ax, py, pz, 0.05, 0.052, 0.058, 0.02, 0.012, 0.02), 0.012);
   // hollow under the cheekbone (gaunt)
-  d = smax(d, -ell(ax, py, pz, 0.066, 0.026, 0.066, 0.008, 0.011, 0.006), 0.014);
+  d = smax(d, -ell(ax, py, pz, 0.064, 0.028, 0.066, 0.007, 0.01, 0.005), 0.016);
   // jaw + chin
   d = smin(d, ell(tx, py, pz, 0, -0.013, 0.038, 0.052, 0.031, 0.053), 0.02);
   d = smin(d, ell(px, py, pz, 0, -0.037, 0.077, 0.019, 0.016, 0.015), 0.013);
@@ -127,7 +127,7 @@ export function headSdf(px, py, pz) {
   {
     const fold = cap(ax, py, pz, 0.0165, 0.026, 0.102, 0.029, -0.006, 0.089, 0.0014);
     d = smax(d, -fold, 0.0045);
-    d = smin(d, ell(ax, py, pz, 0.035, 0.019, 0.076, 0.016, 0.02, 0.014), 0.012);
+    d = smin(d, ell(ax, py, pz, 0.034, 0.02, 0.076, 0.014, 0.018, 0.012), 0.014);
     // marionette lines from the mouth corners down to the jowls
     d = smax(d, -cap(ax, py, pz, 0.023, -0.008, 0.088, 0.03, -0.034, 0.072, 0.0007), 0.005);
   }
@@ -177,7 +177,7 @@ export function hairSdf(px, py, pz) {
   // sideburn-ish wisps just in front of the ears
   const temple = smoothstep(0.04, 0.06, py) * smoothstep(0.1, 0.085, py) * smoothstep(0.062, 0.07, ax) * smoothstep(0.03, 0.01, pz) * smoothstep(-0.02, 0.0, pz);
   const m = Math.max(mask, temple * 0.8);
-  const thick = m * (0.0012 + 0.0016 * n) + strands * m;
+  const thick = m * (0.0011 + 0.0008 * n) + strands * m * 0.7;
   const d = ell(px, py, pz, CRAN[0], CRAN[1], CRAN[2], CRAN[3], CRAN[4], CRAN[5]) - thick + 0.00025;
   return m < 0.05 ? Math.max(d, 0.0015) : d;
 }
@@ -215,8 +215,8 @@ export function cravatSdf(px, py, pz) {
   const ang = Math.atan2(px, pz);
   const rr = Math.hypot(px, pz - 0.004);
   // the band: tall at the back, dipping under the chin; horizontal wrapping creases
-  const yc = -0.062 + 0.018 * (1 - Math.max(0, Math.cos(ang)));
-  const hh = 0.023 - 0.004 * Math.max(0, Math.cos(ang));
+  const yc = -0.062 + 0.026 * (1 - Math.max(0, Math.cos(ang)));
+  const hh = 0.025 - 0.006 * Math.max(0, Math.cos(ang));
   const crease = 0.0011 * Math.sin((py - yc) * 260 + Math.sin(ang * 3) * 1.5) + 0.0007 * Math.sin(ang * 11 + py * 90);
   const qx = rr - (0.052 + 0.004 * Math.max(0, Math.cos(ang))), qy = py - yc;
   // rounded rectangle cross-section (2D sdRoundBox)
@@ -285,7 +285,7 @@ export function headColor(px, py, pz, region) {
   const ax = Math.abs(px);
   const n = fbm3(px * 220 + 7, py * 220, pz * 220, 4);
   if (region === 'hair' || region === 'brow') {
-    const g = 0.56 + 0.3 * n;
+    const g = 0.42 + 0.22 * n;
     return [g, g * 0.98, g * 0.96];
   }
   if (region === 'cravat') { const g = 0.9 + 0.06 * n; return [g, g * 0.985, g * 0.95]; }

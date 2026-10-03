@@ -99,7 +99,7 @@ export async function buildGhost(ctx, root) {
   const time = ctx.time;
   const mats = {
     head: spectralMaterial({ coreAlpha: 0.74, edgeAlpha: 0.13, rimStrength: 0.18, glow: 0.03, fadeY: -0.1, fadeSoft: 0.02, roughness: 0.52, tint: 0xd2d6de, bump: 0.0, breakup: 0.22, desat: 0.3, time }),
-    hair: spectralMaterial({ coreAlpha: 0.7, edgeAlpha: 0.1, rimStrength: 0.25, glow: 0.03, roughness: 0.75, tint: 0xc8ccd4, breakup: 0.3, desat: 0.4, time }),
+    hair: spectralMaterial({ coreAlpha: 0.55, edgeAlpha: 0.05, rimStrength: 0.25, glow: 0.03, roughness: 0.75, tint: 0xc8ccd4, breakup: 0.3, desat: 0.4, time }),
     cravat: spectralMaterial({ coreAlpha: 0.84, edgeAlpha: 0.2, rimStrength: 0.15, glow: 0.035, fadeY: -0.27, fadeSoft: 0.03, roughness: 0.55, tint: 0xe8e4da,  breakup: 0.25, desat: 0.25, time }),
     waistcoat: spectralMaterial({ coreAlpha: 0.65, edgeAlpha: 0.25, rimStrength: 0.2, glow: 0.02, fadeY: -0.4, fadeSoft: 0.09, roughness: 0.7, tint: 0xc0c4cc, breakup: 0.35, depthWrite: false, desat: 0.4, time }),
     coat: spectralMaterial({ coreAlpha: 0.62, edgeAlpha: 0.35, rimStrength: 0.4, glow: 0.02, fadeY: -0.4, fadeSoft: 0.12, roughness: 0.75, tint: 0xc0c6d2,  breakup: 0.4, depthWrite: false, desat: 0.4, time }),
