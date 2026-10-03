@@ -80,7 +80,7 @@ export class WindowKit {
    * type: 'flat' (cornice hood on brackets), 'seg' (segmental arched hood + keystone),
    *       'round' (round-headed opening), 'plain'. lit: 0..1 interior glow level.
    */
-  add({ x, y, z, ry = 0, w = 1.1, h = 2.4, type = 'flat', lit = 0, tint = 0, shutters = false, panes = 2, streak = true, flicker = 0 }) {
+  add({ x, y, z, ry = 0, w = 1.1, h = 2.4, type = 'flat', lit = 0, tint = 0, shutters = false, panes = 2, streak = true, flicker = 0, hanging = false }) {
     const B = this.bucket, T = this.trim, S = this.sash;
     const base = mat4(x, y, z, 0, ry, 0);
     const put = (geo, mat, lx, ly, lz) => B.add(geo, mat, base.clone().multiply(mat4(lx, ly, lz)), { uvScale: 1 });
@@ -131,7 +131,14 @@ export class WindowKit {
     if (shutters) {
       for (const sx of [-1, 1]) {
         const sw = w / 2 + 0.05;
-        const sm = base.clone().multiply(mat4(sx * (w / 2 + cw + sw / 2 + 0.01), 0, 0.05, 0, sx * -0.18, 0));
+        let sm = base.clone().multiply(mat4(sx * (w / 2 + cw + sw / 2 + 0.01), 0, 0.05, 0, sx * -0.18, 0));
+        if (hanging === sx) {
+          // the lower hinge has rusted through: the shutter hangs off its top inner corner,
+          // swung out from the wall and dropped askew
+          const px = -sx * sw / 2, py = hs;
+          sm = base.clone().multiply(mat4(sx * (w / 2 + cw + sw / 2 + 0.01), 0, 0.05))
+            .multiply(mat4(px, py, 0)).multiply(mat4(0, 0, 0, 0.1, -sx * 0.75, -sx * 0.32)).multiply(mat4(-px, -py - 0.08, 0));
+        }
         const add = (g, lx, ly, lz) => B.add(g, S, sm.clone().multiply(mat4(lx, ly, lz)), { uvScale: 1 });
         add(new THREE.BoxGeometry(sw, 0.07, 0.04), 0, 0.035, 0);
         add(new THREE.BoxGeometry(sw, 0.07, 0.04), 0, hs - 0.035, 0);
@@ -166,9 +173,10 @@ export class WindowKit {
       if (g.lit > 0) {
         // colour temperature: tint 0 = oil lamp, 0.4 = gas mantle, 1 = candle
         const t = g.tint;
-        if (t >= 0.9) c.setRGB(1.0, 0.46, 0.15);
+        if (t >= 1.5) c.setRGB(1.0, 0.27, 0.1);          // deep red: lamp behind a crimson curtain
+        else if (t >= 0.9) c.setRGB(1.0, 0.46, 0.15);     // candle
         else c.setRGB(1.0, 0.56 + t * 0.3, 0.26 + t * 0.35);
-        c.multiplyScalar(g.lit * 2.6);
+        c.multiplyScalar(g.lit * 4.2);
       } else c.setRGB(0, 0, 0);
       return c;
     };
@@ -322,8 +330,29 @@ vec3 interiorRoom(vec3 ro, vec3 rd, vec2 sc, float seed, out float curtA, out ve
 }`)
       .replace('#include <alphamap_fragment>', '#ifdef USE_ALPHAMAP\n diffuseColor.a *= texture2D( alphaMap, vAlphaMapUv ).a;\n#endif')
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
-  reflectedLight.directSpecular *= 0.05;`)
+  reflectedLight.directSpecular *= 0.05;
+  reflectedLight.indirectSpecular *= 1.0 - holeM;
+  reflectedLight.indirectDiffuse *= 1.0 - holeM;
+  reflectedLight.indirectSpecular *= 1.0 + crackM * 2.5;`)
       .replace('#include <emissivemap_fragment>', `
+  float holeM = 0.0, crackM = 0.0;
+#if defined( USE_INSTANCING_COLOR )
+  {
+    // a few dark (unlit) windows have a broken pane: a jagged black hole with cracks
+    float hs1 = fract(vIntSeed * 13.7), hs2 = fract(vIntSeed * 41.3), hs3 = fract(vIntSeed * 7.9);
+    if (hs1 > 0.72 && dot(vColor.rgb, vec3(1.0)) < 0.01) {
+      vec2 c = vec2((hs2 - 0.5) * 0.45, (hs3 > 0.5 ? 0.22 : -0.25) + (hs3 - 0.5) * 0.12);
+      vec2 q = (vIntPos.xy - c) * vIntScale;
+      float th = atan(q.y, q.x);
+      float seg = floor((th + 3.14159) / 6.28318 * 9.0);
+      float rr = (0.07 + 0.16 * ihash(seg + vIntSeed * 31.0)) * (0.8 + 0.4 * hs2);
+      float rl = length(q);
+      holeM = 1.0 - smoothstep(rr - 0.004, rr + 0.004, rl * (1.0 + 0.25 * sin(th * 7.0 + hs1 * 20.0)));
+      float ray = abs(fract((th + 3.14159) / 6.28318 * 9.0 + 0.5 * ihash(seg)) - 0.5);
+      crackM = (1.0 - smoothstep(0.0, 0.012 / max(rl, 0.05), ray)) * smoothstep(rr * 2.6, rr, rl) * (1.0 - holeM);
+    }
+  }
+#endif
   {
     float cA; vec3 cC;
     vec3 rd = normalize(vIntDir);
@@ -331,7 +360,7 @@ vec3 interiorRoom(vec3 ro, vec3 rd, vec2 sc, float seed, out float curtA, out ve
     // curtains: lit from behind (translucent velvet / lace)
     vec3 curtLit = cC * (0.25 + 0.45 * (1.0 - cA));
     vec3 e = mix(room, curtLit, cA);
-    totalEmissiveRadiance = e;
+    totalEmissiveRadiance = e * (1.0 - holeM);
 #if defined( USE_INSTANCING_COLOR ) || defined( USE_COLOR )
     totalEmissiveRadiance *= vColor.rgb;
 #else
@@ -340,7 +369,7 @@ vec3 interiorRoom(vec3 ro, vec3 rd, vec2 sc, float seed, out float curtA, out ve
   }`)
       .replace('#include <color_fragment>', '');
   };
-  m.customProgramCacheKey = () => 'ext-glass3' + (flat ? 'f' : '');
+  m.customProgramCacheKey = () => 'ext-glass4' + (flat ? 'f' : '');
   return m;
 }
 

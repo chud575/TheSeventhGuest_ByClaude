@@ -31,7 +31,7 @@ function drawMedallion(g, S, mode) {
   const k = S / (2 * OUTER);
   const H = mode === 'height';
   const gold = H ? '#ffffff' : '#9a7740';
-  const goldDark = H ? '#b0b0b0' : '#5f4524';
+  const goldDark = H ? '#909090' : '#221c14';
   g.fillStyle = H ? '#383838' : '#16130f';
   g.fillRect(0, 0, S, S);
   // hammered iron texture
@@ -70,8 +70,8 @@ function drawMedallion(g, S, mode) {
     const r0 = RADII[i - 1] * k, r1 = RADII[i] * k;
     const rm = (r0 + r1) / 2 - S * 0.004;
     const txt = lines[i];
-    const fs = (r1 - r0) * 0.42;
-    g.font = `600 ${fs}px "Cinzel", "Times New Roman", serif`;
+    const fs = (r1 - r0) * 0.52;
+    g.font = `700 ${fs}px "Cinzel", "Times New Roman", serif`;
     g.fillStyle = gold;
     g.textAlign = 'center'; g.textBaseline = 'middle';
     // fit text around 330 degrees, leaving a gap at the top for the key notch
@@ -148,8 +148,8 @@ export function createMedallion(ctx) {
   // deterministic "random" for the canvas noise
   const rand = (() => { let a = seed; return () => { a = (a * 16807) % 2147483647; return a / 2147483647; }; })();
   const draw = (mode) => (g) => { const mr = Math.random; Math.random = rand; try { drawMedallion(g, S, mode); } finally { Math.random = mr; } };
-  const colorTex = ctx.textures.canvas('ext:medallion:c2', S, S, draw('color'), { tile: false });
-  const bumpTex = ctx.textures.canvas('ext:medallion:h2', S, S, draw('height'), { srgb: false, tile: false });
+  const colorTex = ctx.textures.canvas('ext:medallion:c3', S, S, draw('color'), { tile: false });
+  const bumpTex = ctx.textures.canvas('ext:medallion:h3', S, S, draw('height'), { srgb: false, tile: false });
   const mat = new THREE.MeshStandardMaterial({
     map: colorTex, bumpMap: bumpTex, bumpScale: 2.0, metalness: 0.6, roughness: 0.5, name: 'medallion', envMapIntensity: 1.0,
     emissive: new THREE.Color(1.0, 0.7, 0.3), emissiveMap: colorTex, emissiveIntensity: 0,

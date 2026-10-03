@@ -89,6 +89,58 @@ export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13, facing 
     const top = new THREE.CylinderGeometry(0.18, 0.18, 0.2, 18);
     B.add(top, M.grave, mat4(x + 0.03, y + 1.95, z, 0.3, 0, 0.25), { uvScale: 1 });
   }
+  // fallen and broken stones: one slab face-down in the turf, one snapped in two
+  {
+    const fs = [[cx - 1.9, cz + 2.0, 0.7, 0.5], [cx + 3.6, cz + 2.4, -0.4, 0.62]];
+    fs.forEach(([x, z, ry, w], k) => {
+      const y = height(x, z);
+      const sh = shapeRound(w, 0.95);
+      const g = new THREE.ExtrudeGeometry(sh, { depth: 0.12, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 2, curveSegments: 14 });
+      g.translate(0, 0, -0.06);
+      if (k === 0) B.add(g, M.graveDark, mat4(x, y + 0.03, z, -Math.PI / 2 + 0.06, ry, 0.04), { uvScale: 1 });
+      else {
+        // snapped: the stump still standing, the top lying against it
+        const stump = new THREE.ExtrudeGeometry((() => { const q = new THREE.Shape(); q.moveTo(-w / 2, 0); q.lineTo(w / 2, 0); q.lineTo(w / 2, 0.38); q.lineTo(w * 0.15, 0.46); q.lineTo(-w * 0.1, 0.36); q.lineTo(-w / 2, 0.43); q.lineTo(-w / 2, 0); return q; })(), { depth: 0.12, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.015, bevelSegments: 1 });
+        stump.translate(0, 0, -0.06);
+        B.add(stump, M.grave, mat4(x, y - 0.08, z, 0.1, ry, -0.06), { uvScale: 1 });
+        B.add(g, M.grave, mat4(x + 0.35, y + 0.12, z + 0.45, -1.25, ry + 0.4, 0.3, 0.9), { uvScale: 1 });
+      }
+    });
+  }
+  // low iron railing round the plot: bar posts with ball finials, two rails, sagging,
+  // the front run mostly gone (a few leaning stubs)
+  {
+    const x0 = cx - 4.6, x1 = cx + 5.3, z0 = cz - 3.1, z1 = cz + 4.0;
+    const runs = [[x0, z0, x1, z0, 1], [x1, z0, x1, z1, 1], [x0, z1, x0, z0, 1], [x1, z1, x0 + 5.6, z1, 1], [x0 + 1.0, z1, x0, z1, 0.6]];
+    for (const [ax, az, bx, bz] of runs) {
+      const len = Math.hypot(bx - ax, bz - az);
+      const n = Math.max(2, Math.round(len / 0.16));
+      const ang = Math.atan2(bx - ax, bz - az);
+      let prev = null;
+      for (let i = 0; i <= n; i++) {
+        const t = i / n;
+        const x = ax + (bx - ax) * t, z = az + (bz - az) * t;
+        const y = height(x, z);
+        const sag = Math.sin(t * Math.PI * 3 + ax) * 0.06;
+        const lean = Math.sin(i * 1.7 + az) * 0.06 + (Math.abs(t - 0.62) < 0.12 ? 0.22 : 0);
+        if (R() < 0.08) { prev = null; continue; }
+        const hgt = 0.62 + sag;
+        B.add(new THREE.CylinderGeometry(0.009, 0.009, hgt, 5), M.iron, mat4(x, y + hgt / 2 - 0.05, z, lean, ang, 0), { uv: 'keep' });
+        const tip = new THREE.Vector3(0, hgt - 0.05, 0).applyEuler(new THREE.Euler(lean, ang, 0, 'YXZ'));
+        B.add(new THREE.SphereGeometry(0.018, 6, 5), M.iron, mat4(x + tip.x, y + tip.y, z + tip.z), { uv: 'keep' });
+        if (prev && i % 1 === 0) {
+          for (const ry2 of [0.12, 0.5]) {
+            const a = new THREE.Vector3(prev.x, prev.y + ry2, prev.z), b2 = new THREE.Vector3(x, y + ry2 + sag * 0.5, z);
+            const d = b2.clone().sub(a); const l = d.length();
+            const mid = a.clone().add(b2).multiplyScalar(0.5);
+            const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+            B.add(new THREE.CylinderGeometry(0.008, 0.008, l + 0.01, 4), M.iron, new THREE.Matrix4().compose(mid, q, new THREE.Vector3(1, 1, 1)), { uv: 'keep' });
+          }
+        }
+        prev = { x, y, z };
+      }
+    }
+  }
   // a votive lantern left burning on the newest grave: someone visits
   const votive = new THREE.Group();
   {
@@ -109,6 +161,19 @@ export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13, facing 
     const pl = new THREE.PointLight(0xffb070, 0.9, 5, 2);
     pl.position.y = 0.16; votive.add(pl);
     votive.userData.light = pl;
+    // a bunch of dead roses laid against the stone, tied with a ribbon gone black
+    const fb = new Bucket();
+    const stemM = M.bark || M.iron;
+    for (let i = 0; i < 7; i++) {
+      const a = -0.5 + i * 0.16 + (R() - 0.5) * 0.1;
+      const len = 0.32 + R() * 0.14;
+      const sx = 0.16 + (R() - 0.5) * 0.04, sz = -0.12;
+      const m = mat4(sx, 0.02, sz, 1.25 + (R() - 0.5) * 0.2, 0.9 + a, 0);
+      fb.add(new THREE.CylinderGeometry(0.004, 0.005, len, 4).translate(0, len / 2, 0), stemM, m, { uv: 'keep' });
+      const head = new THREE.SphereGeometry(0.022 + R() * 0.008, 6, 5).scale(1, 0.8, 1);
+      fb.add(head.translate(0, len, 0), M.terracotta, m, { uv: 'keep' });
+    }
+    fb.build(votive, { name: 'deadFlowers' });
   }
   group.add(votive);
   B.build(group, { name: 'graves' });
@@ -195,7 +260,7 @@ export function buildVerge(ctx, M, { from = 0.25, to = 0.9, seed = 61 } = {}) {
 }
 
 /** Fallen oak leaves: curled little cards, instanced, darker wet ones on the drive. */
-export function buildLeafLitter(ctx, { regions, count = 2500, seed = 44 }) {
+export function buildLeafLitter(ctx, { regions, count = 2500, seed = 44, points = null }) {
   const shape = new THREE.Shape();
   shape.moveTo(0, -0.5);
   shape.bezierCurveTo(0.3, -0.35, 0.42, 0.05, 0.22, 0.25);
@@ -210,7 +275,7 @@ export function buildLeafLitter(ctx, { regions, count = 2500, seed = 44 }) {
   geo.computeVertexNormals();
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.75, side: THREE.DoubleSide, name: 'leaves' });
   mat.userData.groundShade = true;
-  const pts = scatter({ regions, count, seed });
+  const pts = points || scatter({ regions, count, seed });
   const R = rng(seed + 1);
   const ms = pts.map((q) => {
     const s = 0.05 + R() * 0.05;

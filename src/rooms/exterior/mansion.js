@@ -327,9 +327,9 @@ export function buildMansion(ctx, M) {
 
   // ------------------------------------------------------------------ main facade windows
   const fz = MB.z1;
-  for (const [x, l1, l2] of [[-3.9, 0, 0.0], [3.8, 0.0, 0], [6.1, 0.0, 0]]) {
-    win.add({ x, y: F + 0.85, z: fz, w: 1.15, h: 2.6, type: 'seg', lit: l1 });
-    win.add({ x, y: FL2 + 0.8, z: fz, w: 1.1, h: 2.35, type: 'flat', lit: l2, shutters: x < 0 });
+  for (const [x, l1, l2, t1, t2] of [[-3.9, 0, 0.75, 0, 0.45], [3.8, 0.42, 0, 2.0, 0], [6.1, 0.0, 0, 0, 0]]) {
+    win.add({ x, y: F + 0.85, z: fz, w: 1.15, h: 2.6, type: 'seg', lit: l1, tint: t1 });
+    win.add({ x, y: FL2 + 0.8, z: fz, w: 1.1, h: 2.35, type: 'flat', lit: l2, tint: t2, shutters: x < 0, hanging: x < 0 ? -1 : 0 });
   }
   // side windows (left -x, right +x) and back
   for (const z of [-4.2, -1.4, 1.6]) {

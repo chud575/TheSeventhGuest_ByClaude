@@ -7,7 +7,7 @@ import { rng } from './lib.js';
  * roots, and fine twig tips that read as lace against the sky.
  * Returns one merged BufferGeometry (position/normal/uv) per tree.
  */
-export function gnarledTree({ seed = 1, height = 9, spread = 1, trunkR = 0.45, depth = 5, lean = 0, twigs = true, droop = 0.25, reach = null, reachW = 0.8, leanZ = 0 } = {}) {
+export function gnarledTree({ seed = 1, height = 9, spread = 1, trunkR = 0.45, depth = 5, lean = 0, twigs = true, droop = 0.25, reach = null, reachW = 0.8, leanZ = 0, minR = 0.006 } = {}) {
   const reachV = reach ? new THREE.Vector3(...reach).normalize() : null;
   const R = rng(seed);
   const pos = [], nor = [], uv = [], idx = [];
@@ -102,13 +102,13 @@ export function gnarledTree({ seed = 1, height = 9, spread = 1, trunkR = 0.45, d
       if (level === 0) cd.y = Math.max(cd.y, 0.15 + R() * 0.3);
       const cl = len * (level === 0 ? 0.62 + R() * 0.25 : 0.55 + R() * 0.25) * spread;
       const cr = radii[k] * (level === 0 ? 0.62 : 0.7);
-      branch(at, cd.normalize(), cl, Math.max(0.006, cr), level + 1);
+      branch(at, cd.normalize(), cl, Math.max(minR, cr), level + 1);
     }
     // apical continuation
     if (level >= 1 && level < depth) {
       const end = pts[segs];
       const pd = new THREE.Vector3().subVectors(pts[segs], pts[segs - 1]).normalize();
-      branch(end, pd.addScaledVector(randomPerp(pd), 0.35).normalize(), len * 0.6, Math.max(0.006, radii[segs] * 0.95), level + 1);
+      branch(end, pd.addScaledVector(randomPerp(pd), 0.35).normalize(), len * 0.6, Math.max(minR, radii[segs] * 0.95), level + 1);
     }
   };
 

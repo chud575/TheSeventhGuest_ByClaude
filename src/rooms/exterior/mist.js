@@ -54,7 +54,7 @@ void main() {
   float n2 = fxNoise(vWorld * vec3(0.5, 1.2, 0.5) + wind * 0.4 + vSeed * 3.0);
   float top = smoothstep(1.0, 0.25 + 0.35 * n, vUv.y);
   // wispy, broken banks (not flat sheets): high-contrast noise, density thinning with height
-  float a = sx * bottom * top * smoothstep(0.48, 0.95, n * 0.8 + n2 * 0.34) * mix(1.0, 0.55, vUv.y);
+  float a = sx * bottom * top * smoothstep(0.3, 0.88, n * 0.8 + n2 * 0.34) * mix(1.0, 0.5, vUv.y);
   // fade when the camera walks into it
   a *= smoothstep(2.5, 9.0, vCamDist);
   vec3 vd = normalize(vWorld - cameraPosition);
@@ -89,8 +89,8 @@ export function buildMist({ timeUniform, moonDir, sheets, seed = 9, opacity = 0.
   const uniforms = {
     uTime: timeUniform,
     uMoonDir: { value: moonDir.clone().normalize() },
-    uDark: { value: new THREE.Color(0.026, 0.033, 0.054) },
-    uLit: { value: new THREE.Color(0.065, 0.078, 0.11) },
+    uDark: { value: new THREE.Color(0.03, 0.034, 0.043) },
+    uLit: { value: new THREE.Color(0.072, 0.078, 0.092) },
     uOpacity: { value: opacity },
     uFlash: { value: 0 },
   };

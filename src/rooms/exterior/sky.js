@@ -84,8 +84,8 @@ void main() {
   // ---- base gradient: deep indigo zenith, misty blue-grey horizon, moon-side brighter
   float mo = max(dot(d, uMoonDir), 0.0);
   vec3 sky = mix(uHorizon, uZenith, pow(smoothstep(-0.05, 0.75, el), 0.7));
-  sky += vec3(0.08, 0.11, 0.2) * pow(mo, 8.0) * 0.18;
-  sky += vec3(0.25, 0.30, 0.42) * pow(mo, 40.0) * 0.6;
+  sky += vec3(0.10, 0.115, 0.15) * pow(mo, 8.0) * 0.2;
+  sky += vec3(0.28, 0.31, 0.38) * pow(mo, 40.0) * 0.6;
 
   // ---- stars
   vec2 sp = vec2(az * 180.0, el * 180.0);
@@ -98,7 +98,7 @@ void main() {
 
   // ---- moon
   float md = acos(clamp(dot(d, uMoonDir), -1.0, 1.0));
-  float disc = smoothstep(uMoonSize, uMoonSize * 0.96, md);
+  float disc = smoothstep(uMoonSize, uMoonSize * 0.985, md);
   vec3 mside = normalize(cross(uMoonDir, vec3(0.0, 1.0, 0.0)));
   vec3 mup = cross(mside, uMoonDir);
   vec2 mp = vec2(dot(d, mside), dot(d, mup)) / uMoonSize;   // -1..1 on the disc
@@ -108,44 +108,58 @@ void main() {
   vec3 moonC = vec3(1.0, 0.97, 0.9) * (0.62 + 0.38 * smoothstep(0.35, 0.65, maria)) * (0.85 + 0.15 * craters) * (0.55 + 0.45 * pow(limb, 0.5));
   vec3 moon = moonC * uMoonBright * disc;
   // corona + halo
-  vec3 glow = vec3(0.55, 0.62, 0.8) * (exp(-md * 22.0) * 0.9 + exp(-md * 7.0) * 0.1);
-  float halo = exp(-pow((md - 0.38) / 0.025, 2.0)) * 0.028;
+  vec3 glow = vec3(0.6, 0.65, 0.78) * (exp(-md * 34.0) * 1.0 + exp(-md * 8.0) * 0.07);
+  float halo = exp(-pow((md - 0.384) / 0.02, 2.0)) * 0.045;
   glow += vec3(0.6, 0.65, 0.8) * halo;
 
-  // ---- clouds: projected on a dome, two layers drifting
+  // ---- clouds: projected on a dome; density field + a short light march toward the moon
   vec2 cp = d.xz / (el + 0.12);
   float t = uTime;
   vec2 w1 = vec2(t * 0.010, t * 0.004);
   float warp = fbm2(cp * 0.6 + w1 * 2.0, 4);
-  float c1 = fbm2(cp * 0.75 + vec2(warp * 0.9, warp * 0.4) + w1, 7);
+  vec2 wo = vec2(warp * 0.9, warp * 0.4);
+  float c1 = fbm2(cp * 0.75 + wo + w1, 7);
   float c2 = fbm2(cp * 2.6 + vec2(-t * 0.02, t * 0.006) + warp, 6);
   float c3 = fbm2(cp * 7.0 + vec2(-t * 0.03, 0.0) + warp * 2.0, 4);
   float cov = uCloudCover;
-  float dens = smoothstep(0.6 - cov * 0.3, 0.72 - cov * 0.2, c1 + (c2 - 0.5) * 0.4 + (c3 - 0.5) * 0.12);
+  float lo = 0.6 - cov * 0.3, hi = 0.72 - cov * 0.2;
+  float raw = c1 + (c2 - 0.5) * 0.4 + (c3 - 0.5) * 0.12;
+  float dens = smoothstep(lo, hi + 0.12, raw);
   float wisp = smoothstep(0.5, 0.8, c2) * (1.0 - dens) * 0.45;
   dens = clamp(dens + wisp, 0.0, 1.0);
   dens *= smoothstep(-0.02, 0.12, el);
-  // a ragged clearing around the moon so the disc reads
-  float clear = smoothstep(0.03, 0.2, md + (c2 - 0.5) * 0.16);
-  dens *= mix(0.2, 1.0, clear);
-  // a ragged veil drifting across the lower limb of the disc
-  float veil = smoothstep(0.45, 0.75, fbm2(cp * 9.0 + vec2(t * 0.05, 0.0), 4)) * smoothstep(0.5, -0.4, mp.y + mp.x * 0.3);
-  dens = max(dens, veil * disc * 0.35);
+  // a ragged clearing around the moon so the disc reads (it still slips behind veils)
+  float clear = smoothstep(0.02, 0.16, md + (c2 - 0.5) * 0.2);
+  dens *= mix(0.12, 1.0, clear);
+  float veil = smoothstep(0.42, 0.75, fbm2(cp * 9.0 + vec2(t * 0.05, 0.0), 4)) * smoothstep(0.6, -0.5, mp.y + mp.x * 0.3);
+  dens = max(dens, veil * smoothstep(uMoonSize * 1.6, 0.0, md) * 0.55);
+  // light march toward the moon across the cloud plane: edges that face it go silver,
+  // the thick cores stay dark slate
+  vec2 cpm = uMoonDir.xz / (uMoonDir.y + 0.12);
+  vec2 ld = cpm - cp; float ldl = length(ld); ld /= max(ldl, 1e-4);
+  float st = min(ldl, 0.35) / 3.0;
+  float od = 0.0;
+  for (int i = 1; i <= 3; i++) {
+    vec2 q = cp + ld * st * float(i);
+    float cq = fbm2(q * 0.75 + wo + w1, 4) + (c2 - 0.5) * 0.4;
+    od += smoothstep(lo, hi + 0.12, cq);
+  }
+  float trans = exp(-od * 1.6);
   // low dark scud bank along the horizon
   float scud = smoothstep(0.22, 0.02, el) * smoothstep(0.45, 0.7, fbm2(vec2(az * 4.0 + t * 0.01, el * 9.0), 5));
   dens = max(dens, scud * 0.9);
-  // lighting: thin parts near the moon glow silver; thick parts are dark slate
-  float thin = 1.0 - smoothstep(0.2, 1.0, dens);
-  vec3 cloudDark = vec3(0.017, 0.021, 0.044) + uHorizon * 0.35;
-  vec3 cloudLit = vec3(0.55, 0.64, 0.9) * (pow(mo, 90.0) * 1.25 + pow(mo, 14.0) * 0.2 + pow(mo, 3.0) * 0.06 + 0.035);
-  float edge = smoothstep(0.0, 0.35, dens) * (1.0 - smoothstep(0.35, 0.9, dens));
-  vec3 cloudCol = cloudDark + cloudLit * (thin * 0.45 + edge * 1.8);
-  // lightning lights the cloud bellies
-  float fl = uFlash * (0.2 + 0.8 * exp(-acos(clamp(dot(d, uBoltDir), -1.0, 1.0)) * 3.0));
-  // a strike floods the whole cloud deck white-lilac: the house becomes a black cut-out
-  cloudCol += vec3(0.78, 0.76, 1.0) * fl * (0.5 + dens * 1.3);
-  sky += vec3(0.55, 0.54, 0.78) * fl * 0.8;
-
+  float phase = pow(mo, 60.0) * 1.3 + pow(mo, 12.0) * 0.32 + pow(mo, 3.0) * 0.08 + 0.025;
+  vec3 cloudDark = vec3(0.014, 0.016, 0.021) + uHorizon * 0.35;
+  vec3 silver = vec3(0.62, 0.66, 0.76);
+  float thin = 1.0 - smoothstep(0.15, 1.0, dens);
+  float edge = smoothstep(0.0, 0.3, dens) * (1.0 - smoothstep(0.3, 0.95, dens));
+  vec3 cloudCol = cloudDark * (0.6 + 0.4 * thin) + silver * phase * (trans * (0.35 + edge * 1.6) + thin * 0.25);
+  // lightning: the whole deck lights from within, thin parts blaze, cores stay darker
+  float bang = acos(clamp(dot(d, uBoltDir), -1.0, 1.0));
+  float fl = uFlash * (0.35 + 0.65 * exp(-bang * 2.2));
+  vec3 flashC = vec3(0.82, 0.8, 1.0);
+  cloudCol += flashC * fl * (mix(3.2, 0.7, dens) * (0.6 + 0.4 * trans) + edge * 1.5);
+  sky += flashC * fl * 2.4 * (0.6 + 0.4 * smoothstep(0.0, 0.5, el));
   vec3 col = sky + vec3(star) + glow;
   col += moon;
   // clouds occlude moon & stars partially (moon shows through thin veils)
@@ -160,7 +174,7 @@ void main() {
     if (bp.y < 0.02 && bp.y > -1.2 && dot(d, uBoltDir) > 0.0) {
       float brn;
       float bd = boltDist(bp, uBoltSeed, brn);
-      float core = exp(-bd * 2600.0) * 16.0 + exp(-bd * 500.0) * 1.4 + exp(-bd * 60.0) * 0.18;
+      float core = exp(-bd * 2600.0) * 22.0 + exp(-bd * 500.0) * 2.0 + exp(-bd * 60.0) * 0.35 + exp(-bd * 12.0) * 0.12;
       col += vec3(0.75, 0.82, 1.0) * core * uBolt;
     }
   }
@@ -180,14 +194,14 @@ export function createSky({ timeUniform, moonDir }) {
     uTime: timeUniform,
     uMoonDir: { value: moonDir.clone().normalize() },
     uMoonSize: { value: 0.024 },
-    uMoonBright: { value: 1.15 },
+    uMoonBright: { value: 6.0 },
     uFlash: { value: 0 },
-    uBoltDir: { value: new THREE.Vector3(-0.2, 0.06, -0.98).normalize() },
+    uBoltDir: { value: new THREE.Vector3(-0.375, 0.06, -0.927).normalize() },
     uBolt: { value: 0 },
     uBoltSeed: { value: 3 },
-    uBoltTop: { value: 0.66 },
-    uHorizon: { value: new THREE.Color(0.009, 0.014, 0.034) },
-    uZenith: { value: new THREE.Color(0.0035, 0.005, 0.016) },
+    uBoltTop: { value: 0.52 },
+    uHorizon: { value: new THREE.Color(0.017, 0.019, 0.026) },
+    uZenith: { value: new THREE.Color(0.0055, 0.0064, 0.0092) },
     uCloudCover: { value: 0.86 },
     uStars: { value: 1.0 },
   };

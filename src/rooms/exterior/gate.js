@@ -288,8 +288,10 @@ export function buildGate(ctx, M) {
       // sections sag and lean with the frost-heaved ground; the odd picket is gone
       const sec = Math.floor(i / 17);
       const secLean = (Math.sin(sec * 7.3 + side * 2.1) * 0.5 + 0.5) > 0.7 ? Math.sin(sec * 3.1) * 0.09 : 0;
-      const lean = (R() - 0.5) * 0.04 + secLean + (Math.abs(x) > 18 ? 0.05 * Math.sin(x) : 0);
-      const missing = R() < 0.04 && i % 17 !== 0;
+      // one section was hit by a falling limb: its bars bow over in an arc
+      const bent = side > 0 && sec === 2 ? 0.32 * Math.sin(((i % 17) / 17) * Math.PI) : 0;
+      const lean = (R() - 0.5) * 0.1 + secLean + bent + (Math.abs(x) > 18 ? 0.05 * Math.sin(x) : 0);
+      const missing = R() < 0.08 && i % 17 !== 0;
       if (!missing) fenceBars.push({ x, y: y - 0.1, z, lean, h: (1.75 + (i % 2) * 0.1) * (R() < 0.03 ? 0.6 : 1) });
       if (i % 17 === 0) posts.push(mat4(x, y - 0.1, z, (R() - 0.5) * 0.05, 0, secLean * 0.7 + (R() - 0.5) * 0.04, 1, 0.94 + R() * 0.1, 1));
       if (prev) {

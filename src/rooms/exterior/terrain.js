@@ -325,18 +325,23 @@ export function buildBladeGrass({ material, regions, count = 6000, seed = 21, av
       const s = k < 0.45 ? 0.18 + R() * 0.12 : k < 0.8 ? 0.32 + R() * 0.15 : k < 0.97 ? 0.5 + R() * 0.2 : 0.75 + R() * 0.25;
       const ti = Math.floor(R() * templates.length);
       const sc = r.scale ?? 1;
+      // height varies a lot clump to clump (0.3 - 1.2 m stands), wind-lean and frost-flattened ones
+      const hy = 0.55 + Math.pow(R(), 1.5) * 1.1;
+      const flat = R() < 0.15 ? 0.45 : 1;
       lists[ti].push(new THREE.Matrix4().compose(
         new THREE.Vector3(x, y - 0.02, z),
-        new THREE.Quaternion().setFromEuler(new THREE.Euler((R() - 0.5) * 0.2, R() * Math.PI * 2, (R() - 0.5) * 0.2)),
-        new THREE.Vector3(s * (0.8 + R() * 0.5), s * (0.85 + dens * 0.5) * sc, s * (0.8 + R() * 0.5)),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler((R() - 0.5) * 0.5 + 0.12, R() * Math.PI * 2, (R() - 0.5) * 0.5)),
+        new THREE.Vector3(s * (0.8 + R() * 0.6) * (flat < 1 ? 1.4 : 1), s * (0.85 + dens * 0.5) * sc * hy * flat, s * (0.8 + R() * 0.6)),
       ));
       // olive-grey dead straw, some greener, some bleached
       // dead ochre / olive straw (linear ~0.12-0.18 at the tips), per-clump variation
-      const v = 0.75 + R() * 0.55;
+      const v = 0.6 + R() * 0.7;
       const g = R();
-      if (g < 0.3) c.setRGB(0.1 * v, 0.1 * v, 0.055 * v);         // olive
-      else if (g < 0.85) c.setRGB(0.14 * v, 0.11 * v, 0.06 * v);   // ochre
-      else c.setRGB(0.18 * v, 0.15 * v, 0.1 * v);                  // bleached
+      if (g < 0.25) c.setRGB(0.085 * v, 0.09 * v, 0.045 * v);        // olive
+      else if (g < 0.5) c.setRGB(0.1 * v, 0.065 * v, 0.035 * v);     // dead brown
+      else if (g < 0.8) c.setRGB(0.14 * v, 0.11 * v, 0.06 * v);      // ochre straw
+      else if (g < 0.93) c.setRGB(0.11 * v, 0.105 * v, 0.09 * v);    // weathered grey
+      else c.setRGB(0.18 * v, 0.15 * v, 0.1 * v);                    // bleached
       cols[ti].push(c.clone());
       placed++;
     }
@@ -375,4 +380,41 @@ export function scatter({ regions, count, seed = 3, avoidPath = 0, onPath = fals
     }
   }
   return out;
+}
+
+/**
+ * Baked terrain data for the shaders (half-float RGBA, 1 texel = 1 m):
+ *  r = ground height, g = carriage-drive mask (1 on the drive, 0 beyond ~2.2 m),
+ *  b = hollow mask (low ground relative to the neighbourhood: where mist and wet pool).
+ * Returns { texture, rect: Vector4(x0, z0, 1/w, 1/d) } for hmSample() in lib.js.
+ */
+export function bakeTerrainData({ x0 = -75, z0 = -57, w = 150, d = 150 } = {}) {
+  const nx = w + 1, nz = d + 1;
+  const H = new Float32Array(nx * nz);
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) H[j * nx + i] = height(x0 + i, z0 + j);
+  const data = new Uint16Array(nx * nz * 4);
+  const toH = THREE.DataUtils.toHalfFloat;
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+    const x = x0 + i, z = z0 + j;
+    let pm = 0;
+    if (z > 9.5) { const n = pathNearest(x, z); pm = 1 - THREE.MathUtils.smoothstep(n.dist, 0.9, 2.4); }
+    else if (Math.abs(x) < 2 && z > 7) pm = 0.6;
+    let avg = 0, c = 0;
+    for (let dj = -4; dj <= 4; dj += 2) for (let di = -4; di <= 4; di += 2) {
+      const ii = Math.min(nx - 1, Math.max(0, i + di)), jj = Math.min(nz - 1, Math.max(0, j + dj));
+      avg += H[jj * nx + ii]; c++;
+    }
+    const hollow = THREE.MathUtils.clamp((avg / c - H[j * nx + i]) * 2.0, 0, 1);
+    const k = (j * nx + i) * 4;
+    data[k] = toH(H[j * nx + i]); data[k + 1] = toH(pm); data[k + 2] = toH(hollow); data[k + 3] = toH(1);
+  }
+  const tex = new THREE.DataTexture(data, nx, nz, THREE.RGBAFormat, THREE.HalfFloatType);
+  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter;
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.generateMipmaps = false;
+  tex.colorSpace = THREE.NoColorSpace;
+  tex.needsUpdate = true;
+  // texel centres: x0 + i maps to (i + 0.5) / nx
+  const rect = new THREE.Vector4(x0 - 0.5, z0 - 0.5, 1 / nx, 1 / nz);
+  return { texture: tex, rect };
 }

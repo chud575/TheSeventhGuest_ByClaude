@@ -109,10 +109,19 @@ export function createFogUniforms() {
     uHFogMax: { value: 0.92 },
     uHFogFlash: { value: 0.0 },
     uHFogTime: { value: 0 },
+    // terrain-hugging ground mist (ray-marched against a baked height map)
+    uHMap: { value: null },
+    uHMapRect: { value: new THREE.Vector4(0, 0, 1, 1) },
+    uMistD: { value: 0.0 },            // density at the ground surface (per metre)
+    uMistH: { value: 0.9 },            // e-folding height above the ground (m)
+    uMistColor: { value: new THREE.Color(0.05, 0.06, 0.08) },
     // moon rim light (backlit silhouettes): world-space light dir, colour, strength
     uRimDir: { value: new THREE.Vector3(0, 0.5, -1).normalize() },
     uRimColor: { value: new THREE.Color(0.55, 0.66, 1.0) },
     uRimStrength: { value: 1.0 },
+    // lightning behind the house: a hard rim on every silhouette, no front fill
+    uFlashRim: { value: 0.0 },
+    uFlashDir: { value: new THREE.Vector3(0, 0.25, -1).normalize() },
   };
 }
 
@@ -127,10 +136,18 @@ uniform float uHFogHaze;
 uniform float uHFogMax;
 uniform float uHFogFlash;
 uniform float uHFogTime;
+uniform sampler2D uHMap;
+uniform vec4 uHMapRect;
+uniform float uMistD;
+uniform float uMistH;
+uniform vec3 uMistColor;
 uniform vec3 uRimDir;
 uniform vec3 uRimColor;
 uniform float uRimStrength;
+uniform float uFlashRim;
+uniform vec3 uFlashDir;
 ${FX_NOISE.replace(/fx/g, 'hf')}
+vec4 hmSample(vec2 xz) { return texture2D(uHMap, (xz - uHMapRect.xy) * uHMapRect.zw); }
 vec4 hfogEval(vec3 camPos, vec3 wpos) {
   vec3 rd = wpos - camPos;
   float dist = length(rd);
@@ -146,10 +163,28 @@ vec4 hfogEval(vec3 camPos, vec3 wpos) {
   vec3 w = vec3(uHFogTime * 0.18, 0.0, uHFogTime * 0.07);
   float n = hfNoise(m1 * vec3(0.16, 0.5, 0.16) + w) * 0.6 + hfNoise(m2 * vec3(0.33, 0.9, 0.33) + w * 1.7) * 0.4;
   od *= 0.35 + 1.3 * n;
-  od += uHFogHaze * dist;
-  float f = min(1.0 - exp(-od), uHFogMax);
+  // ground mist: march the first 70 m of the ray against the terrain height
+  float odm = 0.0;
+  if (uMistD > 0.0) {
+    float md = min(dist, 70.0);
+    for (int i = 0; i < 8; i++) {
+      float t = (float(i) + 0.5) / 8.0;
+      t = t * t * md;       // denser sampling near the camera
+      vec3 p = camPos + dir * t;
+      float hh = max(p.y - hmSample(p.xz).r, 0.0);
+      odm += exp(-hh / uMistH) * (2.0 * sqrt(t / md) + 0.06);
+    }
+    odm *= uMistD * md / 8.0 * 0.5;
+    odm *= 0.4 + 1.2 * n;
+  }
+  float haze = uHFogHaze * dist;
+  float odt = od + odm + haze;
+  float f = min(1.0 - exp(-odt), uHFogMax);
   float mo = max(dot(dir, uHFogMoonDir), 0.0);
-  vec3 col = uHFogColor + uHFogMoonColor * (pow(mo, 6.0) * 0.8 + pow(mo, 40.0) * 1.2);
+  float sc = pow(mo, 6.0) * 0.8 + pow(mo, 40.0) * 1.2;
+  vec3 col = uHFogColor + uHFogMoonColor * sc;
+  vec3 mcol = uMistColor * (1.0 + sc * 1.6);
+  col = mix(col, mcol, odm / max(odt, 1e-4));
   col *= 1.0 + uHFogFlash * 5.0;
   return vec4(col, f);
 }
@@ -159,6 +194,7 @@ vec4 hfogEval(vec3 camPos, vec3 wpos) {
  * Moon rim: a grazing-angle sheen on surfaces that face the (back-lighting) moon.
  * Lets rooflines, finials, cresting, branches and bars catch a silver edge while the
  * camera-facing facades stay in deep shadow. userData.rim = strength (e.g. 1).
+ * Lightning adds a second, much harder rim from the strike direction.
  */
 function rimChunk(m) {
   if (!m.userData.rim) return '';
@@ -180,7 +216,12 @@ ${tipTerm} vec3 rn = normalize(normal); vec3 rv = normalize(vViewPosition);
   // no rim on up-facing tops (cornice caps, sills): seen edge-on they alias into white speckle
 ${(m.userData.groundShade || m.userData.rimTops) ? '' : `  float rup = (vec4(rn, 0.0) * viewMatrix).y;
   fr *= 1.0 - smoothstep(0.45, 0.85, rup);
-`}  gl_FragColor.rgb += uRimColor * (fr * face * back * uRimStrength * ${Number(m.userData.rim).toFixed(3)}) * ${mul}; }\n`;
+`}  gl_FragColor.rgb += uRimColor * (fr * face * back * uRimStrength * ${Number(m.userData.rim).toFixed(3)}) * ${mul};
+  if (uFlashRim > 0.0) {
+    vec3 fl = normalize((viewMatrix * vec4(uFlashDir, 0.0)).xyz);
+    float ff = pow(1.0 - ndv, 2.2) * smoothstep(0.0, 0.7, dot(rn, fl));
+    gl_FragColor.rgb += vec3(0.78, 0.84, 1.0) * ff * uFlashRim * ${Number(m.userData.flashRim ?? Math.min(1, m.userData.rim)).toFixed(3)} * ${tip ? 'diffuseColor.rgb * 1.5 * rtip' : '(0.2 + diffuseColor.rgb * 1.6)'};
+  } }\n`;
 }
 /** Ground grime: darken + green the bottom of a surface (moss, rising damp) between world y0 and y0+h. */
 function grimeChunk(m) {
@@ -193,11 +234,79 @@ function grimeChunk(m) {
   gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * vec3(0.32, 0.4, 0.26), gm * ${f(g.moss ?? 1)}); }\n`;
 }
 
+/**
+ * Surface chunks run before lighting (they edit diffuseColor / roughnessFactor):
+ *  - splat: the hillside ground blends dead straw, olive turf, leaf litter and wet mud
+ *    (the mud follows the carriage drive via the baked mask in uHMap.g)
+ *  - wallGrime {y0, h, streak}: long rain runs down painted walls, a damp dark skirt above the ground
+ *  - paintWear: white lead paint gone grey-brown in blotches
+ *  - stoneVar: per-block hue/value variation, moss on the moon-shaded (+z) faces
+ *  - specAA: roughness from normal derivatives (kills sparkle on thin iron)
+ */
+function surfaceChunk(m) {
+  const u = m.userData;
+  let s = '';
+  const f = (v) => Number(v).toFixed(3);
+  if (u.splat) s += `{
+  vec4 hm = hmSample(vHFogW.xz);
+  float pm = hm.g;
+  float n1 = hfNoise(vec3(vHFogW.xz * 0.05, 3.1));
+  float n2 = hfNoise(vec3(vHFogW.xz * 0.21, 7.7));
+  float n3 = hfNoise(vec3(vHFogW.xz * 0.9, 1.3));
+  vec3 straw = mix(vec3(0.66, 0.54, 0.38), vec3(0.46, 0.47, 0.32), smoothstep(0.3, 0.7, n1));
+  float litter = smoothstep(0.55, 0.78, n2 + (n3 - 0.5) * 0.35) * (1.0 - pm);
+  straw = mix(straw, vec3(0.7, 0.42, 0.22), litter * 0.75);
+  float mud = clamp(pm * 1.2 + smoothstep(0.66, 0.85, n2) * 0.35, 0.0, 1.0);
+  vec3 tint = mix(straw, vec3(0.30, 0.28, 0.27), mud);
+  diffuseColor.rgb *= tint * (0.7 + 0.6 * n1) * (0.85 + 0.3 * n3);
+  roughnessFactor = mix(roughnessFactor, 0.48, mud * 0.75);
+}\n`;
+  if (u.wallGrime) {
+    const g = u.wallGrime;
+    s += `{
+  float wx = vHFogW.x + vHFogW.z;
+  float sk = hfNoise(vec3(wx * 5.0, vHFogW.y * 0.28, 1.7));
+  float sk2 = hfNoise(vec3(wx * 19.0, vHFogW.y * 0.7, 5.3));
+  float streak = smoothstep(0.5, 0.85, sk * 0.65 + sk2 * 0.35) * ${f(g.streak ?? 1)};
+  float blot = smoothstep(0.55, 0.8, hfNoise(vHFogW * 0.7 + 2.0));
+  float skirt = 1.0 - smoothstep(0.0, ${f(g.h)}, vHFogW.y - ${f(g.y0)} + (sk2 - 0.5) * 0.5);
+  diffuseColor.rgb *= (1.0 - streak * 0.45) * (1.0 - blot * 0.2) * mix(1.0, 0.4, skirt);
+  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.75, 0.95, 0.62), skirt * 0.7);
+  roughnessFactor = mix(roughnessFactor, 0.95, streak * 0.4);
+}\n`;
+  }
+  if (u.paintWear) s += `{
+  float pw = smoothstep(0.42, 0.78, hfNoise(vHFogW * 1.3 + 4.0) * 0.7 + hfNoise(vHFogW * 6.0) * 0.3);
+  float pr = smoothstep(0.5, 0.9, hfNoise(vec3((vHFogW.x + vHFogW.z) * 9.0, vHFogW.y * 0.6, 2.0)));
+  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.58, 0.5, 0.42), clamp(pw * ${f(u.paintWear)} + pr * 0.35, 0.0, 1.0));
+}\n`;
+  return s;
+}
+function preLightChunk(m) {
+  const u = m.userData;
+  let s = '';
+  if (u.stoneVar) s += `{
+  vec3 wn = normalize((vec4(normal, 0.0) * viewMatrix).xyz);
+  vec3 cid = floor(vec3(vHFogW.x * 2.6, vHFogW.y * 4.0, vHFogW.z * 2.6) + 0.5);
+  float hv = hfHash(cid), hc = hfHash(cid + 7.1);
+  diffuseColor.rgb *= (0.72 + 0.5 * hv) * mix(vec3(1.06, 1.0, 0.92), vec3(0.92, 0.98, 1.06), hc);
+  float mf = smoothstep(0.1, 0.8, wn.z) * smoothstep(0.42, 0.68, hfNoise(vHFogW * 2.5) * 0.7 + hfNoise(vHFogW * 9.0) * 0.3);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.045, 0.06, 0.03), mf * ${Number(u.stoneVar).toFixed(3)});
+}\n`;
+  if (u.specAA !== false) s += `{
+  vec3 dnx = dFdx(normal), dny = dFdy(normal);
+  float va = 0.25 * (dot(dnx, dnx) + dot(dny, dny));
+  roughnessFactor = sqrt(clamp(roughnessFactor * roughnessFactor + min(2.0 * va, ${u.specAA ? '0.5' : '0.18'}), 0.0, 1.0));
+}\n`;
+  return s;
+}
+
 /** Patch a Standard/Physical/Basic material so it receives the exterior height fog. */
 export function patchFog(material, U) {
   if (material.userData.hfog) return material;
   material.userData.hfog = true;
   material.fog = false;
+  const std = material.isMeshStandardMaterial;
   const prev = material.onBeforeCompile;
   material.onBeforeCompile = (shader, r) => {
     prev?.call(material, shader, r);
@@ -210,8 +319,13 @@ export function patchFog(material, U) {
   hw = instanceMatrix * hw;
 #endif
   vHFogW = (modelMatrix * hw).xyz; }`);
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nvarying vec3 vHFogW;\n${HFOG_PARS}`)
+    let fs = shader.fragmentShader
+      .replace('#include <common>', `#include <common>\nvarying vec3 vHFogW;\n${HFOG_PARS}`);
+    if (std) {
+      fs = fs.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\n${surfaceChunk(material)}`)
+        .replace('#include <lights_physical_fragment>', `${preLightChunk(material)}#include <lights_physical_fragment>`);
+    }
+    shader.fragmentShader = fs
       .replace('#include <fog_fragment>', `${rimChunk(material)}${grimeChunk(material)}${material.userData.groundShade ? `{ float gd = length(vHFogW - cameraPosition);
   float cs = hfNoise(vec3(vHFogW.xz * 0.045 + vec2(uHFogTime * 0.03, uHFogTime * 0.01), 3.7));
   gl_FragColor.rgb *= mix(0.85, 1.0, smoothstep(1.5, 9.0, gd)) * mix(0.7, 1.15, smoothstep(0.3, 0.7, cs)); }` : ''}
@@ -219,7 +333,8 @@ export function patchFog(material, U) {
   };
   const key = material.customProgramCacheKey?.bind(material);
   const ud = material.userData;
-  material.customProgramCacheKey = () => (key ? key() : '') + '|hfog' + (ud.groundShade ? 'g' : '') + (ud.rim ? `r${ud.rim}${ud.rimTip ? 't' : ''}${ud.rimTops ? 'T' : ''}` : '') + (ud.grime ? `m${ud.grime.y0},${ud.grime.h},${ud.grime.moss ?? 1}` : '');
+  material.customProgramCacheKey = () => (key ? key() : '') + '|hfog2' + (ud.groundShade ? 'g' : '') + (ud.rim ? `r${ud.rim}${ud.rimTip ? 't' : ''}${ud.rimTops ? 'T' : ''}f${ud.flashRim}` : '') + (ud.grime ? `m${ud.grime.y0},${ud.grime.h},${ud.grime.moss ?? 1}` : '')
+    + (ud.splat ? 'S' : '') + (ud.wallGrime ? `W${ud.wallGrime.y0},${ud.wallGrime.h},${ud.wallGrime.streak}` : '') + (ud.paintWear ? `P${ud.paintWear}` : '') + (ud.stoneVar ? `V${ud.stoneVar}` : '') + `A${ud.specAA}`;
   material.needsUpdate = true;
   return material;
 }
