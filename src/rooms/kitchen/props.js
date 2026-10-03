@@ -300,7 +300,7 @@ export function buildDresser(ctx, mat, { L = 1.9 } = {}) {
     g.add(side);
   }
   // shelves (with a plate groove rail on the upper two)
-  const shelfYs = [1.26, 1.52, 1.78, 2.2, 2.52];
+  const shelfYs = [1.26, 1.48, 1.7, 2.12, 2.48];
   for (const y of shelfYs) {
     g.add(mk(rbox(G, L - 0.06, 0.025, SD, 0.004), paint, 0, y - 0.0125, SD / 2));
     // front lip moulding
@@ -327,7 +327,7 @@ export function buildDresser(ctx, mat, { L = 1.9 } = {}) {
     g.add(mk(G.applyBoxUVs(eg, 1), paint, 0, cy - 0.12, SD - 0.03));
   }
   const shelves = [{ y: shelfYs[2], zFront: SD }, { y: shelfYs[1], zFront: SD }, { y: shelfYs[0], zFront: SD }]; // top row first
-  return { group: g, shelves, extraShelves: [shelfYs[3], shelfYs[4]], SD, L, BH: BH + TOP, BD };
+  return { group: g, shelves, shelfYs, extraShelves: [shelfYs[3], shelfYs[4]], SD, L, BH: BH + TOP, BD };
 }
 
 // =====================================================================================
@@ -342,39 +342,95 @@ export function jarGeo(G, h = 0.18, r = 0.05) {
 }
 
 // =====================================================================================
-// Butcher's block: a thick end-grain block (dished & scrubbed in the middle) on four stout
-// legs with through-bolts. Origin = floor centre. Top surface at y = TOPY.
+// Butcher's block table: a 20 cm end-grain block (dished & scored in the middle, chamfered
+// arrises) on four turned, tapered legs with aprons, low stretchers and a slatted pot board.
+// Origin = floor centre. Top surface at y = TOPY; pot board top at POTY.
+// mat: butcher (top, uv 0..1 over W x D), blockSide (long-grain staves, metre UVs), blockBase, iron
 // =====================================================================================
 export function buildButcherBlock(ctx, mat, { W = 1.5, D = 0.78 } = {}) {
   const { geometry: G } = ctx;
   const g = new THREE.Group(); g.name = 'butcherblock';
-  const TOPY = 0.86, T = 0.24;
-  g.add(mk(rbox(G, W, T - 0.004, D, 0.018, 3), mat.blockSide || mat.maple, 0, TOPY - T / 2 - 0.002, 0));
-  // dished end-grain face: a displaced grid (up to 14 mm hollow, worn toward the cook's side)
-  const top = new THREE.PlaneGeometry(W - 0.03, D - 0.03, 60, 32);
-  top.rotateX(-Math.PI / 2);
-  const p = top.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i) / (W / 2), z = p.getZ(i) / (D / 2);
-    const dish = Math.exp(-(x * x * 2.2 + (z - 0.15) * (z - 0.15) * 2.8));
-    p.setY(i, -0.014 * dish + 0.0008 * Math.sin(x * 40) * Math.sin(z * 31));
+  const TOPY = 0.88, T = 0.2, C = 0.016;
+  // ---- block sides (staves), top at TOPY - C
+  g.add(mk(rbox(G, W, T - C, D, 0.004, 1), mat.blockSide, 0, TOPY - C - (T - C) / 2, 0));
+  // ---- top: custom grid with the chamfer rolled down at the edges and a dished, cook-worn hollow
+  {
+    const xs = [], zs = [];
+    const nX = 90, nZ = 48;
+    const pushAxis = (arr, half, n) => {
+      arr.push(-half, -half + C * 0.5, -half + C);
+      for (let i = 1; i < n; i++) arr.push(-half + C + (i / n) * (2 * half - 2 * C));
+      arr.push(half - C, half - C * 0.5, half);
+    };
+    pushAxis(xs, W / 2, nX); pushAxis(zs, D / 2, nZ);
+    const pos = [], uv = [], idx = [];
+    for (let j = 0; j < zs.length; j++) for (let i = 0; i < xs.length; i++) {
+      const x = xs[i], z = zs[j];
+      const de = Math.min(W / 2 - Math.abs(x), D / 2 - Math.abs(z));
+      let y = 0;
+      if (de < C) y = -(C - de) * 0.95;                    // 45-degree chamfer, slightly rounded
+      if (de < C * 0.5) y -= (C * 0.5 - de) * 0.3;
+      const nx = x / (W / 2), nz = z / (D / 2);
+      const dish = Math.exp(-(nx * nx * 2.0 + (nz - 0.15) * (nz - 0.15) * 2.6));
+      y -= 0.016 * dish * Math.min(1, de / 0.06);
+      y += 0.0006 * Math.sin(x * 57.1) * Math.sin(z * 49.3) * Math.min(1, de / 0.03);
+      pos.push(x, y, z);
+      uv.push((x + W / 2) / W, (z + D / 2) / D);
+    }
+    const NXp = xs.length;
+    for (let j = 0; j < zs.length - 1; j++) for (let i = 0; i < NXp - 1; i++) {
+      const a0 = j * NXp + i, a1 = a0 + 1, b0 = a0 + NXp, b1 = b0 + 1;
+      idx.push(a0, b0, a1, a1, b0, b1);
+    }
+    const top = new THREE.BufferGeometry();
+    top.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    top.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    top.setIndex(idx);
+    top.computeVertexNormals();
+    g.add(mk(top, mat.butcher, 0, TOPY, 0));
   }
-  top.computeVertexNormals();
-  const face = new THREE.Mesh(top, mat.butcher);
-  face.position.y = TOPY + 0.0005;
-  g.add(face);
-  // iron tie-bolts through the block (square nuts on the ends)
-  for (const s of [-1, 1]) for (const zz of [-0.22, 0.22]) {
-    g.add(mk(rbox(G, 0.008, 0.032, 0.032, 0.003), mat.iron, s * (W / 2 + 0.003), TOPY - T * 0.5, zz));
-    g.add(mk(new THREE.CylinderGeometry(0.006, 0.006, 0.012, 8), mat.iron, s * (W / 2 + 0.008), TOPY - T * 0.5, zz, 0, 0, Math.PI / 2));
+  // iron tie-rods through the block: square washers + nuts on the ends
+  for (const s of [-1, 1]) for (const zz of [-0.24, 0, 0.24]) {
+    g.add(mk(rbox(G, 0.006, 0.04, 0.04, 0.002), mat.iron, s * (W / 2 + 0.003), TOPY - T * 0.55, zz));
+    g.add(mk(new THREE.CylinderGeometry(0.011, 0.011, 0.012, 6), mat.iron, s * (W / 2 + 0.01), TOPY - T * 0.55, zz, 0, 0, Math.PI / 2));
+    g.add(mk(new THREE.CylinderGeometry(0.004, 0.004, 0.012, 8), mat.iron, s * (W / 2 + 0.018), TOPY - T * 0.55, zz, 0, 0, Math.PI / 2));
   }
+  // ---- base: turned legs, aprons, stretchers, pot board
+  const LH = TOPY - T;                      // leg height under the block
+  const lx = W / 2 - 0.1, lz = D / 2 - 0.1;
+  const legProf = [
+    [0, 0], [0.034, 0], [0.04, 0.008], [0.04, 0.03], [0.034, 0.04], [0.036, 0.05], [0.028, 0.07],
+    [0.026, 0.14], [0.031, 0.15], [0.033, 0.165], [0.029, 0.18], [0.032, 0.2], [0.03, 0.215],
+    [0.036, 0.3], [0.04, 0.4], [0.042, 0.44], [0.037, 0.455], [0.044, 0.47], [0.046, 0.49], [0.0, 0.49],
+  ];
+  const legTurn = lathe(G, legProf, 28);
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    g.add(mk(rbox(G, 0.13, TOPY - T, 0.13, 0.015, 2), mat.pineDark, sx * (W / 2 - 0.1), (TOPY - T) / 2, sz * (D / 2 - 0.1)));
+    g.add(mk(legTurn, mat.blockBase, sx * lx, 0, sz * lz));
+    g.add(mk(rbox(G, 0.088, LH - 0.48, 0.088, 0.008, 2), mat.blockBase, sx * lx, 0.48 + (LH - 0.48) / 2, sz * lz));   // square block for the aprons
   }
-  // rails + pot board
-  for (const s of [-1, 1]) g.add(mk(rbox(G, W - 0.3, 0.06, 0.04, 0.006), mat.pineDark, 0, 0.2, s * (D / 2 - 0.1)));
-  g.add(mk(rbox(G, W - 0.18, 0.025, D - 0.2, 0.004), mat.pineDark, 0, 0.24, 0));
-  return { group: g, TOPY };
+  // aprons under the block (with a bead along the lower edge)
+  for (const s of [-1, 1]) {
+    g.add(mk(rbox(G, 2 * lx - 0.06, 0.11, 0.024, 0.004), mat.blockBase, 0, LH - 0.065, s * (lz + 0.02)));
+    g.add(mk(new THREE.CylinderGeometry(0.006, 0.006, 2 * lx - 0.06, 8), mat.blockBase, 0, LH - 0.122, s * (lz + 0.03), 0, 0, Math.PI / 2));
+    g.add(mk(rbox(G, 0.024, 0.11, 2 * lz - 0.06, 0.004), mat.blockBase, s * (lx + 0.02), LH - 0.065, 0));
+  }
+  // low stretchers (worn on top where boots rest) and a slatted pot board
+  const SY = 0.16;
+  for (const s of [-1, 1]) {
+    g.add(mk(rbox(G, 2 * lx, 0.05, 0.045, 0.008), mat.blockBase, 0, SY, s * lz));
+    g.add(mk(rbox(G, 0.045, 0.05, 2 * lz, 0.008), mat.blockBase, s * lx, SY, 0));
+  }
+  const nSl = 7, slW = (2 * lz + 0.04) / nSl;
+  for (let i = 0; i < nSl; i++) {
+    const z = -lz - 0.02 + (i + 0.5) * slW;
+    g.add(mk(rbox(G, 2 * lx - 0.02, 0.018, slW - 0.008, 0.003), mat.blockBase, (i % 2 ? 0.003 : -0.002), SY + 0.034, z));
+  }
+  const surfaceY = (x, z) => {
+    const nx = x / (W / 2), nz = z / (D / 2);
+    const de = Math.min(W / 2 - Math.abs(x), D / 2 - Math.abs(z));
+    return TOPY - 0.016 * Math.exp(-(nx * nx * 2.0 + (nz - 0.15) * (nz - 0.15) * 2.6)) * Math.min(1, de / 0.06);
+  };
+  return { group: g, TOPY, POTY: SY + 0.043, surfaceY };
 }
 
 // =====================================================================================
@@ -618,40 +674,128 @@ export function buildCoalHod(G, mat) {
   return g;
 }
 
-/** A stuffed hessian sack, flat-bottomed, rounded shoulders, gathered & tied neck with a ruffled top. origin = floor centre. */
-export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3 } = {}) {
-  const prof = [];
-  const N = 26;
-  for (let i = 0; i <= N; i++) {
-    const t = i / N;
-    let rr;
-    if (t < 0.06) rr = r * (0.75 + 0.25 * Math.sin((t / 0.06) * Math.PI / 2));
-    else if (t < 0.7) rr = r * (1 + slump * 0.18 * Math.sin(((t - 0.06) / 0.64) * Math.PI) - (t > 0.55 ? (t - 0.55) * 0.6 : 0));
-    else if (t < 0.86) { const k = (t - 0.7) / 0.16; rr = r * (0.91 - 0.66 * Math.sin(k * Math.PI / 2)); }
-    else { const k = (t - 0.86) / 0.14; rr = r * (0.25 + 0.22 * k); }
-    let y = t * h;
-    if (t < 0.06) y = (t / 0.06) * 0.05 * h;
-    prof.push(new THREE.Vector2(Math.max(rr, 0.002), y));
+// small deterministic value noise for geometry displacement
+function hash3(x, y, z) { let h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return h - Math.floor(h); }
+export function vnoise3(x, y, z) {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+  const xf = x - xi, yf = y - yi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+  const L = (a, b, t) => a + (b - a) * t;
+  const c = (dx, dy, dz) => hash3(xi + dx, yi + dy, zi + dz);
+  return L(L(L(c(0, 0, 0), c(1, 0, 0), u), L(c(0, 1, 0), c(1, 1, 0), u), v), L(L(c(0, 0, 1), c(1, 0, 1), u), L(c(0, 1, 1), c(1, 1, 1), u), v), w);
+}
+export function fbm3(x, y, z, oct = 3) { let a = 0, s = 0.5, f = 1; for (let i = 0; i < oct; i++) { a += s * vnoise3(x * f, y * f, z * f); f *= 2.03; s *= 0.5; } return a / (1 - 0.5 ** oct); }
+
+/**
+ * A filled hessian flour sack standing under its own weight: flat splayed base that bulges
+ * sideways, an asymmetric slump, two or three big diagonal creases, shoulders gathered into a
+ * short twisted neck. Vertex colours carry the low-frequency ageing (dirt and damp toward the
+ * base, flour dusting on the shoulders). origin = floor centre, neck up +Y.
+ * opts.lying: shorten & flatten for a sack laid on its side (caller rotates it).
+ */
+export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0.11, flour = 0.6 } = {}) {
+  const NU = 72, NV = 56;
+  const pos = [], col = [], uvs = [], idx = [];
+  const rnd = (k) => hash3(seed * 1.7, k * 3.1, 0.5);
+  const lean = [(rnd(1) - 0.5) * 0.5 * slump * r, (rnd(2) - 0.5) * 0.35 * slump * r];
+  const creases = [0, 1, 2, 3].slice(0, 3 + (seed % 2)).map((k) => ({ a: rnd(10 + k) * Math.PI * 2, t: 0.3 + rnd(20 + k) * 0.4, tilt: (rnd(30 + k) - 0.5) * 3.0, depth: 0.08 + rnd(40 + k) * 0.07 }));
+  const sagBands = [0.48 + rnd(50) * 0.1, 0.62 + rnd(51) * 0.08];
+  const tNeck = 1 - neck / h * 1.0;          // where the neck starts
+  for (let j = 0; j <= NV; j++) {
+    const t = j / NV;
+    for (let i = 0; i <= NU; i++) {
+      const u = i / NU, a = u * Math.PI * 2;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      // ---- profile: radius & height for parameter t
+      let rr, y;
+      if (t < 0.08) {               // flat base, rounding up into the bulge
+        const k = t / 0.08;
+        rr = r * (0.0 + 1.12 * Math.sin(k * Math.PI / 2));
+        y = h * 0.035 * (1 - Math.cos(k * Math.PI / 2));
+      } else if (t < tNeck - 0.08) { // body: widest low down (settled), narrowing to the shoulder
+        const k = (t - 0.08) / (tNeck - 0.16);
+        // pear-shaped: the flour settles into a fat belly low down, the top half slack
+        rr = r * (1.14 + 0.1 * slump + 0.08 * Math.sin(Math.min(1, k / 0.35) * Math.PI * 0.5) - k * 0.34 - 0.5 * Math.max(0, k - 0.7) ** 2 * 3.0);
+        y = h * (0.035 + k * (tNeck - 0.12));
+      } else if (t < tNeck) {        // shoulder gathered into the neck
+        const k = (t - (tNeck - 0.08)) / 0.08;
+        rr = r * (0.82 * (1 - k) + 0.17 * k);
+        y = h * ((tNeck - 0.085) + k * 0.07);
+      } else {                       // twisted neck + small ruffled mouth
+        const k = (t - tNeck) / (1 - tNeck);
+        rr = r * (0.17 - 0.03 * Math.sin(k * Math.PI) + (k > 0.75 ? (k - 0.75) * 0.9 : 0));
+        y = h * (tNeck - 0.015) + neck * k;
+      }
+      // the sack settles: base squashed wide, the upper half sags to one side and forward
+      const sag = Math.sin(Math.min(1, t / tNeck) * Math.PI * 0.5) ** 2;
+      let x = ca * rr, z = sa * rr * (0.9 - 0.08 * slump);
+      // big diagonal creases (inward folds with a soft ridge either side)
+      let fold = 0;
+      for (const c of creases) {
+        let da = Math.atan2(Math.sin(a - c.a - c.tilt * (t - c.t)), Math.cos(a - c.a - c.tilt * (t - c.t)));
+        const band = Math.exp(-((t - c.t) ** 2) / 0.05);
+        fold += (-c.depth * Math.exp(-(da * da) / 0.012) + c.depth * 0.35 * Math.exp(-((Math.abs(da) - 0.2) ** 2) / 0.01)) * band;
+      }
+      // lumpy fill (flour settles unevenly) + fine wrinkles near the neck
+      const lump = (fbm3(ca * 2.2 + seed, t * 3.0, sa * 2.2, 3) - 0.5) * 0.18;
+      const wr = t > tNeck - 0.12 ? 0.18 * Math.sin(a * 9 + t * 40 + seed) * Math.min(1, (t - tNeck + 0.12) / 0.12) : 0;
+      const twist = t > tNeck ? Math.sin(a * 6 + (t - tNeck) * 60 + seed) * 0.25 : 0;
+      // horizontal sag wrinkles where the slack top folds over the full belly
+      let sagW = 0;
+      for (const b of sagBands) sagW -= 0.045 * Math.exp(-((t - b) ** 2) / 0.0012) * (0.6 + 0.4 * Math.sin(a * 2 + seed + b * 9));
+      const k = 1 + (t > 0.03 && t < tNeck ? fold + lump + sagW : 0) + wr + twist;
+      x *= k; z *= k;
+      x += lean[0] * sag; z += lean[1] * sag;
+      y *= 1 - slump * 0.12 * sag;
+      if (t >= 0.08 && t < tNeck) y += (fbm3(ca * 3 + 4, t * 2, sa * 3 + seed, 2) - 0.5) * 0.03 * h;
+      pos.push(x, Math.max(0, y), z);
+      // ---- ageing colour
+      const n1 = fbm3(ca * 1.6 + seed * 3, y * 3.2, sa * 1.6, 4), n2 = fbm3(ca * 5 + 9, y * 9, sa * 5 + seed, 3);
+      const dirt = Math.exp(-y / (0.07 + 0.05 * n1));
+      const damp = Math.max(0, n1 - 0.62) * 2.5 * (1 - Math.min(1, y / (h * 0.6)));
+      const dust = flour * Math.max(0, n2 - 0.38) * 1.6 * (0.4 + 0.6 * Math.max(0, 1 - Math.abs(t - 0.82) * 3)) + flour * 0.5 * Math.max(0, n2 - 0.55) * Math.max(0, 0.2 - y) * 5;
+      let cr = 1, cg = 1, cb = 1;
+      const shade = 1 - dirt * 0.45 - damp * 0.35 + (n2 - 0.5) * 0.18;
+      cr *= shade; cg *= shade * 0.98; cb *= shade * 0.95;
+      const fd = Math.min(0.75, dust);
+      cr = cr * (1 - fd) + 1.55 * fd; cg = cg * (1 - fd) + 1.6 * fd; cb = cb * (1 - fd) + 1.75 * fd;
+      col.push(cr, cg, cb);
+      uvs.push(u * 2 * Math.PI * r * 1.1, t * (h + r));
+    }
   }
-  prof.unshift(new THREE.Vector2(0.0001, 0));
-  prof.push(new THREE.Vector2(r * 0.2, h * 0.97));
-  const geo = new THREE.LatheGeometry(prof, 48);
-  const p = geo.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-    const a = Math.atan2(z, x), t = y / h;
-    // vertical creases + lumpy fill + ruffles at the mouth
-    const crease = 0.03 * Math.sin(a * 7 + seed) * Math.sin(Math.PI * Math.min(1, t * 1.3)) + 0.02 * Math.sin(a * 13 + seed * 3 + t * 6);
-    const ruffle = t > 0.86 ? 0.25 * Math.sin(a * 11 + seed) * (t - 0.86) / 0.14 : 0;
-    const k = 1 + crease + ruffle;
-    const lean = Math.sin(seed * 1.7) * 0.04 * t * h;
-    p.setXYZ(i, x * k + lean, y * (1 + 0.03 * Math.sin(a * 3 + seed)), z * k * 0.88);
+  for (let j = 0; j < NV; j++) for (let i = 0; i < NU; i++) {
+    const a0 = j * (NU + 1) + i, a1 = a0 + 1, b0 = a0 + NU + 1, b1 = b0 + 1;
+    idx.push(a0, b0, a1, a1, b0, b1);
   }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(idx);
   geo.computeVertexNormals();
-  // sack texture wants ~metre UVs
-  const uv = geo.attributes.uv;
-  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 2 * Math.PI * r, uv.getY(i) * h);
+  // weld the seam normals (u = 0 / 1)
+  const n = geo.attributes.normal;
+  for (let j = 0; j <= NV; j++) {
+    const a0 = j * (NU + 1), a1 = a0 + NU;
+    const nx = n.getX(a0) + n.getX(a1), ny = n.getY(a0) + n.getY(a1), nz = n.getZ(a0) + n.getZ(a1);
+    const l = Math.hypot(nx, ny, nz) || 1;
+    n.setXYZ(a0, nx / l, ny / l, nz / l); n.setXYZ(a1, nx / l, ny / l, nz / l);
+  }
+  geo.userData.neckY = h * (tNeck - 0.015) * (1 - slump * 0.12);
+  geo.userData.neckR = r * 0.16;
+  geo.userData.lean = lean;
   return geo;
+}
+
+/** Cord tied round a sack neck: two wraps, a knot and a hanging loop. origin = neck centre. */
+export function sackTie(mat, r = 0.032, seed = 0) {
+  const g = new THREE.Group();
+  for (let k = 0; k < 2; k++) g.add(mk(new THREE.TorusGeometry(r + k * 0.004, 0.0045, 6, 28), mat, 0, k * 0.011 - 0.005, 0, Math.PI / 2 + (k - 0.5) * 0.12, 0, 0));
+  g.add(mk(new THREE.SphereGeometry(0.011, 10, 8), mat, r + 0.004, 0.0, 0.0));
+  const s = seed % 2 ? 1 : -1;
+  g.add(mk(tube([[r + 0.006, 0, 0], [r + 0.03, -0.035, 0.02 * s], [r + 0.03, -0.09, 0.03 * s], [r + 0.01, -0.12, 0.0], [r - 0.005, -0.08, -0.015 * s], [r + 0.004, -0.01, 0]], 0.0035, 30, 5), mat));
+  g.add(mk(tube([[r + 0.008, 0, 0.004], [r + 0.025, -0.04, -0.03 * s], [r + 0.02, -0.07, -0.05 * s]], 0.0035, 12, 5), mat));
+  return g;
 }
 
 /** Cottage loaf: two stacked, slashed domes. origin = base. */

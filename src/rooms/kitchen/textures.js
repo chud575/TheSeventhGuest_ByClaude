@@ -173,7 +173,7 @@ export function borderTileTexture(forge, size = 512) {
 
 /** End-grain butcher block: 5 cm blocks with growth rings, knife scoring, a worn hollow, stains. Non-tiling, aspect w/h. */
 export function butcherBlockTexture(forge, { aspect = 2, size = 2048 } = {}) {
-  return forge.generate(`kitchen:butcher:${aspect}`, {
+  return forge.generate(`kitchen:butcher2:${aspect}`, {
     size, aspect, tile: false, normalStrength: 1.6,
     uniforms: { uAsp: aspect },
     glsl: /* glsl */ `
@@ -192,8 +192,11 @@ export function butcherBlockTexture(forge, { aspect = 2, size = 2048 } = {}) {
       float rings = sin(r * (30.0 + h.z * 30.0) * 3.14159) * 0.5 + 0.5;
       rings = pow(rings, 2.0);
       float pores = vnoise(uv * vec2(uAsp, 1.0) * 1400.0, vec2(1.0e4));
-      vec3 wood = mix(vec3(0.62, 0.45, 0.28), vec3(0.74, 0.58, 0.38), h.x);
-      wood = mix(wood, vec3(0.5, 0.33, 0.2), h.y * 0.5);
+      vec3 wood = mix(vec3(0.5, 0.33, 0.19), vec3(0.8, 0.63, 0.42), h.x);
+      wood = mix(wood, vec3(0.38, 0.22, 0.13), h.y * 0.55);
+      // alternate blocks were cut from heart and sap wood: a checkerboard of tones
+      float chk = mod(id.x + id.y, 2.0);
+      wood *= mix(0.86, 1.08, chk);
       vec3 col = wood * (0.82 + 0.18 * rings) * (0.92 + 0.08 * pores);
       // worn hollow in the middle (darker, smoother, more scored)
       vec2 c = vec2(uv.x - 0.5, (uv.y - 0.5) * 0.9);
@@ -217,16 +220,83 @@ export function butcherBlockTexture(forge, { aspect = 2, size = 2048 } = {}) {
       col = mix(col, col * vec3(0.55, 0.32, 0.26), st * 0.65);
       col = mix(col, col * vec3(0.5, 0.3, 0.25), ring2 * 0.5);
       col = mix(col, col * 0.8, hollow * 0.35);
-      col = mix(col, col * 0.55, seam * 0.6);
-      col = mix(col, vec3(0.86, 0.8, 0.68), score * 0.25); // pale fresh cuts
-      // flour dusting in the scoring at one end
-      float flour = smoothstep(0.5, 0.9, fbm(uv + 17.0, vec2(3.0 * uAsp, 3.0), 4) * 0.5 + 0.5) * smoothstep(0.55, 0.85, uv.x);
-      col = mix(col, vec3(0.88, 0.86, 0.8), flour * 0.6);
+      // dark grease ring round the worn hollow, where the meat is pushed aside
+      float gring = exp(-pow((hollow - 0.35) / 0.14, 2.0)) * (0.6 + 0.6 * fbm(uv + 8.0, vec2(5.0 * uAsp, 5.0), 3));
+      col = mix(col, col * vec3(0.42, 0.3, 0.24), gring * 0.55);
+      col = mix(col, col * 0.4, seam * 0.75);
+      col = mix(col, vec3(0.86, 0.8, 0.68), score * 0.3); // pale fresh cuts
+      // flour: dusted over the left (pastry) end, packed into the seams and knife scores
+      float fl0 = fbm(uv + 17.0, vec2(3.0 * uAsp, 3.0), 4) * 0.5 + 0.5;
+      float flourZone = smoothstep(0.62, 0.15, uv.x);
+      float flour = smoothstep(0.45, 0.85, fl0) * flourZone;
+      float flourSeam = (seam + score * 0.6) * smoothstep(0.3, 0.6, fl0) * smoothstep(0.85, 0.2, uv.x);
+      float grit = vnoise(uv * vec2(uAsp, 1.0) * 900.0, vec2(1e4));
+      col = mix(col, vec3(0.9, 0.88, 0.82), clamp(flour * (0.4 + 0.6 * grit) * 0.75 + flourSeam * 0.8, 0.0, 1.0));
       s.albedo = col;
       s.height = 0.7 - hollow * 0.25 - seam * 0.1 - score * 0.08 + rings * 0.02;
-      s.rough = mix(0.62, 0.48, hollow) + score * 0.2 + flour * 0.3;
+      s.rough = mix(0.86, 0.5, hollow) + score * 0.08 + flour * 0.15 - gring * 0.2;
       s.metal = 0.0;
       s.ao = 1.0 - seam * 0.3 - score * 0.2;
+    }`,
+  });
+}
+
+/** Sides of the end-grain block: vertical long-grain staves 55 mm wide (metre UVs, v = height above floor). 1 tile = 1 m. */
+export function blockSideTexture(forge, size = 1024) {
+  return forge.generate('kitchen:blockside', {
+    size, normalStrength: 1.4,
+    glsl: /* glsl */ `
+    void surface(vec2 uv, inout Surface s) {
+      float u = uv.x / 0.055;
+      float id = floor(u), f = fract(u);
+      vec3 h = hash32(vec2(id, 3.7));
+      float seam = 1.0 - smoothstep(0.0, 0.035, min(f, 1.0 - f));
+      // long grain: wavy vertical lines
+      float gx = f + 0.08 * sin(uv.y * 9.0 + h.x * 6.0) + 0.05 * fbm(vec2(f, uv.y) + h.yz, vec2(4.0, 8.0), 3);
+      float grain = pow(sin(gx * (14.0 + h.z * 10.0) * 3.14159) * 0.5 + 0.5, 3.0);
+      float fine = vnoise(vec2(uv.x * 900.0, uv.y * 30.0), vec2(900.0, 30.0));
+      vec3 wood = mix(vec3(0.5, 0.33, 0.19), vec3(0.7, 0.52, 0.32), h.x);
+      wood = mix(wood, vec3(0.42, 0.26, 0.15), h.y * 0.4);
+      vec3 col = wood * (0.84 + 0.18 * grain) * (0.94 + 0.08 * fine);
+      // handling grime: darker, greasier band along the top edge and at hip height corners
+      float topBand = smoothstep(0.82, 0.88, fract(uv.y));
+      float grime = smoothstep(0.35, 0.85, fbm(uv * vec2(1.0, 2.0) + 3.0, vec2(4.0, 8.0), 4) * 0.5 + 0.5);
+      col *= 1.0 - 0.35 * grime;
+      col = mix(col, col * vec3(0.55, 0.42, 0.34), topBand * 0.6);
+      // knocks & cleaver nicks
+      float nick = smoothstep(0.86, 0.95, vnoise(uv * vec2(60.0, 120.0) + 7.0, vec2(60.0, 120.0)));
+      col = mix(col, vec3(0.78, 0.62, 0.42), nick * 0.5);
+      col = mix(col, col * 0.45, seam * 0.7);
+      s.albedo = col;
+      s.height = 0.6 - seam * 0.2 - nick * 0.15 + grain * 0.03;
+      s.rough = 0.68 + grime * 0.15 - topBand * 0.15 + seam * 0.1;
+      s.metal = 0.0;
+      s.ao = 1.0 - seam * 0.4;
+    }`,
+  });
+}
+
+/** Scrubbed pine for the block's legs, aprons and pot board: bleached grain, grey dirt in the pores. 1 tile = 1 m. */
+export function scrubbedPineTexture(forge, size = 1024) {
+  return forge.generate('kitchen:scrubpine', {
+    size, normalStrength: 1.2,
+    glsl: /* glsl */ `
+    void surface(vec2 uv, inout Surface s) {
+      vec2 p = uv * vec2(1.0, 1.0);
+      float w = fbm(vec2(p.x * 3.0, p.y * 0.4), vec2(3.0, 0.4), 4);
+      float rings = sin((p.x * 40.0 + w * 6.0) * 3.14159) * 0.5 + 0.5;
+      rings = pow(rings, 4.0);
+      float pores = vnoise(vec2(p.x * 600.0, p.y * 40.0), vec2(600.0, 40.0));
+      float dirt = smoothstep(0.4, 0.9, fbm(p * 3.0 + 9.0, vec2(3.0), 4) * 0.5 + 0.5);
+      vec3 col = mix(vec3(0.66, 0.55, 0.4), vec3(0.5, 0.38, 0.25), rings * 0.7);
+      col *= 0.9 + 0.1 * pores;
+      col = mix(col, col * vec3(0.62, 0.6, 0.58), dirt * 0.6);
+      // raised grain from scrubbing: latewood stands proud
+      s.albedo = col;
+      s.height = 0.5 + rings * 0.12 + pores * 0.02;
+      s.rough = 0.72 + 0.12 * dirt - rings * 0.06;
+      s.metal = 0.0;
+      s.ao = 1.0 - dirt * 0.15;
     }`,
   });
 }
@@ -539,7 +609,7 @@ export function scuffTexture(forge, size = 512) {
 
 /** Tinplate for soup cans: brushed, scratched, wiped; roughness varies along the drawing marks. */
 export function tinplateTexture(forge, size = 512) {
-  return forge.generate('kitchen:tinplate', {
+  return forge.generate('kitchen:tinplate2', {
     size, normalStrength: 0.35,
     glsl: /* glsl */ `
     void surface(vec2 uv, inout Surface s) {
@@ -554,106 +624,191 @@ export function tinplateTexture(forge, size = 512) {
         scr = max(scr, (1.0 - smoothstep(0.0, 0.1, abs(fract(lane) - 0.5))) * seg);
       }
       float dull = smoothstep(0.5, 0.85, fbm(uv + 5.0, vec2(6.0), 4) * 0.5 + 0.5);
+      // greasy fingerprints & thumb smears (oval whorls)
+      float smudge = 0.0;
+      for (int i = 0; i < 5; i++) {
+        float fi = float(i);
+        vec2 c = vec2(hash11(fi * 7.1 + 1.0), hash11(fi * 3.3 + 2.0));
+        vec2 d = uv - c; d -= floor(d + 0.5);
+        d = rot2(fi) * d * vec2(1.0, 1.6);
+        float r = length(d);
+        float whorl = sin(r * 900.0 + atan(d.y, d.x) * 0.5) * 0.5 + 0.5;
+        smudge = max(smudge, smoothstep(0.07, 0.03, r) * (0.5 + 0.5 * whorl));
+      }
+      // rust blooms (pinholes in the tin coat)
+      float rustN = fbm(uv + 13.0, vec2(10.0), 4) * 0.5 + 0.5;
+      float rust = smoothstep(0.74, 0.82, rustN) * smoothstep(0.6, 0.9, vnoise(uv * 80.0, vec2(80.0)));
       vec3 col = vec3(0.74, 0.73, 0.7) * (0.9 + 0.1 * brush) * (0.92 + 0.1 * n);
       col = mix(col, vec3(0.5, 0.47, 0.42), dull * 0.4);
+      col = mix(col, col * vec3(0.86, 0.84, 0.8), smudge * 0.5);
+      col = mix(col, vec3(0.36, 0.17, 0.07), rust);
       s.albedo = col;
-      s.height = 0.5 + 0.02 * brush - scr * 0.05;
-      s.rough = 0.34 + 0.08 * brush + dull * 0.18 + scr * 0.12;
-      s.metal = 1.0;
+      s.height = 0.5 + 0.02 * brush - scr * 0.05 + rust * 0.06;
+      s.rough = 0.4 + 0.08 * brush + dull * 0.12 + scr * 0.08 + smudge * 0.16 + rust * 0.4;
+      s.metal = 1.0 - rust;
       s.ao = 1.0;
     }`,
   });
 }
 
-/**
- * Flour decal covering the whole floor (non-tiling, alpha). Authored in WORLD metres:
- * uv (0,0) = (X0, Z1) corner, uv (1,1) = (X1, Z0). Spill round the butcher block, a split
- * sack's fan, drifts against table legs / range kerb / skirting, a broom-swept arc, and
- * a trail of bare footprints walking to the dumbwaiter.
- */
-export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 7.2], block = [0.2, -0.6], blockHalf = [0.66, 0.3], kerb = [-1.97, -0.63, -3.1], sack = [-1.1, -1.45], prints = [[0.05, -0.62], [2.95, -1.2]] } = {}) {
-  return forge.generate('kitchen:flour6', {
-    size, aspect: rect[2] / rect[3], tile: false, normalStrength: 0.8,
-    uniforms: { uRect: rect, uBlock: [...block, ...blockHalf], uKerb: kerb, uSack: sack, uP0: prints[0], uP1: prints[1] },
-    glsl: /* glsl */ `
-    float foot(vec2 p, float side) {
+const FOOT_GLSL = /* glsl */ `
+    // a small bare foot (about 16 cm), toes toward +y, the big toe on the inside (-x for side = 1).
+    // returns flour density 0..1 transferred by that foot (heel and ball press hardest, the arch barely touches)
+    float footPrint(vec2 p, float side, float seed) {
       p.x *= side;
-      float sole = sdEllipse(p - vec2(0.0, -0.02), vec2(0.036, 0.09));
-      float heel = sdCircle(p - vec2(0.004, -0.078), 0.03);
-      float ball = sdCircle(p - vec2(-0.005, 0.04), 0.038);
-      float d = min(min(sole, heel), ball);
-      d = max(d, -sdEllipse(p - vec2(0.042, -0.02), vec2(0.02, 0.055)));
+      p /= 0.185;
+      float heel = sdEllipse(p - vec2(0.03, -0.36), vec2(0.13, 0.15));
+      float ball = sdEllipse(p - vec2(-0.02, 0.12), vec2(0.19, 0.12));
+      float outer = sdEllipse(p - vec2(0.11, -0.1), vec2(0.075, 0.24));   // outside edge of the sole
+      float sole = min(min(heel, ball), outer);
+      sole = smin(sole, outer, 0.05);
       float toes = 1e5;
-      toes = min(toes, sdCircle(p - vec2(-0.023, 0.096), 0.015));
-      toes = min(toes, sdCircle(p - vec2(0.0, 0.102), 0.011));
-      toes = min(toes, sdCircle(p - vec2(0.017, 0.096), 0.01));
-      toes = min(toes, sdCircle(p - vec2(0.031, 0.085), 0.008));
-      toes = min(toes, sdCircle(p - vec2(0.041, 0.07), 0.007));
-      return min(d, toes);
-    }
+      toes = min(toes, sdEllipse(p - vec2(-0.13, 0.33), vec2(0.06, 0.075)));
+      toes = min(toes, sdCircle(p - vec2(-0.025, 0.36), 0.042));
+      toes = min(toes, sdCircle(p - vec2(0.055, 0.335), 0.037));
+      toes = min(toes, sdCircle(p - vec2(0.12, 0.3), 0.032));
+      toes = min(toes, sdCircle(p - vec2(0.175, 0.255), 0.028));
+      float press = 0.0;
+      press = max(press, (1.0 - smoothstep(-0.01, 0.006, heel)) * (0.75 + 0.25 * smoothstep(0.0, -0.08, heel)));
+      press = max(press, (1.0 - smoothstep(-0.01, 0.006, ball)) * (0.7 + 0.3 * smoothstep(0.0, -0.06, ball)));
+      press = max(press, (1.0 - smoothstep(-0.01, 0.006, outer)) * 0.45);
+      press = max(press, (1.0 - smoothstep(-0.008, 0.004, toes)) * 0.85);
+      return press;
+    }`;
+
+/**
+ * Flour on the floor, one decal over the whole room (world metres). Granular and sharp-edged:
+ * a dense spill round the block and from the split sack, drifts packed into the tile joints
+ * and against the block legs, the range kerb, the sacks and the skirting; broom scuffs and a
+ * drag mark; the first bare footprints are pressed out of the spill (the trail continues on
+ * its own high-resolution decal, flourPrintsTexture).
+ */
+export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 7.2], block = [0.2, -0.6], blockHalf = [0.7, 0.34], kerb = [-1.97, -0.63, -3.1], sack = [-1.1, -1.45], sacks = [], tile = [-3.2, 3.4, 0.3], trail = [[0.05, -0.62], [2.95, -1.2]] } = {}) {
+  const S = sacks.slice(0, 4); while (S.length < 4) S.push([99, 99, 0.01]);
+  return forge.generate('kitchen:flour8', {
+    size, aspect: rect[2] / rect[3], tile: false, normalStrength: 1.2,
+    uniforms: { uRect: rect, uBlock: [...block, ...blockHalf], uKerb: kerb, uSack: sack, uS0: S[0], uS1: S[1], uS2: S[2], uS3: S[3], uTile: tile, uP0: trail[0], uP1: trail[1] },
+    glsl: /* glsl */ `
+    ${FOOT_GLSL}
     float drift(float d, float w, float n) { return exp(-max(d, 0.0) / w) * (0.5 + 0.8 * n); }
+    float sackDrift(vec2 w, vec3 sk, float n) { vec2 q = w - sk.xy; float ang = atan(q.y, q.x); float d = length(q) - sk.z * (0.85 + 0.25 * sin(ang * 3.0 + sk.x * 7.0)); return exp(-max(d, 0.0) / 0.035) * (0.2 + 0.9 * n) * smoothstep(0.3, 0.7, sin(ang * 2.0 + sk.y * 5.0) * 0.5 + 0.5); }
     void surface(vec2 uv, inout Surface s) {
       vec2 w = vec2(uRect.x + uv.x * uRect.z, uRect.y - uv.y * uRect.w);   // world x, z
       float n1 = fbm(uv, vec2(3.0), 6) * 0.5 + 0.5;
       float n2 = fbm(uv + 4.0, vec2(22.0), 4) * 0.5 + 0.5;
       float n3 = fbm(uv + 9.0, vec2(60.0), 3) * 0.5 + 0.5;
-      float speck = vnoise(uv * 1800.0, vec2(1800.0));
-      // spill round the block, skewed toward the pantry side
-      vec2 c = w - (uBlock.xy + vec2(-0.25, 0.05));
-      float spill = exp(-dot(c * vec2(0.62, 0.95), c * vec2(0.62, 0.95)) * 2.3);
-      float a = smoothstep(0.3, 0.75, spill * (0.35 + 1.05 * n1)) * (0.45 + 0.55 * smoothstep(0.35, 0.65, n2));
-      // split sack: a dense fan of flour poured toward the block
+      float grain = vnoise(uv * 2400.0, vec2(2400.0));
+      float grain2 = vnoise(uv * 1100.0 + 3.0, vec2(1100.0));
+      // tile joints (8 mm), flour packs into them
+      vec2 tg = vec2((w.x - uTile.x) / uTile.z, (uTile.y - w.y) / uTile.z);
+      vec2 tf = fract(tg);
+      float jd = min(min(tf.x, 1.0 - tf.x), min(tf.y, 1.0 - tf.y)) * uTile.z;
+      float joint = 1.0 - smoothstep(0.003, 0.006, jd);
+      float jointEdge = 1.0 - smoothstep(0.004, 0.012, jd);
+      // ---- density field
+      vec2 c = w - (uBlock.xy + vec2(-0.3, 0.02));
+      float spill = exp(-dot(c * vec2(0.7, 1.05), c * vec2(0.7, 1.05)) * 2.6);
+      float a = spill * (0.35 + 1.0 * n1) * (0.55 + 0.6 * n2);
+      // split sack: a dense fan poured toward the block, ridged like it slid
       vec2 cs = w - uSack;
       vec2 fanDir = normalize(uBlock.xy - uSack);
       float along = dot(cs, fanDir), across = dot(cs, vec2(-fanDir.y, fanDir.x));
-      float fan = smoothstep(0.9, 0.0, along) * step(-0.12, along) * exp(-across * across / (0.02 + 0.08 * max(along, 0.0)));
-      float heap = exp(-dot(cs, cs) * 30.0);
-      a = max(a, smoothstep(0.08, 0.5, (fan * 0.9 + heap) * (0.65 + 0.6 * n2)));
-      // drifts against the block legs
-      vec2 bl = abs(w - uBlock.xy) - (uBlock.zw - 0.05);
+      float fan = smoothstep(0.85, 0.0, along) * smoothstep(-0.15, 0.0, along) * exp(-across * across / (0.012 + 0.06 * max(along, 0.0)));
+      a = max(a, fan * (0.9 + 0.5 * n2) * (0.85 + 0.15 * sin(along * 90.0 + n3 * 5.0)));
+      // drifts against the block legs (feet of the turned legs)
       vec2 lq = abs(abs(w - uBlock.xy) - (uBlock.zw - 0.05));
-      float legD = length(max(lq - 0.05, 0.0));
-      a = max(a, smoothstep(0.3, 0.9, drift(legD, 0.035, n3)) * 0.95);
-      // drift along the range kerb
+      float legD = length(lq) - 0.045;
+      a = max(a, drift(legD, 0.03, n3) * 0.9);
+      // along the range kerb
       float kd = (w.y - uKerb.z) * step(uKerb.x, w.x) * step(w.x, uKerb.y) + 10.0 * (1.0 - step(uKerb.x, w.x) * step(w.x, uKerb.y));
-      a = max(a, smoothstep(0.25, 0.9, drift(kd, 0.05, n3 * n2 * 1.6)) * 0.8);
-      // drifts along the skirting on every wall
+      a = max(a, drift(kd, 0.045, n3 * n2 * 1.6) * 0.85);
+      // round the sacks
+      a = max(a, max(max(sackDrift(w, uS0, n3), sackDrift(w, uS1, n3)), max(sackDrift(w, uS2, n3), sackDrift(w, uS3, n3))) * 0.6);
+      // along the skirting
       float wallD = min(min(w.x - uRect.x, uRect.x + uRect.z - w.x), min(uRect.y - w.y, w.y - (uRect.y - uRect.w)));
-      a = max(a, smoothstep(0.35, 1.0, drift(wallD - 0.02, 0.04, n3)) * smoothstep(0.35, 0.7, n2) * 0.7);
-      // broom-swept arcs on the open floor near the window
-      vec2 bc = w - vec2(1.4, -2.0);
+      a = max(a, drift(wallD - 0.02, 0.035, n3) * smoothstep(0.35, 0.7, n2) * 0.75);
+      // tracked thin dusting over the working half of the room
+      float dust = smoothstep(0.6, 0.95, n1) * 0.18 * smoothstep(1.2, -1.6, w.y + w.x * 0.2);
+      a = max(a, dust);
+      // broom strokes: curved scuffs that thin the spill, a drag mark from the sack to the pantry
+      vec2 bc = w - vec2(-0.6, 0.3);
       float br = length(bc);
-      float sweep = (sin(br * 70.0 + n2 * 4.0) * 0.5 + 0.5) * smoothstep(1.3, 0.4, br) * smoothstep(0.2, 0.5, br) * smoothstep(0.3, 0.7, n1);
-      a = max(a, sweep * 0.0);
-      // fine dust everywhere, more in the half nearest the range & pantry
-      a = max(a, smoothstep(0.5, 0.95, n1) * 0.28);
-      a *= 0.5 + 0.5 * smoothstep(0.25, 0.7, n2 * 0.7 + n1 * 0.5);
-      // footprints: small bare feet from the spill to the dumbwaiter
-      float fp = 0.0;
+      float stroke1 = (sin(br * 55.0 + n2 * 3.0) * 0.5 + 0.5);
+      float sweepZone = smoothstep(1.4, 0.9, br) * smoothstep(0.5, 0.8, br) * smoothstep(0.35, 0.6, n1);
+      a *= 1.0 - sweepZone * 0.75 * stroke1;
+      vec2 dg = w - vec2(-1.55, -1.25);
+      float drag = exp(-pow(dot(dg, vec2(0.86, 0.5)) / 0.05, 2.0)) * smoothstep(0.5, 0.0, abs(dot(dg, vec2(-0.5, 0.86)) - 0.25));
+      a *= 1.0 - drag * 0.8;
+      // joints hold flour even where the tile face was swept clean
+      a += joint * smoothstep(0.12, 0.35, a + dust) * 0.35;
+      a += jointEdge * a * 0.15;
+      // ---- granular, sharp-edged mask
+      float th = 0.42 + (grain - 0.5) * 0.5 + (grain2 - 0.5) * 0.25;
+      float solid = smoothstep(th - 0.06, th + 0.06, a);
+      float powder = smoothstep(0.22, 0.5, a) * step(0.8 - a * 0.5, grain * grain2 * 1.6) * 0.5;   // scattered grains just beyond the edge
+      float alpha = max(solid, powder);
+      // first footprints pressed out of the spill
       vec2 dir = normalize(uP1 - uP0);
       vec2 nrm = vec2(-dir.y, dir.x);
-      for (int i = 0; i < 11; i++) {
+      float fpOut = 0.0;
+      for (int i = 0; i < 3; i++) {
         float fi = float(i);
-        float t = fi / 10.0;
-        vec2 base = mix(uP0, uP1, t) + nrm * sin(t * 3.0) * 0.1;
         float side = mod(fi, 2.0) < 0.5 ? 1.0 : -1.0;
-        vec2 q = w - (base + nrm * side * 0.075);
-        vec2 fs = vec2(dot(q, vec2(dir.y, -dir.x)), dot(q, dir));
-        float d = foot(fs * 1.08, side);
-        float print = 1.0 - smoothstep(-0.003, 0.003, d);
-        fp = max(fp, print * (1.0 - t * 0.8));
+        vec2 base = uP0 + dir * (0.05 + fi * 0.21) + nrm * side * 0.055;
+        vec2 q = w - base;
+        float ang = side * 0.12 + (hash11(fi * 3.7) - 0.5) * 0.15;
+        vec2 dr = rot2(ang) * dir;
+        vec2 fs = vec2(dot(q, vec2(dr.y, -dr.x)), dot(q, dr));
+        fpOut = max(fpOut, smoothstep(0.1, 0.5, footPrint(fs, side, fi)));
       }
-      float inSpill = smoothstep(0.3, 0.6, a);
-      float alpha = a;
-      alpha = mix(alpha, alpha * 0.12, fp * inSpill);
-      alpha = max(alpha, fp * (1.0 - inSpill) * 0.92);
-      alpha *= 0.82 + 0.18 * speck;
-      s.albedo = vec3(0.9, 0.88, 0.83) * (0.9 + 0.1 * n2);
-      s.alpha = saturate(alpha * 1.3);
-      s.height = 0.5 + alpha * 0.25 + n3 * 0.05 * alpha;
-      s.rough = 0.95;
+      alpha *= 1.0 - fpOut * 0.85;
+      s.albedo = vec3(0.92, 0.9, 0.85) * (0.9 + 0.1 * n2) * (0.93 + 0.07 * grain);
+      s.alpha = saturate(alpha);
+      s.height = 0.4 + alpha * 0.35 * (0.6 + 0.4 * grain) + solid * n3 * 0.1;
+      s.rough = 0.9 - grain * 0.1 * solid;
       s.metal = 0.0;
       s.ao = 1.0;
+    }`,
+  });
+}
+
+/** The trail of small bare footprints from the spill to the dumbwaiter: rect = [x0, z0, w, d] (z0 = max z). */
+export function flourPrintsTexture(forge, { size = 2048, rect = [0.0, -0.3, 3.2, 1.2], trail = [[0.05, -0.62], [2.95, -1.2]], steps = 9 } = {}) {
+  return forge.generate('kitchen:prints3', {
+    size, aspect: rect[2] / rect[3], tile: false, normalStrength: 0.6,
+    uniforms: { uRect: rect, uP0: trail[0], uP1: trail[1], uSteps: steps },
+    glsl: /* glsl */ `
+    ${FOOT_GLSL}
+    void surface(vec2 uv, inout Surface s) {
+      vec2 w = vec2(uRect.x + uv.x * uRect.z, uRect.y - uv.y * uRect.w);
+      vec2 dir = normalize(uP1 - uP0);
+      vec2 nrm = vec2(-dir.y, dir.x);
+      float L = length(uP1 - uP0);
+      float grain = vnoise(uv * vec2(uRect.z / uRect.w, 1.0) * 1600.0, vec2(1e4));
+      float blot = fbm(uv * vec2(uRect.z / uRect.w, 1.0) * 6.0, vec2(1e4), 4) * 0.5 + 0.5;
+      float fp = 0.0;
+      for (int i = 3; i < 14; i++) {
+        float fi = float(i);
+        if (fi >= uSteps + 3.0) break;
+        float t = (0.05 + fi * 0.21) / L;
+        float side = mod(fi, 2.0) < 0.5 ? 1.0 : -1.0;
+        // a wandering line: drifts a little left, then right, as the child walks
+        vec2 base = uP0 + dir * (0.05 + fi * 0.21) + nrm * (side * 0.055 + sin(t * 4.0) * 0.06 + (hash11(fi * 1.3) - 0.5) * 0.02);
+        float ang = side * 0.12 + (hash11(fi * 3.7) - 0.5) * 0.18 + cos(t * 4.0) * 0.08;
+        vec2 dr = rot2(ang) * dir;
+        vec2 q = w - base;
+        vec2 fs = vec2(dot(q, vec2(dr.y, -dr.x)), dot(q, dr));
+        float fade = pow(1.0 - clamp((fi - 3.0) / (uSteps + 1.0), 0.0, 1.0), 1.3);
+        float pr = footPrint(fs, side, fi);
+        // flour runs out: patchy, grainy transfer, the heel first to go
+        float patchy = smoothstep(0.15 + (1.0 - fade) * 0.35, 0.6, blot + pr * 0.25);
+        fp = max(fp, pr * (0.35 + 0.65 * fade) * patchy);
+      }
+      float alpha = smoothstep(0.12, 0.45, fp) * smoothstep(0.2, 0.55, grain * 0.6 + fp * 0.6);
+      s.albedo = vec3(0.92, 0.9, 0.85) * (0.92 + 0.08 * grain);
+      s.alpha = saturate(alpha * 0.95);
+      s.height = 0.5 + alpha * 0.2;
+      s.rough = 0.92; s.metal = 0.0; s.ao = 1.0;
     }`,
   });
 }
@@ -726,24 +881,37 @@ export function boardingTexture(forge, { color = [0.16, 0.24, 0.26], size = 1024
   });
 }
 
-/** Coarse hessian sacking (flour sacks). */
-export function sackTexture(forge, size = 512) {
-  return forge.generate('kitchen:sack', {
-    size, normalStrength: 2.0,
+/** Hessian sacking: plain weave of irregular jute yarns (slubs, thin spots, hairy fibres). 1 tile = 64 x 64 yarns. */
+export function sackTexture(forge, size = 1024) {
+  return forge.generate('kitchen:sack2', {
+    size, normalStrength: 1.4,
     glsl: /* glsl */ `
     void surface(vec2 uv, inout Surface s) {
-      vec2 g = uv * 90.0;
-      float wx = sin(g.x * 3.14159) * 0.5 + 0.5;
-      float wy = sin(g.y * 3.14159) * 0.5 + 0.5;
-      float checker = mod(floor(g.x) + floor(g.y), 2.0);
-      float weave = mix(wx, wy, checker);
-      float n = fbm(uv, vec2(4.0), 4) * 0.5 + 0.5;
-      float flour = smoothstep(0.45, 0.8, fbm(uv + 5.0, vec2(3.0), 4) * 0.5 + 0.5);
-      vec3 col = vec3(0.56, 0.45, 0.3) * (0.75 + 0.35 * weave) * (0.85 + 0.25 * n);
-      col = mix(col, vec3(0.88, 0.85, 0.78), flour * 0.55);
+      vec2 g = uv * 64.0;
+      vec2 id = floor(g), f = fract(g);
+      // per-yarn thickness & tone (warp along x index, weft along y index)
+      float warpW = 0.32 + 0.16 * hash11(mod(id.x, 64.0) * 1.37);
+      float weftW = 0.3 + 0.18 * hash11(mod(id.y, 64.0) * 2.11 + 4.0);
+      // slubs: yarn thickens along its length now and then
+      warpW += 0.12 * smoothstep(0.6, 1.0, vnoise(vec2(id.x * 3.1, uv.y * 24.0), vec2(192.0, 24.0)));
+      weftW += 0.12 * smoothstep(0.6, 1.0, vnoise(vec2(uv.x * 24.0, id.y * 3.1), vec2(24.0, 192.0)));
+      float over = mod(id.x + id.y, 2.0);           // which yarn is on top in this cell
+      float warp = smoothstep(warpW, warpW * 0.4, abs(f.x - 0.5));
+      float weft = smoothstep(weftW, weftW * 0.4, abs(f.y - 0.5));
+      float hw = warp * (0.55 + 0.45 * sin(f.y * 3.14159)) * mix(0.75, 1.0, over);
+      float hf = weft * (0.55 + 0.45 * sin(f.x * 3.14159)) * mix(1.0, 0.75, over);
+      float hgt = max(hw, hf);
+      float gap = 1.0 - max(warp, weft);
+      // twisted fibre striations along each yarn
+      float fib = vnoise(vec2(over > 0.5 ? g.x * 6.0 + g.y * 2.0 : g.y * 6.0 + g.x * 2.0, 0.0) + id * 13.0, vec2(1e4));
+      float hair = smoothstep(0.82, 1.0, vnoise(uv * 700.0, vec2(700.0)));
+      float tone = 0.86 + 0.22 * hash11(mod(over > 0.5 ? id.x : id.y + 100.0, 164.0) * 0.731);
+      vec3 jute = vec3(0.53, 0.42, 0.27) * tone * (0.82 + 0.25 * fib);
+      vec3 col = mix(jute, vec3(0.12, 0.09, 0.06), gap * 0.85);
+      col = mix(col, vec3(0.72, 0.62, 0.45), hair * 0.4);
       s.albedo = col;
-      s.height = 0.4 + 0.5 * weave;
-      s.rough = 0.95; s.metal = 0.0; s.ao = 0.8 + 0.2 * weave;
+      s.height = 0.25 + 0.6 * hgt + 0.05 * fib;
+      s.rough = 0.92; s.metal = 0.0; s.ao = mix(1.0, 0.55, gap);
     }`,
   });
 }
