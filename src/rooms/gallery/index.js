@@ -45,7 +45,7 @@ export default {
     const mat = {
       wall: M.create('damask', { base: [0.05, 0.078, 0.24], motif: [0.06, 0.092, 0.275], accent: [0.5, 0.4, 0.22], accentStrength: 0.03, sheen: 0.95, aging: 0.45, variant: 0, normalScale: 0.12, repeat: [2 / 0.1777, 2 / 0.1777], size: hiTex }),
       floor: M.create('floorboards', { species: 'walnut', boards: 6, boardLength: 0.5, polish: 0.9, wear: 0.5, tint: [1.05, 0.86, 0.72], roughness: 0.85, repeat: [1 / 3.2, 1 / 1.0] }),
-      ceiling: M.create('plaster', { color: [0.2, 0.23, 0.32], cracks: 0.3, stains: 0.45, repeat: [0.45, 0.45] }),
+      ceiling: M.create('plaster', { color: [0.25, 0.28, 0.38], cracks: 0.3, stains: 0.45, repeat: [0.45, 0.45] }),
       beam: M.create('plaster', { color: [0.24, 0.27, 0.36], cracks: 0.15, stains: 0.3, repeat: [0.8, 0.8] }),
       plasterLight: M.create('plaster', { color: [0.42, 0.44, 0.5], cracks: 0.3, stains: 0.4, repeat: [0.8, 0.8] }),
       wainscot: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.75, figure: 0.7, tint: [0.62, 0.5, 0.46], repeat: [1.3, 1.3], clearcoat: 0.5, clearcoatRoughness: 0.25 }),

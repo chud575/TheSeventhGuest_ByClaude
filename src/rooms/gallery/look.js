@@ -197,7 +197,7 @@ export function giltMaterial(ctx, { tone = 1.0, rough = 0.42, wear = 0.45 } = {}
   const t = set.withRepeat(1.4, 1.6);
   const m = new THREE.MeshPhysicalMaterial({
     color: new THREE.Color(0.83 * tone, 0.62 * tone, 0.3 * tone),
-    metalness: 1, roughness: rough, roughnessMap: t.roughnessMap, normalMap: t.normalMap, normalScale: new THREE.Vector2(0.7, 0.7),
+    metalness: 1, roughness: rough, roughnessMap: t.roughnessMap, normalMap: t.normalMap, normalScale: new THREE.Vector2(0.55, 0.55),
     vertexColors: true, envMapIntensity: 0.6, clearcoat: 0.0, name: 'gallery-gilt',
   });
   // cavity colour multiplies albedo AND darkens recesses toward brown (bole), raised areas stay bright
