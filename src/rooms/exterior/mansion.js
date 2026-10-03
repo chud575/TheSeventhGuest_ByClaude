@@ -416,6 +416,26 @@ export function buildMansion(ctx, M) {
       B.add(new THREE.BoxGeometry(0.5, 0.95, 0.5), M.ashlar, mat4(s * 1.7, 0.47, P.z1 + sd * nSteps + 0.05), { uvScale: 0.5 });
       B.add(G.latheFromProfile([[0, 0], [0.3, 0], [0.3, 0.06], [0.24, 0.1], [0.12, 0.16], [0.16, 0.3], [0.22, 0.42], [0.18, 0.52], [0.0, 0.56]], 20), M.ashlar, mat4(s * 1.7, 0.95, P.z1 + sd * nSteps + 0.05), { uv: 'keep' });
     }
+    // wrought-iron handrails up the steps: scrolled newel terminals, twisted balusters
+    for (const s2 of [-1, 1]) {
+      const xr = s2 * 1.52;
+      const a = new THREE.Vector3(xr, 1.05, P.z1 + sd * nSteps - 0.05), b = new THREE.Vector3(xr, F + 0.95, P.z1 - 0.05);
+      const len = a.distanceTo(b);
+      const mid = a.clone().add(b).multiplyScalar(0.5);
+      const ang = Math.atan2(b.y - a.y, a.z - b.z);
+      B.add(new THREE.CylinderGeometry(0.022, 0.022, len, 8), M.iron, new THREE.Matrix4().makeTranslation(mid.x, mid.y, mid.z).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2 + ang)), { uv: 'keep' });
+      B.add(new THREE.TorusGeometry(0.07, 0.016, 6, 14, Math.PI * 1.6), M.iron, mat4(xr, a.y - 0.05, a.z + 0.04, 0, Math.PI / 2, 0), { uv: 'keep' });
+      const nb = 6;
+      for (let i = 0; i <= nb; i++) {
+        const t = i / nb;
+        const p = a.clone().lerp(b, t);
+        const stepTop = Math.max(0.08, F - Math.floor((p.z - P.z1) / sd + 0.0001) * sh);
+        const h = p.y - stepTop;
+        if (h < 0.1) continue;
+        B.add(new THREE.CylinderGeometry(0.011, 0.011, h, 5), M.iron, mat4(xr, stepTop + h / 2, p.z), { uv: 'keep' });
+        B.add(new THREE.SphereGeometry(0.022, 6, 5), M.iron, mat4(xr, stepTop + h * 0.45, p.z), { uv: 'keep' });
+      }
+    }
     // columns
     const colX = [-4.5, -2.95, -1.5, 1.5, 3.2, 4.95, 6.7];
     for (const x of colX) columns.push(mat4(x, F, P.z1 - 0.2));

@@ -318,27 +318,30 @@ void surface(vec2 uv, inout Surface s) {
 
   // Granite headstones: grey speckled granite and pale limestone variants share one map;
   // 1 tile = 1 m. Lichen blooms, dark damp toward the base handled by grime chunk.
-  const granite = T.generate('ext:granite1', {
+  const granite = T.generate('ext:granite2', {
     size: 1024, normalStrength: 2.5,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   float n = fbm(uv, vec2(4.0), 6) * 0.5 + 0.5;
-  vec4 c1 = voronoi(uv * 140.0, vec2(140.0), 1.0);
-  vec4 c2 = voronoi(uv * 60.0, vec2(60.0), 1.0);
-  float h1 = hash12(c1.zw), h2 = hash12(c2.zw);
-  vec3 col = vec3(0.33, 0.33, 0.335) * (0.85 + 0.3 * n);
-  col = mix(col, vec3(0.08, 0.08, 0.09), step(0.72, h1) * 0.8);       // black mica
-  col = mix(col, vec3(0.52, 0.51, 0.5), step(0.85, h2) * 0.5);        // feldspar
-  vec4 lv = voronoi(uv * 6.0, vec2(6.0), 1.0);
-  float lich = smoothstep(0.5, 0.15, lv.x + (fbm(uv * 3.0, vec2(12.0), 3)) * 0.2) * step(0.55, hash12(lv.zw));
-  col = mix(col, mix(vec3(0.5, 0.52, 0.42), vec3(0.42, 0.4, 0.25), hash12(lv.zw + 2.0)), lich * 0.75);
-  float moss = smoothstep(0.6, 0.85, fbm(uv + 2.2, vec2(5.0), 5) * 0.5 + 0.5);
-  col = mix(col, vec3(0.07, 0.09, 0.05), moss * 0.6);
+  float n3 = fbm(uv + 8.0, vec2(16.0), 4) * 0.5 + 0.5;
+  vec4 c1 = voronoi(uv * 160.0, vec2(160.0), 1.0);
+  float h1 = hash12(c1.zw);
+  // weathered grey granite: fine low-contrast speckle under a soft mottling
+  vec3 col = vec3(0.34, 0.335, 0.33) * (0.82 + 0.3 * n) * (0.92 + 0.12 * n3);
+  col *= 1.0 - step(0.86, h1) * 0.35;
+  col *= 1.0 + step(h1, 0.06) * 0.25;
+  // lichen: irregular crusty patches (grey-green and the odd ochre), stronger on the top
+  float ln = fbm(uv * 1.0 + 3.3, vec2(7.0), 6) * 0.5 + 0.5;
+  float lich = smoothstep(0.6, 0.66, ln + (n3 - 0.5) * 0.12);
+  float ochre = step(0.75, fbm(uv + 1.1, vec2(3.0), 3) * 0.5 + 0.5);
+  col = mix(col, mix(vec3(0.46, 0.48, 0.4), vec3(0.45, 0.38, 0.2), ochre), lich * 0.7);
+  float moss = smoothstep(0.64, 0.86, fbm(uv + 2.2, vec2(5.0), 5) * 0.5 + 0.5);
+  col = mix(col, vec3(0.07, 0.09, 0.05), moss * 0.55);
   float streak = smoothstep(0.6, 0.95, fbm(vec2(uv.x * 10.0, uv.y * 0.8), vec2(10.0, 1.0), 4) * 0.5 + 0.5);
   col *= 1.0 - streak * 0.4;
   s.albedo = col;
-  s.height = 0.5 + n * 0.15 + lich * 0.12 + h1 * 0.02;
-  s.rough = 0.72 + lich * 0.2;
+  s.height = 0.5 + n * 0.15 + lich * 0.1 + n3 * 0.05;
+  s.rough = 0.78 + lich * 0.15;
   s.metal = 0.0;
   s.ao = 1.0;
 }` });

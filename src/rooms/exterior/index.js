@@ -90,7 +90,7 @@ export default {
       brick: ctx.materials.create('brick', { color: [0.3, 0.13, 0.09], soot: 0.7, rows: 8, cols: 4 }),
       iron: pbr(TX.iron, { name: 'iron', repeat: [4, 4], envMapIntensity: 1.2 }),
       porchFloor: ctx.materials.create('floorboards', { color: 0x66605a, repeat: [1, 1] }),
-      doorWood: ctx.materials.create('wood', { species: 'walnut', repeat: [1, 1], color: 0x3a2a24, polish: 0.15, envMapIntensity: 0.3 }),
+      doorWood: pbr(TX.trim, { name: 'doorWood', color: 0x3a2622, envMapIntensity: 0.25 }),   // oxblood paint, worn
       brass: ctx.materials.create('brass', { tarnish: 0.5, polish: 0.6 }),
       terracotta: new THREE.MeshStandardMaterial({ color: 0x3a1e14, roughness: 0.85, name: 'terracotta' }),
       mound: pbr(TX.ground, { name: 'mound', color: 0x5a554c, normalScale: 2 }),
@@ -192,9 +192,9 @@ export default {
 
     // ------------------------------------------------------------ trees
     const barkMat = pbr(TX.bark, { name: 'bark', color: 0xa09890 });
-    barkMat.userData.rim = 0.4;
+    barkMat.userData.rim = 0.25;
     const trees = [
-      { seed: 11, x: 7.0, z: 30.6, ry: 2.6, s: 1.1, height: 11, trunkR: 0.62, spread: 1.15 },     // hero foreground, frames the right
+      { seed: 11, x: 7.6, z: 33.8, ry: 2.6, s: 1.1, height: 11, trunkR: 0.62, spread: 1.15 },     // hero foreground, frames the right
       { seed: 23, x: 11.5, z: 30.5, ry: 2.2, s: 1.05, height: 10, trunkR: 0.5 },
       { seed: 37, x: -16, z: -4, ry: 1.1, s: 1.2, height: 12, trunkR: 0.55 },
       { seed: 41, x: 17, z: -9, ry: 0.2, s: 1.15, height: 11, trunkR: 0.5 },
@@ -408,7 +408,7 @@ export default {
         onActivate: async () => { ctx.audio.sfx?.('thud'); await say('No need to knock. I have been expecting you for *ever* so long.'); },
       },
       {
-        id: 'hero-tree', nodes: ['main'], sphere: { center: [7.0, height(7.0, 30.6) + 3, 30.6], radius: 2.4 }, cursor: 'examine', label: 'A dead oak',
+        id: 'hero-tree', nodes: ['main'], sphere: { center: [7.6, height(7.6, 33.8) + 3, 33.8], radius: 2.4 }, cursor: 'examine', label: 'A dead oak',
         onActivate: () => ctx.ui.caption('Its branches all lean toward the house, as if something up there were calling them.', { title: 'The Oak' }),
       },
     ].filter((h) => h.id !== 'moon');
@@ -465,6 +465,8 @@ export default {
       if (!ctx.shot && f > 0.6 && t - lastThunder > 3) { lastThunder = t; setTimeout(() => ctx.audio.thunder?.(), 900 + 600 * Math.random()); }
       // moon god-ray follows the camera (moon is at infinity)
       moonRay.position.copy(ctx.camera.position).addScaledVector(MOON_DIR, 70);
+      // near the house the moon sits behind the tower with lit windows inside the ray radius: no rays there
+      moonRay.strength = ['drive', 'porch', 'porch_back'].includes(ctx.nav.current) && !ctx.nav.moving ? 0 : 1;
       // gate / door animation
       if (gateOpen.v !== gateOpen.target) { gateOpen.v += Math.sign(gateOpen.target - gateOpen.v) * Math.min(Math.abs(gateOpen.target - gateOpen.v), dt / 3.2); applyGate(); }
       if (doorOpen.v !== doorOpen.target) { doorOpen.v += Math.sign(doorOpen.target - doorOpen.v) * Math.min(Math.abs(doorOpen.target - doorOpen.v), dt / 2.6); applyDoor(); }
@@ -478,7 +480,7 @@ export default {
       const fl = 0.93 + 0.07 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1.0);
       porchLights.forEach((l, i) => { l.intensity = 3 * (i ? fl : 2 - fl - 0.0) * 0.98; });
       graves.votive.userData.light.intensity = 0.9 * (0.85 + 0.15 * Math.sin(t * 9.1) * Math.sin(t * 4.3 + 0.7));
-      gate.lights.forEach((l, i) => { l.intensity = 2.4 * (0.92 + 0.08 * Math.sin(t * (5.1 + i) + i * 2.0)); });
+      gate.lights.forEach((l, i) => { l.intensity = 4.0 * (0.92 + 0.08 * Math.sin(t * (5.1 + i) + i * 2.0)); });
     };
     update(0, ctx.time.value);
     if (P.get('door') === 'open') { doorOpen.v = doorOpen.target = 1; applyDoor(); }
@@ -489,11 +491,11 @@ export default {
       godRays: [moonRay],
       start: 'main',
       grade: {
-        exposure: Number(P.get('exposure') || 1.55), toneMapping: P.get('tm') || 'aces', contrast: Number(P.get('contrast') || 1.14), saturation: 1.0,
+        exposure: Number(P.get('exposure') || 1.65), toneMapping: P.get('tm') || 'aces', contrast: Number(P.get('contrast') || 1.14), saturation: 1.0,
         shadowTint: [0.8, 0.93, 1.22], highlightTint: [1.16, 1.0, 0.8], splitAmount: 0.6, splitBalance: 0.4,
         lift: [-0.006, -0.005, -0.002], blackPoint: Number(P.get('bp') || 0.012),
-        vignette: 0.5, grain: 0.035, bloomStrength: Number(P.get('bs') || 0.28), bloomThreshold: Number(P.get('bt') || 1.6), bloomRadius: 0.5,
-        godRayWeight: Number(P.get('grw') || 0.6), godRayThreshold: Number(P.get('grt') || 0.55), godRayDecay: 0.972, godRayDensity: 0.95,
+        vignette: 0.42, grain: 0.035, bloomStrength: Number(P.get('bs') || 0.28), bloomThreshold: Number(P.get('bt') || 1.6), bloomRadius: 0.5,
+        godRayWeight: Number(P.get('grw') || 0.9), godRayThreshold: Number(P.get('grt') || 0.55), godRayDecay: 0.972, godRayDensity: 0.95,
         aoIntensity: 0.55, aoRadius: 0.5, fogDensity: 0,
       },
       environment: { position: [0, 3.0, 20], intensity: Number(P.get('envi2') || 0.6) },

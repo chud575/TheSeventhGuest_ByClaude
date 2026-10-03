@@ -18,7 +18,7 @@ export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13, facing 
   const shapeCross = (w, h) => { const s = new THREE.Shape(); const a = w * 0.18; s.moveTo(-a, 0); s.lineTo(a, 0); s.lineTo(a, h * 0.62); s.lineTo(w / 2, h * 0.62); s.lineTo(w / 2, h * 0.78); s.lineTo(a, h * 0.78); s.lineTo(a, h); s.lineTo(-a, h); s.lineTo(-a, h * 0.78); s.lineTo(-w / 2, h * 0.78); s.lineTo(-w / 2, h * 0.62); s.lineTo(-a, h * 0.62); s.lineTo(-a, 0); return s; };
   const shapes = [shapeRound, shapeGothic, shapeShoulder, shapeRound, null, shapeShoulder];
   const epiTex = epitaphTexture(ctx);
-  const epiMat = new THREE.MeshStandardMaterial({ color: 0x9a9a98, map: epiTex, alphaMap: epiTex, alphaTest: 0.35, transparent: false, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, name: 'epitaph' });
+  const epiMat = new THREE.MeshStandardMaterial({ color: 0x141414, map: epiTex, alphaMap: epiTex, alphaTest: 0.35, transparent: false, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, name: 'epitaph' });
   epiMat.userData.groundShade = false;
   const epiGeo = [];
   const spots = [[-2.6, -1.5], [-1.0, -1.8], [0.6, -1.4], [2.1, -1.9], [-2.0, 0.6], [-0.3, 0.9], [1.4, 0.5], [3.0, 0.8], [-1.2, 2.9], [0.9, 3.1], [2.6, 2.7]];
@@ -261,7 +261,7 @@ export function epitaphTexture(ctx) {
     ['ADELAIDE', 'STAUF', '1838 - 1874', 'SHE WAITS'], ['HIS WILL', 'BE DONE', '', '1879'], ['UNKNOWN', '', '', ''], ['WHO WILL', 'BE THE', 'SEVENTH?', ''],
     ['HERE LIES', 'ONE WHO', 'KNOCKED', ''], ['', '', '', ''], ['', '', '', ''], ['', '', '', ''], ['', '', '', ''],
   ];
-  return ctx.textures.canvas('ext:epitaphs2', 1024, 1024, (g, w, h) => {
+  return ctx.textures.canvas('ext:epitaphs3', 1024, 1024, (g, w, h) => {
     g.clearRect(0, 0, w, h);
     const cw = w / 4, chh = h / 4;
     E.forEach((lines, i) => {
@@ -269,9 +269,9 @@ export function epitaphTexture(ctx) {
       g.save();
       g.translate(x0, y0);
       // incised border
-      g.strokeStyle = 'rgba(0,0,0,0.9)'; g.lineWidth = 3;
+      g.strokeStyle = 'rgba(255,255,255,1)'; g.lineWidth = 3;
       g.strokeRect(14, 14, cw - 28, chh - 28);
-      g.fillStyle = 'rgba(0,0,0,1)';
+      g.fillStyle = 'rgba(255,255,255,1)';
       g.textAlign = 'center'; g.textBaseline = 'middle';
       lines.forEach((t, k) => {
         if (!t) return;

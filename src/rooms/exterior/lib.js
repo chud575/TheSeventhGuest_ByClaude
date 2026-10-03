@@ -186,7 +186,7 @@ export function patchFog(material, U) {
       .replace('#include <common>', `#include <common>\nvarying vec3 vHFogW;\n${HFOG_PARS}`)
       .replace('#include <fog_fragment>', `${rimChunk(material)}${grimeChunk(material)}${material.userData.groundShade ? `{ float gd = length(vHFogW - cameraPosition);
   float cs = hfNoise(vec3(vHFogW.xz * 0.045 + vec2(uHFogTime * 0.03, uHFogTime * 0.01), 3.7));
-  gl_FragColor.rgb *= mix(0.75, 1.0, smoothstep(1.5, 9.0, gd)) * mix(0.6, 1.1, smoothstep(0.3, 0.7, cs)); }` : ''}
+  gl_FragColor.rgb *= mix(0.85, 1.0, smoothstep(1.5, 9.0, gd)) * mix(0.7, 1.15, smoothstep(0.3, 0.7, cs)); }` : ''}
 { vec4 hf = hfogEval(cameraPosition, vHFogW); gl_FragColor.rgb = mix(gl_FragColor.rgb, hf.rgb, hf.a); }`);
   };
   const key = material.customProgramCacheKey?.bind(material);
