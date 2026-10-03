@@ -285,6 +285,12 @@ function drawLabel(g, i, letter, mode, H, style, family = 0) {
       g.font = 'italic 16px "IM Fell English", Georgia, serif'; g.fillText('superior soup', cx - 118, cy + 14);
       g.font = '600 15px Cinzel, Georgia, serif'; g.fillStyle = ink('#8a1e16'); spaced(g, soup, cx + 118, cy - 4, 1.5, 120);
       g.fillStyle = ink('#1c120c'); g.font = 'italic 13px "IM Fell English", Georgia, serif'; g.fillText(WEIGHTS[i % WEIGHTS.length], cx + 118, cy + 16);
+    } else if (avail < 240) {
+      // compact: maker across the top, name across the foot, the initial as large as the band allows
+      g.font = '700 20px Cinzel, Georgia, serif'; spaced(g, 'STAUF’S SUPERIOR', cx, top + 13, 3, 210);
+      g.fillStyle = ink('#8a1e16'); g.fillRect(cx - 95, top + 26, 190, 1.5); g.fillRect(cx - 95, bot - 30, 190, 1.5);
+      g.fillStyle = ink('#1c120c'); g.font = '600 19px Cinzel, Georgia, serif'; spaced(g, soup, cx, bot - 14, 1.5, 200);
+      ry = (top + 30 + bot - 34) / 2; rr = Math.min(70, (bot - 34 - (top + 30)) * 0.5);
     } else {
       g.font = '700 26px Cinzel, Georgia, serif'; spaced(g, 'STAUF’S', cx, top + 19, 4, 200);
       g.fillStyle = ink('#8a1e16'); g.font = '400 14px "IM Fell English SC", Georgia, serif'; spaced(g, 'SUPERIOR SOUPS', cx, top + 39, 3, 190);

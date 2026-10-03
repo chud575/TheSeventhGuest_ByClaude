@@ -94,7 +94,7 @@ export default {
     ];
     const mat = {
       flags: grime(matFrom(quarryTileTexture(forge, 2048), { repeat: [1 / 2.4, 1 / 2.4], physical: true, clearcoat: 0.12, clearcoatRoughness: 0.45, name: 'quarry' }),
-        { tiles: { grid: [8, 8], amp: 0.16, hue: 0.02, rough: 0.25, tilt: 0.03 }, ceiling: [9, 0.1, 0], floor: [0, 0], path: [[(CH.ax0 + CH.ax1) / 2, Z0 + 0.9], [BLOCK.x - 0.3, BLOCK.z - 0.55], [BLOCK.x - 0.9, BLOCK.z + 0.6], [0.55, Z1 - 0.3]], pathWidth: 0.42, pathStrength: 0.55, noise: 0.35, tag: 'floor' }),
+        { tiles: { grid: [8, 8], amp: 0.05, hue: 0.015, rough: 0.25, tilt: 0.03 }, ceiling: [9, 0.1, 0], floor: [0, 0], path: [[(CH.ax0 + CH.ax1) / 2, Z0 + 0.9], [BLOCK.x - 0.3, BLOCK.z - 0.55], [BLOCK.x - 0.9, BLOCK.z + 0.6], [0.55, Z1 - 0.3]], pathWidth: 0.42, pathStrength: 0.55, noise: 0.35, tag: 'floor' }),
       tile: applyGrime(matFrom(wallTileTexture(forge, 2048), { repeat: [1 / 1.2, 1 / 1.2], physical: true, clearcoat: 0.45, clearcoatRoughness: 0.16, name: 'walltile' }), { plumes: TILE_GREASE, tiles: { grid: [8, 16], offset: 1, amp: 0.17, hue: 0.07, rough: 0.7, tilt: 0.15 }, floor: [0.55, 0.7], noise: 0.2, sootTint: [0.85, 0.66, 0.38], sootTintAmt: 0.85, tag: 'tile' }),
       border: grime(matFrom(borderTileTexture(forge, 512), { repeat: [1 / 0.15, 1 / 0.15], physical: true, clearcoat: 0.8, clearcoatRoughness: 0.1, name: 'bordertile' }), { tiles: { grid: [1, 1], amp: 0.25, hue: 0.08, rough: 0.5, tilt: 0.06 }, tag: 'border' }),
       glazeGreen: new THREE.MeshPhysicalMaterial({ color: 0x0d2a22, roughness: 0.2, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.08, name: 'glazeGreen' }),
@@ -1547,6 +1547,21 @@ export default {
 
     // ================================================================ four-panel doors: framed & fielded, rim lock, finger plate, scuffed kick
     const scuffMat = new THREE.MeshStandardMaterial({ map: scuffTexture(forge, 512).map, transparent: true, depthWrite: false, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, name: 'doorScuff' });
+    const kickMat = new THREE.MeshStandardMaterial({ color: 0x9a7a40, metalness: 1, roughness: 0.55, map: scuffTexture(forge, 512).map, name: 'kickPlate' });
+    const handWearMat = new THREE.MeshStandardMaterial({
+      map: forge.canvas('kitchen:handwear', 256, 384, (g2, w, h) => {
+        g2.clearRect(0, 0, w, h);
+        let a = 17; const R = () => { a = (a * 16807) % 2147483647; return a / 2147483647; };
+        for (let k = 0; k < 90; k++) {
+          const x = w * (0.5 + (R() - 0.5) * 0.55), y = h * (0.6 + (R() - 0.5) * 0.7), r = 10 + R() * 40;
+          const gr = g2.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(25,16,8,${0.05 + R() * 0.12})`); gr.addColorStop(1, 'rgba(25,16,8,0)');
+          g2.fillStyle = gr; g2.fillRect(x - r, y - r, 2 * r, 2 * r);
+        }
+        // paint worn through to wood at the edge where the hand pushes
+        for (let k = 0; k < 40; k++) { g2.fillStyle = `rgba(110,80,50,${0.15 + R() * 0.3})`; g2.beginPath(); g2.ellipse(w * (0.75 + R() * 0.2), h * (0.45 + R() * 0.35), 2 + R() * 6, 1 + R() * 3, 0, 0, Math.PI * 2); g2.fill(); }
+      }, { tile: false }),
+      transparent: true, depthWrite: false, roughness: 0.4, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, name: 'handWear',
+    });
     /** Leaf spanning x 0..w, y 0..h, thickness centred on z = 0; face +1 = side that gets the rim lock. */
     function panelDoor(w, h, { lockSide = 1 } = {}) {
       const g = new THREE.Group();
@@ -1577,6 +1592,16 @@ export default {
       g.add(knob);
       g.add(mk(rbox(G, 0.022, 0.04, 0.004, 0.002), mat.brass, lx + 0.03, 0.975, fz + lockSide * 0.03));
       g.add(mk(rbox(G, 0.075, 0.3, 0.003, 0.0015), mat.brass, lx - 0.05, 1.32, fz + lockSide * 0.0015));
+      // brass kick plate over the bottom rail, dulled and scratched by boots, on both faces
+      for (const sd of [1, -1]) {
+        const kp = mk(rbox(G, w - 0.06, 0.2, 0.003, 0.0012), kickMat, w / 2, 0.11, sd * (T / 2 + 0.0015));
+        g.add(kp);
+        for (const x of [0.05, w - 0.05]) for (const y of [0.03, 0.19]) g.add(mk(new THREE.SphereGeometry(0.004, 8, 6), mat.brass, x, y, sd * (T / 2 + 0.003)));
+      }
+      // hand wear: paint rubbed greasy and dark round the latch and finger plate
+      const hw = mk(new THREE.PlaneGeometry(0.34, 0.5), handWearMat, lx - 0.06, 1.12, fz + lockSide * 0.0009, 0, lockSide > 0 ? 0 : Math.PI, 0);
+      hw.renderOrder = 2;
+      g.add(hw);
       // kick zone: scuffs and boot marks over the bottom rail
       const sc = mk(new THREE.PlaneGeometry(w - 0.03, 0.34), scuffMat, w / 2, 0.17, fz + lockSide * 0.0012, 0, lockSide > 0 ? 0 : Math.PI, 0);
       sc.renderOrder = 2;
@@ -1687,6 +1712,26 @@ export default {
       }
       broom.position.set(x0 - 1.28, 0, Z1 - 0.15); broom.rotation.set(-0.1, 0.3, 0.1);
       add(broom);
+      // a hair sweeping broom: turned handle into a stock with tufts of bristle drawn through it (alpha cards)
+      {
+        const hb = new THREE.Group();
+        hb.add(mk(new THREE.CylinderGeometry(0.013, 0.015, 1.3, 10), mat.pine, 0, 0.73, 0));
+        hb.add(mk(rbox(G, 0.3, 0.045, 0.06, 0.012), mat.pineDark, 0, 0.065, 0));
+        const bristleTex = forge.canvas('kitchen:bristle', 128, 128, (g2, w, h) => {
+          g2.clearRect(0, 0, w, h);
+          let a = 5; const R = () => { a = (a * 16807) % 2147483647; return a / 2147483647; };
+          for (let k = 0; k < 260; k++) { const x = R() * w; g2.strokeStyle = `rgba(${40 + R() * 40},${30 + R() * 25},${20 + R() * 15},${0.7 + R() * 0.3})`; g2.lineWidth = 0.8 + R() * 1.2; g2.beginPath(); g2.moveTo(x, 0); g2.lineTo(x + (R() - 0.5) * 10, h * (0.82 + R() * 0.18)); g2.stroke(); }
+        }, { tile: false });
+        const bm = new THREE.MeshStandardMaterial({ map: bristleTex, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.85, name: 'bristles' });
+        for (let k = 0; k < 4; k++) {
+          const c = new THREE.PlaneGeometry(0.29, 0.07, 6, 1);
+          const pp = c.attributes.position; for (let i = 0; i < pp.count; i++) { if (pp.getY(i) < 0) pp.setZ(i, (k - 1.5) * 0.006); }
+          hb.add(mk(c, bm, 0, 0.008, (k - 1.5) * 0.013));
+        }
+        hb.position.set(-0.98, 0.035, Z1 - 0.43); hb.rotation.set(0.32, -0.25, 0.0);
+        hb.traverse((o) => { if (o.isMesh) o.userData.noMerge = true; });
+        add(hb);
+      }
     }
 
     // ================================================================ front & service walls: rules board, peg rail, fish kettle, calendar, plinth blocks
