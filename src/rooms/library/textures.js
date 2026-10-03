@@ -186,7 +186,7 @@ void surface(vec2 uv, inout Surface s) {
   float inner = sdRhombus(q, vec2(0.2, 0.26));
   float dots = length(fract(q * 6.0) - 0.5) - 0.18;
   float stripes = sin(q.y * 70.0 + sin(q.x * 18.0) * 2.0);
-  vec3 rust = vec3(0.4, 0.15, 0.06), black = vec3(0.045, 0.03, 0.02), ochre = vec3(0.46, 0.3, 0.12), wine = vec3(0.24, 0.09, 0.045);
+  vec3 rust = vec3(0.42, 0.16, 0.06), black = vec3(0.05, 0.03, 0.02), ochre = vec3(0.5, 0.33, 0.13), wine = vec3(0.26, 0.1, 0.045);
   vec3 col = wine;
   col = mix(col, black, smoothstep(0.02, -0.02, med));
   col = mix(col, rust, smoothstep(0.02, -0.02, med + 0.06) * (0.6 + 0.4 * stripes));
