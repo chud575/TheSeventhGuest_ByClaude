@@ -219,7 +219,8 @@ export function head(x, y, z) {
   // bulk under the locks: bushy over the ears, full at the back down to the collar
   for (const s of [-1, 1]) hr = smin(hr, ell(x, y, z, [s * 0.062, -0.01, 0.03], [0.024, 0.055, 0.06]), 0.02);
   hr = smin(hr, ell(x, y, z, [0, -0.025, 0.06], [0.07, 0.08, 0.05]), 0.02);
-  hr = smin(hr, lockField(HAIR_LOCKS, x, y, z, 0.0045), 0.005);
+  // the locks melt into one another (soft, shallow partings) instead of reading as separate ropes
+  hr = smin(hr, lockField(HAIR_LOCKS, x, y, z, 0.009), 0.008);
   let br = ell(x, y, z, [0, -0.082, -0.042], [0.068, 0.058, 0.062]);                       // beard mass under the clumps
   br = smax(br, -(-(y + 0.025) + Math.abs(x) * 0.15 - Math.max(0, -z - 0.075) * 0.5), 0.01);
   br = smin(br, lockField(BEARD_LOCKS, x, y, z, 0.005), 0.007);

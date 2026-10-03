@@ -252,7 +252,8 @@ export async function buildGhostPianist(ctx) {
         dip[i] = Math.max(0, dip[i] - dt * 5);
         arm.rotation.x = -0.06 * dip[i] + (idle ? Math.sin(t * 2.1 + i) * 0.015 : 0);
       }
-      head.rotation.y = Math.sin(t * 0.5) * 0.08;
+      // his head half-turned toward the room (the treble side), as if he heard you come in
+      head.rotation.y = -0.38 + Math.sin(t * 0.5) * 0.06;
       head.rotation.x = -0.22 + Math.sin(t * 0.7) * 0.03;   // bowed over the keys
     },
   };

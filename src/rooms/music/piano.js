@@ -59,7 +59,7 @@ function wireMaterial(base, U) {
         vec3 H1 = normalize(L1 + V), H2 = normalize(uL2Dir + V);
         float dif1 = sqrt(max(0.0, 1.0 - pow(dot(T, L1), 2.0)));
         vec3 col = uBase * (0.03 + 0.12 * dif1 * a1 * uL1Col * 0.4 + 0.04 * uL2Col);
-        col += uBase * (kk(T, H1, 260.0) * uL1Col * a1 * 1.1 + kk(T, H2, 260.0) * uL2Col * 0.5);
+        col += uBase * (kk(T, H1, 320.0) * uL1Col * a1 * 0.75 + kk(T, H2, 320.0) * uL2Col * 0.35);
         gl_FragColor = vec4(col, clamp(vCov, 0.0, 1.0) * uOpacity * 0.9);
       }`,
   });
@@ -172,7 +172,7 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
   add(new THREE.Mesh(flatExtrude(shapeOf(inner), 0.02, CASE.rimBottom + 0.02), ebony));
   // soundboard
   const sbTex = soundboardTexture(ctx.textures);
-  const sbMat = new THREE.MeshStandardMaterial({ map: sbTex.map, normalMap: sbTex.normalMap, roughness: 0.45, metalness: 0, envMapIntensity: 0.6, color: new THREE.Color(1.25, 1.15, 0.95), emissive: new THREE.Color(0.07, 0.05, 0.028) });   // faint bounce under the plate
+  const sbMat = new THREE.MeshStandardMaterial({ map: sbTex.map, normalMap: sbTex.normalMap, roughness: 0.45, metalness: 0, envMapIntensity: 0.6, color: new THREE.Color(1.25, 1.15, 0.95), emissive: new THREE.Color(0.11, 0.075, 0.04) });   // faint bounce under the plate
   const sbGeo = flatExtrude(shapeOf(clipBelow(inner, 0.2)), 0.01, 0.8);
   {
     // planar UVs in metres for the soundboard grain
@@ -238,8 +238,8 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
       for (let k = 0; k < n; k++) { const o = (k - (n - 1) / 2) * 0.0042; wires.push([x0 + o, y0, x1 + o, y1, 0.0016 - 0.0005 * (n - 1), 1]); }
     }
     const wireGeo = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
-    const steelW = wireMaterial(new THREE.Color(0.75, 0.74, 0.72), wireU);
-    const copperW = wireMaterial(new THREE.Color(0.62, 0.34, 0.16), wireU);
+    const steelW = wireMaterial(new THREE.Color(0.5, 0.5, 0.49), wireU);
+    const copperW = wireMaterial(new THREE.Color(0.55, 0.28, 0.12), wireU);
     const nSteel = wires.filter((w) => !w[5]).length;
     const imS = new THREE.InstancedMesh(wireGeo, steelW, nSteel);
     const imC = new THREE.InstancedMesh(wireGeo, copperW, wires.length - nSteel);
@@ -375,23 +375,24 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
     // one moulded board, swept along the keyboard: a vertical lacquered face carrying the decal, a
     // rounded top edge and a small bead at its foot. A satin rather than mirror coat, so the candle
     // highlights spread into soft bands instead of streaking along every edge
-    const lacquer = new THREE.MeshPhysicalMaterial({ color: 0x060505, roughness: 0.3, metalness: 0, clearcoat: 1.0, clearcoatRoughness: 0.13, envMapIntensity: 0.5 });
-    const prof = [[-0.045, 0.064], [-0.004, 0.064], [0.003, 0.062], [0.0075, 0.057], [0.009, 0.05], [0.009, 0.013], [0.0115, 0.01], [0.0115, 0.004], [0.008, 0.0], [-0.02, 0.0]].map(([x, y]) => new THREE.Vector2(x, y));
+    const lacquer = new THREE.MeshPhysicalMaterial({ color: 0x060505, roughness: 0.42, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.26, envMapIntensity: 0.45, side: THREE.DoubleSide });
+    const prof = [[-0.045, 0.06], [-0.006, 0.06], [0.002, 0.058], [0.0065, 0.053], [0.008, 0.046], [0.008, 0.011], [0.0105, 0.008], [0.0105, 0.003], [0.007, 0.0], [-0.045, 0.0], [-0.045, 0.06]].map(([x, y]) => new THREE.Vector2(x, y));
     const fb = add(new THREE.Mesh(G.sweepProfile(prof, [new THREE.Vector3(-0.655, 0, 0), new THREE.Vector3(0.655, 0, 0)], { uvScale: 2 }), lacquer));
-    fb.position.set(0, KEY.top + 0.003, 0.0);
+    fb.position.set(0, KEY.top + 0.016, 0.0);   // the key backs pass under it, clear of the black keys
     for (const sx of [-1, 1]) {   // end caps
       const cap = add(new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(prof.map((p) => new THREE.Vector2(p.x, p.y)))), lacquer));
-      cap.rotation.y = sx * Math.PI / 2; cap.position.set(sx * 0.655, KEY.top + 0.003, 0);
+      cap.rotation.y = sx * Math.PI / 2; cap.position.set(sx * 0.655, KEY.top + 0.016, 0);
       cap.material = lacquer; cap.geometry.computeVertexNormals();
       if (sx < 0) cap.scale.x = -1;
     }
     const nt = nameboardTexture(ctx.textures);
     const name = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.0446), new THREE.MeshStandardMaterial({ map: nt, transparent: true, metalness: 0.85, roughness: 0.3, color: 0xffffff, depthWrite: false, emissiveMap: nt, emissive: new THREE.Color(0.22, 0.16, 0.06), polygonOffset: true, polygonOffsetFactor: -2 }));
-    name.position.set(0, KEY.top + 0.035, 0.0096);
+    name.position.set(0, KEY.top + 0.044, 0.0087);
     add(name);
     // red baize strip along the back of the keys (key-back felt), so the key ends don't float
-    const baize = add(new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.006, 0.012), new THREE.MeshStandardMaterial({ color: 0x4a0e12, roughness: 1 })));
-    baize.position.set(0, KEY.top + 0.004, 0.016);
+    // red key-slip felt filling the slot under the fallboard, along the key backs
+    const baize = add(new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.0165, 0.012), new THREE.MeshStandardMaterial({ color: 0x4a0e12, roughness: 1 })));
+    baize.position.set(0, KEY.top + 0.0078, 0.004);
     // dark felt under the keys: the gaps between them read as shadow, not as lacquer reflections
     const under = add(new THREE.Mesh(new THREE.PlaneGeometry(1.25, 0.2), new THREE.MeshBasicMaterial({ color: 0x020202 })));
     under.rotation.x = -Math.PI / 2; under.position.set(0, KEY.top - 0.021, KEY.front - 0.1);

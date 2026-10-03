@@ -627,13 +627,15 @@ void surface(vec2 uv, inout Surface s) {
   sky += vec3(0.12, 0.13, 0.16) * smoothstep(0.45, 0.0, p.y);                      // horizon glow
   sky += vec3(0.55, 0.64, 0.85) * exp(-md * 5.0) * 0.8;                           // halo
   sky += vec3(0.25, 0.3, 0.42) * smoothstep(0.012, 0.0, abs(md - 0.2)) * 0.25;    // faint ring
-  float cl = fbm(p * vec2(2.4, 3.6) + vec2(0.1, 0.4), vec2(4.0, 3.0), 7);
-  float cl2 = fbm(p * vec2(7.0, 9.0) + vec2(3.1, 0.2), vec2(7.0, 9.0), 5);
-  float cov = smoothstep(-0.12, 0.42, cl + cl2 * 0.25);
-  vec3 cloudCol = sky * 0.42 + vec3(0.03, 0.035, 0.06);
-  sky = mix(sky, cloudCol, cov * 0.82);
-  // silver linings toward the moon
-  sky += vec3(0.8, 0.85, 1.0) * smoothstep(0.12, 0.0, abs(cl + cl2 * 0.25 - 0.08)) * exp(-md * 2.4) * 0.65;
+  // long, soft, wind-stretched cloud banks (no fractal islands): low-frequency, smoothly thresholded
+  float cl = fbm(p * vec2(1.6, 4.2) + vec2(0.1, 0.4), vec2(2.0, 4.0), 5);
+  float cl2 = fbm(p * vec2(4.0, 10.0) + vec2(3.1, 0.2), vec2(4.0, 10.0), 3);
+  float c = cl + cl2 * 0.12;
+  float cov = smoothstep(-0.2, 0.5, c);
+  vec3 cloudCol = sky * 0.5 + vec3(0.025, 0.03, 0.05);
+  sky = mix(sky, cloudCol, cov * 0.7);
+  // soft silver linings toward the moon
+  sky += vec3(0.7, 0.76, 0.95) * smoothstep(0.22, 0.0, abs(c - 0.05)) * exp(-md * 3.0) * 0.4;
   // moon disc with maria
   float mare = fbm((p - moon) * 60.0, vec2(60.0), 4);
   sky = mix(sky, vec3(1.0, 0.98, 0.94) * (1.45 - 0.25 * smoothstep(0.0, 0.5, mare)), smoothstep(0.034, 0.03, md));

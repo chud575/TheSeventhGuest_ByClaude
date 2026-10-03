@@ -67,15 +67,19 @@ export default {
     const plateGold = new THREE.MeshPhysicalMaterial({ color: 0xa8742a, metalness: 0.9, roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.3, envMapIntensity: 0.75 });
     // mirror-black piano lacquer: crisp streaks of the windows and candles in the room probe
     const pianoLacquer = new THREE.MeshPhysicalMaterial({ color: 0x050505, roughness: 0.08, metalness: 0, clearcoat: 1.0, clearcoatRoughness: 0.03, envMapIntensity: 1.25 });
-    const doorWoodV = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], rotation: Math.PI / 2, clearcoat: 0.35, clearcoatRoughness: 0.45, envMapIntensity: 0.35, color: [0.82, 0.68, 0.62] });
-    const doorWoodH = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], clearcoat: 0.35, clearcoatRoughness: 0.45, envMapIntensity: 0.35, color: [0.82, 0.68, 0.62] });
+    const doorWoodV = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], rotation: Math.PI / 2, clearcoat: 0.35, clearcoatRoughness: 0.45, envMapIntensity: 0.35, color: [0.68, 0.57, 0.52] });
+    const doorWoodH = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], clearcoat: 0.35, clearcoatRoughness: 0.45, envMapIntensity: 0.35, color: [0.68, 0.57, 0.52] });
     // deep navy silk velvet: almost black where it faces you, a saturated blue-violet sheen
     // rolling over the fold crests (no grey specular: that is what made it read as plastic)
     // deep wine silk velvet: near-black in the hollows, a saturated crimson sheen rolling over every fold crest
     const velvet = M.create('velvet', { color: [0.05, 0.004, 0.009], crush: 0.45, repeat: [2, 2], side: THREE.DoubleSide });
     velvet.sheen = 1.0; velvet.sheenRoughness = 0.4; velvet.sheenColor = new THREE.Color().setRGB(0.5, 0.035, 0.06);
-    velvet.roughness = 0.9; velvet.metalness = 0; velvet.envMapIntensity = 0.12; velvet.specularIntensity = 0.15;
+    // velvet has almost no specular: the pile scatters it into the sheen. (With the texture's roughness map
+    // and a dielectric F0 the folds mirrored the bright bay as pale blue-grey satin.)
+    velvet.roughnessMap = null; velvet.roughness = 1.0; velvet.metalnessMap = null; velvet.metalness = 0; velvet.envMapIntensity = 0.06; velvet.specularIntensity = 0.04;
     const seatVelvet = M.create('velvet', { color: [0.3, 0.04, 0.06], crush: 0.4, repeat: [3, 3] });
+    // a deep crimson sheen (the default pale sheen turned the bench cushion into a lilac slab under the moon)
+    seatVelvet.sheen = 0.8; seatVelvet.sheenRoughness = 0.5; seatVelvet.sheenColor = new THREE.Color().setRGB(0.42, 0.04, 0.06); seatVelvet.specularIntensity = 0.06; seatVelvet.envMapIntensity = 0.1; seatVelvet.roughnessMap = null; seatVelvet.roughness = 1; seatVelvet.metalnessMap = null; seatVelvet.metalness = 0;
     const brass = M.create('brass', { tarnish: 0.35, polish: 0.7, repeat: [2, 2] });
     const glassMat = M.create('glass', { dirt: 0.5, transparent: true, opacity: 0.12 });
     // Nero Marquina: thin, directional, low-contrast veins in a deep black, polished to catch the fire
@@ -86,7 +90,7 @@ export default {
     // an old Kashan in deep oxblood and indigo, its ivory and gold dulled with age (the value is
     // held well below the piano and the ghost; only the moonlight lifts it)
     const rugMat = M.create('rug', {
-      palette: 'kashan', aspect: 4.0 / 5.4, knots: 300, wear: 0.55, fringe: 0.03, seed: 7, size: hq ? 2048 : 1536,
+      palette: 'kashan', aspect: 4.0 / 5.4, knots: 520, wear: 0.55, fringe: 0.03, seed: 7, size: hq ? 2048 : 1536,
       colors: { field: [0.19, 0.03, 0.038], border: [0.035, 0.04, 0.1], ivory: [0.42, 0.36, 0.28], gold: [0.33, 0.22, 0.1], teal: [0.07, 0.13, 0.18], dark: [0.028, 0.02, 0.026], rose: [0.3, 0.1, 0.11] },
     });
     rugMat.roughness = 1.0; rugMat.envMapIntensity = 0.2;
@@ -141,6 +145,31 @@ export default {
     nearL.position.set(0.0, 2.3, Z0 - 1.3); nearL.renderOrder = 2;
     add(nearL);
     const sashMat = M.basic('black', { color: 0x0e0b0a, roughness: 0.5 });
+    const frostTex = ctx.textures.canvas('music:frost', 512, 1096, (g2, w, h) => {
+      g2.clearRect(0, 0, w, h);
+      const X = (x) => ((x + WIN.w / 2) / WIN.w) * w, Y = (y) => (1 - y / WIN.h) * h;
+      let sd = 5; const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+      const panes = [[0, 0.7], [0.7, 1.4], [1.48, 2.1]];
+      for (const [y0, y1] of panes) for (const [x0, x1] of [[-WIN.w / 2, 0], [0, WIN.w / 2]]) {
+        const k = y0 < 0.1 ? 1 : y0 < 1 ? 0.6 : 0.35;
+        for (const cx of [x0, x1]) {
+          const gr = g2.createRadialGradient(X(cx), Y(y0), 0, X(cx), Y(y0), (x1 - x0) * w / WIN.w * 0.9 * k);
+          gr.addColorStop(0, `rgba(235,242,255,${0.55 * k})`); gr.addColorStop(0.5, `rgba(225,235,255,${0.18 * k})`); gr.addColorStop(1, 'rgba(225,235,255,0)');
+          g2.fillStyle = gr; g2.fillRect(X(x0), Y(y1), X(x1) - X(x0), Y(y0) - Y(y1));
+          // dendrites: short branching strokes fanning out of the corner
+          g2.strokeStyle = `rgba(240,246,255,${0.35 * k})`; g2.lineWidth = 1;
+          for (let i = 0; i < 40 * k; i++) {
+            let px = X(cx), py = Y(y0); const a0 = (cx === x0 ? -Math.PI / 2 : -Math.PI / 2) + (rnd() - 0.5) * 1.4 + (cx === x0 ? 0.5 : -0.5);
+            let a = a0; const L = (12 + rnd() * 60) * k;
+            g2.beginPath(); g2.moveTo(px, py);
+            for (let s2 = 0; s2 < 6; s2++) { a += (rnd() - 0.5) * 0.6; px += Math.cos(a) * L / 6; py += Math.sin(a) * L / 6; g2.lineTo(px, py); }
+            g2.stroke();
+          }
+        }
+      }
+    }, { tile: false });
+    frostTex.repeat.set(1 / WIN.w, 1 / WIN.h); frostTex.offset.set(0.5, 0);
+    const frostMat = new THREE.MeshStandardMaterial({ map: frostTex, transparent: true, depthWrite: false, roughness: 0.7, metalness: 0, color: 0xdfe8ff, emissive: new THREE.Color(0.25, 0.3, 0.45), emissiveMap: frostTex });
     for (const wx of WIN.xs) {
       const r = WIN.w / 2;
       const shape = new THREE.Shape();
@@ -183,6 +212,9 @@ export default {
       gs.moveTo(-r, 0); gs.lineTo(-r, WIN.h - r); gs.absarc(0, WIN.h - r, r, Math.PI, 0, true); gs.lineTo(r, 0); gs.closePath();
       const glass = new THREE.Mesh(new THREE.ShapeGeometry(gs, 32), glassMat);
       glass.position.z = 0.012; glass.userData.noShadow = true; win.add(glass);
+      // hoar frost creeping in from the bottom corners of each pane (catches the moon, dims the view)
+      const frost = new THREE.Mesh(new THREE.ShapeGeometry(gs, 32), frostMat);
+      frost.position.z = 0.016; frost.renderOrder = 3; frost.userData.noShadow = true; win.add(frost);
       add(win);
     }
 
@@ -306,7 +338,7 @@ export default {
           const ph = y1 - y0, cy = (y0 + y1) / 2;
           const p = new THREE.Mesh(G.raisedPanel(iw - 0.02, ph - 0.02, { border: 0.08, bevel: 0.045, fieldDepth: 0.016 }), doorWoodV);
           p.position.set(0, cy, -0.006); leaf.add(p);
-          const bol = new THREE.Mesh(G.frameGeometry(iw - 0.01, ph - 0.01, { width: 0.05, depth: 0.034, uvScale: 1 }), doorWoodH);
+          const bol = new THREE.Mesh(G.frameGeometry(iw - 0.01, ph - 0.01, { width: 0.062, depth: 0.046, uvScale: 1 }), doorWoodH);   // deep bolection
           bol.position.set(0, cy, T / 2 - 0.012); leaf.add(bol);
           const bead = new THREE.Mesh(G.frameGeometry(iw - 0.1, ph - 0.1, { width: 0.009, depth: 0.012, uvScale: 2 }), giltPlain);
           bead.position.set(0, cy, T / 2 - 0.004); leaf.add(bead);
@@ -391,7 +423,7 @@ export default {
         // full drapes hanging straight beside the glass (deep folds, pooled hems)
         // drawn back to a tasselled cord at two-thirds height, the hem pooling on the boards
         const CH = 3.3, CW = 0.78;
-        const cg = curtain({ width: CW, height: CH, folds: 7, depth: 0.15, tieback: 0.85, pool: 0.16, seed: wx * 3 + side + 5, segX: 96, segY: 72 });
+        const cg = curtain({ width: CW, height: CH, folds: 7, depth: 0.15, tieback: 0.6, pool: 0.16, seed: wx * 3 + side + 5, segX: 96, segY: 72 });
         const c = new THREE.Mesh(cg, velvet);
         const cx = wx + side * (WIN.w / 2 + 0.22), cy = WIN.sill + WIN.h + 0.28;
         c.position.set(cx, cy, Z0 + 0.15);
@@ -684,7 +716,7 @@ export default {
     add(gasLight);
 
     // ================================================================ moonlight
-    const moon = new THREE.SpotLight(0xbcc8ec, 520, 26, 0.42, 0.18, 2);
+    const moon = new THREE.SpotLight(0xbcc8ec, 430, 26, 0.42, 0.18, 2);
     // high and almost straight behind the bay, so each window lays its own pane pattern
     // into the room: the centre one across the rug in front of the piano
     moon.position.set(5.0, 6.5, Z0 - 7.5);
@@ -697,11 +729,10 @@ export default {
 
     // a lower, cooler sky fill (deeper shadows) with a warm floor bounce so the lower walls hold detail
     add(new THREE.HemisphereLight(0x4a62a4, 0x5a3420, 0.95));
-    // warm bounce off the hearth rug and boards, low on the fireplace and door walls: the wainscot keeps detail
-    const bounce = new THREE.PointLight(0xff9a5c, 1.6, 7, 2);
-    bounce.position.set(X0 + 1.6, 0.35, FIRE.z + 0.4); add(bounce);
-    const bounce2 = new THREE.PointLight(0xffa868, 1.1, 6, 2);
-    bounce2.position.set(0.2, 0.4, Z1 - 1.4); add(bounce2);
+    // warm bounce off the boards and the rug (soft area lights lying on the floor, facing up): the wainscot
+    // and the lower walls keep their detail instead of crushing to black, with no point-light hotspots
+    add(fx.areaLight({ center: [X0 + 1.1, 0.03, FIRE.z], normal: [0.25, 1, 0], width: 1.4, height: 1.8, color: 0xff9255, intensity: 0.55 }));
+    add(fx.areaLight({ center: [0.3, 0.03, Z1 - 1.6], normal: [0, 1, 0.25], width: 3.0, height: 1.6, color: 0xffa060, intensity: 0.3 }));
 
     // opaque shadow blockers behind the bay wall: the wainscot board and the wall plane are thin,
     // so without these the moon leaks through the panel joints as bright slits
@@ -722,10 +753,16 @@ export default {
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
     const shafts = [];
     for (const wx of WIN.xs) {
+      // the beam volume starts ~0.4 m into the room (its densest part used to sit right against the
+      // glass, veiling the drapes and the cello by the bay in a milky haze)
+      const c0 = V3(wx, WIN.sill + WIN.h * 0.47, Z0 - 0.02).addScaledVector(beamDir, 0.45 / Math.max(0.2, beamDir.z));
       const shaft = fx.shaft({
-        center: V3(wx, WIN.sill + WIN.h * 0.47, Z0 - 0.02), right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h * 0.5, 0),
-        direction: beamDir, length: 4.2, color: 0xaebfee, intensity: 0.26, softness: 0.22, falloff: 1.2, panes: [2, 4], mullion: 0.035, noise: 1.0,
+        center: c0, right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h * 0.5, 0),
+        direction: beamDir, length: 3.9, color: 0xaebfee, intensity: 0.22, softness: 0.24, falloff: 1.0, panes: [2, 4], mullion: 0.035, noise: 1.0,
       });
+      // the left beam (beside the ghost) carries the composition; the centre and right beams are seen
+      // end-on from most nodes, so they are kept thin or they veil the bay, the cello and the drapes
+      shaft.userData.base = wx < -1 ? 0.12 : wx < 1 ? 0.065 : 0.035;
       add(shaft); shafts.push(shaft);
     }
     const dust = add(fx.dust({ box: new THREE.Box3(V3(-3.4, 0.1, Z0 + 0.05), V3(3.4, 3.4, 1.2)), count: 2200, shafts, size: 0.009, intensity: 2.2, ambient: 0.0 }));
@@ -866,7 +903,7 @@ export default {
       dust.visible = window.__game?.mode !== 'puzzle';
       const veilT = ctx.nav.current === 'harp' ? 0.4 : 1;
       veil.k += (veilT - veil.k) * (dt > 0 ? Math.min(1, dt * 1.5) : 1);
-      for (const sh of shafts) if (sh.material?.uniforms?.uIntensity) sh.material.uniforms.uIntensity.value = 0.26 * veil.k;
+      for (const sh of shafts) if (sh.material?.uniforms?.uIntensity) sh.material.uniforms.uIntensity.value = sh.userData.base * veil.k;
       if (fog.material?.uniforms?.uDensity) fog.material.uniforms.uDensity.value = 0.3 * (0.35 + 0.65 * veil.k);
       for (const [i, pl] of sconceLights.entries()) pl.intensity = (i < 2 ? 3.6 : i === 2 ? 2.6 : 2.4) * (0.97 + 0.03 * Math.sin(t * 9.1 + i) * Math.sin(t * 3.7));
       keyFill.intensity += ((window.__game?.mode === 'puzzle' ? 3.6 : 0.5) - keyFill.intensity) * Math.min(1, dt * 3);
@@ -936,7 +973,7 @@ export default {
           for (const o of hidden) o.visible = true;
           for (const m of pianoProbe.mats) { m.envMap = rt.texture; m.needsUpdate = true; }
           const lidMat = piano.userData.lidPivot.userData.lidMat;
-          lidMat.envMap = rt2.texture; lidMat.envMapIntensity = 1.4; lidMat.needsUpdate = true;
+          lidMat.envMap = rt2.texture; lidMat.envMapIntensity = 1.2; lidMat.roughness = 0.3; lidMat.clearcoatRoughness = 0.2; lidMat.needsUpdate = true;
           pianoProbe.rt = rt; pianoProbe.rt2 = rt2;
         } catch (e) { console.warn('piano probe', e); }
       },
