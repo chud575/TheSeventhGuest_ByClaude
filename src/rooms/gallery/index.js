@@ -59,7 +59,7 @@ export default {
       soffit: M.create('gilded', { pattern: 2, repeats: 4, ground: 1, groundColor: [0.05, 0.06, 0.12], wear: 0.4, dirt: 0.6, repeat: [1 / 0.9, 1] }),
       giltFrame: M.create('gold', { wear: 0.5, dirt: 0.6, repeat: [2, 1], color: new THREE.Color(0.9, 0.82, 0.7) }),
       gilt: giltMaterial(ctx),
-      sheet: M.basic('cloth', { color: 0xb8b4aa }),
+      sheet: M.basic('cloth', { color: 0x8c887e }),
       felt: M.create('velvet', { color: [0.03, 0.09, 0.05], crush: 0.3, repeat: [6, 6] }),
       giltPlain: M.create('gold', { wear: 0.5, dirt: 0.55, repeat: [2, 1] }),
       giltCap: M.create('gold', { wear: 0.3, dirt: 0.4, repeat: [3, 3] }),
@@ -158,9 +158,10 @@ export default {
         root.add(holder);
         // scalloped pool of light thrown up the wallpaper beside the pilaster (both sides of it)
         for (const off of [-1, 1]) {
-          const pool = makeLightPool(ctx, { w: 1.2, h: 2.6, intensity: 0.22 * base[k] / 2.7 });
+          const pool = makeLightPool(ctx, { w: 1.0, h: 1.9, intensity: 0.2 * base[k] / 2.7 });
+          pool.position.x = -off * 0.5 * (side < 0 ? -1 : 1);
           const ph = new THREE.Group(); ph.add(pool);
-          mount(ph, side, z + off * (PIL.w / 2 + 0.36), 1.98 + 0.11, 0.004);
+          mount(ph, side, z + off * (PIL.w / 2 + 0.02 + 0.5), 1.98 + 0.11, 0.004);
           ph.userData.dynamic = true;
           root.add(ph);
           s.pools = s.pools || []; s.pools.push(pool);
@@ -257,7 +258,7 @@ export default {
     cage.position.set(-0.3, 0.857, 0.12); cage.scale.setScalar(0.9);
     consoleT.group.add(cage);
     {
-      const mirrorMat = new THREE.MeshStandardMaterial({ color: 0x8e8c84, metalness: 1.0, roughness: 0.07, envMapIntensity: 1.25, name: 'mirror' });
+      const mirrorMat = new THREE.MeshStandardMaterial({ color: 0x6a6862, metalness: 1.0, roughness: 0.07, envMapIntensity: 0.6, name: 'mirror' });
       const foxing = M.textures('plaster', { color: [0.5, 0.5, 0.5], cracks: 0.0, stains: 0.9 });
       mirrorMat.roughnessMap = foxing.withRepeat(1.4, 1.4).map;
       mirrorMat.roughness = 0.12;
@@ -405,7 +406,7 @@ export default {
       pl.position.set(0, H + ln.lightPos.y, Z1 + 1.5);
       root.add(pl);
       lanterns.push({ light: pl, seed: 31.7, base: 3.2 });
-      const spill = new THREE.PointLight(0xffa860, 1.1, 5, 2);
+      const spill = new THREE.PointLight(0xffa860, 2.4, 5, 2);
       spill.position.set(0, 2.7, Z1 - 0.6);
       root.add(spill);
     }
@@ -424,7 +425,7 @@ export default {
       if (sky) { sky.scale.set(2.4, 1.4, 1); sky.position.set(0.6, 3.2, Z0 - 7.5); }
       const tl = treeLine(ctx);
       const tlm = new THREE.Mesh(new THREE.PlaneGeometry(9, 4.5), new THREE.MeshBasicMaterial({ map: tl.map, transparent: true, alphaTest: 0.02, color: new THREE.Color(1.3, 1.3, 1.5), name: 'treeLine' }));
-      tlm.position.set(0.4, 0.4, Z0 - 5.0); tlm.userData.noShadow = true; tlm.name = 'treeLine'; root.add(tlm);
+      tlm.position.set(0.4, 1.3, Z0 - 5.0); tlm.userData.noShadow = true; tlm.name = 'treeLine'; root.add(tlm);
       const br = branchCard(ctx);
       const brm = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), new THREE.MeshBasicMaterial({ map: br.map, transparent: true, alphaTest: 0.05, name: 'branch' }));
       const pivot = new THREE.Group(); pivot.position.set(-1.6, 3.9, Z0 - 1.5); pivot.userData.dynamic = true;
@@ -445,10 +446,11 @@ export default {
     // ---- the game-room door: a leaded stained-glass transom lit faintly from the room beyond
     {
       const d = DOORS.gameroom;
-      const tm = new THREE.MeshStandardMaterial({ map: transomTexture(ctx), emissiveMap: transomTexture(ctx), emissive: new THREE.Color(1.0, 0.8, 0.6), emissiveIntensity: 0.9, roughness: 0.15, metalness: 0, name: 'transom' });
-      const t = new THREE.Mesh(new THREE.PlaneGeometry(d.w + 0.1, 0.34), tm);
+      const tm = new THREE.MeshStandardMaterial({ map: transomTexture(ctx), emissiveMap: transomTexture(ctx), emissive: new THREE.Color(1.0, 0.8, 0.6), emissiveIntensity: 0.45, roughness: 0.15, metalness: 0, name: 'transom' });
+      const t = new THREE.Mesh(new THREE.PlaneGeometry(d.w + 0.2, 0.17), tm);
       const g = new THREE.Group(); g.add(t); t.position.set(0, 0, 0.056);
       mount(g, 1, d.z, d.h + 0.24, 0.0);
+      tm.color.setScalar(0.6);
       root.add(g);
     }
     // ---- the attic: a narrow, steep stair glimpsed behind the low door
@@ -471,7 +473,7 @@ export default {
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
     const shaft = fx.shaft({
       center: winC, right: V3(WIN.w / 2, 0, 0), up: V3(0, (WIN.h - 0.4) * 0.5, 0), direction: beamDir, length: 7.5,
-      color: 0x9fb6ff, intensity: 0.22, softness: 0.35, falloff: 1.1, panes: [2, 4], mullion: 0.03, noise: 0.7,
+      color: 0x9fb6ff, intensity: 0.17, softness: 0.35, falloff: 1.1, panes: [2, 4], mullion: 0.03, noise: 0.7,
     });
     root.add(shaft);
     root.add(fx.dust({ box: new THREE.Box3(V3(X0 + 0.1, 0.05, Z0 + 0.1), V3(X1 - 0.1, 3.2, -2.5)), count: 1300, shafts: [shaft], size: 0.009, intensity: 1.6, ambient: 0.04 }));

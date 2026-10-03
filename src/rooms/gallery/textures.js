@@ -174,7 +174,7 @@ export function branchCard(ctx) {
   return ctx.textures.generate('gallery:branch', {
     size: 1024, aspect: 1.0, tile: false,
     glsl: /* glsl */ `
-    float seg(vec2 p, vec2 a, vec2 b, float ra, float rb) { vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h) - mix(ra, rb, h); }
+    float seg(vec2 p, vec2 a, vec2 b, float ra, float rb) { vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h) - mix(ra, rb, h) * 2.2 - 0.002; }
     void surface(vec2 uv, inout Surface s) {
       vec2 p = uv;
       p += 0.006 * vec2(fbm(p * 8.0, vec2(8.0), 3), fbm(p * 8.0 + 3.0, vec2(8.0), 3));
