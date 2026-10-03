@@ -7,7 +7,8 @@ import { rng } from './lib.js';
  * roots, and fine twig tips that read as lace against the sky.
  * Returns one merged BufferGeometry (position/normal/uv) per tree.
  */
-export function gnarledTree({ seed = 1, height = 9, spread = 1, trunkR = 0.45, depth = 5, lean = 0, twigs = true, droop = 0.25 } = {}) {
+export function gnarledTree({ seed = 1, height = 9, spread = 1, trunkR = 0.45, depth = 5, lean = 0, twigs = true, droop = 0.25, reach = null, reachW = 0.8, leanZ = 0 } = {}) {
+  const reachV = reach ? new THREE.Vector3(...reach).normalize() : null;
   const R = rng(seed);
   const pos = [], nor = [], uv = [], idx = [];
   const up = new THREE.Vector3(0, 1, 0);
@@ -94,6 +95,8 @@ export function gnarledTree({ seed = 1, height = 9, spread = 1, trunkR = 0.45, d
       // bias outward from trunk & horizontal (oak crown spreads wide)
       const radial2 = new THREE.Vector3(at.x, 0, at.z).normalize();
       if (level <= 1 && radial2.lengthSq() > 0) out.addScaledVector(radial2, 0.6).normalize();
+      // limbs reach one way (toward the house / across the frame)
+      if (reachV && level <= 2) out.addScaledVector(reachV, reachW * (level === 0 ? 1.0 : 0.6)).normalize();
       const ang = (level === 0 ? 0.75 : 0.55) + R() * 0.45;
       const cd = pd.clone().multiplyScalar(Math.cos(ang)).addScaledVector(out, Math.sin(ang)).normalize();
       if (level === 0) cd.y = Math.max(cd.y, 0.15 + R() * 0.3);
@@ -123,7 +126,7 @@ export function gnarledTree({ seed = 1, height = 9, spread = 1, trunkR = 0.45, d
     }
     tube(pts, radii, 6);
   }
-  const trunkDir = new THREE.Vector3(lean, 1, lean * 0.3).normalize();
+  const trunkDir = new THREE.Vector3(lean, 1, leanZ || lean * 0.3).normalize();
   branch(new THREE.Vector3(0, -0.4, 0), trunkDir, height * 0.42, trunkR, 0);
 
   const g = new THREE.BufferGeometry();

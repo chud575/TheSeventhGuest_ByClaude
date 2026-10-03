@@ -74,19 +74,23 @@ export function buildGate(ctx, M) {
     // plinth: two stepped chamfered blocks + a weathered splay
     add(new RB(1.16, 0.5, 1.16, 2, 0.04), stone, mat4(x, yb + 0.25, GATE.z));
     add(sq([[0.0, 0], [0.58, 0], [0.58, 0.03], [0.5, 0.12], [0.0, 0.12]]), stone, mat4(x, yb + 0.5, GATE.z, 0, Math.PI / 4, 0), { uv: 'box', uvScale: 1 });
-    // shaft: mortar core + rusticated courses
+    // shaft: recessed dark mortar core + small rusticated ashlar courses (alternating
+    // two- and three-stone faces so the joints break), chamfered arrises, each stone
+    // set a hair out of true
     const s0 = yb + 0.62, s1 = top - 0.32;
-    add(new THREE.BoxGeometry(0.86, s1 - s0, 0.86), mortar, mat4(x, (s0 + s1) / 2, GATE.z));
-    const nC = Math.round((s1 - s0) / 0.36);
+    add(new THREE.BoxGeometry(0.88, s1 - s0, 0.88), mortar, mat4(x, (s0 + s1) / 2, GATE.z));
+    const nC = Math.round((s1 - s0) / 0.25);
     const ch = (s1 - s0) / nC;
     for (let i = 0; i < nC; i++) {
       const cy = s0 + ch * (i + 0.5);
       const alongX = i % 2 === 0;
-      for (const k of [-1, 1]) {
-        const jx = (R() - 0.5) * 0.012, jz = (R() - 0.5) * 0.012, rr = (R() - 0.5) * 0.012;
-        const w = 0.47 - 0.012 + (R() - 0.5) * 0.01;
-        const g = alongX ? new RB(w, ch - 0.035, 0.94, 2, 0.04) : new RB(0.94, ch - 0.035, w, 2, 0.04);
-        const off = k * (0.235 + 0.003);
+      const k = (i % 4 < 2) ? 2 : 3;
+      for (let j = 0; j < k; j++) {
+        const jx = (R() - 0.5) * 0.01, jz = (R() - 0.5) * 0.01, rr = (R() - 0.5) * 0.01;
+        const w = 0.96 / k - 0.022 + (R() - 0.5) * 0.008;
+        const off = -0.48 + (j + 0.5) * (0.96 / k);
+        const proud = 0.96 + (R() - 0.5) * 0.012;
+        const g = alongX ? new RB(w, ch - 0.028, proud, 2, 0.035) : new RB(proud, ch - 0.028, w, 2, 0.035);
         add(g, stone, mat4(x + (alongX ? off : 0) + jx, cy, GATE.z + (alongX ? 0 : off) + jz, rr, rr * 0.5, -rr));
       }
     }
@@ -186,7 +190,7 @@ export function buildGate(ctx, M) {
       const u = i / nb;
       const x = dir * u * W;
       const top = topAt(u) + 0.12 + (i % 2 ? 0 : 0.1);
-      leafBars.push({ hinge, b: { x, y: 0.1, z: 0, h: top - 0.1 } });
+      leafBars.push({ hinge, b: { x: x + (R() - 0.5) * 0.022, y: 0.1, z: 0, h: top - 0.1, lean: (R() - 0.5) * 0.012 } });
       // dog bars (short pickets between bottom rails)
       L.add(new THREE.BoxGeometry(0.016, 0.26, 0.016), iron, mat4(x + dir * W / nb / 2, 0.29, 0), { uv: 'keep' });
     }

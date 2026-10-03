@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { applyBoxUVs } from '../../engine/geometry/index.js';
 import { FX_NOISE } from '../../engine/fx/noise.glsl.js';
 
@@ -15,6 +16,21 @@ const _q = new THREE.Quaternion();
 const _e = new THREE.Euler();
 const _s = new THREE.Vector3();
 const _p = new THREE.Vector3();
+
+/**
+ * Box with chamfered/rounded arrises (~2 cm, clamped for thin parts) so key and rim
+ * lights catch every edge. Cached by size.
+ */
+const _bev = new Map();
+export function bevelBox(w, h, d, r = 0.02) {
+  const m = Math.min(w, h, d);
+  const rr = Math.min(r, m * 0.3);
+  if (rr < 0.006 || Math.max(w, h, d) < 0.12) return new THREE.BoxGeometry(w, h, d);
+  const k = `${w.toFixed(4)},${h.toFixed(4)},${d.toFixed(4)},${rr.toFixed(4)}`;
+  let g = _bev.get(k);
+  if (!g) { g = new RoundedBoxGeometry(w, h, d, 1, rr); _bev.set(k, g); }
+  return g;
+}
 
 export function mat4(x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = sx, sz = sx) {
   _e.set(rx, ry, rz, 'YXZ');
@@ -49,7 +65,7 @@ export class Bucket {
     return g;
   }
   box(material, w, h, d, x, y, z, ry = 0, opts = {}) {
-    return this.add(new THREE.BoxGeometry(w, h, d), material, mat4(x, y, z, opts.rx || 0, ry, opts.rz || 0), opts);
+    return this.add(opts.sharp ? new THREE.BoxGeometry(w, h, d) : bevelBox(w, h, d, opts.bevel ?? 0.02), material, mat4(x, y, z, opts.rx || 0, ry, opts.rz || 0), opts);
   }
   build(parent, { cast = true, receive = true, name = 'merged' } = {}) {
     const out = [];
@@ -146,13 +162,22 @@ vec4 hfogEval(vec3 camPos, vec3 wpos) {
  */
 function rimChunk(m) {
   if (!m.userData.rim) return '';
-  return `{ vec3 rn = normalize(normal); vec3 rv = normalize(vViewPosition);
+  const tip = m.userData.rimTip;
+  const tipTerm = tip ? `#ifdef USE_MAP
+  float rtip = smoothstep(0.45, 1.0, vMapUv.y);
+#else
+  float rtip = 1.0;
+#endif
+` : 'float rtip = 1.0;\n';
+  const mul = tip ? '(diffuseColor.rgb * 2.5) * rtip' : '(0.25 + diffuseColor.rgb * 2.0)';
+  return `{
+${tipTerm} vec3 rn = normalize(normal); vec3 rv = normalize(vViewPosition);
   vec3 rl = normalize((viewMatrix * vec4(uRimDir, 0.0)).xyz);
   float ndv = clamp(dot(rn, rv), 0.0, 1.0);
   float fr = pow(1.0 - ndv, 3.0);
   float face = smoothstep(-0.15, 0.55, dot(rn, rl));
   float back = 0.35 + 0.65 * clamp(-dot(rv, rl) * 0.5 + 0.5, 0.0, 1.0);
-  gl_FragColor.rgb += uRimColor * (fr * face * back * uRimStrength * ${Number(m.userData.rim).toFixed(3)}) * (0.25 + diffuseColor.rgb * 2.0); }\n`;
+  gl_FragColor.rgb += uRimColor * (fr * face * back * uRimStrength * ${Number(m.userData.rim).toFixed(3)}) * ${mul}; }\n`;
 }
 /** Ground grime: darken + green the bottom of a surface (moss, rising damp) between world y0 and y0+h. */
 function grimeChunk(m) {
@@ -191,7 +216,7 @@ export function patchFog(material, U) {
   };
   const key = material.customProgramCacheKey?.bind(material);
   const ud = material.userData;
-  material.customProgramCacheKey = () => (key ? key() : '') + '|hfog' + (ud.groundShade ? 'g' : '') + (ud.rim ? `r${ud.rim}` : '') + (ud.grime ? `m${ud.grime.y0},${ud.grime.h},${ud.grime.moss ?? 1}` : '');
+  material.customProgramCacheKey = () => (key ? key() : '') + '|hfog' + (ud.groundShade ? 'g' : '') + (ud.rim ? `r${ud.rim}${ud.rimTip ? 't' : ''}` : '') + (ud.grime ? `m${ud.grime.y0},${ud.grime.h},${ud.grime.moss ?? 1}` : '');
   material.needsUpdate = true;
   return material;
 }

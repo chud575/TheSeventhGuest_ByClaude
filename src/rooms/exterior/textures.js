@@ -9,43 +9,46 @@ export function makeTextures(ctx) {
   const T = ctx.textures;
   const big = ctx.quality.textureSize >= 2048 ? 2048 : 1024;
 
-  // Clapboard siding: 1 tile = 2 m x 2 m, 12 boards. Dark blue-grey paint, weathered,
-  // peeling to silver wood, rain streaks below sills.
-  const siding = T.generate('ext:siding2', {
-    size: big, normalStrength: 3.0,
+  // Clapboard siding: 1 tile = 2 m x 2 m, 15 boards. Deep grey-green paint gone chalky,
+  // darker in the lap shadows, long rain streaks running down from above, a little
+  // mildew low on the boards. No peel speckle: wear lives in low-frequency fields.
+  const siding = T.generate('ext:siding3', {
+    size: big, normalStrength: 3.2,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
-  float boards = 12.0;
+  float boards = 15.0;
   float by = uv.y * boards;
   float row = floor(by);
-  float f = fract(by);                 // 0 bottom edge .. 1 top (under next board)
-  // board profile: thick bottom edge, thin top; shadow line under each lap
-  float prof = 0.55 + 0.45 * (1.0 - f);
-  float lap = smoothstep(0.0, 0.06, f);
-  // board butt joints, staggered
-  float jx = uv.x * 2.0 + hash11(row) * 1.0;
-  float joint = smoothstep(0.004, 0.0, abs(fract(jx) - 0.5) - 0.0) ;
-  float grain = fbm(vec2(uv.x * 1.0, uv.y * 24.0) + vec2(row * 0.37, 0.0), vec2(4.0, 96.0), 5);
-  float n = fbm(uv, vec2(6.0), 6) * 0.5 + 0.5;
-  vec3 paint = vec3(0.17, 0.19, 0.235) * (0.85 + 0.3 * hash11(row * 3.1));
-  paint *= 0.88 + 0.24 * n;
-  vec3 wood = vec3(0.34, 0.33, 0.31) * (0.8 + 0.3 * grain);
-  // peeling: patches of exposed weathered wood with flaky edges
-  float peelN = fbm(uv * vec2(1.0, 1.0) + 7.3, vec2(5.0), 6) * 0.5 + 0.5;
-  float peel = smoothstep(0.66, 0.70, peelN + grain * 0.08);
-  float peelEdge = smoothstep(0.62, 0.66, peelN + grain * 0.08) - peel;
-  // vertical grime streaks
-  float streak = fbm(vec2(uv.x * 16.0, uv.y * 0.6), vec2(32.0, 2.0), 4) * 0.5 + 0.5;
-  vec3 col = mix(paint, wood, peel);
-  col = mix(col, col * 1.25 + 0.03, peelEdge * 0.8);
-  col *= 0.75 + 0.35 * smoothstep(0.2, 0.8, streak);
-  col *= mix(0.45, 1.0, lap);
-  col *= 1.0 - joint * 0.5;
+  float f = fract(by);                 // 0 bottom (butt edge) .. 1 top (under the next board)
+  float lap = smoothstep(0.0, 0.09, f);
+  float prof = 1.0 - f * 0.85;         // wedge profile: thick butt, thin top
+  float jx = uv.x * 1.5 + hash11(row * 1.7 + 0.3);
+  float joint = 1.0 - smoothstep(0.0, 0.0035, abs(fract(jx) - 0.5));
+  float grain = fbm(vec2(uv.x, uv.y) + vec2(row * 0.37, 0.0), vec2(3.0, 150.0), 4) * 0.5 + 0.5;
+  float n = fbm(uv, vec2(3.0), 6) * 0.5 + 0.5;
+  float n2 = fbm(uv + 3.7, vec2(9.0), 5) * 0.5 + 0.5;
+  vec3 paint = vec3(0.205, 0.235, 0.215) * (0.92 + 0.16 * hash11(row * 3.1)) * (0.86 + 0.26 * n);
+  // chalky bloom on the exposed board faces
+  paint = mix(paint, vec3(0.30, 0.32, 0.30), smoothstep(0.55, 0.85, n2) * 0.35 * lap);
+  // rain streaks: narrow vertical runs, strongest where water comes off the lap above
+  float st = fbm(uv + vec2(0.0, 0.31), vec2(26.0, 1.0), 4) * 0.5 + 0.5;
+  float st2 = fbm(uv + vec2(0.5, 0.0), vec2(61.0, 2.0), 3) * 0.5 + 0.5;
+  float streak = smoothstep(0.52, 0.8, st) * (0.6 + 0.4 * st2);
+  vec3 col = paint * (1.0 - streak * 0.45);
+  // mildew: greenish-black blooms
+  float mil = smoothstep(0.62, 0.8, fbm(uv + 9.1, vec2(4.0), 5) * 0.5 + 0.5);
+  col = mix(col, vec3(0.06, 0.075, 0.055), mil * 0.5);
+  // worn butt edges catch light: slightly paler, rougher
+  float edge = smoothstep(0.12, 0.02, f) * lap;
+  col = mix(col, col * 1.35 + 0.015, edge * 0.5 * (0.5 + 0.5 * n2));
+  col *= mix(0.32, 1.0, lap);
+  col *= 1.0 - joint * 0.6;
+  col *= 0.96 + 0.08 * grain;
   s.albedo = col;
-  s.height = prof * lap * 0.8 + grain * 0.03 + (1.0 - peel) * 0.03 - joint * 0.1;
-  s.rough = mix(0.62, 0.9, peel) + streak * 0.05;
+  s.height = prof * lap * 0.85 + grain * 0.015 - joint * 0.12;
+  s.rough = 0.58 + 0.25 * streak + 0.12 * n2 + mil * 0.1;
   s.metal = 0.0;
-  s.ao = mix(0.35, 1.0, lap) * (1.0 - joint * 0.4);
+  s.ao = mix(0.3, 1.0, lap) * (1.0 - joint * 0.5);
 }` });
 
   // Slate roof: alternating bands of fish-scale and square slates (classic Second Empire
@@ -227,38 +230,97 @@ void surface(vec2 uv, inout Surface s) {
   s.ao = mix(0.4, 1.0, chisel);
 }` });
 
-  // Painted trim wood (bargeboards, columns, casings): worn light-grey paint over wood.
-  const trim = T.generate('ext:trim2', {
-    size: 512, normalStrength: 1.5,
+  // Painted trim wood (bargeboards, casings, cornices): bone-white lead paint gone grey
+  // with grime, darker in long vertical runs and soft blotches, fine grain showing
+  // through, no speckles. Lighter than the body so the trim reads as trim.
+  const trim = T.generate('ext:trim3', {
+    size: 1024, normalStrength: 1.6,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
-  float grain = fbm(vec2(uv.x * 2.0, uv.y * 30.0), vec2(4.0, 60.0), 5) * 0.5 + 0.5;
-  float n = fbm(uv, vec2(6.0), 5) * 0.5 + 0.5;
-  float peel = smoothstep(0.66, 0.7, fbm(uv + 2.0, vec2(5.0), 6) * 0.5 + 0.5 + grain * 0.05);
-  vec3 paint = vec3(0.36, 0.37, 0.39) * (0.85 + 0.25 * n);
-  vec3 wood = vec3(0.2, 0.18, 0.16) * (0.7 + 0.5 * grain);
-  vec3 col = mix(paint, wood, peel);
-  col *= 0.8 + 0.3 * smoothstep(0.2, 0.9, fbm(vec2(uv.x * 10.0, uv.y * 0.5), vec2(20.0, 1.0), 4) * 0.5 + 0.5);
+  float grain = fbm(uv, vec2(3.0, 60.0), 5) * 0.5 + 0.5;
+  float n = fbm(uv, vec2(3.0), 6) * 0.5 + 0.5;
+  float n2 = fbm(uv + 5.3, vec2(8.0), 5) * 0.5 + 0.5;
+  vec3 paint = vec3(0.50, 0.49, 0.455) * (0.88 + 0.2 * n);
+  float st = fbm(uv + vec2(0.13, 0.0), vec2(14.0, 1.0), 4) * 0.5 + 0.5;
+  float streak = smoothstep(0.5, 0.82, st);
+  vec3 col = paint * (1.0 - streak * 0.4);
+  float grime = smoothstep(0.45, 0.85, n2);
+  col = mix(col, vec3(0.17, 0.165, 0.15), grime * 0.45);
+  // alligatored paint: faint crazing lines
+  float craze = voronoiEdge(uv * 6.0, vec2(6.0, 6.0) * 1.0, 0.9);
+  float crack = 1.0 - smoothstep(0.0, 0.03, craze);
+  col *= 1.0 - crack * 0.11 * (0.4 + n2);
+  col *= 0.94 + 0.12 * grain;
   s.albedo = col;
-  s.height = (1.0 - peel) * 0.08 + grain * 0.04;
-  s.rough = mix(0.6, 0.85, peel);
+  s.height = grain * 0.05 - crack * 0.04 + n * 0.03;
+  s.rough = 0.5 + 0.3 * streak + 0.15 * grime;
+  s.metal = 0.0;
+  s.ao = 1.0 - crack * 0.25;
+}` });
+
+  // Varnished front-door wood: dark mahogany, straight quartersawn grain with ray fleck,
+  // a little crazing in the old varnish, worn paler near the edges. Glossy (0.35-0.5).
+  const doorWood = T.generate('ext:doorWood2', {
+    size: 1024, normalStrength: 1.2,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  // grain runs along v (door leaves are tall); warped growth lines, not stripes
+  float w = fbm(uv, vec2(3.0, 1.0), 4);
+  float lines = fbm(vec2(uv.x + w * 0.08, uv.y * 0.05), vec2(24.0, 1.0), 4) * 0.5 + 0.5;
+  float fine = fbm(uv, vec2(60.0, 4.0), 3) * 0.5 + 0.5;
+  float fleck = smoothstep(0.78, 0.92, fbm(uv + 2.0, vec2(40.0, 6.0), 3) * 0.5 + 0.5);
+  vec3 a = vec3(0.13, 0.055, 0.03), b = vec3(0.24, 0.11, 0.055);
+  vec3 col = mix(a, b, smoothstep(0.3, 0.75, lines) * 0.7 + fine * 0.3);
+  col = mix(col, vec3(0.3, 0.16, 0.08), fleck * 0.25);
+  float n = fbm(uv + 7.0, vec2(3.0), 4) * 0.5 + 0.5;
+  col *= 0.85 + 0.3 * n;
+  float craze = 1.0 - smoothstep(0.0, 0.015, voronoiEdge(uv * 12.0, vec2(12.0), 0.9));
+  col *= 1.0 - craze * 0.15;
+  s.albedo = col;
+  s.height = lines * 0.03 + fine * 0.02 - craze * 0.02;
+  s.rough = 0.34 + 0.16 * n + craze * 0.15;
   s.metal = 0.0;
   s.ao = 1.0;
 }` });
 
-  // Cast iron: pitted, rusty in crevices.
-  const iron = T.generate('ext:iron2', {
-    size: 512, normalStrength: 1.2,
+  // Worn bluestone step treads / porch stone: paler, polished in the walking line,
+  // chipped darker arrises, damp at the risers. 1 tile = 1 m.
+  const stepStone = T.generate('ext:stepStone1', {
+    size: 1024, normalStrength: 2.4,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  float n = fbm(uv, vec2(4.0), 6) * 0.5 + 0.5;
+  float n2 = fbm(uv + 2.3, vec2(16.0), 5) * 0.5 + 0.5;
+  float pits = smoothstep(0.66, 0.82, fbm(uv + 4.4, vec2(48.0), 4) * 0.5 + 0.5);
+  vec3 col = mix(vec3(0.33, 0.33, 0.32), vec3(0.50, 0.49, 0.46), n) * (0.88 + 0.2 * n2);
+  float lich = smoothstep(0.66, 0.8, fbm(uv + 8.8, vec2(6.0), 5) * 0.5 + 0.5);
+  col = mix(col, vec3(0.42, 0.45, 0.36), lich * 0.4);
+  float stain = smoothstep(0.5, 0.9, fbm(uv + 1.1, vec2(3.0, 1.0), 4) * 0.5 + 0.5);
+  col *= 1.0 - stain * 0.35;
+  col *= 1.0 - pits * 0.4;
+  s.albedo = col;
+  s.height = 0.5 + n * 0.2 + n2 * 0.08 - pits * 0.2;
+  s.rough = 0.62 + 0.22 * n2 + pits * 0.1 - (1.0 - stain) * 0.08;
+  s.metal = 0.0;
+  s.ao = 1.0 - pits * 0.3;
+}` });
+
+  // Cast iron: black-lead paint over pitted iron, rust blooms and long orange-brown
+  // rust runs bleeding down from joints (vertical streaks), a little raised scale.
+  const iron = T.generate('ext:iron3', {
+    size: 512, normalStrength: 1.4,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   float n = fbm(uv, vec2(8.0), 6) * 0.5 + 0.5;
-  float rust = smoothstep(0.58, 0.78, fbm(uv + 3.0, vec2(6.0), 6) * 0.5 + 0.5);
-  vec3 col = mix(vec3(0.035, 0.035, 0.04), vec3(0.07, 0.068, 0.07), n);
-  col = mix(col, vec3(0.2, 0.09, 0.04), rust * 0.7);
+  float rust = smoothstep(0.6, 0.8, fbm(uv + 3.0, vec2(6.0), 6) * 0.5 + 0.5);
+  float run = smoothstep(0.55, 0.85, fbm(uv + 1.7, vec2(18.0, 1.0), 4) * 0.5 + 0.5) * (0.5 + 0.5 * n);
+  vec3 col = mix(vec3(0.03, 0.03, 0.034), vec3(0.075, 0.072, 0.075), n);
+  col = mix(col, vec3(0.16, 0.075, 0.035), run * 0.55);
+  col = mix(col, vec3(0.22, 0.10, 0.045), rust * 0.75);
   s.albedo = col;
-  s.height = n * 0.3 + rust * 0.1;
-  s.rough = mix(0.45, 0.9, rust);
-  s.metal = mix(0.85, 0.2, rust);
+  s.height = n * 0.3 + rust * 0.15;
+  s.rough = mix(0.42, 0.92, max(rust, run * 0.7));
+  s.metal = mix(0.8, 0.15, max(rust, run * 0.6));
   s.ao = 1.0;
 }` });
 
@@ -346,7 +408,7 @@ void surface(vec2 uv, inout Surface s) {
   s.ao = 1.0;
 }` });
 
-  return { siding, slate, bark, ground, path, ashlar, trim, iron, rock, limestone, granite };
+  return { siding, slate, bark, ground, path, ashlar, trim, iron, rock, limestone, granite, doorWood, stepStone };
 }
 
 /** Build a MeshStandardMaterial from a forge TextureSet. */

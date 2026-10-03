@@ -30,8 +30,8 @@ function drawMedallion(g, S, mode) {
   const C = S / 2;
   const k = S / (2 * OUTER);
   const H = mode === 'height';
-  const gold = H ? '#ffffff' : '#c99a45';
-  const goldDark = H ? '#b0b0b0' : '#8a6328';
+  const gold = H ? '#ffffff' : '#9a7740';
+  const goldDark = H ? '#b0b0b0' : '#5f4524';
   g.fillStyle = H ? '#383838' : '#16130f';
   g.fillRect(0, 0, S, S);
   // hammered iron texture
@@ -151,9 +151,10 @@ export function createMedallion(ctx) {
   const colorTex = ctx.textures.canvas('ext:medallion:c2', S, S, draw('color'), { tile: false });
   const bumpTex = ctx.textures.canvas('ext:medallion:h2', S, S, draw('height'), { srgb: false, tile: false });
   const mat = new THREE.MeshStandardMaterial({
-    map: colorTex, bumpMap: bumpTex, bumpScale: 2.0, metalness: 0.75, roughness: 0.42, name: 'medallion', envMapIntensity: 1.4,
+    map: colorTex, bumpMap: bumpTex, bumpScale: 2.0, metalness: 0.6, roughness: 0.5, name: 'medallion', envMapIntensity: 1.0,
     emissive: new THREE.Color(1.0, 0.7, 0.3), emissiveMap: colorTex, emissiveIntensity: 0,
   });
+  mat.userData.rim = 0.9;   // cool moon rim on the ring edges (exterior fog patch picks it up)
   const group = new THREE.Group();
   group.name = 'medallion';
   // backing plate (fixed frame + boss)

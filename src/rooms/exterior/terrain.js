@@ -38,7 +38,7 @@ const pathSamples = pathCurve.getSpacedPoints(400);
 function baseHeight(x, z) {
   const d = Math.hypot(x * 0.92, z * 0.95);
   const s = Math.max(0, d - 12.5);
-  let h = -(s * s / (s + 5)) * 0.2;
+  let h = -(s * s / (s + 5)) * 0.29;
   // ridge running down to the gate, valleys either side
   h += -Math.max(0, Math.abs(x) - 10) * 0.035 * Math.min(1, Math.max(0, z - 10) / 20);
   // rolling noise (suppressed on the plateau)
@@ -216,8 +216,11 @@ export function buildGrass({ material, regions, count = 5000, seed = 5, avoid = 
   const m = instanced(geo, material, mats, { cast: false, receive: true, name: 'grass' });
   const c = new THREE.Color();
   for (let i = 0; i < mats.length; i++) {
-    const v = 0.35 + Math.pow(R(), 1.5) * 1.1;
-    c.setRGB(v * (1.0 + R() * 0.15), v * 0.96, v * (0.72 + R() * 0.2));
+    const v = 0.3 + Math.pow(R(), 1.4) * 0.55;
+    const k = R();
+    if (k < 0.5) c.setRGB(v * 1.0, v * 0.84, v * 0.52);        // ochre straw
+    else if (k < 0.85) c.setRGB(v * 0.8, v * 0.8, v * 0.52);   // olive
+    else c.setRGB(v * 1.15, v * 1.02, v * 0.78);               // bleached
     m.setColorAt(i, c);
   }
   m.instanceColor.needsUpdate = true;
@@ -328,11 +331,12 @@ export function buildBladeGrass({ material, regions, count = 6000, seed = 21, av
         new THREE.Vector3(s * (0.8 + R() * 0.5), s * (0.85 + dens * 0.5) * sc, s * (0.8 + R() * 0.5)),
       ));
       // olive-grey dead straw, some greener, some bleached
-      const v = (0.55 + R() * 0.55) * 0.55;
+      // dead ochre / olive straw (linear ~0.12-0.18 at the tips), per-clump variation
+      const v = 0.75 + R() * 0.55;
       const g = R();
-      if (g < 0.25) c.setRGB(0.20 * v, 0.215 * v, 0.15 * v);
-      else if (g < 0.85) c.setRGB(0.27 * v, 0.26 * v, 0.19 * v);
-      else c.setRGB(0.36 * v, 0.34 * v, 0.27 * v);
+      if (g < 0.3) c.setRGB(0.1 * v, 0.1 * v, 0.055 * v);         // olive
+      else if (g < 0.85) c.setRGB(0.14 * v, 0.11 * v, 0.06 * v);   // ochre
+      else c.setRGB(0.18 * v, 0.15 * v, 0.1 * v);                  // bleached
       cols[ti].push(c.clone());
       placed++;
     }

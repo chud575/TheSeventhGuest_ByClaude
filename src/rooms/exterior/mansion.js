@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { Bucket, mat4, instanced, rng } from './lib.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { Bucket, mat4, instanced, rng, bevelBox } from './lib.js';
 import { WindowKit, bracketGeometry, archBand } from './windows.js';
 
 /**
@@ -145,6 +146,27 @@ export function buildMansion(ctx, M) {
   bracketRow(MB.x1 + 0.05, MB.z0, MB.x1 + 0.05, MB.z1 - 2.2, TOP + 0.02, 1, 0, 1.15);
   bracketRow(MB.x0, MB.z0 - 0.05, MB.x1, MB.z0 - 0.05, TOP + 0.02, 0, -1, 1.15);
 
+  // rain runs down the clapboard from the frieze and belt courses
+  {
+    const run = (xa, xb, y, z, ry, hmin, hmax, sx = 1) => {
+      const n = Math.max(1, Math.round(Math.abs(xb - xa) / 1.5));
+      for (let i = 0; i < n; i++) {
+        const t = (i + 0.5) / n;
+        const u = xa + (xb - xa) * t + (R() - 0.5) * 0.4;
+        const m = ry ? mat4(z, y, u, 0, ry, 0) : mat4(u, y, z, 0, 0, 0);
+        win.streak(m, 1.5 + R() * 0.8, hmin + R() * (hmax - hmin));
+      }
+    };
+    run(MB.x0 + 0.3, TOWER.x0 - 0.2, TOP - 0.71, MB.z1 + 0.012, 0, 1.2, 2.6);
+    run(TOWER.x1 + 0.2, MB.x1 - 0.3, TOP - 0.71, MB.z1 + 0.012, 0, 1.2, 2.6);
+    run(MB.x0 + 0.3, TOWER.x0 - 0.2, FL2 - 0.13, MB.z1 + 0.012, 0, 0.6, 1.6);
+    run(TOWER.x1 + 0.2, MB.x1 - 0.3, FL2 - 0.13, MB.z1 + 0.012, 0, 0.6, 1.6);
+    run(TOWER.x0 + 0.3, TOWER.x1 - 0.3, TOWER.top - 0.71, TOWER.z1 + 0.012, 0, 1.4, 2.8);
+    run(TOWER.x0 + 0.3, TOWER.x1 - 0.3, TOP - 0.13, TOWER.z1 + 0.012, 0, 0.8, 1.8);
+    run(MB.z1 - 0.3, MB.z0 + 0.3, TOP - 0.71, MB.x0 - 0.012, -Math.PI / 2, 1.2, 2.6);
+    run(MB.z1 - 0.3, MB.z0 + 0.3, FL2 - 0.13, MB.x0 - 0.012, -Math.PI / 2, 0.6, 1.6);
+  }
+
   // ------------------------------------------------------------------ main mansard + dormers
   const mtop = mansard(MB.x0 - ov + 0.1, MB.x1 + ov - 0.1, MB.z0 - ov + 0.1, MB.z1 + ov - 0.1, TOP + 0.46, 3.7, 1.15);
   // curb moulding at the top of the mansard + upper low hip
@@ -163,16 +185,16 @@ export function buildMansion(ctx, M) {
     crestRail(x0 + 0.1, x1 - 0.1, z0 + 0.1, z1 - 0.1, yb);
   }
   // dormers on the mansard
-  const dormer = (x, z, ry, lit = 0) => {
+  const dormer = (x, z, ry, lit = 0, tint = 0, flicker = 0) => {
     const yb = TOP + 0.75;
     const w = 0.95, h = 1.75;
     const base = mat4(x, 0, z, 0, ry, 0);
     const put = (g, mat, lx, ly, lz, opts = { uvScale: 1 }) => B.add(g, mat, base.clone().multiply(mat4(lx, ly, lz)), opts);
     const dw = 1.7, dd = 1.6, dh = 2.55;
     // cheeks + face (in local: face at lz = 0, extending back -dd)
-    put(new THREE.BoxGeometry(dw, dh, dd), M.trim, 0, yb + dh / 2, -dd / 2 + 0.02);
+    put(bevelBox(dw, dh, dd), M.trim, 0, yb + dh / 2, -dd / 2 + 0.02);
     // pilasters
-    for (const sx of [-1, 1]) put(new THREE.BoxGeometry(0.2, dh, 0.1), M.trim, sx * (dw / 2 - 0.1), yb + dh / 2, 0.06);
+    for (const sx of [-1, 1]) put(bevelBox(0.2, dh, 0.1), M.trim, sx * (dw / 2 - 0.1), yb + dh / 2, 0.06);
     // arched hood (segmental roof)
     const hood = archBand(dw + 0.3, 0.55, 0.16, dd + 0.4, 16);
     put(hood, M.slateDark, 0, yb + dh - 0.02, -dd - 0.1, { uvScale: 1 });
@@ -188,10 +210,10 @@ export function buildMansion(ctx, M) {
     put(new THREE.ShapeGeometry(cap, 16), M.trim, 0, yb + dh - 0.02, 0.14);
     put(archBand(dw + 0.42, 0.62, 0.08, 0.12, 16), M.trim, 0, yb + dh - 0.06, 0.1);
     fill.dispose();
-    win.add({ x: x + Math.sin(ry) * 0.11, y: yb + 0.35, z: z + Math.cos(ry) * 0.11, ry, w, h, type: 'round', lit, panes: 2 });
+    win.add({ x: x + Math.sin(ry) * 0.11, y: yb + 0.35, z: z + Math.cos(ry) * 0.11, ry, w, h, type: 'round', lit, tint, flicker, panes: 2, streak: false });
   };
   const dz = MB.z1 + ov - 0.1 - 0.45;
-  dormer(-7.0, dz, 0, 0); dormer(-4.4, dz, 0, 0.0); dormer(3.6, dz, 0, 0.75);
+  dormer(-7.0, dz, 0, 0); dormer(-4.4, dz, 0, 0.0); dormer(3.6, dz, 0, 0.8, 1.0, 1);
   const dxL = MB.x0 - ov + 0.1 + 0.45, dxR = MB.x1 + ov - 0.1 - 0.45;
   dormer(dxL, -3.6, -Math.PI / 2); dormer(dxL, 0, -Math.PI / 2); dormer(dxL, 3.2, -Math.PI / 2, 0.4);
   dormer(dxR, 0.4, Math.PI / 2);
@@ -275,7 +297,7 @@ export function buildMansion(ctx, M) {
     // turret windows (facing outwards on the visible arc)
     for (const [a, lit] of [[0.25, 0.0], [1.0, 0.0], [1.75, 0]]) {
       for (const [y, h, type, l] of [[F + 0.85, 2.5, 'seg', lit], [FL2 + 0.8, 2.3, 'flat', a === 1.0 ? 0.9 : 0], [TOP + 0.75, 2.0, 'round', 0]]) {
-        win.add({ x: T.x + Math.sin(a) * (T.r - 0.01), y, z: T.z + Math.cos(a) * (T.r - 0.01), ry: a, w: 0.95, h, type, lit: l });
+        win.add({ x: T.x + Math.sin(a) * (T.r - 0.01), y, z: T.z + Math.cos(a) * (T.r - 0.01), ry: a, w: 0.95, h, type, lit: l, tint: 0.45, streak: false });
       }
     }
   }
@@ -287,17 +309,17 @@ export function buildMansion(ctx, M) {
     const y1 = TOP - 0.7;
     // centre face
     wallBox(cx - w1 / 2, cx + w1 / 2, F, y1, z0, z0 + d);
-    B.add(new THREE.BoxGeometry(w1 + 0.3, F, d + 0.15), M.ashlar, mat4(cx, F / 2, z0 + d / 2 + 0.05), { uvScale: 0.5 });
+    B.add(bevelBox(w1 + 0.3, F, d + 0.15), M.ashlar, mat4(cx, F / 2, z0 + d / 2 + 0.05), { uvScale: 0.5 });
     // angled faces
     const ang = Math.atan2(d, (w0 - w1) / 2);
     const sl = Math.hypot(d, (w0 - w1) / 2);
     for (const s of [-1, 1]) {
       const mx = cx + s * (w1 / 2 + (w0 - w1) / 4), mz = z0 + d / 2;
-      B.add(new THREE.BoxGeometry(sl, y1 - F, 0.3), M.siding, mat4(mx, (F + y1) / 2, mz - 0.1, 0, s * ang, 0), { uvScale: 0.5 });
-      B.add(new THREE.BoxGeometry(sl, F, 0.4), M.ashlar, mat4(mx, F / 2, mz - 0.1, 0, s * ang, 0), { uvScale: 0.5 });
+      B.add(bevelBox(sl, y1 - F, 0.3), M.siding, mat4(mx, (F + y1) / 2, mz - 0.1, 0, s * ang, 0), { uvScale: 0.5 });
+      B.add(bevelBox(sl, F, 0.4), M.ashlar, mat4(mx, F / 2, mz - 0.1, 0, s * ang, 0), { uvScale: 0.5 });
       for (const [y, h, type] of [[F + 0.85, 2.45, 'seg'], [FL2 + 0.8, 2.25, 'flat']]) win.add({ x: mx + s * Math.sin(ang) * 0.06, y, z: mz + Math.cos(ang) * 0.06, ry: s * ang, w: 0.72, h, type, lit: 0 });
     }
-    for (const [y, h, type, lit] of [[F + 0.85, 2.45, 'seg', 0.85], [FL2 + 0.8, 2.25, 'flat', 0]]) win.add({ x: cx, y, z: z0 + d, w: 1.2, h, type, lit });
+    for (const [y, h, type, lit] of [[F + 0.85, 2.45, 'seg', 0.9], [FL2 + 0.8, 2.25, 'flat', 0]]) win.add({ x: cx, y, z: z0 + d, w: 1.2, h, type, lit, tint: 0.0, flicker: lit ? 1 : 0 });
     // bay belt + cornice & small roof
     tbox(w1 + 0.2, 0.24, 0.16, cx, FL2, z0 + d + 0.02);
     tbox(w1 + 0.5, 0.14, 0.5, cx, y1 + 0.07, z0 + d + 0.1);
@@ -324,7 +346,7 @@ export function buildMansion(ctx, M) {
   }
   // tower windows: paired round-headed on 2nd floor, tall round-headed on 3rd
   for (const x of [-0.62, 0.62]) win.add({ x, y: FL2 + 0.8, z: TOWER.z1, w: 0.9, h: 2.5, type: 'round', lit: 0.0 });
-  win.add({ x: 0, y: TOP + 0.75, z: TOWER.z1, w: 1.1, h: 2.7, type: 'round', lit: 1.0, tint: 0.4 });
+  win.add({ x: 0, y: TOP + 0.75, z: TOWER.z1, w: 1.1, h: 2.7, type: 'round', lit: 1.0, tint: 0.55 });
   for (const s of [-1, 1]) {
     win.add({ x: s > 0 ? TOWER.x1 : TOWER.x0, y: TOP + 0.75, z: (TOWER.z0 + TOWER.z1) / 2 + 0.5, ry: s * Math.PI / 2, w: 0.9, h: 2.4, type: 'round', lit: 0 });
   }
@@ -351,11 +373,11 @@ export function buildMansion(ctx, M) {
     }
     // transom fanlight (lit)
     const tw = DOOR.w + 0.84;
-    win.shape(new THREE.CircleGeometry(0.5, 32, 0, Math.PI), mat4(0, F + DOOR.h + 0.05, z + 0.01, 0, 0, 0, tw, tw, 1), 0.55);
+    win.shape(new THREE.CircleGeometry(0.5, 32, 0, Math.PI), mat4(0, F + DOOR.h + 0.05, z + 0.01, 0, 0, 0, tw, tw, 1), 0.38);
     tbox(tw + 0.1, 0.1, 0.1, 0, F + DOOR.h + 0.05, z + 0.05, 0, M.sash);
     for (let i = 1; i < 6; i++) {
       const a = (i / 6) * Math.PI;
-      B.add(new THREE.BoxGeometry(0.03, tw / 2, 0.04), M.sash, mat4(Math.cos(a) * tw / 4, F + DOOR.h + 0.1 + Math.sin(a) * tw / 4, z + 0.04, 0, 0, a - Math.PI / 2), { uvScale: 1 });
+      B.add(bevelBox(0.03, tw / 2, 0.04), M.sash, mat4(Math.cos(a) * tw / 4, F + DOOR.h + 0.1 + Math.sin(a) * tw / 4, z + 0.04, 0, 0, a - Math.PI / 2), { uvScale: 1 });
     }
     B.add(archBand(tw - 0.02, tw / 2 - 0.01, 0.1, 0.12, 24), M.trim, mat4(0, F + DOOR.h + 0.08, z), { uvScale: 1 });
     // door leaves (separate group so they can swing open)
@@ -373,7 +395,7 @@ export function buildMansion(ctx, M) {
       }
       const knob = new THREE.Mesh(new THREE.SphereGeometry(0.04, 16, 12), M.brass);
       knob.position.set(-s * (leafW / 2 - 0.1), 1.05, 0.08); leaf.add(knob);
-      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.26, 0.01), M.brass);
+      const plate = new THREE.Mesh(bevelBox(0.07, 0.26, 0.01), M.brass);
       plate.position.set(-s * (leafW / 2 - 0.1), 1.05, 0.04); leaf.add(plate);
       if (s > 0) {
         // knocker ring
@@ -396,15 +418,17 @@ export function buildMansion(ctx, M) {
     const P = PORCH;
     // deck + skirt
     wallBox(P.x0, P.x1, 0, F - 0.02, MB.z1, P.z1, M.ashlar, 0.5);
-    B.add(new THREE.BoxGeometry(P.x1 - P.x0 + 0.1, 0.06, P.z1 - MB.z1 + 0.08), M.porchFloor, mat4((P.x0 + P.x1) / 2, F - 0.02, (MB.z1 + P.z1) / 2), { uvScale: 1 });
+    B.add(bevelBox(P.x1 - P.x0 + 0.1, 0.06, P.z1 - MB.z1 + 0.08), M.porchFloor, mat4((P.x0 + P.x1) / 2, F - 0.02, (MB.z1 + P.z1) / 2), { uvScale: 1 });
     // lattice skirt panels (dark gaps)
     for (let x = P.x0 + 0.4; x < P.x1 - 0.3; x += 1.1) if (Math.abs(x) > 1.8) tbox(0.9, 0.55, 0.03, x, 0.45, P.z1 + 0.02, 0, M.sash);
-    // steps
+    // steps: worn stone treads with a projecting rounded nosing over shadowed risers
     const nSteps = 6, sh = F / nSteps, sd = 0.34;
     for (let i = 0; i < nSteps; i++) {
       const y = F - (i + 1) * sh;
-      B.add(new THREE.BoxGeometry(3.0 - i * 0.0, sh + 0.02, sd + 0.04), M.ashlar, mat4(0, y + sh / 2, P.z1 + sd * i + sd / 2), { uvScale: 0.5 });
-      B.add(new THREE.BoxGeometry(3.06, 0.035, 0.06), M.ashlar, mat4(0, y + sh + 0.0, P.z1 + sd * i + sd + 0.0), { uvScale: 0.5 });
+      const zc = P.z1 + sd * i + sd / 2;
+      B.add(bevelBox(2.96, sh - 0.045, sd + 0.02, 0.012), M.stepRiser, mat4(0, y + (sh - 0.045) / 2, zc - 0.02), { uvScale: 1 });
+      // tread slab: slightly dished and uneven (each one set by hand)
+      B.add(bevelBox(3.04, 0.07, sd + 0.05, 0.03), M.stepStone, mat4((i % 2 ? 0.01 : -0.012), y + sh - 0.03, zc + 0.02, (i % 3 - 1) * 0.004, 0, (i % 2 ? 1 : -1) * 0.003), { uvScale: 1 });
     }
     // cheek walls of the steps with newel posts
     for (const s of [-1, 1]) {
@@ -412,9 +436,9 @@ export function buildMansion(ctx, M) {
       cheek.moveTo(0, 0); cheek.lineTo(sd * nSteps + 0.2, 0); cheek.lineTo(sd * nSteps + 0.2, 0.45); cheek.lineTo(0.2, F + 0.5); cheek.lineTo(0, F + 0.5); cheek.lineTo(0, 0);
       const cg = new THREE.ExtrudeGeometry(cheek, { depth: 0.4, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 1 });
       cg.rotateY(-Math.PI / 2);
-      B.add(cg, M.ashlar, mat4(s * 1.5 + (s > 0 ? 0.4 : 0), 0, P.z1 - 0.2), { uvScale: 0.5 });
-      B.add(new THREE.BoxGeometry(0.5, 0.95, 0.5), M.ashlar, mat4(s * 1.7, 0.47, P.z1 + sd * nSteps + 0.05), { uvScale: 0.5 });
-      B.add(G.latheFromProfile([[0, 0], [0.3, 0], [0.3, 0.06], [0.24, 0.1], [0.12, 0.16], [0.16, 0.3], [0.22, 0.42], [0.18, 0.52], [0.0, 0.56]], 20), M.ashlar, mat4(s * 1.7, 0.95, P.z1 + sd * nSteps + 0.05), { uv: 'keep' });
+      B.add(cg, M.stepRiser, mat4(s * 1.5 + (s > 0 ? 0.4 : 0), 0, P.z1 - 0.2), { uvScale: 0.5 });
+      B.add(bevelBox(0.5, 0.95, 0.5, 0.03), M.stepStone, mat4(s * 1.7, 0.47, P.z1 + sd * nSteps + 0.05), { uvScale: 0.5 });
+      B.add(G.latheFromProfile([[0, 0], [0.3, 0], [0.3, 0.06], [0.24, 0.1], [0.12, 0.16], [0.16, 0.3], [0.22, 0.42], [0.18, 0.52], [0.0, 0.56]], 20), M.stepStone, mat4(s * 1.7, 0.95, P.z1 + sd * nSteps + 0.05), { uv: 'keep' });
     }
     // wrought-iron handrails up the steps: scrolled newel terminals, twisted balusters
     for (const s2 of [-1, 1]) {
@@ -447,7 +471,7 @@ export function buildMansion(ctx, M) {
     tbox(P.x1 - P.x0, 0.06, 0.2, (P.x0 + P.x1) / 2, beamY - 0.45, P.z1 - 0.2);
     for (let x = P.x0 + 0.3; x < P.x1 - 0.2; x += 0.13) spindles.push(mat4(x, beamY - 0.42, P.z1 - 0.2));
     // ceiling (beadboard) + hip roof
-    B.add(new THREE.BoxGeometry(P.x1 - P.x0 + 0.5, 0.05, P.z1 - MB.z1 + 0.4), M.trim, mat4((P.x0 + P.x1) / 2, P.roof - 0.03, (MB.z1 + P.z1) / 2 + 0.1), { uvScale: 1 });
+    B.add(bevelBox(P.x1 - P.x0 + 0.5, 0.05, P.z1 - MB.z1 + 0.4), M.trim, mat4((P.x0 + P.x1) / 2, P.roof - 0.03, (MB.z1 + P.z1) / 2 + 0.1), { uvScale: 1 });
     {
       const x0 = P.x0 - 0.35, x1 = P.x1 + 0.2, z1 = P.z1 + 0.45, zW = MB.z1, y0 = P.roof, y1 = P.roof + 1.05;
       const g = new THREE.BufferGeometry();
@@ -475,45 +499,97 @@ export function buildMansion(ctx, M) {
     tbox(0.11, 0.07, P.z1 - MB.z1 - 0.2, P.x0 + 0.2, F + 0.12, (MB.z1 + P.z1) / 2 - 0.1);
     for (let z = MB.z1 + 0.2; z < P.z1 - 0.3; z += 0.17) if (Math.abs(z - (MB.z1 + 1.6)) > 0.18) balusters.push(mat4(P.x0 + 0.2, F + 0.15, z));
   }
-  // column geometry: turned, with capital & base
-  const colGeo = G.latheFromProfile([
-    [0.0, 0], [0.17, 0], [0.17, 0.12], [0.14, 0.16], [0.14, 0.22], [0.12, 0.26], [0.11, 0.5], [0.13, 0.62], [0.09, 0.72], [0.085, 1.1], [0.1, 1.2], [0.075, 1.32],
-    [0.08, 2.5], [0.095, 2.6], [0.075, 2.7], [0.11, 2.86], [0.15, 2.95], [0.17, 3.02], [0.17, 3.1], [0.0, 3.1],
-  ], 18);
+  // column geometry: square chamfered plinth, turned shaft (vase, rings, long taper),
+  // necking rings and a turned capital under a square abacus
+  const colGeo = (() => {
+    const lathe = G.latheFromProfile([
+      [0.0, 0.3], [0.13, 0.3], [0.13, 0.34], [0.115, 0.36], [0.115, 0.4], [0.135, 0.43], [0.135, 0.46], [0.1, 0.5],
+      [0.09, 0.56], [0.115, 0.68], [0.125, 0.8], [0.11, 0.92], [0.08, 1.02], [0.095, 1.06], [0.095, 1.1], [0.075, 1.14],
+      [0.078, 1.4], [0.074, 2.3], [0.07, 2.5], [0.085, 2.54], [0.085, 2.58], [0.068, 2.62], [0.068, 2.66], [0.09, 2.7],
+      [0.12, 2.76], [0.135, 2.8], [0.135, 2.84], [0.0, 2.84],
+    ], 24).toNonIndexed();
+    const parts = [
+      new RoundedBoxGeometry(0.3, 0.3, 0.3, 1, 0.025).translate(0, 0.15, 0).toNonIndexed(),
+      new RoundedBoxGeometry(0.34, 0.06, 0.34, 1, 0.015).translate(0, 0.03, 0).toNonIndexed(),
+      new RoundedBoxGeometry(0.32, 0.14, 0.32, 1, 0.02).translate(0, 2.91, 0).toNonIndexed(),
+      new RoundedBoxGeometry(0.36, 0.06, 0.36, 1, 0.015).translate(0, 3.01, 0).toNonIndexed(),
+      lathe,
+    ];
+    for (const g of parts) for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
+    return G.mergeGeometries(parts);
+  })();
   group.add(instanced(colGeo, M.trim, columns, { name: 'columns' }));
-  const balGeo = G.latheFromProfile([[0.0, 0], [0.045, 0], [0.045, 0.06], [0.03, 0.1], [0.028, 0.18], [0.05, 0.36], [0.04, 0.5], [0.022, 0.6], [0.026, 0.68], [0.04, 0.72], [0.04, 0.76], [0.0, 0.76]], 10);
+  const balGeo = G.latheFromProfile([[0.0, 0], [0.042, 0], [0.042, 0.05], [0.032, 0.07], [0.032, 0.1], [0.026, 0.13], [0.03, 0.2], [0.048, 0.32], [0.05, 0.38], [0.04, 0.46], [0.024, 0.55], [0.021, 0.6], [0.03, 0.63], [0.03, 0.66], [0.022, 0.69], [0.04, 0.72], [0.042, 0.76], [0.0, 0.76]], 16);
   group.add(instanced(balGeo, M.trim, balusters, { name: 'balusters' }));
-  const spGeo = G.latheFromProfile([[0.0, 0], [0.018, 0], [0.012, 0.08], [0.02, 0.18], [0.012, 0.3], [0.018, 0.4], [0.0, 0.4]], 6);
+  const spGeo = G.latheFromProfile([[0.0, 0], [0.018, 0], [0.012, 0.06], [0.022, 0.14], [0.022, 0.2], [0.012, 0.3], [0.018, 0.36], [0.018, 0.4], [0.0, 0.4]], 8);
   group.add(instanced(spGeo, M.trim, spindles, { name: 'spindles', cast: false }));
-  // column brackets (fretwork corbels at the column heads)
+  // fretwork spandrel brackets: scroll-sawn quarter panel with pierced roundel and
+  // teardrop, bevelled extrusion, one each side of every column head (in the beam plane)
+  const fretGeo = (() => {
+    const L = 0.62, H = 0.46;
+    const sh = new THREE.Shape();
+    sh.moveTo(0, 0); sh.lineTo(0.06, 0); sh.lineTo(0.06, -H * 0.18);
+    sh.bezierCurveTo(0.1, -H * 0.6, 0.02, -H * 0.85, 0.0, -H);
+    sh.lineTo(0, 0);
+    const s2 = new THREE.Shape();
+    s2.moveTo(0, 0); s2.lineTo(L, 0); s2.lineTo(L, -0.05);
+    s2.bezierCurveTo(L * 0.7, -0.05, L * 0.58, -0.09, L * 0.5, -0.14);
+    s2.bezierCurveTo(L * 0.3, -0.26, L * 0.18, -0.32, 0.12, -H * 0.82);
+    s2.bezierCurveTo(0.08, -H * 0.92, 0.05, -H, 0.0, -H);
+    s2.lineTo(0, 0);
+    const hole = new THREE.Path(); hole.absarc(0.17, -0.12, 0.06, 0, Math.PI * 2, true); s2.holes.push(hole);
+    const tear = new THREE.Path();
+    tear.moveTo(0.3, -0.06); tear.bezierCurveTo(0.42, -0.06, 0.46, -0.09, 0.38, -0.12); tear.bezierCurveTo(0.33, -0.14, 0.28, -0.1, 0.3, -0.06);
+    s2.holes.push(tear);
+    const hole2 = new THREE.Path(); hole2.absarc(0.07, -0.3, 0.025, 0, Math.PI * 2, true); s2.holes.push(hole2);
+    const g = new THREE.ExtrudeGeometry(s2, { depth: 0.045, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 2, curveSegments: 14 });
+    g.translate(0, 0, -0.0225);
+    return g;
+  })();
+  const frets = [];
+  // column brackets (fretwork spandrels at the column heads, in the beam plane)
   for (const m of columns) {
     const p = new THREE.Vector3().setFromMatrixPosition(m);
-    for (const s of [-1, 1]) brackets.push(mat4(p.x + s * 0.12, PORCH.roof - 0.42, p.z, 0, s * Math.PI / 2, 0, 0.9, 0.9, 1.6));
+    const alongZ = Math.abs(p.x - (PORCH.x0 + 0.2)) < 0.01 && p.z < PORCH.z1 - 0.3;
+    for (const s of [-1, 1]) {
+      if (alongZ) frets.push(mat4(p.x, PORCH.roof - 0.72, p.z + s * 0.07, 0, -s * Math.PI / 2, 0));
+      else frets.push(mat4(p.x + s * 0.07, PORCH.roof - 0.72, p.z, 0, s > 0 ? 0 : Math.PI, 0));
+    }
   }
+  group.add(instanced(fretGeo, M.trim, frets, { name: 'fretBrackets' }));
 
   // ------------------------------------------------------------------ chimneys: clustered flues on corbelled bases
   const chimney = (x, z, y0, y1, w = 1.1, d = 0.75, flues = 1) => {
     const baseTop = flues > 1 ? y1 - 1.6 : y1;
     wallBox(x - w / 2, x + w / 2, y0, baseTop, z - d / 2, z + d / 2, M.brick, 1.2);
+    // brick detail on the shaft: corbelled courses every ~2.4 m and recessed panels
+    if (baseTop - y0 > 4) {
+      for (let yy = y0 + 2.4; yy < baseTop - 0.6; yy += 2.4) {
+        B.add(new THREE.BoxGeometry(w + 0.08, 0.09, d + 0.08), M.brick, mat4(x, yy, z), { uvScale: 1.2 });
+        B.add(new THREE.BoxGeometry(w + 0.14, 0.07, d + 0.14), M.brick, mat4(x, yy + 0.08, z), { uvScale: 1.2 });
+      }
+      // pilaster strips on the corners (stand proud 4 cm)
+      for (const [px, pz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) B.add(new THREE.BoxGeometry(0.16, baseTop - y0 - 0.2, 0.16), M.brick, mat4(x + px * (w / 2 - 0.06), (y0 + baseTop) / 2, z + pz * (d / 2 - 0.06)), { uvScale: 1.2 });
+    }
     if (flues > 1) {
       // string course, then separate square flues, each with its own corbelled cap and pot
-      B.add(new THREE.BoxGeometry(w + 0.16, 0.14, d + 0.16), M.ashlar, mat4(x, baseTop + 0.07, z), { uvScale: 1 });
+      B.add(bevelBox(w + 0.16, 0.14, d + 0.16), M.ashlar, mat4(x, baseTop + 0.07, z), { uvScale: 1 });
       const fw = Math.min(0.42, (w - 0.08 * (flues - 1)) / flues);
       for (let f = 0; f < flues; f++) {
         const fx = x - w / 2 + fw / 2 + f * (w - fw) / Math.max(1, flues - 1);
         const ft = y1 + (f % 2 ? 0.25 : 0) + (f === 1 ? 0.15 : 0);
         // slight twist/inset: alternate flues are set diagonally (Queen Anne)
         const diag = f % 2 === 1;
-        B.add(new THREE.BoxGeometry(fw, ft - baseTop - 0.14, fw), M.brick, mat4(fx, (baseTop + 0.14 + ft) / 2, z, 0, diag ? Math.PI / 4 : 0, 0), { uvScale: 1.2 });
-        for (const [dy, g] of [[0, 0.04], [0.12, 0.08], [0.24, 0.11]]) B.add(new THREE.BoxGeometry(fw + g * 2, 0.12, fw + g * 2), M.brick, mat4(fx, ft + dy + 0.06, z, 0, diag ? Math.PI / 4 : 0, 0), { uvScale: 1.2 });
+        B.add(bevelBox(fw, ft - baseTop - 0.14, fw), M.brick, mat4(fx, (baseTop + 0.14 + ft) / 2, z, 0, diag ? Math.PI / 4 : 0, 0), { uvScale: 1.2 });
+        for (const [dy, g] of [[0, 0.04], [0.12, 0.08], [0.24, 0.11]]) B.add(bevelBox(fw + g * 2, 0.12, fw + g * 2), M.brick, mat4(fx, ft + dy + 0.06, z, 0, diag ? Math.PI / 4 : 0, 0), { uvScale: 1.2 });
         B.add(G.latheFromProfile([[0.0, 0], [0.13, 0], [0.11, 0.14], [0.09, 0.42], [0.12, 0.5], [0.11, 0.55], [0.08, 0.55], [0.07, 0.2], [0.0, 0.2]], 12), M.terracotta, mat4(fx, ft + 0.36, z), { uv: 'keep' });
       }
       return;
     }
     for (const [dy, g] of [[0, 0.08], [0.18, 0.14], [0.36, 0.2], [0.6, 0.1]]) {
-      B.add(new THREE.BoxGeometry(w + g * 2, 0.18, d + g * 2), M.brick, mat4(x, y1 + dy + 0.09, z), { uvScale: 1.2 });
+      B.add(bevelBox(w + g * 2, 0.18, d + g * 2), M.brick, mat4(x, y1 + dy + 0.09, z), { uvScale: 1.2 });
     }
-    B.add(new THREE.BoxGeometry(w + 0.34, 0.08, d + 0.34), M.ashlar, mat4(x, y1 + 0.84, z), { uvScale: 1 });
+    B.add(bevelBox(w + 0.34, 0.08, d + 0.34), M.ashlar, mat4(x, y1 + 0.84, z), { uvScale: 1 });
     for (const s2 of [-1, 1]) B.add(G.latheFromProfile([[0.0, 0], [0.15, 0], [0.13, 0.15], [0.11, 0.45], [0.14, 0.55], [0.13, 0.6], [0.1, 0.6], [0.09, 0.2], [0.0, 0.2]], 14), M.terracotta, mat4(x + s2 * w * 0.25, y1 + 0.88, z), { uv: 'keep' });
   };
   chimney(-5.4, -2.2, TOP + 3, 17.2, 1.5, 0.75, 3);
@@ -526,11 +602,11 @@ export function buildMansion(ctx, M) {
   {
     const yb = mtop.y + 0.12 + 0.9;
     const x0 = mtop.x0 + 2.2, x1 = mtop.x1 - 2.2, z0 = mtop.z0 + 2.2, z1 = mtop.z1 - 2.2;
-    B.add(new THREE.BoxGeometry(x1 - x0 + 0.2, 0.12, z1 - z0 + 0.2), M.trim, mat4((x0 + x1) / 2, yb + 0.06, (z0 + z1) / 2), { uvScale: 1 });
+    B.add(bevelBox(x1 - x0 + 0.2, 0.12, z1 - z0 + 0.2), M.trim, mat4((x0 + x1) / 2, yb + 0.06, (z0 + z1) / 2), { uvScale: 1 });
     crestRail(x0, x1, z0, z1, yb + 0.12, 0.24);
     // corner posts with urn finials
     for (const [px, pz] of [[x0, z0], [x1, z0], [x1, z1], [x0, z1]]) {
-      B.add(new THREE.BoxGeometry(0.08, 0.9, 0.08), M.iron, mat4(px, yb + 0.55, pz), { uv: 'keep' });
+      B.add(bevelBox(0.08, 0.9, 0.08), M.iron, mat4(px, yb + 0.55, pz), { uv: 'keep' });
       B.add(G.latheFromProfile([[0.0, 0], [0.07, 0], [0.09, 0.08], [0.05, 0.16], [0.03, 0.3], [0.0, 0.36]], 10), M.iron, mat4(px, yb + 1.0, pz), { uv: 'keep' });
     }
   }
@@ -553,13 +629,13 @@ export function buildMansion(ctx, M) {
     const slope = Math.atan2(h, w / 2);
     const sl = Math.hypot(h, w / 2) + 0.35;
     for (const sgn of [-1, 1]) {
-      put(new THREE.BoxGeometry(sl, 0.1, depth + 0.5), M.slate, mat4(sgn * (w / 4 + 0.08), 0.9 + h / 2 + 0.12, -depth / 2 + 0.2, 0, 0, -sgn * slope), { uvScale: 0.66 });
+      put(bevelBox(sl, 0.1, depth + 0.5), M.slate, mat4(sgn * (w / 4 + 0.08), 0.9 + h / 2 + 0.12, -depth / 2 + 0.2, 0, 0, -sgn * slope), { uvScale: 0.66 });
       // carved bargeboard following the rake
-      put(new THREE.BoxGeometry(sl - 0.1, 0.28, 0.06), M.trim, mat4(sgn * (w / 4 + 0.04), 0.9 + h / 2 - 0.06, 0.42, 0, 0, -sgn * slope), { uvScale: 1 });
+      put(bevelBox(sl - 0.1, 0.28, 0.06), M.trim, mat4(sgn * (w / 4 + 0.04), 0.9 + h / 2 - 0.06, 0.42, 0, 0, -sgn * slope), { uvScale: 1 });
     }
     // collar truss + king post + finial spike at the apex
-    put(new THREE.BoxGeometry(w * 0.7, 0.1, 0.1), M.trim, mat4(0, 0.9 + h * 0.35, 0.4), { uvScale: 1 });
-    put(new THREE.BoxGeometry(0.1, h * 0.65, 0.1), M.trim, mat4(0, 0.9 + h * 0.67, 0.4), { uvScale: 1 });
+    put(bevelBox(w * 0.7, 0.1, 0.1), M.trim, mat4(0, 0.9 + h * 0.35, 0.4), { uvScale: 1 });
+    put(bevelBox(0.1, h * 0.65, 0.1), M.trim, mat4(0, 0.9 + h * 0.67, 0.4), { uvScale: 1 });
     put(G.latheFromProfile([[0.0, 0], [0.06, 0], [0.08, 0.1], [0.04, 0.2], [0.07, 0.3], [0.02, 0.45], [0.01, 1.0], [0.0, 1.05]], 8), M.iron, mat4(0, 0.9 + h + 0.15, 0.42), { uv: 'keep' });
     // pendant drop
     put(G.latheFromProfile([[0.0, 0], [0.05, 0.02], [0.07, -0.12], [0.03, -0.28], [0.0, -0.36]], 8), M.trim, mat4(0, 0.9 + h * 0.98, 0.42), { uv: 'keep' });

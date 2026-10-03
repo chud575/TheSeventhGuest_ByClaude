@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { mat4 } from './lib.js';
+import { mat4, bevelBox } from './lib.js';
 
 /**
  * Victorian window kit. Windows are built from trim parts merged into the
@@ -65,7 +65,12 @@ export class WindowKit {
     this.glassRect = []; // { matrix, lit }
     this.glassRound = [];
     this.shapes = [];
+    this.streaks = [];   // { matrix } unit quads (rain-run decals under sills)
+    this.lit = [];       // { pos: Vector3, normal: Vector3, lit, tint } for spill lights
   }
+
+  /** Rain-streak decal: quad of width w, height h hanging down from (local) top centre. */
+  streak(matrix, w, h, seed = 0) { this.streaks.push({ matrix: matrix.clone().multiply(mat4(0, -h / 2, 0, 0, 0, 0, w, h, 1)), seed }); }
 
   /** Arbitrary glass shape (oculus, fanlight): geometry in XY with 0..1 UVs. */
   shape(geo, matrix, lit = 0) { this.shapes.push({ geo, matrix, lit }); }
@@ -75,11 +80,11 @@ export class WindowKit {
    * type: 'flat' (cornice hood on brackets), 'seg' (segmental arched hood + keystone),
    *       'round' (round-headed opening), 'plain'. lit: 0..1 interior glow level.
    */
-  add({ x, y, z, ry = 0, w = 1.1, h = 2.4, type = 'flat', lit = 0, tint = 0, shutters = false, panes = 2 }) {
+  add({ x, y, z, ry = 0, w = 1.1, h = 2.4, type = 'flat', lit = 0, tint = 0, shutters = false, panes = 2, streak = true, flicker = 0 }) {
     const B = this.bucket, T = this.trim, S = this.sash;
     const base = mat4(x, y, z, 0, ry, 0);
     const put = (geo, mat, lx, ly, lz) => B.add(geo, mat, base.clone().multiply(mat4(lx, ly, lz)), { uvScale: 1 });
-    const box = (mat, bw, bh, bd, lx, ly, lz) => put(new THREE.BoxGeometry(bw, bh, bd), mat, lx, ly, lz);
+    const box = (mat, bw, bh, bd, lx, ly, lz) => put(bevelBox(bw, bh, bd, 0.015), mat, lx, ly, lz);
     const cw = 0.13, cd = 0.07;
     const round = type === 'round';
     const hs = round ? h - w / 2 : h;          // springline height
@@ -142,24 +147,41 @@ export class WindowKit {
     }
     // glass (instanced later)
     const gm = base.clone().multiply(mat4(0, round ? h / 2 : h / 2, 0.012, 0, 0, 0, w, h, 1));
-    (round ? this.glassRound : this.glassRect).push({ matrix: gm, lit, tint });
+    (round ? this.glassRound : this.glassRect).push({ matrix: gm, lit, tint, flicker });
+    if (streak) this.streak(base.clone().multiply(mat4(0, -0.22, 0.004)), w + 0.5, 1.3 + Math.abs(Math.sin(x * 3.1 + z)) * 0.9, x + z);
+    if (lit > 0) {
+      const pos = new THREE.Vector3(0, h * 0.5, 0.6).applyMatrix4(base);
+      const normal = new THREE.Vector3(0, 0, 1).transformDirection(base);
+      this.lit.push({ pos, normal, lit, tint, sill: new THREE.Vector3(0, 0, 0).applyMatrix4(base) });
+    }
   }
 
-  /** Build the two instanced glass meshes. */
+  /** Build the two instanced glass meshes (+ the streak decals). */
   buildGlass(parent, ctx) {
     const tex = interiorTexture(ctx, false);
     const texR = interiorTexture(ctx, true);
+    const curt = curtainTexture(ctx);
+    const flick = [];
+    const colorFor = (g, c) => {
+      if (g.lit > 0) {
+        // colour temperature: tint 0 = oil lamp, 0.4 = gas mantle, 1 = candle
+        const t = g.tint;
+        if (t >= 0.9) c.setRGB(1.0, 0.46, 0.15);
+        else c.setRGB(1.0, 0.56 + t * 0.3, 0.26 + t * 0.35);
+        c.multiplyScalar(g.lit * 3.2);
+      } else c.setRGB(0, 0, 0);
+      return c;
+    };
     const make = (list, map, name) => {
       if (!list.length) return null;
       const geo = new THREE.PlaneGeometry(1, 1);
-      const mat = glassMaterial(map);
+      const mat = glassMaterial(map, curt);
       const m = new THREE.InstancedMesh(geo, mat, list.length);
       const c = new THREE.Color();
       list.forEach((g, i) => {
         m.setMatrixAt(i, g.matrix);
-        if (g.lit > 0) c.setRGB(1.0, 0.56 + g.tint * 0.1, 0.24 + g.tint * 0.05).multiplyScalar(g.lit * 5.0);
-        else c.setRGB(0, 0, 0);
-        m.setColorAt(i, c);
+        m.setColorAt(i, colorFor(g, c));
+        if (g.flicker) flick.push({ mesh: m, i, g, base: colorFor(g, new THREE.Color()) });
       });
       m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true;
       m.castShadow = false; m.receiveShadow = false;
@@ -170,38 +192,230 @@ export class WindowKit {
       return m;
     };
     const shapes = this.shapes.map((s, i) => {
-      const mat = glassMaterial(tex);
-      mat.emissive.setRGB(1.0, 0.58, 0.26).multiplyScalar(s.lit * 5.0);
+      const mat = glassMaterial(tex, curt, true);
+      mat.emissive.setRGB(1.0, 0.58, 0.26).multiplyScalar(s.lit * 3.2);
       const m = new THREE.Mesh(s.geo, mat);
       m.applyMatrix4(s.matrix);
       m.name = `glassShape${i}`;
       parent.add(m);
       return m;
     });
-    return { rect: make(this.glassRect, tex, 'glassRect'), round: make(this.glassRound, texR, 'glassRound'), shapes };
+    // rain-streak decals
+    let streaks = null;
+    if (this.streaks.length) {
+      const sm = new THREE.MeshStandardMaterial({ color: 0x050605, map: streakTexture(ctx), transparent: true, depthWrite: false, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, name: 'rainStreaks' });
+      const g = new THREE.PlaneGeometry(1, 1);
+      streaks = new THREE.InstancedMesh(g, sm, this.streaks.length);
+      this.streaks.forEach((st, i) => streaks.setMatrixAt(i, st.matrix));
+      streaks.instanceMatrix.needsUpdate = true;
+      streaks.receiveShadow = true; streaks.castShadow = false;
+      streaks.name = 'rainStreaks';
+      streaks.renderOrder = 2;
+      streaks.computeBoundingSphere();
+      parent.add(streaks);
+    }
+    const c = new THREE.Color();
+    const update = (t) => {
+      for (const f of flick) {
+        const k = 0.82 + 0.1 * Math.sin(t * 11.0 + f.i) * Math.sin(t * 5.3 + f.i * 2.0) + 0.08 * Math.sin(t * 23.0 + f.i * 0.7);
+        c.copy(f.base).multiplyScalar(k);
+        f.mesh.setColorAt(f.i, c);
+        f.mesh.instanceColor.needsUpdate = true;
+      }
+    };
+    return { rect: make(this.glassRect, tex, 'glassRect'), round: make(this.glassRound, texR, 'glassRound'), shapes, streaks, lit: this.lit, update };
   }
 }
 
-/** Glass: glossy dark pane reflecting the sky; emissive interior scaled by instance colour. */
-export function glassMaterial(map) {
+/**
+ * Glass: slightly rough, grimy pane reflecting the sky over an interior-mapped room.
+ * The instanced plane is the window opening (local x,y in -0.5..0.5); behind it a
+ * box room (wider than the window, floor below the sill) is ray-cast per pixel:
+ * papered back wall with a picture and a doorway, side walls, floorboards, a ceiling
+ * and a lamp whose warm pool falls off with distance. Drawn velvet curtains and a lace
+ * sheer hang just behind the glass (texture with alpha). Instance colour = lamp
+ * colour x intensity (black = unlit room, the glass just reflects).
+ */
+export function glassMaterial(alphaMap, curtainMap, flat = false) {
   const m = new THREE.MeshStandardMaterial({
-    color: 0x0a0c10, roughness: 0.07, metalness: 0.0, emissive: 0xffffff, emissiveMap: map,
-    envMapIntensity: 2.2, alphaTest: 0.5, map: null, name: 'windowGlass',
+    color: 0x080a0d, roughness: 0.16, metalness: 0.0, emissive: 0xffffff,
+    envMapIntensity: 1.8, alphaTest: 0.5, map: null, name: 'windowGlass',
   });
-  m.alphaMap = map; // arch cut-out lives in the alpha channel -> use as alpha via onBeforeCompile
+  m.alphaMap = alphaMap;
+  m.emissiveMap = curtainMap;   // sampled manually (curtain layer), declared so the uv varying exists
   m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vIntPos; varying vec3 vIntDir; varying vec2 vIntScale; varying float vIntSeed;`)
+      .replace('#include <project_vertex>', `#include <project_vertex>
+{
+#ifdef USE_INSTANCING
+  mat4 im = modelMatrix * instanceMatrix;
+#else
+  mat4 im = modelMatrix;
+#endif
+  vec3 camL = (inverse(im) * vec4(cameraPosition, 1.0)).xyz;
+  vIntPos = position;
+  vIntDir = position - camL;
+  vIntScale = vec2(length(im[0].xyz), length(im[1].xyz));
+  vIntSeed = fract(dot(im[3].xyz, vec3(0.137, 0.713, 0.371)) * 7.31);
+}`);
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <color_fragment>', '')
+      .replace('#include <emissivemap_pars_fragment>', `#include <emissivemap_pars_fragment>
+varying vec3 vIntPos; varying vec3 vIntDir; varying vec2 vIntScale; varying float vIntSeed;
+float ihash(float n) { return fract(sin(n) * 43758.5453); }
+vec3 interiorRoom(vec3 ro, vec3 rd, vec2 sc, float seed, out float curtA, out vec3 curtC) {
+  // room box in window-local units: x,y scaled by the opening; z in metres
+  float D = 3.2 + seed * 1.6;
+  float xw = 1.7 + seed * 0.6;
+  float yf = -0.5 - 0.85 / sc.y, yc = 0.5 + 0.75 / sc.y;
+  float tx = ((rd.x > 0.0 ? xw : -xw) - ro.x) / rd.x;
+  float ty = ((rd.y > 0.0 ? yc : yf) - ro.y) / rd.y;
+  float tz = (-D - ro.z) / rd.z;
+  float t = min(min(tx, ty), tz);
+  vec3 hp = ro + rd * t;
+  vec3 m = vec3(hp.x * sc.x, hp.y * sc.y, hp.z);          // metres
+  float fy = (hp.y - yf) * sc.y;                             // height above floor (m)
+  // lamp: on a table, off to one side, part way back
+  vec3 L = vec3((seed > 0.5 ? 0.9 : -0.8) * sc.x, (yf * sc.y) + 0.95, -D * 0.45);
+  float dl = length(m - L);
+  float lamp = 1.0 / (1.0 + dl * dl * 0.55);
+  vec3 col;
+  if (t == tz) {
+    // back wall: striped paper, dado, a picture and a dark doorway
+    float stripe = 0.85 + 0.15 * step(0.5, fract(m.x * 3.2));
+    vec3 paper = mix(vec3(0.42, 0.2, 0.1), vec3(0.3, 0.22, 0.12), seed) * stripe;
+    paper = mix(paper, vec3(0.16, 0.08, 0.04), step(fy, 0.9));
+    float pic = step(abs(m.x - (seed - 0.5) * 1.4), 0.38) * step(abs(fy - 1.75), 0.3);
+    float frame = pic * (1.0 - step(abs(m.x - (seed - 0.5) * 1.4), 0.31) * step(abs(fy - 1.75), 0.23));
+    paper = mix(paper, vec3(0.05, 0.035, 0.02), pic);
+    paper = mix(paper, vec3(0.55, 0.36, 0.12), frame);
+    float door = step(abs(m.x + (seed - 0.5) * 2.6 - 0.2), 0.45) * step(fy, 2.2);
+    paper = mix(paper, vec3(0.012, 0.008, 0.006), door * step(0.35, seed));
+    col = paper;
+  } else if (t == ty) {
+    if (rd.y < 0.0) { // floorboards + rug
+      float b = 0.8 + 0.2 * ihash(floor(m.x * 6.0));
+      col = vec3(0.16, 0.08, 0.04) * b;
+      float rug = step(abs(m.x), 0.9 * sc.x) * step(abs(m.z + D * 0.5), D * 0.3);
+      col = mix(col, vec3(0.32, 0.07, 0.05), rug);
+    } else {
+      col = vec3(0.35, 0.3, 0.24) * (0.6 + 0.4 * lamp);   // ceiling
+    }
+  } else {
+    // side walls: paper, darker
+    col = vec3(0.3, 0.15, 0.08) * (0.85 + 0.15 * step(0.5, fract(m.z * 3.2)));
+  }
+  // furniture silhouette: a high-backed chair and a table shape against the light
+  vec3 lit = col * (0.06 + lamp * 2.2);
+  // the lamp itself (shade glow)
+  vec3 rp = ro + rd * ((L.z - ro.z) / rd.z);
+  vec2 lq = vec2(rp.x * sc.x - L.x, rp.y * sc.y - (L.y + 0.18));
+  float shade = smoothstep(0.16, 0.12, length(lq * vec2(1.0, 1.6)));
+  lit = mix(lit, vec3(2.6, 1.7, 0.9), shade * step(L.z, ro.z));
+  // curtain layer just behind the glass
+  vec3 cp = ro + rd * ((-0.07 - ro.z) / rd.z);
+  vec4 cu = texture2D(emissiveMap, cp.xy + 0.5);
+  curtA = cu.a * step(abs(cp.x), 0.5) * step(abs(cp.y), 0.5);
+  curtC = cu.rgb;
+  return lit;
+}`)
       .replace('#include <alphamap_fragment>', '#ifdef USE_ALPHAMAP\n diffuseColor.a *= texture2D( alphaMap, vAlphaMapUv ).a;\n#endif')
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
-  reflectedLight.directSpecular *= 0.04;   // no hot glints from the fill: glass reads by its env reflection`)
-      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+  reflectedLight.directSpecular *= 0.05;`)
+      .replace('#include <emissivemap_fragment>', `
+  {
+    float cA; vec3 cC;
+    vec3 rd = normalize(vIntDir);
+    vec3 room = ${flat ? 'vec3(1.0, 0.62, 0.3) * (0.35 + 0.9 * smoothstep(0.55, 0.0, length(vIntPos.xy - vec2(0.0, -0.05)))); cA = 0.0; cC = vec3(0.0);' : 'interiorRoom(vIntPos, rd, vIntScale, vIntSeed, cA, cC);'}
+    // curtains: lit from behind (translucent velvet / lace)
+    vec3 curtLit = cC * (0.35 + 0.65 * (1.0 - cA)) * 1.6;
+    vec3 e = mix(room, curtLit, cA);
+    totalEmissiveRadiance = e;
 #if defined( USE_INSTANCING_COLOR ) || defined( USE_COLOR )
-  totalEmissiveRadiance *= vColor.rgb;
-#endif`);
+    totalEmissiveRadiance *= vColor.rgb;
+#else
+    totalEmissiveRadiance *= emissive;
+#endif
+  }`)
+      .replace('#include <color_fragment>', '');
   };
-  m.customProgramCacheKey = () => 'ext-glass2';
+  m.customProgramCacheKey = () => 'ext-glass3' + (flat ? 'f' : '');
   return m;
+}
+
+/** Curtains behind the glass: velvet drapes tied back to the sides, a lace sheer, a pelmet (RGBA). */
+export function curtainTexture(ctx) {
+  return ctx.textures.canvas('ext:curtains1', 256, 512, (g, w, h) => {
+    g.clearRect(0, 0, w, h);
+    // lace sheer across the middle: faint, patterned
+    for (let y = 0; y < h; y += 8) for (let x = ((y / 8) % 2) * 4; x < w; x += 8) {
+      g.fillStyle = 'rgba(235,205,160,0.10)'; g.fillRect(x, y, 4, 4);
+    }
+    g.fillStyle = 'rgba(230,200,150,0.06)'; g.fillRect(0, 0, w, h);
+    // velvet drapes with folds, tied back (hourglass outline)
+    for (const side of [0, 1]) {
+      g.save();
+      if (side) { g.translate(w, 0); g.scale(-1, 1); }
+      g.beginPath();
+      g.moveTo(0, 0); g.lineTo(w * 0.36, 0);
+      g.bezierCurveTo(w * 0.3, h * 0.25, w * 0.12, h * 0.48, w * 0.13, h * 0.58);
+      g.bezierCurveTo(w * 0.14, h * 0.7, w * 0.3, h * 0.85, w * 0.34, h);
+      g.lineTo(0, h); g.closePath();
+      g.clip();
+      for (let x = 0; x < w * 0.4; x += 2) {
+        const f = 0.45 + 0.55 * Math.pow(Math.abs(Math.sin(x * 0.19 + side)), 0.7);
+        g.fillStyle = `rgba(${Math.floor(120 * f)},${Math.floor(30 * f)},${Math.floor(18 * f)},0.97)`;
+        g.fillRect(x, 0, 2, h);
+      }
+      const sg = g.createLinearGradient(0, 0, w * 0.4, 0);
+      sg.addColorStop(0, 'rgba(0,0,0,0.6)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = sg; g.fillRect(0, 0, w * 0.4, h);
+      g.restore();
+      // tasselled tie-back
+      g.fillStyle = 'rgba(150,110,40,1)';
+      g.fillRect(side ? w * 0.82 : w * 0.08, h * 0.57, w * 0.1, 6);
+    }
+    // pelmet
+    g.fillStyle = 'rgba(50,10,8,1)'; g.fillRect(0, 0, w, h * 0.07);
+    for (let x = 0; x < w; x += 16) { g.beginPath(); g.arc(x + 8, h * 0.07, 8, 0, Math.PI); g.fill(); }
+  }, { tile: false });
+}
+
+/** Rain-run decal: alpha = dark streaks hanging down from the top edge, ragged and fading. */
+export function streakTexture(ctx) {
+  return ctx.textures.canvas('ext:streaks1', 256, 512, (g, w, h) => {
+    g.clearRect(0, 0, w, h);
+    let seed = 7;
+    const R = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let i = 0; i < 70; i++) {
+      const x = w * (0.08 + 0.84 * R());
+      const len = h * (0.25 + 0.75 * Math.pow(R(), 0.7));
+      const wd = 2 + R() * 9;
+      const a = 0.1 + R() * 0.3;
+      const gr = g.createLinearGradient(0, 0, 0, len);
+      gr.addColorStop(0, `rgba(255,255,255,${a})`);
+      gr.addColorStop(0.6, `rgba(255,255,255,${a * 0.55})`);
+      gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr;
+      g.beginPath();
+      g.moveTo(x - wd / 2, 0); g.lineTo(x + wd / 2, 0);
+      g.quadraticCurveTo(x + wd * 0.3 + (R() - 0.5) * 6, len * 0.6, x + (R() - 0.5) * 4, len);
+      g.quadraticCurveTo(x - wd * 0.3, len * 0.5, x - wd / 2, 0);
+      g.fill();
+    }
+    // a soft dirty wash directly under the sill
+    const wg = g.createLinearGradient(0, 0, 0, h * 0.25);
+    wg.addColorStop(0, 'rgba(255,255,255,0.35)'); wg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = wg; g.fillRect(w * 0.05, 0, w * 0.9, h * 0.25);
+    // fade the sides
+    const id = g.getImageData(0, 0, w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const e = Math.min(x, w - 1 - x) / (w * 0.12);
+      if (e < 1) id.data[(y * w + x) * 4 + 3] *= Math.max(0, e);
+    }
+    g.putImageData(id, 0, 0);
+  }, { tile: false });
 }
 
 /** Lamp-lit interior seen through glass: warm falloff, drawn lace + velvet curtains. */

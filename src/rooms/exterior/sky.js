@@ -44,21 +44,31 @@ float hash2(vec2 p) { return fxHash12(p); }
 // a forked lightning bolt in a 2D frame (x across, y down from cloud base): many short
 // jagged segments with large lateral kinks, and forks that themselves kink.
 float segD(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h); }
-float boltDist(vec2 p, float seed) {
+float boltDist(vec2 p, float seed, out float br) {
   float d = 1e3;
+  br = 0.0;
   vec2 prev = vec2(0.0);
-  float drift = (fxHash12(vec2(seed, 1.3)) - 0.5) * 0.012;
-  for (int i = 1; i <= 46; i++) {
+  float drift = (fxHash12(vec2(seed, 1.3)) - 0.5) * 0.01;
+  for (int i = 1; i <= 52; i++) {
     float fi = float(i);
-    vec2 cur = prev + vec2(drift + (fxHash12(vec2(fi, seed)) - 0.5) * 0.05, -0.016 - fxHash12(vec2(fi, seed + 5.0)) * 0.014);
-    d = min(d, segD(p, prev, cur) * (1.0 + fi * 0.02));
-    if (fxHash12(vec2(fi * 3.1, seed)) > 0.8) {
+    vec2 cur = prev + vec2(drift + (fxHash12(vec2(fi, seed)) - 0.5) * 0.045, -0.016 - fxHash12(vec2(fi, seed + 5.0)) * 0.014);
+    // the main channel tapers toward the ground
+    d = min(d, segD(p, prev, cur) * (1.0 + fi * 0.015));
+    if (fxHash12(vec2(fi * 3.1, seed)) > 0.7 && i < 44) {
       vec2 b0 = cur;
       float side = fxHash12(vec2(fi, seed + 7.0)) > 0.5 ? 1.0 : -1.0;
-      for (int k = 1; k <= 6; k++) {
+      int nk = 4 + int(fxHash12(vec2(fi, seed + 9.0)) * 8.0);
+      for (int k = 1; k <= 12; k++) {
+        if (k > nk) break;
         float fk = float(k);
-        vec2 b1 = b0 + vec2(side * (0.012 + fxHash12(vec2(fi, fk + seed)) * 0.03), -0.012 - fxHash12(vec2(fk, fi + seed)) * 0.016);
-        d = min(d, segD(p, b0, b1) * (2.0 + fk * 0.5));
+        vec2 b1 = b0 + vec2(side * (0.008 + fxHash12(vec2(fi, fk + seed)) * 0.026), -0.01 - fxHash12(vec2(fk, fi + seed)) * 0.016);
+        float bd = segD(p, b0, b1) * (2.2 + fk * 0.45);
+        if (bd < d) { d = bd; br = 1.0; }
+        if (k == 3) {
+          vec2 c1 = b1 + vec2(-side * 0.012, -0.018);
+          vec2 c2 = c1 + vec2(-side * 0.006 + (fxHash12(vec2(fk, seed + 2.0)) - 0.5) * 0.02, -0.016);
+          d = min(d, min(segD(p, b1, c1), segD(p, c1, c2)) * 5.0);
+        }
         b0 = b1;
       }
     }
@@ -126,14 +136,15 @@ void main() {
   dens = max(dens, scud * 0.9);
   // lighting: thin parts near the moon glow silver; thick parts are dark slate
   float thin = 1.0 - smoothstep(0.2, 1.0, dens);
-  vec3 cloudDark = vec3(0.011, 0.014, 0.026) + uHorizon * 0.3;
-  vec3 cloudLit = vec3(0.55, 0.64, 0.9) * (pow(mo, 90.0) * 1.25 + pow(mo, 14.0) * 0.16 + pow(mo, 2.0) * 0.02);
+  vec3 cloudDark = vec3(0.017, 0.021, 0.044) + uHorizon * 0.35;
+  vec3 cloudLit = vec3(0.55, 0.64, 0.9) * (pow(mo, 90.0) * 1.25 + pow(mo, 14.0) * 0.2 + pow(mo, 3.0) * 0.06 + 0.035);
   float edge = smoothstep(0.0, 0.35, dens) * (1.0 - smoothstep(0.35, 0.9, dens));
   vec3 cloudCol = cloudDark + cloudLit * (thin * 0.45 + edge * 1.8);
   // lightning lights the cloud bellies
   float fl = uFlash * (0.2 + 0.8 * exp(-acos(clamp(dot(d, uBoltDir), -1.0, 1.0)) * 3.0));
-  cloudCol += vec3(0.55, 0.6, 0.85) * fl * (0.25 + dens * 0.7);
-  sky += vec3(0.25, 0.28, 0.4) * fl * 0.2;
+  // a strike floods the whole cloud deck white-lilac: the house becomes a black cut-out
+  cloudCol += vec3(0.78, 0.76, 1.0) * fl * (0.5 + dens * 1.3);
+  sky += vec3(0.55, 0.54, 0.78) * fl * 0.8;
 
   vec3 col = sky + vec3(star) + glow;
   col += moon;
@@ -147,8 +158,9 @@ void main() {
     vec3 bu = cross(bs, uBoltDir);
     vec2 bp = vec2(dot(d, bs), dot(d, bu) - uBoltTop) * 1.2;
     if (bp.y < 0.02 && bp.y > -1.2 && dot(d, uBoltDir) > 0.0) {
-      float bd = boltDist(bp, uBoltSeed);
-      float core = exp(-bd * 2600.0) * 16.0 + exp(-bd * 500.0) * 1.4 + exp(-bd * 60.0) * 0.12;
+      float brn;
+      float bd = boltDist(bp, uBoltSeed, brn);
+      float core = exp(-bd * 2600.0) * 16.0 + exp(-bd * 500.0) * 1.4 + exp(-bd * 60.0) * 0.18;
       col += vec3(0.75, 0.82, 1.0) * core * uBolt;
     }
   }
@@ -170,13 +182,13 @@ export function createSky({ timeUniform, moonDir }) {
     uMoonSize: { value: 0.024 },
     uMoonBright: { value: 1.15 },
     uFlash: { value: 0 },
-    uBoltDir: { value: new THREE.Vector3(0.075, 0.12, -0.99).normalize() },
+    uBoltDir: { value: new THREE.Vector3(-0.2, 0.06, -0.98).normalize() },
     uBolt: { value: 0 },
     uBoltSeed: { value: 3 },
-    uBoltTop: { value: 0.6 },
+    uBoltTop: { value: 0.66 },
     uHorizon: { value: new THREE.Color(0.009, 0.014, 0.034) },
-    uZenith: { value: new THREE.Color(0.0015, 0.0025, 0.009) },
-    uCloudCover: { value: 0.55 },
+    uZenith: { value: new THREE.Color(0.0035, 0.005, 0.016) },
+    uCloudCover: { value: 0.72 },
     uStars: { value: 1.0 },
   };
   const mat = new THREE.ShaderMaterial({

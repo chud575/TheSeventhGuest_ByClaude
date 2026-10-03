@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import { applyMacroVariation } from '../../engine/materials/index.js';
-import { createFogUniforms, patchFog, rng, mat4 } from './lib.js';
+import { createFogUniforms, patchFog, rng, mat4, Bucket } from './lib.js';
 import { makeTextures, pbr } from './textures.js';
 import { createSky } from './sky.js';
 import { height, buildTerrain, buildPath, buildGrass, buildBladeGrass, grassTexture, GATE_Z } from './terrain.js';
 import { buildMansion, F, DOOR, TOWER, PORCH } from './mansion.js';
 import { gnarledTree } from './trees.js';
-import { buildGate } from './gate.js';
+import { buildGate, haloTexture } from './gate.js';
 import { buildGraveyard, placeTree, buildDressing, buildVerge, buildLeafLitter, buildBrokenUrn } from './props.js';
 import { buildMist } from './mist.js';
 import { buildBats } from './bats.js';
@@ -20,7 +20,7 @@ import { createMedallion, createGatePuzzle, gateMeta } from './puzzleGate.js';
  * itself with a few lamp-lit windows and the front door waiting.
  */
 
-const MOON_DIR = new THREE.Vector3(-0.145, 0.485, -0.862).normalize();
+const MOON_DIR = new THREE.Vector3(0.0853, 0.629, -0.772).normalize();
 const v3 = (a) => new THREE.Vector3(...a);
 // the moonlight comes from a little higher than the visible disc (a cinematographer's cheat: shorter house shadow)
 const LIGHT_DIR = new THREE.Vector3(-0.22, 0.74, -0.64).normalize();
@@ -37,6 +37,16 @@ function flashAt(t) {
     f = Math.max(f, Math.exp(-d * 9) * 1.0, d > 0.12 ? Math.exp(-(d - 0.12) * 14) * 0.75 : 0, d > 0.3 ? Math.exp(-(d - 0.3) * 6) * 0.45 : 0);
   }
   return f;
+}
+/** Eye adaptation after a strike: the scene sinks darker for a second or two, then recovers. */
+function dipAt(t, strikeAt) {
+  const c = ((t % 41) + 41) % 41;
+  let k = 0;
+  for (const s0 of [...STRIKES.map((x) => c - x), t - strikeAt]) {
+    if (s0 < 0.25 || s0 > 3.5) continue;
+    k = Math.max(k, Math.exp(-(s0 - 0.25) * 1.3) * Math.min(1, (s0 - 0.25) * 8));
+  }
+  return k;
 }
 
 /** Smoky, sooted lantern glass: glows hottest around the flame, darker at the edges and the sooty top. */
@@ -74,14 +84,17 @@ export default {
     if (P.get('mdir')) MOON_DIR.set(...P.get('mdir').split(',').map(Number)).normalize();
     const U = createFogUniforms();
     U.uHFogMoonDir.value.copy(MOON_DIR);
+    U.uHFogDensity.value = 0.06; U.uHFogBase.value = -6.0;
     U.uHFogTime = ctx.time;   // share the engine clock
     for (const [k, u] of [['fogd', 'uHFogDensity'], ['fogb', 'uHFogBase'], ['fogf', 'uHFogFalloff'], ['haze', 'uHFogHaze']]) if (P.get(k) !== null) U[u].value = Number(P.get(k));
 
     // ------------------------------------------------------------ materials
     const TX = makeTextures(ctx);
     const M = {
-      siding: pbr(TX.siding, { name: 'siding', color: 0xb8c0d0 }),
-      trim: pbr(TX.trim, { name: 'trim', color: 0xb4b8c2 }),
+      siding: pbr(TX.siding, { name: 'siding', color: 0xdcdedb }),
+      trim: pbr(TX.trim, { name: 'trim', color: 0xe4e0d8 }),
+      stepStone: pbr(TX.stepStone, { name: 'stepStone', color: 0xe8e6e2 }),
+      stepRiser: pbr(TX.stepStone, { name: 'stepRiser', color: 0x8a8884 }),
       sash: new THREE.MeshStandardMaterial({ color: 0x0b0c0e, roughness: 0.55, name: 'sash' }),
       slate: pbr(TX.slate, { name: 'slate', envMapIntensity: 1.3 }),
       slateDark: pbr(TX.slate, { name: 'slateDark', color: 0x8890a0, repeat: [1, 1] }),
@@ -90,27 +103,29 @@ export default {
       brick: ctx.materials.create('brick', { color: [0.3, 0.13, 0.09], soot: 0.7, rows: 8, cols: 4 }),
       iron: pbr(TX.iron, { name: 'iron', repeat: [4, 4], envMapIntensity: 1.2 }),
       porchFloor: ctx.materials.create('floorboards', { color: 0x66605a, repeat: [1, 1] }),
-      doorWood: pbr(TX.trim, { name: 'doorWood', color: 0x3a2622, envMapIntensity: 0.25 }),   // oxblood paint, worn
+      doorWood: pbr(TX.doorWood, { name: 'doorWood', color: 0xffffff, envMapIntensity: 0.9 }),   // varnished mahogany
       brass: ctx.materials.create('brass', { tarnish: 0.5, polish: 0.6 }),
       terracotta: new THREE.MeshStandardMaterial({ color: 0x3a1e14, roughness: 0.85, name: 'terracotta' }),
       mound: pbr(TX.ground, { name: 'mound', color: 0x5a554c, normalScale: 2 }),
       rock: pbr(TX.rock, { name: 'rock', color: 0xb0b0b4 }),
       grave: pbr(TX.granite, { name: 'grave', color: 0xd8d6d0 }),
       graveDark: pbr(TX.granite, { name: 'graveDark', color: 0x9c9c9e }),
-      pierStone: pbr(TX.limestone, { name: 'pierStone', color: 0xd0ccc4 }),
+      pierStone: pbr(TX.limestone, { name: 'pierStone', color: 0xe4e0d8 }),
       mortar: new THREE.MeshStandardMaterial({ color: 0x14130f, roughness: 0.95, name: 'mortar' }),
       lanternPane: lanternPaneMaterial(ctx),
       _x: null,
       lanternGlass: new THREE.MeshStandardMaterial({ color: 0x000000, emissive: new THREE.Color(1.0, 0.62, 0.3), emissiveIntensity: 7, roughness: 0.2, transparent: true, opacity: 0.92, name: 'lanternGlass' }),
     };
     M.iron.color.setScalar(1.0);
+    // the gate's own ironwork: same paint, a stronger moon rim so bars read as silhouette-with-highlights
+    M.gateIron = M.iron.clone(); M.gateIron.name = 'gateIron'; M.gateIron.envMapIntensity = 2.2;
     M.rock.userData.groundShade = true;
     M.pierStone.userData.rim = 0.35;
     M.grave.userData.grime = M.graveDark.userData.grime = { y0: -1.9, h: 0.85, moss: 0.75 };
     M.pierStone.userData.grime = { y0: -3.4, h: 1.3, moss: 0.85 };
-    for (const k of ['siding', 'slate', 'ashlar', 'stoneDark']) applyMacroVariation(M[k], { amount: 0.45, scale: 0.18 });
+    for (const k of ['siding', 'slate', 'ashlar', 'stoneDark']) applyMacroVariation(M[k], { amount: 0.3, scale: 0.18 });
     // backlit silhouettes: grazing moon rim on everything that should catch a silver edge
-    for (const [k, r] of [['siding', 0.6], ['trim', 0.9], ['slate', 1.3], ['slateDark', 1.3], ['iron', 0.8], ['brick', 0.9], ['ashlar', 0.7], ['stoneDark', 0.6], ['grave', 0.8], ['graveDark', 0.8], ['terracotta', 0.8]]) M[k].userData.rim = r;
+    for (const [k, r] of [['siding', 0.45], ['trim', 0.9], ['stepStone', 0.5], ['doorWood', 0.4], ['slate', 1.3], ['slateDark', 1.3], ['iron', 0.5], ['gateIron', 1.3], ['brick', 0.9], ['ashlar', 0.7], ['stoneDark', 0.6], ['grave', 0.8], ['graveDark', 0.8], ['terracotta', 0.8]]) M[k].userData.rim = r;
 
     // ------------------------------------------------------------ sky
     const sky = createSky({ timeUniform: ctx.time, moonDir: MOON_DIR });
@@ -118,23 +133,27 @@ export default {
     if (P.get('skyoff')) sky.mesh.visible = false;
 
     // ------------------------------------------------------------ terrain + path + grass
-    const groundMat = pbr(TX.ground, { name: 'ground', color: 0x3a3833 });
+    const groundMat = pbr(TX.ground, { name: 'ground', color: 0x34302a });
     applyMacroVariation(groundMat, { amount: 0.8, scale: 0.09 });
     groundMat.userData.groundShade = true;
+    groundMat.envMapIntensity = 0.3;
     groundMat.userData.rim = 0.35;
     const terrain = buildTerrain({ material: groundMat });
     root.add(terrain);
-    const pathMat = pbr(TX.path, { name: 'path', alphaTest: 0.5, color: 0xd8d4cc, envMapIntensity: 1.6 });
+    const pathMat = pbr(TX.path, { name: 'path', alphaTest: 0.5, color: 0xa29c92, envMapIntensity: 1.0 });
     pathMat.userData.groundShade = true;
+    pathMat.envMapIntensity = 0.55;
     pathMat.polygonOffset = true; pathMat.polygonOffsetFactor = -2; pathMat.polygonOffsetUnits = -2;
     root.add(buildPath({ material: pathMat }));
     // far grass: crossed tuft cards (cheap), olive-grey
-    const grassMat = new THREE.MeshStandardMaterial({ map: grassTexture(ctx), alphaTest: 0.4, side: THREE.FrontSide, roughness: 0.9, color: 0x4a4a3c, name: 'grass' });
+    const grassMat = new THREE.MeshStandardMaterial({ map: grassTexture(ctx), alphaTest: 0.4, side: THREE.FrontSide, roughness: 0.9, color: 0x8a7656, name: 'grass' });
     grassMat.userData.groundShade = true;
-    grassMat.userData.rim = 0.7;
+    grassMat.envMapIntensity = 0.3;
+    grassMat.userData.rim = 0.9;
+    grassMat.userData.rimTip = true;
     const avoid = [[0, 3, 9.8], [9, 6, 3.2]];
     root.add(buildGrass({
-      material: grassMat, count: ctx.quality.particles >= 1 ? 9000 : 5000,
+      material: grassMat, count: ctx.quality.particles >= 1 ? 7000 : 4000,
       regions: [
         { x0: -12, x1: 12, z0: 12, z1: 31, weight: 3 },   // the drive
         { x0: -24, x1: -12, z0: 8, z1: 40, weight: 1.2 },
@@ -147,10 +166,12 @@ export default {
     // near grass: real blade clumps (hero foreground, along the path, the drive verges, the family plot)
     const bladeMat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.82, color: 0xffffff, name: 'bladeGrass' });
     bladeMat.userData.groundShade = true;
-    bladeMat.userData.rim = 0.3;
+    bladeMat.envMapIntensity = 0.3;
+    bladeMat.userData.rim = 0.5;
+    bladeMat.userData.rimTip = true;
     const hiQ = ctx.quality.particles >= 1;
     root.add(buildBladeGrass({
-      material: bladeMat, count: hiQ ? 16000 : 7000,
+      material: bladeMat, count: hiQ ? 11000 : 6000,
       regions: [
         { x0: -14, x1: 18, z0: 33, z1: 56, weight: 6 },
         { x0: -5, x1: 10, z0: 36, z1: 52, weight: 3 },
@@ -175,7 +196,7 @@ export default {
     root.add(house.group);
 
     // ------------------------------------------------------------ gate + fence + medallion lock
-    const gate = buildGate(ctx, M);
+    const gate = buildGate(ctx, { ...M, iron: M.gateIron });
     root.add(gate.group);
     const med = createMedallion(ctx);
     med.group.position.set(-0.03, 1.5, 0.05);
@@ -186,13 +207,15 @@ export default {
     const medWorld = new THREE.Vector3();
     med.group.getWorldPosition(medWorld);
     // warm spill from the pier lanterns gathered on the lock medallion (keeps the puzzle legible)
-    const medLight = new THREE.PointLight(0xffb070, 1.1, 3.2, 2);
+    const medLight = new THREE.PointLight(0xffb070, 0.7, 3.2, 2);
+    M.pierStone.userData.grime = { y0: gate.y0 - 0.45, h: 0.75, moss: 0.9 };
     medLight.position.copy(medWorld).add(new THREE.Vector3(0.3, 0.9, 1.3));
     root.add(medLight);
 
     // ------------------------------------------------------------ trees
     const barkMat = pbr(TX.bark, { name: 'bark', color: 0xa09890 });
-    barkMat.userData.rim = 0.25;
+    barkMat.userData.rim = 0.3;
+    barkMat.normalScale.set(0.7, 0.7);
     const trees = [
       { seed: 11, x: 7.6, z: 33.8, ry: 2.6, s: 1.1, height: 11, trunkR: 0.62, spread: 1.15 },     // hero foreground, frames the right
       { seed: 23, x: 11.5, z: 30.5, ry: 2.2, s: 1.05, height: 10, trunkR: 0.5 },
@@ -201,9 +224,14 @@ export default {
       { seed: 53, x: -8.2, z: 26.8, ry: 3.0, s: 0.95, height: 9, trunkR: 0.45 },
       { seed: 67, x: -3.4, z: 18.0, ry: 4.0, s: 0.85, height: 8, trunkR: 0.38 },   // frames the drive view on the left
       { seed: 71, x: -6.4, z: 30.8, ry: 1.0, s: 1.1, height: 10, trunkR: 0.5 },   // frames the left
+      // the proscenium: two big black oaks right in front of the hero camera, limbs arching in
+      { seed: 83, x: -1.55, z: 36.9, ry: 0, s: 0.9, height: 16, trunkR: 0.72, spread: 1.15, lean: 0.12, reach: [0.55, 1, -0.35], reachW: 1.6 },
+      // mid-ground oaks half-drowned in the mist between the gate and the house
+      { seed: 101, x: -9.5, z: 14.5, ry: 2.0, s: 1.0, height: 10, trunkR: 0.45 },
+      { seed: 113, x: 12.5, z: 18.5, ry: 0.7, s: 1.1, height: 11, trunkR: 0.5 },
     ];
     for (const t of trees) {
-      const g = gnarledTree({ seed: t.seed, height: t.height, trunkR: t.trunkR, spread: t.spread ?? 1, depth: 5 });
+      const g = gnarledTree({ seed: t.seed, height: t.height, trunkR: t.trunkR, spread: t.spread ?? 1, depth: 5, lean: t.lean || 0, reach: t.reach || null, reachW: t.reachW ?? 0.8 });
       root.add(placeTree(g, barkMat, t));
     }
 
@@ -224,7 +252,8 @@ export default {
     // The moon is BEHIND the house: one shadowed directional from the moon's azimuth,
     // ~32 deg up, rim-lights rooflines/finials and throws the house's long shadow down the
     // drive toward the camera. The camera-facing facade only gets a faint cool sky fill.
-    const moon = new THREE.DirectionalLight(0xa8bcff, Number(P.get('moon') || 5.0));
+    const moonBase = Number(P.get('moon') || 2.9);
+    const moon = new THREE.DirectionalLight(0xb0c0f4, moonBase);
     const shadowCenter = new THREE.Vector3(0, 0, 16);
     moon.position.copy(shadowCenter).addScaledVector(P.get('ldir') ? new THREE.Vector3(...P.get('ldir').split(',').map(Number)).normalize() : LIGHT_DIR, 70);
     moon.target.position.copy(shadowCenter);
@@ -235,42 +264,76 @@ export default {
     moon.shadow.camera.updateProjectionMatrix();
     root.add(moon, moon.target);
     U.uRimDir.value.copy(LIGHT_DIR);
-    U.uRimStrength.value = Number(P.get('rim') || 1.0);
+    U.uRimStrength.value = Number(P.get('rim') || 1.6);
     // very faint cool fill from camera-left (the open sky over the valley) so porch detail survives
-    const fill = new THREE.DirectionalLight(0x8494b8, Number(P.get('fill') || 6.0));
+    const fillBase = Number(P.get('fill') || 4.2);
+    const fill = new THREE.DirectionalLight(0x8a96b0, fillBase);
     fill.position.set(-45, 18, 70); fill.target.position.set(0, 4, 0);
     root.add(fill, fill.target);
-    const hemi = new THREE.HemisphereLight(0x22305a, 0x050404, Number(P.get('hemi') || 0.22));
+    const hemiBase = Number(P.get('hemi') || 0.22);
+    const hemi = new THREE.HemisphereLight(0x22305a, 0x050404, hemiBase);
     root.add(hemi);
     // lightning (key light from the strike direction)
-    const bolt = new THREE.DirectionalLight(0xc8d4ff, 0);
-    bolt.position.set(-40, 50, -30); bolt.target.position.set(0, 0, 10);
+    const bolt = new THREE.DirectionalLight(0xd8dcff, 0);
+    bolt.position.set(-30, 17, -80); bolt.target.position.set(0, 0, 10);
     root.add(bolt, bolt.target);
-    // porch lanterns flanking the door + warm spill from the hall through the open door
+    // porch sconces flanking the door: cast-iron backplate and scrolled arm, a cage of
+    // four bars round a frosted, sooty glass chimney, a small hot flame inside (bloom
+    // does the rest) + a halo in the damp air. Warm bounce off the porch boards below.
     const porchLights = [];
+    const sconceGlass = new THREE.MeshStandardMaterial({ color: 0x0c0906, emissive: 0xffffff, emissiveMap: M.lanternPane.emissiveMap, emissiveIntensity: 1.25, roughness: 0.25, transparent: true, opacity: 0.8, depthWrite: false, name: 'sconceGlass' });
+    const halo = haloTexture(ctx);
     for (const s of [-1, 1]) {
       const x = s * (DOOR.w / 2 + 0.95);
       const L = new THREE.Group();
-      L.position.set(x, F + 2.6, TOWER.z1 + 0.22);
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.08, 0.36, 6), M.lanternGlass);
-      L.add(body);
-      const cap = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.18, 6), M.iron); cap.position.y = 0.27; L.add(cap);
-      const bot = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.03, 0.12, 6), M.iron); bot.position.y = -0.24; L.add(bot);
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.24), M.iron); arm.position.set(0, 0.1, -0.12); L.add(arm);
+      L.position.set(x, F + 2.55, TOWER.z1 + 0.26);
+      const sb = new Bucket();
+      sb.add(new THREE.CylinderGeometry(0.075, 0.075, 0.02, 20), M.iron, mat4(0, 0.05, -0.25, Math.PI / 2, 0, 0), { uv: 'keep' });   // backplate
+      sb.add(ctx.geometry.latheFromProfile([[0, 0], [0.05, 0], [0.06, 0.03], [0.02, 0.06], [0, 0.07]], 12), M.iron, mat4(0, 0.05, -0.24, Math.PI / 2, 0, 0), { uv: 'keep' });
+      const arm = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0.05, -0.23), new THREE.Vector3(0, 0.0, -0.15), new THREE.Vector3(0, -0.06, -0.06), new THREE.Vector3(0, -0.13, 0.0)]);
+      sb.add(new THREE.TubeGeometry(arm, 16, 0.012, 6), M.iron, null, { uv: 'keep' });
+      sb.add(new THREE.TorusGeometry(0.035, 0.007, 5, 12, Math.PI * 1.5), M.iron, mat4(0, -0.03, -0.16, 0, Math.PI / 2, 0), { uv: 'keep' });
+      // cage: bottom cup, four bars, top ring + cap + finial
+      sb.add(ctx.geometry.latheFromProfile([[0, -0.2], [0.03, -0.2], [0.05, -0.17], [0.075, -0.14], [0.085, -0.13], [0, -0.13]], 16), M.iron, null, { uv: 'keep' });
+      for (let k = 0; k < 4; k++) {
+        const a = k * Math.PI / 2 + Math.PI / 4;
+        sb.add(new THREE.CylinderGeometry(0.006, 0.006, 0.26, 5), M.iron, mat4(Math.cos(a) * 0.072, 0.0, Math.sin(a) * 0.072), { uv: 'keep' });
+      }
+      sb.add(new THREE.TorusGeometry(0.072, 0.007, 5, 20), M.iron, mat4(0, 0.12, 0, Math.PI / 2, 0, 0), { uv: 'keep' });
+      sb.add(ctx.geometry.latheFromProfile([[0, 0.12], [0.1, 0.12], [0.09, 0.14], [0.05, 0.19], [0.025, 0.22], [0.012, 0.26], [0.02, 0.28], [0, 0.3]], 16), M.iron, null, { uv: 'keep' });
+      sb.build(L, { name: 'sconce' });
+      const gl = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.05, 0.24, 20, 1, true), sconceGlass);
+      gl.position.y = 0.0; gl.renderOrder = 7; L.add(gl);
+      const fl = ctx.fx.flame({ height: 0.06, width: 0.018, intensity: 3.0, seed: s + 3 });
+      fl.position.y = -0.07; L.add(fl);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: halo, color: 0xffa860, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+      sp.scale.set(1.1, 1.1, 1); sp.renderOrder = 9; sp.userData.noBake = true; L.add(sp);
       root.add(L);
-      const pl = new THREE.PointLight(0xffa050, 3, 6, 2);
-      pl.position.set(x, F + 2.6, TOWER.z1 + 0.45);
+      const pl = new THREE.PointLight(0xffa050, 5.5, 6, 2);
+      pl.position.set(x, F + 2.5, TOWER.z1 + 0.42);
       root.add(pl);
       porchLights.push(pl);
     }
+    // warm bounce off the porch floor and the top steps (keeps treads out of pure black)
+    const bounce = new THREE.PointLight(0xff9a50, Number(P.get('bounce') || 1.3), 4.0, 2);
+    bounce.position.set(0, F + 0.35, TOWER.z1 + 1.6);
+    root.add(bounce);
+    const bounce2 = new THREE.PointLight(0xff9a50, 0.7, 3.5, 2);
+    bounce2.position.set(0, F - 0.2, PORCH.z1 + 1.2);
+    root.add(bounce2);
     const doorSpill = new THREE.SpotLight(0xffa860, 0, 16, 0.75, 0.6, 2);
     doorSpill.position.set(0, F + 2.3, TOWER.z1 - 0.8);
     doorSpill.target.position.set(0, 0, TOWER.z1 + 6);
     root.add(doorSpill, doorSpill.target);
-    // warm spill from a few lit windows
-    for (const [x, y, z, i] of [[-6.7, F + 2.2, 7.9, 2.5], [0, 10.9, 8.9, 2.0]]) {
-      const pl = new THREE.PointLight(0xff9a50, i, 8, 2);
-      pl.position.set(x, y, z);
+    // warm spill from the lit windows onto their sills, casings and the siding around them
+    // (the brightest few get a real light; colour follows the lamp in that room)
+    const spillCol = (t) => (t >= 0.9 ? 0xff8a3a : t > 0.3 ? 0xffb070 : 0xff9a50);
+    const spills = house.glass.lit
+      .filter((w) => w.normal.z > 0.3 || w.pos.x > 7)
+      .sort((a, b) => b.lit - a.lit).slice(0, 5);
+    for (const w of spills) {
+      const pl = new THREE.PointLight(spillCol(w.tint), 2.6 * w.lit, 4.5, 2);
+      pl.position.copy(w.sill).addScaledVector(w.normal, 0.55).add(new THREE.Vector3(0, 0.6, 0));
       root.add(pl);
     }
 
@@ -296,11 +359,14 @@ export default {
 
     // ------------------------------------------------------------ ground mist (added after the fog patch: own shader)
     const mist = buildMist({
-      timeUniform: ctx.time, moonDir: MOON_DIR, opacity: Number(P.get('mist') ?? 0.6),
+      timeUniform: ctx.time, moonDir: MOON_DIR, opacity: Number(P.get('mist') ?? 0.72),
       sheets: [
         { x0: -24, x1: 26, z0: 38, z1: 64, count: 16, w: [10, 18], h: [2.0, 3.6] },
         { x0: -26, x1: 26, z0: 29, z1: 36, count: 9, w: [8, 14], h: [1.4, 2.4] },
         { x0: -22, x1: 22, z0: 13, z1: 28, count: 9, w: [6, 12], h: [1.1, 2.0] },
+        // layered moonlit banks between the gate and the house: the house sits back in haze
+        { x0: -18, x1: 20, z0: 15, z1: 22, count: 8, w: [9, 15], h: [2.4, 4.2] },
+        { x0: -20, x1: 22, z0: 22, z1: 29, count: 7, w: [8, 14], h: [1.8, 3.2] },
         { x0: -14, x1: -6, z0: 17, z1: 25, count: 3, w: [5, 8], h: [1.0, 1.6] },
         { x0: -28, x1: 28, z0: -14, z1: 2, count: 7, w: [10, 16], h: [2.0, 3.5] },
       ],
@@ -337,8 +403,8 @@ export default {
     const eye = 1.64;
     const at = (x, z, dy = eye) => [x, height(x, z) + dy, z];
     const nodes = {
-      main: { position: at(1.45, 40.5, 1.25), target: [0.6, 8.5, 6], fov: 44, label: 'The foot of the hill', look: { yaw: [-45, 45], pitch: [-20, 30] } },
-      gate: { position: at(0.35, GATE_Z + 3.4), target: [0.0, gate.y0 + 4.3, 12], fov: 54, label: 'The gate', look: { yaw: [-55, 55], pitch: [-30, 35] } },
+      main: { position: at(1.45, 40.5, 1.25), target: [0.9, 9.6, 6], fov: 46, label: 'The foot of the hill', look: { yaw: [-45, 45], pitch: [-20, 30] } },
+      gate: { position: at(0.35, GATE_Z + 3.4), target: [0.0, gate.y0 + 4.3, 12], fov: 54, label: 'The gate', grade: { exposure: 3.4 }, look: { yaw: [-55, 55], pitch: [-30, 35] } },
       drive: { position: at(5.6, 27.6, 1.3), target: [-0.6, 9.0, 5], fov: 56, label: 'The drive', grade: { godRayWeight: 0.0 }, look: { yaw: [-60, 60], pitch: [-25, 35] } },
       graves: { position: at(-13.3, 26.0, 1.5), target: [-7.4, 1.4, 14.5], fov: 52, label: 'The family plot', look: { yaw: [-50, 50], pitch: [-30, 30] } },
       porch: { position: [0.25, height(0.2, 15.4) + eye, 15.4], target: [0, F + 2.0, TOWER.z1], fov: 54, label: 'The front steps', grade: { godRayWeight: 0.0 }, look: { yaw: [-60, 60], pitch: [-25, 40] } },
@@ -450,18 +516,34 @@ export default {
     let strikeAt = -100;
     const strike = () => { strikeAt = ctx.time.value; };
     if (P.get('strike')) strikeAt = ctx.time.value - Number(P.get('strike'));
+    let shotGradeFor = null, live = false;
     const update = (dt, t) => {
+      // shot mode renders with dt = 0, so the engine's 0.8 s node-grade blend never advances:
+      // apply the current node's grade instantly (deterministic review renders)
+      if (ctx.shot && live && ctx.nav.current !== shotGradeFor) {
+        shotGradeFor = ctx.nav.current;
+        const g = nodes[shotGradeFor]?.grade;
+        if (g) ctx.post?.set?.(g, 0);
+      }
       // lightning
       const ds = t - strikeAt;
       const fs = ds >= 0 && ds < 1.5 ? Math.max(Math.exp(-ds * 8), ds > 0.15 ? Math.exp(-(ds - 0.15) * 12) * 0.8 : 0, ds > 0.4 ? Math.exp(-(ds - 0.4) * 5) * 0.5 : 0) : 0;
       const f = forceFlash ?? Math.max(flashAt(t), fs);
       bats.update(t);
+      house.glass.update?.(t);
       sky.uniforms.uFlash.value = f;
       sky.uniforms.uBolt.value = f > 0.05 ? Math.min(1, f * 1.4) : 0;
       sky.uniforms.uBoltSeed.value = Math.floor(t / 41) * 7 + 3 + (fs > 0 ? 11 : 0);
-      bolt.intensity = f * 8;
-      U.uHFogFlash.value = f * 0.15;
-      mist.uniforms.uFlash.value = f * 0.6;
+      // the strike: a hard key from behind the house (front faces stay dark -> silhouette),
+      // fog and mist light up, the camera-side fill sinks; afterwards the eye adapts (dip)
+      const dip = forceFlash != null ? 0 : dipAt(t, strikeAt);
+      bolt.intensity = f * 24;
+      U.uHFogFlash.value = f * 0.28;
+      mist.uniforms.uFlash.value = f * 0.35;
+      fill.intensity = fillBase * (1 - f * 0.6) * (1 - dip * 0.45);
+      hemi.intensity = hemiBase * (1 - dip * 0.5);
+      moon.intensity = moonBase * (1 - dip * 0.35);
+      sky.uniforms.uMoonBright.value = 1.15 * (1 - dip * 0.3);
       if (!ctx.shot && f > 0.6 && t - lastThunder > 3) { lastThunder = t; setTimeout(() => ctx.audio.thunder?.(), 900 + 600 * Math.random()); }
       // moon god-ray follows the camera (moon is at infinity)
       moonRay.position.copy(ctx.camera.position).addScaledVector(MOON_DIR, 70);
@@ -478,11 +560,12 @@ export default {
       ghost.visible = ghostFade.v > 0.01;
       // lamps flicker gently
       const fl = 0.93 + 0.07 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1.0);
-      porchLights.forEach((l, i) => { l.intensity = 3 * (i ? fl : 2 - fl - 0.0) * 0.98; });
+      porchLights.forEach((l, i) => { l.intensity = 5.5 * (i ? fl : 2 - fl - 0.0) * 0.98; });
       graves.votive.userData.light.intensity = 0.9 * (0.85 + 0.15 * Math.sin(t * 9.1) * Math.sin(t * 4.3 + 0.7));
       gate.lights.forEach((l, i) => { l.intensity = 4.0 * (0.92 + 0.08 * Math.sin(t * (5.1 + i) + i * 2.0)); });
     };
     update(0, ctx.time.value);
+    live = true;   // the room grade is applied after build; node grades in shots only from here on
     if (P.get('door') === 'open') { doorOpen.v = doorOpen.target = 1; applyDoor(); }
 
     return {
@@ -491,8 +574,8 @@ export default {
       godRays: [moonRay],
       start: 'main',
       grade: {
-        exposure: Number(P.get('exposure') || 1.65), toneMapping: P.get('tm') || 'aces', contrast: Number(P.get('contrast') || 1.14), saturation: 1.0,
-        shadowTint: [0.8, 0.93, 1.22], highlightTint: [1.16, 1.0, 0.8], splitAmount: 0.6, splitBalance: 0.4,
+        exposure: Number(P.get('exposure') || 1.9), toneMapping: P.get('tm') || 'aces', contrast: Number(P.get('contrast') || 1.14), saturation: 1.0,
+        shadowTint: [0.84, 0.95, 1.14], highlightTint: [1.16, 1.0, 0.8], splitAmount: 0.6, splitBalance: 0.4,
         lift: [-0.006, -0.005, -0.002], blackPoint: Number(P.get('bp') || 0.012),
         vignette: 0.42, grain: 0.035, bloomStrength: Number(P.get('bs') || 0.28), bloomThreshold: Number(P.get('bt') || 1.6), bloomRadius: 0.5,
         godRayWeight: Number(P.get('grw') || 0.9), godRayThreshold: Number(P.get('grt') || 0.55), godRayDecay: 0.972, godRayDensity: 0.95,
@@ -515,12 +598,12 @@ export default {
           // high over the valley, drifting down through the mist toward the house on the hill
           await ctx.nav.flyTo({ position: [16, 16, 84], target: [0, 9, 0], fov: 40 }, 0.01);
           forceFlash = null;
-          const p1 = ctx.nav.flyTo({ position: [6.5, 0.5, 58], target: [-0.5, 7.5, 4], fov: 44 }, 9.0);
+          const p1 = ctx.nav.flyTo({ position: [6.5, height(6.5, 58) + 4.5, 58], target: [-0.5, 7.5, 4], fov: 44 }, 9.0);
           await h.wait(1.4);
           await say('The house on the hill. You came, as the others came — drawn by an invitation you do not remember accepting.');
           await p1;
           // slow push-in on the front door, then the sky splits
-          const p2 = ctx.nav.flyTo({ position: [2.6, -2.0, 42], target: [0, F + 2.2, TOWER.z1], fov: 24 }, 7.0);
+          const p2 = ctx.nav.flyTo({ position: [2.4, height(2.4, 42) + 3.0, 42], target: [0, F + 2.2, TOWER.z1], fov: 24 }, 7.0);
           await say('Six guests. One house. And a seat at my table for *one* more.');
           await p2;
           strike();

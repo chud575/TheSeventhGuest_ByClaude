@@ -88,8 +88,8 @@ export function buildMist({ timeUniform, moonDir, sheets, seed = 9, opacity = 0.
   const uniforms = {
     uTime: timeUniform,
     uMoonDir: { value: moonDir.clone().normalize() },
-    uDark: { value: new THREE.Color(0.018, 0.024, 0.04) },
-    uLit: { value: new THREE.Color(0.05, 0.06, 0.088) },
+    uDark: { value: new THREE.Color(0.026, 0.033, 0.054) },
+    uLit: { value: new THREE.Color(0.065, 0.078, 0.11) },
     uOpacity: { value: opacity },
     uFlash: { value: 0 },
   };
