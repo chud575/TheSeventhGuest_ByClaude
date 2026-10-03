@@ -60,13 +60,13 @@ export function createPianoPuzzle({ keys, ghost, toWorld, desk, onSolvedScene })
 
   const schedule = (t, fn) => { S.after = { t: S.clock + t, fn }; };
 
-  const listen = (delay = 0.9) => {
+  const listen = (delay = 0.9, p = pctxRef) => {
     S.phase = 'listen';
     S.progress = 0;
     S.queue = [];
     for (let i = 0; i < S.len; i++) S.queue.push({ t: S.clock + delay + i * NOTE_GAP, midi: PHRASE[i] });
     status(`Listen… (${S.len} of ${PHRASE.length} notes)`);
-    ghost?.want?.(0.95);
+    ghost?.want?.(0, !!p?.shot);   // the guest takes his seat: only his playing remains (the glowing keys)
   };
 
   const yourTurn = () => {

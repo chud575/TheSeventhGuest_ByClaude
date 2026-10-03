@@ -7,12 +7,12 @@ import { sheetMusicTexture } from './textures.js';
  */
 
 /** Pedal harp, ~1.75 m: fluted gilt column, carved crown, swan-neck, flared soundbox, 40 strings. */
-export function buildHarp(ctx, { gilt, giltPlain, wood }) {
+export function buildHarp(ctx, { gilt, giltPlain, wood, box = wood }) {
   const { geometry: G } = ctx;
   const g = new THREE.Group();
   g.name = 'harp';
   // frame plane = XY; the column stands at x=+0.32 (front), soundbox leans from the base at x=0 up to the neck end at x=-0.42
-  const base = new THREE.Mesh(new G.RoundedBoxGeometry(0.46, 0.09, 0.3, 3, 0.02), wood);
+  const base = new THREE.Mesh(new G.RoundedBoxGeometry(0.46, 0.09, 0.3, 3, 0.02), box);
   base.position.set(0.05, 0.075, 0); g.add(base);
   const plinth = new THREE.Mesh(new G.RoundedBoxGeometry(0.5, 0.03, 0.34, 2, 0.01), giltPlain);
   plinth.position.set(0.05, 0.13, 0); g.add(plinth);
@@ -69,7 +69,7 @@ export function buildHarp(ctx, { gilt, giltPlain, wood }) {
   const sbGeo = new THREE.CylinderGeometry(0.05, 0.16, sbLen, 24, 8, false, 0, Math.PI);
   sbGeo.rotateY(Math.PI);   // half-cylinder bulging toward -X (the back)
   { const p = sbGeo.attributes.position; for (let i = 0; i < p.count; i++) p.setZ(i, p.getZ(i) * 0.9); sbGeo.computeVertexNormals(); }
-  const soundbox = new THREE.Mesh(sbGeo, wood);
+  const soundbox = new THREE.Mesh(sbGeo, box);
   soundbox.position.copy(sbA).lerp(sbB, 0.5);
   soundbox.rotation.z = Math.atan2(sbB.x - sbA.x, -(sbB.y - sbA.y)) + Math.PI;
   g.add(soundbox);
@@ -232,14 +232,32 @@ export function buildBench(ctx, { ebony, velvet }) {
   const { geometry: G } = ctx;
   const g = new THREE.Group();
   g.name = 'bench';
-  const seat = new THREE.Mesh(new G.RoundedBoxGeometry(0.9, 0.07, 0.38, 4, 0.03), velvet);
+  // domed, button-tufted cushion
+  const cg = new G.RoundedBoxGeometry(0.88, 0.08, 0.37, 6, 0.035);
+  {
+    const tufts = [];
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) tufts.push([-0.3 + i * 0.2, -0.08 + j * 0.16]);
+    const p = cg.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      if (y <= 0) continue;
+      const dome = Math.max(0, 1 - (x / 0.44) ** 4) * Math.max(0, 1 - (z / 0.185) ** 4);
+      let dy = dome * 0.022;
+      for (const [tx, tz] of tufts) dy -= 0.012 * Math.exp(-((x - tx) ** 2 + (z - tz) ** 2) / 0.0006);
+      p.setY(i, y + dy * (y / 0.04));
+    }
+    cg.computeVertexNormals();
+  }
+  const seat = new THREE.Mesh(cg, velvet);
   seat.position.y = 0.5; g.add(seat);
-  const frame = new THREE.Mesh(new G.RoundedBoxGeometry(0.92, 0.07, 0.4, 2, 0.01), ebony);
-  frame.position.y = 0.44; g.add(frame);
-  // buttons
+  const frame = new THREE.Mesh(new G.RoundedBoxGeometry(0.92, 0.075, 0.4, 2, 0.01), ebony);
+  frame.position.y = 0.445; g.add(frame);
+  const apron = new THREE.Mesh(G.sweepProfile([new THREE.Vector2(0, 0), new THREE.Vector2(0.012, 0.0), new THREE.Vector2(0.016, 0.02), new THREE.Vector2(0.008, 0.035), new THREE.Vector2(0, 0.04)],
+    [new THREE.Vector3(-0.46, 0.39, -0.2), new THREE.Vector3(0.46, 0.39, -0.2), new THREE.Vector3(0.46, 0.39, 0.2), new THREE.Vector3(-0.46, 0.39, 0.2)], { closed: true, uvScale: 2 }), ebony);
+  g.add(apron);
   for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) {
-    const b = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 6), velvet);
-    b.position.set(-0.3 + i * 0.2, 0.535, -0.08 + j * 0.16); g.add(b);
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 6), velvet);
+    b.position.set(-0.3 + i * 0.2, 0.531, -0.08 + j * 0.16); g.add(b);
   }
   const legProfile = [new THREE.Vector2(-0.018, -0.018), new THREE.Vector2(0.018, -0.018), new THREE.Vector2(0.018, 0.018), new THREE.Vector2(-0.018, 0.018), new THREE.Vector2(-0.018, -0.018)];
   for (const [x, z] of [[-0.4, -0.15], [0.4, -0.15], [-0.4, 0.15], [0.4, 0.15]]) {

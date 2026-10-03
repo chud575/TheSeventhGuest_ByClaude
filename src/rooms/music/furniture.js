@@ -85,9 +85,13 @@ export function buildFireplace(ctx, { marble, iron, brass, gilt }) {
   }
   // flames
   const flames = [];
-  for (let i = 0; i < 6; i++) {
-    const f = fx.flame({ height: 0.2 + rnd.next() * 0.14, width: 0.06 + rnd.next() * 0.03, intensity: 7, seed: 40 + i * 7 });
-    f.position.set(-0.2 + i * 0.08, 0.25, -0.1 + rnd.next() * 0.05);
+  for (let i = 0; i < 11; i++) {
+    const big = i % 3 === 1;
+    const f = fx.flame({
+      height: (big ? 0.22 : 0.1) + rnd.next() * 0.1, width: (big ? 0.05 : 0.035) + rnd.next() * 0.02, intensity: big ? 0.6 : 0.4, seed: 40 + i * 7,
+      core: [1.0, 0.75, 0.38], outer: [1.0, 0.3, 0.05], base: [0.6, 0.12, 0.02],
+    });
+    f.position.set(-0.24 + (i / 10) * 0.48 + (rnd.next() - 0.5) * 0.03, 0.2 + rnd.next() * 0.04, -0.15 + rnd.next() * 0.12);
     g.add(f); flames.push(f);
   }
   // brass fender + fire irons

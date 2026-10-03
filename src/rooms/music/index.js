@@ -48,7 +48,7 @@ export default {
     const parquet = M.create('parquet', { species: 'walnut', ratio: 5, planksAcross: 2, repeat: [0.9, 0.9], polish: 0.7, wear: 0.35 });
     const ebony = M.create('ebony', { repeat: [2, 2], color: [0.55, 0.55, 0.6], clearcoat: 1.0, clearcoatRoughness: 0.06, roughness: 0.6 });
     const mahogany = M.create('mahogany', { repeat: [1.2, 1.2] });
-    const panelWood = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.75, repeat: [1.2, 1.2], clearcoat: 0.5, clearcoatRoughness: 0.25, color: [0.75, 0.62, 0.6] });
+    const panelWood = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.75, repeat: [1.2, 1.2], clearcoat: 0.5, clearcoatRoughness: 0.25, color: [0.55, 0.4, 0.36] });
     const celloWood = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.9, figure: 0.8, repeat: [1, 1], clearcoat: 0.9, clearcoatRoughness: 0.12, color: [1.15, 0.8, 0.55] });
     const harpWood = M.create('walnut', { repeat: [2, 2], color: [1.0, 0.85, 0.7] });
     const plaster = M.create('plaster', { color: [0.3, 0.33, 0.42], cracks: 0.3, stains: 0.4, repeat: [0.45, 0.45] });
@@ -301,8 +301,8 @@ export default {
     add(torchLight);
 
     // ================================================================ harp, cello, stand, chair (right side, by the windows)
-    const harp = buildHarp(ctx, { gilt: giltFluted, giltPlain, wood: harpWood });
-    harp.position.set(2.75, 0, -3.35); harp.rotation.y = -0.55;
+    const harp = buildHarp(ctx, { gilt: giltFluted, giltPlain, wood: giltPlain, box: harpWood });
+    harp.position.set(2.65, 0, -3.2); harp.rotation.y = -0.75;
     harp.userData.dynamic = true;
     add(harp);
     const chair = buildChair(ctx, { wood: mahogany, velvet: seatVelvet });
@@ -315,7 +315,7 @@ export default {
     const bow = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.005, 0.72, 6), mahogany);
     bow.position.set(2.62, 0.52, -1.42); bow.rotation.set(Math.PI / 2, 0, 0.4); add(bow);
     const stand = buildMusicStand(ctx, { brass, seed: 12 });
-    stand.position.set(1.95, 0, -1.85); stand.rotation.y = 1.2;
+    stand.position.set(2.2, 0, -1.05); stand.rotation.y = 1.5;
     add(stand);
 
     // ================================================================ fireplace wall (left)
@@ -361,7 +361,7 @@ export default {
       const sc = buildSconce(ctx, { brass });
       sc.position.set(X0 + 0.01, 2.05, FIRE.z + s * 1.35); sc.rotation.y = Math.PI / 2;
       add(sc);
-      const pl = new THREE.PointLight(0xffa860, 3.2, 8, 2);
+      const pl = new THREE.PointLight(0xffa860, 4.5, 8, 2);
       pl.position.set(X0 + 0.25, 2.18, FIRE.z + s * 1.35);
       add(pl); sconceLights.push(pl);
     }
@@ -409,8 +409,8 @@ export default {
     add(gasLight);
 
     // ================================================================ moonlight
-    const moon = new THREE.SpotLight(0xa9bfff, 1500, 22, 0.42, 0.4, 2);
-    moon.position.set(-3.2, 6.6, Z0 - 6.5);
+    const moon = new THREE.SpotLight(0xa9bfff, 1250, 22, 0.42, 0.4, 2);
+    moon.position.set(-3.2, 7.2, Z0 - 6.5);
     moon.target.position.set(0.4, 0, -0.6);
     moon.castShadow = ctx.quality.shadows;
     moon.shadow.mapSize.set(ctx.quality.shadowMapSize, ctx.quality.shadowMapSize);
@@ -418,7 +418,7 @@ export default {
     moon.shadow.camera.near = 2; moon.shadow.camera.far = 20;
     add(moon); add(moon.target);
     add(new THREE.HemisphereLight(0x4a62b0, 0x22150c, 0.9));
-    for (const wx of WIN.xs) add(fx.areaLight({ center: [wx, WIN.sill + 1.3, Z0 + 0.05], normal: [0, -0.35, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 0.9 }));
+    for (const wx of WIN.xs) add(fx.areaLight({ center: [wx, WIN.sill + 1.3, Z0 + 0.05], normal: [0, -0.35, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 0.5 }));
 
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
     const shafts = [];
@@ -434,30 +434,34 @@ export default {
 
     // ================================================================ puzzle
     let solvedScenePlayed = false;
-    const solvedScene = async (p) => {
-      // the ghost plays the whole nocturne with its answer, then lets go
+    const farewell = { pending: false, t0: -1 };
+    const solvedScene = async () => {
+      // the ghost plays the whole nocturne with its resolution; once the guest stands up,
+      // he shows himself one last time, bows, and lets go (see the per-frame farewell)
       const tail = [...PHRASE, 65, 69, 74];
       tail.forEach((m, i) => setTimeout(() => { keys.press(m); keys.flash(m, { ghost: true, dur: 0.9 }); ghost.reachFor(keys.xOf(m)); pianoNote(ctx.audio, m, { velocity: 0.7, ghost: true, length: i === tail.length - 1 ? 5 : 2.8 }); }, i * 330));
-      ghostFade.target = 0;
-      ghostFade.speed = 0.25;
       solvedScenePlayed = true;
-      setTimeout(() => ctx.say({ text: 'He finished it at last. How *touching*. I much preferred him unfinished.', speaker: 'stauf', speakerName: 'Stauf' }), 2600);
+      farewell.pending = true;
+      ctx.state.set('music.nocturne', true);
     };
     const nocturne = createPianoPuzzle({ keys, ghost, desk: piano.userData.desk, onSolvedScene: solvedScene });
-    nocturne.puzzle.camera = (() => {
-      const pos = pianoToWorld(0.03, 1.32, 0.66), tgt = pianoToWorld(0.03, 0.72, -0.02);
-      return { position: pos.toArray(), target: tgt.toArray(), fov: 38 };
+    const puzzleCam = (() => {
+      const pos = pianoToWorld(0.03, 1.18, 0.52), tgt = pianoToWorld(0.03, 0.73, -0.02);
+      return { position: pos.toArray(), target: tgt.toArray(), fov: 40 };
     })();
+    // the engine reads `camera` as the puzzle starts (before the camera flight): the ghost
+    // gives up his seat right then, so the camera never passes through him
+    Object.defineProperty(nocturne.puzzle, 'camera', { enumerable: true, configurable: true, get: () => { ghost.want(0); ghostFade.speed = 1.4; return puzzleCam; } });
     const ghostFade = { target: ctx.state.isSolved(PUZZLE_ID) ? 0 : GHOST_IDLE, speed: 0.6, value: ctx.state.isSolved(PUZZLE_ID) ? 0 : GHOST_IDLE };
     if (ctx.state.isSolved(PUZZLE_ID)) { nocturne.markDone(); ghost.group.visible = false; }
     ghost.setOpacity(ghostFade.value);
-    ghost.want = (v) => { ghostFade.target = v ?? GHOST_IDLE; };
+    ghost.want = (v, now = false) => { ghostFade.target = v ?? (ctx.state.isSolved(PUZZLE_ID) ? 0 : GHOST_IDLE); if (now) ghostFade.value = ghostFade.target; };
 
     // ================================================================ navigation
     const nodes = {
-      main: { position: [2.55, 1.62, 3.3], target: [-1.7, 1.2, -1.75], fov: 56, label: 'The music room', look: { yaw: [-50, 50], pitch: [-25, 30] } },
-      piano: { position: pianoToWorld(1.6, 1.62, 0.3).toArray(), target: pianoToWorld(-0.35, 0.9, -0.15).toArray(), fov: 50, label: 'The piano' },
-      harp: { position: [0.9, 1.6, 0.2], target: [3.1, 1.25, -3.2], fov: 54, label: 'The harp and the windows', look: { yaw: [-60, 60], pitch: [-25, 30] } },
+      main: { position: [1.75, 1.6, 2.35], target: [-1.75, 1.32, -1.8], fov: 56, label: 'The music room', look: { yaw: [-50, 50], pitch: [-25, 30] } },
+      piano: { position: pianoToWorld(2.0, 1.66, 0.25).toArray(), target: pianoToWorld(-0.3, 0.98, -0.05).toArray(), fov: 50, label: 'The piano' },
+      harp: { position: [1.05, 1.58, -0.55], target: [3.0, 1.2, -3.25], fov: 54, label: 'The harp and the windows', look: { yaw: [-60, 60], pitch: [-25, 30] } },
       hearth: { position: [0.9, 1.6, 1.4], target: [-4.0, 1.45, 0.45], fov: 54, label: 'The fireplace' },
       door: { position: [0.6, 1.62, 0.9], target: [0.0, 1.45, 5.5], fov: 56, label: 'The doors' },
     };
@@ -537,6 +541,14 @@ export default {
     // ================================================================ per-frame
     ctx.onUpdate((dt, t) => {
       keys.update(dt);
+      if (farewell.pending && window.__game?.mode === 'explore') {
+        if (farewell.t0 < 0) { farewell.t0 = t; ghostFade.target = 1.0; ghostFade.speed = 1.2; }
+        if (t - farewell.t0 > 2.4 && ghostFade.target > 0) {
+          ghostFade.target = 0; ghostFade.speed = 0.22;
+          say('He finished it at last. How *touching*. I much preferred him unfinished.');
+        }
+        if (t - farewell.t0 > 9) farewell.pending = false;
+      }
       ghostFade.value += (ghostFade.target - ghostFade.value) * Math.min(1, dt * ghostFade.speed * 3);
       ghost.setOpacity(ghostFade.value);
       ghost.group.visible = ghostFade.value > 0.01;
@@ -544,7 +556,7 @@ export default {
       const fl = 0.8 + 0.2 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1.2) + 0.08 * Math.sin(t * 17.0);
       fireLight.intensity = 3.2 * fl;
       fire.userData.coalMat.emissiveIntensity = 2.0 + 0.4 * Math.sin(t * 1.3);
-      for (const [i, pl] of sconceLights.entries()) pl.intensity = (i < 2 ? 3.2 : 2.6) * (0.97 + 0.03 * Math.sin(t * 9.1 + i) * Math.sin(t * 3.7));
+      for (const [i, pl] of sconceLights.entries()) pl.intensity = (i < 2 ? 4.5 : 2.6) * (0.97 + 0.03 * Math.sin(t * 9.1 + i) * Math.sin(t * 3.7));
       torchLight.intensity = 7.0 * (0.94 + 0.06 * Math.sin(t * 8.3) * Math.sin(t * 2.9 + 0.4));
     });
 
@@ -576,6 +588,7 @@ export default {
       o.castShadow = !fxLike && !['floor', 'ceiling', 'rug'].includes(o.name);
       o.receiveShadow = !m?.isShaderMaterial && !m?.isMeshBasicMaterial;
     });
+    gas.traverse((o) => { o.castShadow = false; });
     const merged = mergeStatic(root);
     root.userData.merged = merged;
 
