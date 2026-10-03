@@ -326,8 +326,8 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
     name.rotation.x = -0.1;
     add(name);
     // the folded board itself, slid back under the desk (only a sliver of its top shows)
-    const top = add(new THREE.Mesh(new G.RoundedBoxGeometry(1.31, 0.02, 0.07, 2, 0.008), lacquer));
-    top.position.set(0, KEY.top + 0.058, -0.045);
+    const top = add(new THREE.Mesh(new G.RoundedBoxGeometry(1.31, 0.02, 0.045, 2, 0.008), lacquer));
+    top.position.set(0, KEY.top + 0.056, -0.032);
     // red baize strip along the back of the keys (key-back felt), so the key ends don't float
     const baize = add(new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.006, 0.012), new THREE.MeshStandardMaterial({ color: 0x4a0e12, roughness: 1 })));
     baize.position.set(0, KEY.top + 0.004, 0.016);
