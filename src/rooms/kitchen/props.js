@@ -355,7 +355,7 @@ export function buildOilLamp(ctx, mat) {
   const ch = mk(lathe(G, [[0.03, 0.24], [0.034, 0.26], [0.045, 0.3], [0.042, 0.33], [0.022, 0.38], [0.02, 0.47]], 28), chimney);
   ch.userData.noBake = true;
   g.add(ch);
-  const flame = fx.flame({ height: 0.04, width: 0.014, intensity: 3.5 });
+  const flame = fx.flame({ height: 0.032, width: 0.011, intensity: 1.6 });
   flame.position.y = 0.255;
   g.add(flame);
   return { group: g, flameY: 0.3 };

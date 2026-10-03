@@ -79,12 +79,14 @@ export default {
     mat.iron = matFrom(ironSet, { repeat: [3, 3], name: 'iron' });
     mat.ironPolished = matFrom(ironSet, { repeat: [3, 3], name: 'ironPolished', roughness: 0.7, envMapIntensity: 1.3 });
     mat.copper = matFrom(copperTexture(forge, 1024), { repeat: [4, 4], name: 'copper', envMapIntensity: 0.75, normalScale: new THREE.Vector2(0.3, 0.3), roughness: 0.9, color: new THREE.Color(0.62, 0.56, 0.52) });
+    mat.copperOld = mat.copper.clone();
+    mat.copperOld.color = new THREE.Color(0.42, 0.36, 0.33); mat.copperOld.roughness = 1.35; mat.copperOld.name = 'copperOld';
     mat.butcher = matFrom(butcherBlockTexture(forge, { aspect: 1.5 / 0.78, size: 2048 }), { name: 'butcher' });
     mat.boarding = matFrom(boardingTexture(forge, { color: [0.1, 0.17, 0.2] }), { repeat: [1 / 0.6, 1 / 0.6], name: 'boarding' });
     mat.dresserPaint = matFrom(boardingTexture(forge, { color: [0.13, 0.22, 0.26] }), { repeat: [0.4, 1.5], name: 'dresserPaint' });
     mat.hatch = matFrom(boardingTexture(forge, { color: [0.2, 0.17, 0.12] }), { repeat: [1 / 0.6, 1 / 0.6], name: 'hatch' });
     mat.sack = matFrom(sackTexture(forge), { repeat: [2, 2], name: 'sack' });
-    mat.towel = new THREE.MeshStandardMaterial({ color: 0x7d7566, roughness: 0.95, side: THREE.DoubleSide, name: 'towel' });
+    mat.towel = new THREE.MeshStandardMaterial({ color: 0x57524a, roughness: 0.95, side: THREE.DoubleSide, name: 'towel' });
     mat.emberMap = emberTexture(forge).map;
     mat.stoneware = new THREE.MeshPhysicalMaterial({ color: 0xc8b48c, roughness: 0.4, clearcoat: 0.6, clearcoatRoughness: 0.2, name: 'stoneware' });
     mat.stonewareBrown = new THREE.MeshPhysicalMaterial({ color: 0x4a2a14, roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.15, name: 'stonewareBrown' });
@@ -220,7 +222,7 @@ export default {
       const basis = new THREE.Matrix4().makeBasis(V3(0, 1, 0), V3(0, 0, -1), V3(-1, 0, 0));
       let px = CH.x0 + 0.2;
       pans.forEach(([r, h, hl], i) => {
-        const pan = buildSaucepan(G, mat, r, h, hl);
+        const pan = buildSaucepan(G, { ...mat, copper: mat.copperOld }, r, h, hl);
         const holder = new THREE.Group();
         pan.setRotationFromMatrix(basis);
         // ring at local (r + hl, 0.82h, 0) -> after basis (0, r+hl, -0.82h)
@@ -481,7 +483,7 @@ export default {
       {
         const mug = lathe(G, [[0, 0], [0.036, 0], [0.038, 0.01], [0.037, 0.075], [0.04, 0.085], [0.034, 0.085], [0.032, 0.012], [0, 0.01]], 24);
         const jug = lathe(G, [[0, 0], [0.04, 0], [0.05, 0.03], [0.052, 0.07], [0.04, 0.1], [0.038, 0.115], [0.046, 0.125], [0.04, 0.127], [0.032, 0.11], [0, 0.1]], 24);
-        const enamel = new THREE.MeshPhysicalMaterial({ color: 0xe6e2d6, roughness: 0.25, clearcoat: 0.8, name: 'enamelMug' });
+        const enamel = new THREE.MeshPhysicalMaterial({ color: 0xbdb7aa, roughness: 0.25, clearcoat: 0.8, name: 'enamelMug' });
         const blueRim = new THREE.MeshPhysicalMaterial({ color: 0x1c2f66, roughness: 0.25, clearcoat: 0.8, name: 'enamelBlue' });
         const ys = [dresser.shelves[0].y, dresser.shelves[1].y];
         ys.forEach((yy, r) => {
@@ -719,13 +721,13 @@ export default {
       pm.position.set(X1 - 0.004, y0 + h + 0.13, zc); pm.rotation.y = -Math.PI / 2;
       g.add(pm);
       add(g);
-      dumbLight = new THREE.PointLight(0x7f9cff, 0, 3.2, 2);
-      dumbLight.position.set(X1 - 0.06, y0 + 0.35, zc);
+      dumbLight = new THREE.PointLight(0x7f9cff, 0, 3.5, 2);
+      dumbLight.position.set(X1 + 0.22, y0 + 0.12, zc);
       add(dumbLight);
     }
     const setHatch = (t) => {
       hatch.position.y = DUMB.y + DUMB.h / 2 + t * (DUMB.h + 0.05);
-      dumbLight.intensity = 0.9 + t * 1.6;
+      dumbLight.intensity = 1.2 + t * 1.8;
     };
     setHatch(dumb.t);
     async function revealDumbwaiter(animate) {
@@ -1113,7 +1115,7 @@ export default {
       scene: root,
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
-      grade: { exposure: 1.9, contrast: 1.08, saturation: 0.98, bloomStrength: 0.38, bloomThreshold: 1.0, godRayWeight: 0.35, godRayThreshold: 2.5, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4 },
+      grade: { exposure: 2.0, contrast: 1.08, saturation: 0.98, bloomStrength: 0.38, bloomThreshold: 1.0, godRayWeight: 0.35, godRayThreshold: 2.5, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4 },
       environment: { position: [0.2, 1.7, 1.2], intensity: 0.8 },
       onEnter() {
         if (!ctx.state.has('kitchen.greeted')) {

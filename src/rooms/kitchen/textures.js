@@ -277,7 +277,7 @@ export function copperTexture(forge, size = 1024) {
  * uv (0..1) spans the decal plane; footprint path given in uv units.
  */
 export function flourDecalTexture(forge, size = 2048) {
-  return forge.generate('kitchen:flour4', {
+  return forge.generate('kitchen:flour5', {
     size, aspect: 1.0, tile: false, normalStrength: 0.6,
     glsl: /* glsl */ `
     float foot(vec2 p, float side) {
@@ -316,7 +316,7 @@ export function flourDecalTexture(forge, size = 2048) {
       a = max(a, smoothstep(0.55, 0.9, exp(-c3.y * c3.y * 20.0 - c3.x * c3.x * 0.6) * n2 * 1.3) * 0.7);
       // fine dust everywhere else
       a = max(a, smoothstep(0.55, 0.95, n1) * 0.35);
-      a *= 0.75 + 0.25 * n2;
+      a *= 0.45 + 0.55 * smoothstep(0.3, 0.7, n2 * 0.7 + n1 * 0.5);
       // footprints: bare feet walking from the spill to the dumbwaiter (+x wall)
       float fp = 0.0;
       for (int i = 0; i < 9; i++) {
