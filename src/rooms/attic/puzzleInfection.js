@@ -219,10 +219,21 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
 
   let P = null;           // live puzzle ctx while the puzzle is open
   /** result banner centred over the plate, in the game's title-card typography */
-  let bannerEl = null, bannerT = 0;
+  let bannerEl = null, bannerT = 0, bannerBack = null;
   function banner(small, big, sec = 5) {
     if (typeof document === 'undefined') return;
-    bannerEl?.remove();
+    bannerEl?.remove(); bannerBack?.remove();
+    // a soft dark plate behind the type: dims and blurs the cells under the banner so the score reads
+    const bk = document.createElement('div');
+    bk.style.cssText = 'position:absolute; left:50%; top:calc(36vh + 34px); width:min(820px, 92vw); height:220px; transform:translate(-50%, -50%); pointer-events:none; z-index:59;'
+      + 'background: radial-gradient(ellipse at center, rgba(4,3,6,0.82) 0%, rgba(4,3,6,0.7) 40%, rgba(4,3,6,0) 70%);'
+      + '-webkit-backdrop-filter: blur(3px) brightness(0.55); backdrop-filter: blur(3px) brightness(0.55);'
+      + '-webkit-mask-image: radial-gradient(ellipse at center, #000 35%, transparent 70%); mask-image: radial-gradient(ellipse at center, #000 35%, transparent 70%);'
+      + 'opacity:0; transition: opacity 0.8s ease;';
+    (document.querySelector('.t7-ui') || document.body).append(bk);
+    requestAnimationFrame(() => { bk.style.opacity = '1'; });
+    if (ctx.shot) bk.style.opacity = '1';
+    bannerBack = bk;
     const el = document.createElement('div');
     el.className = 't7-title-card';
     el.style.cssText = 'top: 36vh; padding: 18px 60px 14px; background: radial-gradient(ellipse at center, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0) 72%); z-index: 60;';
@@ -234,7 +245,8 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
     requestAnimationFrame(() => el.classList.add('show'));
     if (ctx.shot) el.classList.add('show');
     bannerEl = el; clearTimeout(bannerT);
-    bannerT = setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 1500); if (bannerEl === el) bannerEl = null; }, sec * 1000);
+    if (ctx.shot) sec = 3600;   // review captures on a software renderer are slow: keep the card up
+    bannerT = setTimeout(() => { el.classList.remove('show'); bk.style.opacity = '0'; setTimeout(() => { el.remove(); bk.remove(); }, 1500); if (bannerEl === el) bannerEl = null; }, sec * 1000);
   }
   const quip = (text) => { if (moves - lastQuip < 3) return; lastQuip = moves; (P?.say || ctx.say)?.({ text, speaker: 'stauf', speakerName: 'Stauf' }); };
 
@@ -245,7 +257,7 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
     r.filled.forEach((j, k) => { delay[j] = 0.3 + k * 0.04; });
     if (r.winner === H.BLUE) {
       phase = 'solved';
-      P?.status?.(statusLine());
+      P?.status?.('');     // Stauf has the floor: no status line under his dialogue
       banner('The plate is yours', `Blue ${H.count(board, H.BLUE)}  ·  Green ${H.count(board, H.GREEN)}`);
       setTimeout(() => P?.solve?.(), 1600);
     } else {

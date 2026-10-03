@@ -520,3 +520,86 @@ export function hangingCoatGeometry({ len = 1.1, width = 0.2, seed = 1, cape = f
   g.computeVertexNormals();
   return g;
 }
+
+/**
+ * Victorian brass compound microscope, made to stand behind a specimen dish and reach over it:
+ * black-japanned horseshoe foot, turned pillar, trunnion, a cast swan-neck limb carrying a slender
+ * body tube with draw tube and eyepiece, rack and pinion with a pair of milled coarse-focus heads,
+ * a fine-focus head on the limb, a gimballed mirror and a triple nosepiece whose objective looks
+ * straight down. Origin = centre of the foot; +z = toward the dish. The objective tip sits at
+ * local (0, objY, reach). Returns the group with userData.objective (local Vector3).
+ */
+export function buildMicroscopeVictorian(ctx, m, { reach = 0.24, objY = 0.2 } = {}) {
+  const { geometry: G } = ctx;
+  const g = new THREE.Group(); g.name = 'microscope';
+  const brass = m.brass, japan = m.blackEnamel;
+  // horseshoe foot, open toward the dish
+  const sh = new THREE.Shape();
+  sh.absarc(0, 0, 0.085, Math.PI * 0.5 + 0.55, Math.PI * 2.5 - 0.55, false);
+  sh.absarc(0, 0, 0.034, Math.PI * 2.5 - 0.55, Math.PI * 0.5 + 0.55, true);
+  const foot = mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.014, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 3, curveSegments: 40 }), japan);
+  foot.rotation.x = -Math.PI / 2; foot.rotation.z = Math.PI; foot.position.y = 0.004; g.add(foot);
+  // turned pillar with mouldings
+  g.add(at(mesh(lathe(G, [[0, 0], [0.026, 0], [0.026, 0.006], [0.018, 0.012], [0.014, 0.02], [0.012, 0.11], [0.016, 0.118], [0.016, 0.13], [0.012, 0.135], [0, 0.135]], 28), brass), 0, 0.02, -0.01));
+  // trunnion: a cheek either side and the pivot
+  for (const sx of [-1, 1]) g.add(at(mesh(new G.RoundedBoxGeometry(0.008, 0.05, 0.034, 2, 0.003), brass), sx * 0.02, 0.17, -0.01));
+  g.add(at(mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.056, 18).rotateZ(Math.PI / 2), brass), 0, 0.18, -0.01));
+  for (const sx of [-1, 1]) g.add(at(mesh(lathe(G, [[0, 0], [0.012, 0], [0.012, 0.004], [0.008, 0.007], [0, 0.007]], 18).rotateZ(-sx * Math.PI / 2), brass), sx * 0.028, 0.18, -0.01));
+  // the swan-neck limb: from the trunnion up, back, and over toward the dish
+  const tubeZ = reach;
+  const limbPts = [V3(0, 0.18, -0.01), V3(0, 0.25, -0.035), V3(0, 0.33, -0.02), V3(0, 0.375, 0.04), V3(0, 0.385, tubeZ - 0.07), V3(0, 0.375, tubeZ - 0.04)];
+  const curve = new THREE.CatmullRomCurve3(limbPts, false, 'centripetal');
+  const lg = new THREE.TubeGeometry(curve, 40, 0.016, 12, false);
+  lg.scale(0.6, 1, 1);
+  g.add(mesh(lg, brass));
+  // fine-focus head on the limb's shoulder
+  g.add(at(mesh(lathe(G, [[0, 0], [0.006, 0], [0.006, 0.01], [0.011, 0.012], [0.011, 0.02], [0.008, 0.023], [0, 0.023]], 20), brass), 0, 0.383, 0.05));
+  // limb end block carrying the rack
+  g.add(at(mesh(new G.RoundedBoxGeometry(0.03, 0.07, 0.028, 2, 0.004), brass), 0, 0.36, tubeZ - 0.035));
+  // coarse-focus pinion with two milled heads
+  g.add(at(mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.07, 10).rotateZ(Math.PI / 2), brass), 0, 0.345, tubeZ - 0.035));
+  const knob = lathe(G, [[0, 0], [0.008, 0], [0.016, 0.002], [0.017, 0.006], [0.017, 0.01], [0.014, 0.012], [0.006, 0.014], [0, 0.014]], 32);
+  for (const sx of [-1, 1]) { const k = mesh(knob, brass); k.rotation.z = -sx * Math.PI / 2; at(k, sx * 0.033, 0.345, tubeZ - 0.035); g.add(k); }
+  // rack on the back of the tube
+  g.add(at(mesh(new THREE.BoxGeometry(0.01, 0.17, 0.008), brass), 0, objY + 0.15, tubeZ - 0.02));
+  // body tube, draw tube, eyepiece; collar rings
+  const tube = lathe(G, [
+    [0, 0], [0.004, 0], [0.006, 0.006], [0.009, 0.016], [0.011, 0.03], [0.012, 0.034],          // objective (looks down)
+    [0.017, 0.036], [0.019, 0.04], [0.019, 0.052], [0.016, 0.056],                               // nosepiece
+    [0.0155, 0.06], [0.0155, 0.235], [0.018, 0.238], [0.018, 0.248], [0.0125, 0.252],            // body tube
+    [0.0125, 0.305], [0.015, 0.31], [0.016, 0.322], [0.0135, 0.326], [0.0135, 0.334], [0, 0.334], // draw tube + eyepiece cap
+  ], 32);
+  g.add(at(mesh(tube, brass), 0, objY, tubeZ));
+  // spare objectives on the nosepiece, angled away
+  for (const a of [2.1, 4.2]) {
+    const ob = mesh(lathe(G, [[0, 0], [0.004, 0], [0.007, 0.01], [0.009, 0.025], [0, 0.025]], 16), brass);
+    ob.position.set(Math.cos(a) * 0.012, objY + 0.044, tubeZ + Math.sin(a) * 0.012); ob.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5); ob.rotation.x += Math.PI; g.add(ob);
+  }
+  // gimballed mirror on the pillar front
+  const yoke = mesh(new THREE.TorusGeometry(0.022, 0.0025, 6, 24, Math.PI), brass); yoke.rotation.z = Math.PI; at(yoke, 0, 0.075, 0.025); g.add(yoke);
+  const mir = mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.005, 24), m.mirror); mir.rotation.x = 0.9; at(mir, 0, 0.068, 0.028); g.add(mir);
+  g.userData.objective = V3(0, objY, tubeZ);
+  return g;
+}
+
+/** a workshop stool: dished seat with a rounded edge, four splayed turned legs, a turned stretcher ring */
+export function buildStool(ctx, m) {
+  const { geometry: G } = ctx;
+  const g = new THREE.Group(); g.name = 'stool';
+  const H = 0.62;
+  g.add(at(mesh(lathe(G, [[0, 0.028], [0.12, 0.022], [0.165, 0.03], [0.178, 0.038], [0.176, 0.05], [0.165, 0.056], [0.12, 0.05], [0, 0.046], [0, 0.0], [0.15, 0.0], [0.158, 0.012], [0.15, 0.022], [0, 0.028]], 40), m.labFrame), 0, H - 0.05, 0));
+  const legG = lathe(G, [[0, 0], [0.012, 0], [0.016, 0.02], [0.013, 0.06], [0.017, 0.12], [0.02, 0.2], [0.015, 0.22], [0.019, 0.24], [0.015, 0.26], [0.018, 0.4], [0.021, 0.5], [0.016, 0.56], [0.019, 0.6], [0.015, 0.62], [0, 0.62]], 14);
+  const splay = 0.1;
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+    const l = mesh(legG, m.labFrame);
+    l.position.set(Math.cos(a) * 0.17, 0, Math.sin(a) * 0.17);
+    l.lookAt(Math.cos(a) * 0.12, 0.62, Math.sin(a) * 0.12);
+    l.rotateX(Math.PI / 2);
+    g.add(l);
+  }
+  void splay;
+  g.add(at(mesh(new THREE.TorusGeometry(0.152, 0.009, 8, 40).rotateX(Math.PI / 2), m.labFrame), 0, 0.22, 0));
+  g.add(at(mesh(new THREE.TorusGeometry(0.152, 0.004, 6, 40).rotateX(Math.PI / 2), m.brass), 0, 0.22 + 0.008, 0));
+  return g;
+}

@@ -537,8 +537,8 @@ export function dollFaceTexture(forge, { key = 'doll', eye = '#2a3a5a', lip = '#
     const gr = g.createLinearGradient(0, 0, w, 0);
     gr.addColorStop(0, 'rgba(150,120,80,0.12)'); gr.addColorStop(0.25, 'rgba(0,0,0,0)'); gr.addColorStop(0.5, 'rgba(150,120,80,0.15)'); gr.addColorStop(0.75, 'rgba(150,120,80,0.22)'); gr.addColorStop(1, 'rgba(150,120,80,0.12)');
     g.fillStyle = gr; g.fillRect(0, 0, w, h);
-    const cx = w * 0.25, cy = h * 0.52;
-    g.save(); g.translate(cx, cy); g.scale(1.5, 1.5); g.translate(-cx, -cy);
+    const cx = w * 0.25, cy = h * 0.56;
+    g.save(); g.translate(cx, cy); g.scale(2.5, 2.2); g.translate(-cx, -cy);
     // cheeks
     for (const sx of [-1, 1]) {
       const rg = g.createRadialGradient(cx + sx * 26, cy + 18, 0, cx + sx * 26, cy + 18, 24);
@@ -588,13 +588,15 @@ export function dappleTexture(forge) {
     size: 1024, normalStrength: 0.6,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
-  vec4 v = voronoi(uv * 4.0, vec2(4.0), 0.95);
+  // dapple grey: pale rounded dapples inside a soft darker grey net, the net smoky and broken
+  vec4 v = voronoi(uv * 9.0, vec2(9.0), 0.9);
   float n = fbmv(uv, vec2(4.0), 5);
   float br = fbmv(uv + 0.5, vec2(24.0), 3);
-  // dapples: pale blotches with soft edges, separated by a darker grey network
-  float spot = smoothstep(0.66 + 0.14 * br, 0.22, v.x) * step(0.1, hash12(v.zw));
-  vec3 dark = vec3(0.34, 0.34, 0.35) * (0.85 + 0.25 * n), light = vec3(0.74, 0.73, 0.7);
-  vec3 c = mix(dark, light, spot * (0.75 + 0.25 * n));
+  float net = smoothstep(0.02, 0.16 + 0.08 * br, v.y - v.x);
+  float spot = net * smoothstep(0.75, 0.25, v.x) ;
+  vec3 dark = vec3(0.44, 0.44, 0.45) * (0.9 + 0.2 * n), light = vec3(0.8, 0.79, 0.76);
+  vec3 c = mix(dark, light, mix(0.35, 1.0, spot) * (0.85 + 0.15 * n));
+  c = mix(c, dark * 0.85, smoothstep(0.55, 0.8, n) * 0.5);     // smoky darker shading patches
   float wear = smoothstep(0.62, 0.8, fbmv(uv + 0.3, vec2(6.0), 4));
   c = mix(c, vec3(0.36, 0.25, 0.16), wear * 0.75);           // worn through to the wood
   float cr = smoothstep(0.02, 0.0, voronoiEdge(uv * 30.0, vec2(30.0), 1.0)) * 0.5;
@@ -730,5 +732,118 @@ export function oculusGrimeTexture(forge) {
       g.strokeStyle = 'rgba(10,10,12,0.5)'; g.lineWidth = 3.5; g.globalCompositeOperation = 'destination-over'; g.stroke(); g.globalCompositeOperation = 'source-over';
     }
     for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(ox, oy, 18 + k * 26 + rnd() * 10, rnd() * 6, rnd() * 6 + 1.2); g.strokeStyle = 'rgba(200,210,235,0.5)'; g.lineWidth = 1.1; g.stroke(); }
+  }, { tile: false });
+}
+
+/**
+ * World-space dust: a pale, rough, patchy layer that settles on every upward-facing surface
+ * (vertex normal y), heavier in corners of the noise, thinner where hands and feet have been.
+ * cfg: { amount 0..1, color [r,g,b] (linear-ish multiplier target), scale (patch size, m), clean: [[x,z,r]] wiped areas }
+ */
+export function addDust(mat, cfg = {}) {
+  const { amount = 0.6, color = [0.36, 0.34, 0.31], scale = 1.6, threshold = 0.6, clean = [] } = cfg;
+  const C = clean.slice(0, 4); while (C.length < 4) C.push([0, 0, 0]);
+  const prev = mat.onBeforeCompile;
+  const prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
+  mat.onBeforeCompile = (sh, r) => {
+    prev?.(sh, r);
+    sh.uniforms.uDuClean = { value: C.map((c) => new THREE.Vector3(...c)) };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vDuW; varying vec3 vDuN;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvDuW = (modelMatrix * vec4(transformed, 1.0)).xyz; vDuN = normalize(mat3(modelMatrix) * objectNormal);');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vDuW; varying vec3 vDuN;
+uniform vec3 uDuClean[4];
+float duH(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+float duN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(duH(i), duH(i + vec2(1, 0)), f.x), mix(duH(i + vec2(0, 1)), duH(i + vec2(1, 1)), f.x), f.y); }
+float duF(vec2 p) { return 0.5 * duN(p) + 0.25 * duN(p * 2.07 + 1.3) + 0.125 * duN(p * 4.13 + 2.9) + 0.0625 * duN(p * 8.3 + 4.1); }
+float gDust = 0.0;`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+  {
+    vec2 dp = vDuW.xz / ${scale.toFixed(3)} + vDuW.y * 0.37;
+    float up = smoothstep(${threshold.toFixed(3)}, ${(threshold + 0.25).toFixed(3)}, normalize(vDuN).y);
+    float patchy = smoothstep(0.3, 0.75, duF(dp) + 0.25 * (duF(dp * 6.0 + 7.0) - 0.5));
+    float fine = duN(vDuW.xz * 400.0);
+    float wipe = 1.0;
+    for (int i = 0; i < 4; i++) { if (uDuClean[i].z > 0.0) wipe *= smoothstep(uDuClean[i].z * 0.5, uDuClean[i].z, length(vDuW.xz - uDuClean[i].xy)); }
+    gDust = up * patchy * wipe * ${amount.toFixed(3)} * (0.75 + 0.25 * fine);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${color.map((c) => c.toFixed(3)).join(', ')}) * (0.9 + 0.2 * fine), gDust);
+  }`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+  roughnessFactor = mix(roughnessFactor, 1.0, gDust);`);
+  };
+  mat.customProgramCacheKey = () => `${prevKey()}|dust:${amount}:${scale}:${threshold}:${color.join(',')}:${clean.length}`;
+  mat.needsUpdate = true;
+  return mat;
+}
+
+/** Decal sheet for the work surfaces (2x2 atlas): [0,0] ink spill + spatter, [1,0] cup rings + scorch, [0,1] wax drips, [1,1] tool scuffs. Alpha in the alpha channel. */
+export function decalAtlasTexture(forge) {
+  return forge.canvas('attic:decals', 1024, 1024, (g, w, h) => {
+    let sd = 97;
+    const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+    g.clearRect(0, 0, w, h);
+    const Q = w / 2;
+    const blob = (cx, cy, r, n, col, jag = 0.35) => {
+      g.fillStyle = col; g.beginPath();
+      for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI * 2; const rr = r * (1 - jag / 2 + jag * rnd()); i ? g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr) : g.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
+      g.closePath(); g.fill();
+    };
+    // [0,0] ink: a pool with a darker rim, runs, spatter
+    g.save(); g.beginPath(); g.rect(0, 0, Q, Q); g.clip();
+    blob(Q * 0.45, Q * 0.5, Q * 0.22, 40, 'rgba(12,10,20,0.55)');
+    blob(Q * 0.45, Q * 0.5, Q * 0.15, 30, 'rgba(8,6,14,0.8)');
+    g.strokeStyle = 'rgba(8,6,14,0.75)'; g.lineWidth = 6; g.beginPath(); g.moveTo(Q * 0.6, Q * 0.55); g.quadraticCurveTo(Q * 0.75, Q * 0.62, Q * 0.86, Q * 0.58); g.stroke();
+    for (let i = 0; i < 70; i++) { const a = rnd() * 6.28, r = Q * (0.18 + rnd() * 0.3); blob(Q * 0.45 + Math.cos(a) * r, Q * 0.5 + Math.sin(a) * r, 2 + rnd() * 7, 8, `rgba(8,6,14,${0.4 + rnd() * 0.5})`); }
+    g.restore();
+    // [1,0] cup rings + a scorch from a set-down candle
+    g.save(); g.translate(Q, 0); g.beginPath(); g.rect(0, 0, Q, Q); g.clip();
+    for (const [x, y, r] of [[0.3, 0.3, 0.16], [0.42, 0.36, 0.15], [0.7, 0.68, 0.13]]) {
+      g.strokeStyle = 'rgba(40,24,12,0.55)'; g.lineWidth = 5 + rnd() * 4; g.beginPath(); g.arc(Q * x, Q * y, Q * r, rnd() * 2, rnd() * 2 + 5.4); g.stroke();
+      g.strokeStyle = 'rgba(40,24,12,0.25)'; g.lineWidth = 12; g.beginPath(); g.arc(Q * x, Q * y, Q * r - 6, 0, 6.28); g.stroke();
+    }
+    const sc = g.createRadialGradient(Q * 0.68, Q * 0.3, 0, Q * 0.68, Q * 0.3, Q * 0.16);
+    sc.addColorStop(0, 'rgba(5,3,2,0.95)'); sc.addColorStop(0.5, 'rgba(20,10,4,0.6)'); sc.addColorStop(1, 'rgba(40,20,8,0)');
+    g.fillStyle = sc; g.beginPath(); g.arc(Q * 0.68, Q * 0.3, Q * 0.16, 0, 6.28); g.fill();
+    g.restore();
+    // [0,1] wax: puddles and drips, cream, with thicker edges
+    g.save(); g.translate(0, Q); g.beginPath(); g.rect(0, 0, Q, Q); g.clip();
+    for (let i = 0; i < 9; i++) { const x = Q * (0.25 + rnd() * 0.5), y = Q * (0.25 + rnd() * 0.5); blob(x, y, Q * (0.03 + rnd() * 0.09), 24, `rgba(236,224,196,${0.75 + rnd() * 0.25})`, 0.5); }
+    blob(Q * 0.5, Q * 0.5, Q * 0.14, 30, 'rgba(240,230,205,0.95)', 0.4);
+    g.restore();
+    // [1,1] tool scuffs, knife cuts, a ring of saw dust
+    g.save(); g.translate(Q, Q); g.beginPath(); g.rect(0, 0, Q, Q); g.clip();
+    for (let i = 0; i < 90; i++) {
+      const x = rnd() * Q, y = rnd() * Q, a = (rnd() - 0.5) * 0.8 + (i % 3 ? 0 : 1.57), l = 10 + rnd() * 80;
+      g.strokeStyle = rnd() < 0.5 ? `rgba(20,12,6,${0.25 + rnd() * 0.4})` : `rgba(220,190,150,${0.2 + rnd() * 0.3})`; g.lineWidth = 0.8 + rnd() * 2;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+    }
+    for (let i = 0; i < 18; i++) { const x = rnd() * Q, y = rnd() * Q; g.fillStyle = `rgba(20,12,6,${0.15 + rnd() * 0.2})`; g.beginPath(); g.ellipse(x, y, 4 + rnd() * 20, 2 + rnd() * 6, rnd() * 3, 0, 6.28); g.fill(); }
+    g.restore();
+  }, { tile: false });
+}
+
+/** Soot plume for the brick above the furnace door: black, feathered, rising and spreading. */
+export function sootPlumeTexture(forge) {
+  return forge.canvas('attic:soot', 512, 1024, (g, w, h) => {
+    let sd = 13;
+    const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+    g.clearRect(0, 0, w, h);
+    for (let i = 0; i < 260; i++) {
+      const t = rnd();                     // 0 = door head (bottom), 1 = top
+      const y = h * (1 - t * 0.95), spread = w * (0.22 + 0.28 * t);
+      const x = w / 2 + (rnd() - 0.5) * spread * 1.6 + Math.sin(t * 7 + i) * w * 0.04;
+      const r = 20 + 60 * t * rnd() + 15;
+      const gr = g.createRadialGradient(x, y, 0, x, y, r);
+      const a = (0.1 + 0.15 * (1 - t)) * (0.5 + rnd() * 0.5);
+      gr.addColorStop(0, `rgba(8,6,5,${a})`); gr.addColorStop(1, 'rgba(8,6,5,0)');
+      g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    // dense band right at the lintel
+    const lb = g.createLinearGradient(0, h, 0, h * 0.82);
+    lb.addColorStop(0, 'rgba(6,4,3,0.85)'); lb.addColorStop(1, 'rgba(6,4,3,0)');
+    g.fillStyle = lb; g.fillRect(w * 0.12, h * 0.82, w * 0.76, h * 0.18);
   }, { tile: false });
 }

@@ -5,9 +5,9 @@ import { timberTexture, sarkingTexture, floorTexture, lathPlasterTexture, linenT
 import {
   bevelBox, beam, buildWorkbench, buildTrain, buildToolRack, buildSoldiers, buildTop, buildDrum,
   buildBlocks, buildPuzzleBox, buildLabTable, buildMicroscope, buildGlassware, buildBellJar,
-  buildHangingLamp, buildToyChest, buildChair, buildTrunk, buildCrate, buildDressForm, buildBirdCage, dustSheetGeometry, buildFrameStack, hangingCoatGeometry,
+  buildHangingLamp, buildToyChest, buildChair, buildTrunk, buildCrate, buildDressForm, buildBirdCage, dustSheetGeometry, buildFrameStack, hangingCoatGeometry, buildMicroscopeVictorian, buildStool,
 } from './props.js';
-import { moonDiscTexture, oculusGrimeTexture } from './textures.js';
+import { moonDiscTexture, oculusGrimeTexture, addDust, decalAtlasTexture, sootPlumeTexture } from './textures.js';
 import { webMaterial, cornerWebTexture, cornerWeb, strand, dangle, buildMotes } from './webs.js';
 import { createInfectionPuzzle, infectionMeta, INFECTION_ID } from './puzzleInfection.js';
 import { apparitionMaterial, buildApparition } from './apparition.js';
@@ -100,6 +100,7 @@ export default {
     const add = (o, parent = root) => { parent.add(o); return o; };
     const ghostMat = apparitionMaterial(ctx.time, { core: 0x040202, rim: 0xff5a1e, fill: 0x07090f, opacity: 1.0, rimGain: 1.9 });
     const FIG = { rest: new THREE.Vector3(), fore: new THREE.Vector3(), obj: null };
+    const SCOPE = { obj: null };
     const beamK = { value: 1 };
     let moonK = 1;   // climax: the moon dims as the furnace takes the room
     const dyn = (o) => { o.userData.dynamic = true; return o; };
@@ -196,6 +197,17 @@ export default {
       fringe: new THREE.MeshStandardMaterial({ color: 0xb0a688, roughness: 0.95, name: 'fringe' }),
       rugEdge: new THREE.MeshStandardMaterial({ color: 0x2a1410, roughness: 0.95, name: 'rugEdge' }),
     };
+    // dust settles on everything that faces up; wiped where Stauf works and walks
+    addDust(mat.benchTop, { amount: 0.5, scale: 0.35, threshold: 0.7, clean: [[-1.3, BENCH.z + 0.15, 0.5], [-0.5, BENCH.z + 0.1, 0.35]] });
+    addDust(mat.labTop, { amount: 0.45, scale: 0.3, threshold: 0.7, clean: [[PLATE.x, PLATE.z, 0.42], [TABLE.x + 0.1, TABLE.z + 0.26, 0.25]] });
+    addDust(mat.benchFrame, { amount: 0.6, scale: 0.4, threshold: 0.7 });
+    addDust(mat.timber, { amount: 0.7, scale: 0.8, threshold: 0.45 });
+    addDust(mat.timberDark, { amount: 0.65, scale: 0.8, threshold: 0.45 });
+    addDust(mat.crate, { amount: 0.6, scale: 0.3, threshold: 0.7 });
+    addDust(mat.trunk, { amount: 0.55, scale: 0.3, threshold: 0.6 });
+    addDust(mat.labFrame, { amount: 0.4, scale: 0.3, threshold: 0.7 });
+    addDust(mat.floor, { amount: 0.42, scale: 1.1, threshold: 0.6, color: [0.3, 0.28, 0.25], clean: [[TABLE.x, TABLE.z + 0.4, 1.5], [-1.4, 0.4, 1.2], [-1.3, BENCH.z + 0.9, 0.9], [0.4, 2.4, 1.2]] });
+    mat.floor.color.setScalar(1.3);
     mat.linen.vertexColors = true; mat.linen.color.setRGB(0.74, 0.72, 0.68);
     mat.horse = mat.horseWood;
     // notebook pages: Stauf's notes on the game, a hex lattice sketched in ink
@@ -601,8 +613,10 @@ export default {
     const table = buildLabTable(ctx, mat, { w: 1.55, d: 0.82, h: TABLE_H });
     table.position.copy(TABLE); add(table);
     {
-      const scope = buildMicroscope(ctx, mat, 1.7);
-      scope.position.set(TABLE.x + 0.55, TABLE_H, TABLE.z - 0.15); scope.rotation.y = -0.6; add(scope);
+      // the microscope stands behind the specimen dish and leans its objective out over it
+      const scope = buildMicroscopeVictorian(ctx, mat, { reach: 0.25, objY: 0.215 });
+      scope.position.set(PLATE.x + 0.06, TABLE_H, PLATE.z - 0.34); scope.rotation.y = -0.18; add(dyn(scope));
+      SCOPE.obj = scope;
       const gw = buildGlassware(ctx, mat); gw.position.set(TABLE.x - 0.52, TABLE_H, TABLE.z - 0.24); gw.rotation.y = 0.3; add(gw);
       const bj = buildBellJar(ctx, mat); bj.position.set(TABLE.x + 0.55, TABLE_H, TABLE.z + 0.22); add(bj);
       // brass stage under the specimen plate (three claw feet)
@@ -615,6 +629,23 @@ export default {
       // ink well
       add(at(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.03, 0], [0.032, 0.01], [0.03, 0.035], [0.012, 0.045], [0.01, 0.055], [0.013, 0.058], [0, 0.058]], 20), mat.glass), TABLE.x + 0.32, TABLE_H, TABLE.z + 0.32));
       add(at(new THREE.Mesh(G.latheFromProfile([[0, 0.003], [0.027, 0.003], [0.028, 0.025], [0, 0.025]], 16), mat.blackEnamel), TABLE.x + 0.32, TABLE_H, TABLE.z + 0.32));
+      // stains: an ink spill by the well, cup rings and a candle scorch, tool scuffs on the bench, wax under the candles
+      const atlas = decalAtlasTexture(ctx.textures);
+      const decal = (qu, qv, size, x, y, z, ry, op = 1) => {
+        const g2 = new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2);
+        const uv = g2.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, (qu + uv.getX(i)) * 0.5, (1 - qv) * 0.5 + uv.getY(i) * 0.5);
+        const m2 = new THREE.MeshStandardMaterial({ map: atlas, transparent: true, depthWrite: false, roughness: qv === 1 && qu === 0 ? 0.55 : 0.85, opacity: op, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4, name: 'decal' });
+        const d = add(new THREE.Mesh(g2, m2)); d.position.set(x, y, z); d.rotation.y = ry; d.userData.noShadow = true; d.renderOrder = 2; return d;
+      };
+      decal(0, 0, 0.26, TABLE.x + 0.24, TABLE_H + 0.0015, TABLE.z + 0.3, 0.6);
+      decal(1, 0, 0.36, TABLE.x - 0.34, TABLE_H + 0.0015, TABLE.z + 0.12, 1.9, 0.9);
+      decal(1, 1, 0.7, -0.85, BT + 0.0015, BENCH.z + 0.08, 0.1, 0.8);
+      decal(1, 1, 0.55, -1.95, BT + 0.0015, BENCH.z + 0.05, 1.7, 0.6);
+      decal(0, 1, 0.2, -1.9, BT + 0.0015, BENCH.z + 0.23, 0.4);
+      decal(1, 0, 0.3, -1.25, BT + 0.0015, BENCH.z - 0.2, 2.6, 0.7);
+      // soot above the furnace door, rising up the brick
+      const soot = add(new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.9), new THREE.MeshBasicMaterial({ map: sootPlumeTexture(ctx.textures), color: 0x000000, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4, name: 'soot' })));
+      soot.position.set((DOOR.x0 + DOOR.x1) / 2 - 0.05, DOOR.h + 0.16 + 0.95, Z0 + 0.003); soot.userData.noShadow = true; soot.renderOrder = 2;
       // rug under the table
       const RW = 2.3, RL = 1.6, RT = 0.011;
       const rugG = new THREE.Group(); rugG.position.set(TABLE.x - 0.05, 0, TABLE.z + 0.1); rugG.rotation.y = 0.08; add(rugG);
@@ -629,10 +660,7 @@ export default {
         for (let i = 0; i < nF * 2; i++) { const s2 = i < nF ? 1 : -1; const k = i % nF; const x = -RW / 2 + 0.01 + (k / (nF - 1)) * (RW - 0.02); const len = 0.045 + 0.02 * Math.abs(Math.sin(k * 12.9898 + s2)); e.set(-0.04, (Math.sin(k * 7.13) * 0.25) + (s2 < 0 ? Math.PI : 0), 0); qq.setFromEuler(e); mm.compose(V3(x, 0.004, s2 * (RL / 2)), qq, V3(1, 1, len)); fr.setMatrixAt(i, mm); }
         fr.castShadow = false; fr.receiveShadow = true; rugG.add(fr); }
       // a stool
-      const stool = new THREE.Group();
-      stool.add(at(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.17, 0], [0.18, 0.015], [0.17, 0.035], [0, 0.04]], 28), mat.labFrame), 0, 0.6, 0));
-      for (let k = 0; k < 3; k++) { const a = (k / 3) * Math.PI * 2; const l = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, 0.62, 8), mat.labFrame); l.position.set(Math.cos(a) * 0.12, 0.3, Math.sin(a) * 0.12); l.rotation.set(Math.sin(a) * 0.15, 0, -Math.cos(a) * 0.15); stool.add(l); }
-      stool.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.008, 6, 24).rotateX(Math.PI / 2), mat.labFrame), 0, 0.22, 0));
+      const stool = buildStool(ctx, mat);
       stool.position.set(-0.45, 0, -0.85); add(stool);
     }
     // hanging lamp over the table (from the collar of the rear truss)
@@ -755,7 +783,7 @@ export default {
     const ridgeFill2 = new THREE.PointLight(0x6a5a50, 3.5, 6, 2); ridgeFill2.position.set(0.3, 3.2, 1.6); root.add(ridgeFill2);
     root.add(new THREE.HemisphereLight(0x34446e, 0x3e3c4c, 0.85));
     // moon bounce washing up the near (west) slope by the stairs, so the rafters there are not a black void
-    const westFill = new THREE.PointLight(0x5a6aa8, 3, 4.2, 2); westFill.position.set(-1.5, 2.2, 0.2); root.add(westFill);
+    const westFill = new THREE.PointLight(0x5a6aa8, 1.2, 4.2, 2); westFill.position.set(-1.5, 2.2, 0.2); root.add(westFill);
     root.add(fx.areaLight({ center: [OCULUS.x, OCULUS.y, Z0 - 0.05], normal: [0, -0.25, 1], width: 1.0, height: 1.0, color: 0x8ea6ff, intensity: 10 }));
     // the oil lamp over the microscope table: a shadowed downlight + soft omni
     const lampSpot = new THREE.SpotLight(0xffae5a, 20, 7, 1.15, 0.75, 2);
@@ -912,8 +940,8 @@ export default {
     {
       const pz = inf.puzzle, setup0 = pz.setup, teardown0 = pz.teardown;
       const i0 = shafts.map((s) => s.material.uniforms.uIntensity.value);
-      pz.setup = (p) => { puzzleActive = true; dust.visible = false; shafts.forEach((s, i) => { s.material.uniforms.uIntensity.value = i0[i] * 0.15; }); ctx.post.set({ exposure: 1.55, bloomStrength: 0.25, godRayWeight: 0.05, vignette: 0.6, dof: null }, ctx.shot ? 0 : 0.8); return setup0(p); };
-      pz.teardown = (p) => { puzzleActive = false; dust.visible = true; shafts.forEach((s, i) => { s.material.uniforms.uIntensity.value = i0[i]; }); ctx.post.set({ exposure: ROOM_GRADE.exposure, bloomStrength: ROOM_GRADE.bloomStrength, godRayWeight: ROOM_GRADE.godRayWeight, vignette: ROOM_GRADE.vignette }, 0.8); return teardown0(p); };
+      pz.setup = (p) => { puzzleActive = true; dust.visible = false; if (SCOPE.obj) SCOPE.obj.visible = false; shafts.forEach((s, i) => { s.material.uniforms.uIntensity.value = i0[i] * 0.15; }); ctx.post.set({ exposure: 1.55, bloomStrength: 0.25, godRayWeight: 0.05, vignette: 0.6, dof: null }, ctx.shot ? 0 : 0.8); return setup0(p); };
+      pz.teardown = (p) => { puzzleActive = false; dust.visible = true; if (SCOPE.obj) SCOPE.obj.visible = true; shafts.forEach((s, i) => { s.material.uniforms.uIntensity.value = i0[i]; }); ctx.post.set({ exposure: ROOM_GRADE.exposure, bloomStrength: ROOM_GRADE.bloomStrength, godRayWeight: ROOM_GRADE.godRayWeight, vignette: ROOM_GRADE.vignette }, 0.8); return teardown0(p); };
     }
     if (ctx.state.isSolved(INFECTION_ID)) inf.applySolved();
     const hx = ctx.params.get('hexx');
@@ -961,7 +989,7 @@ export default {
       table: { position: [1.6, 1.55, -0.2], target: [0.55, 0.82, -1.5], fov: 55, label: 'The microscope table', look: { yaw: [-60, 60], pitch: [-40, 25] } },
       bench: { position: [-1.25, 1.52, -2.85], target: [-1.35, 1.12, -5.2], fov: 56, label: 'Stauf\'s workbench', look: { yaw: [-60, 60], pitch: [-35, 35] } },
       window: { position: [-1.3, 1.5, -3.15], target: [-0.3, 2.7, -5.2], fov: 55, label: 'The round window', look: { yaw: [-50, 50], pitch: [-30, 40] } },
-      door: { position: [0.95, 1.52, -2.3], target: [1.85, 1.12, -5.2], fov: 56, label: 'The glowing door', look: { yaw: [-50, 50], pitch: [-30, 25] } },
+      door: { position: [0.95, 1.52, -2.3], target: [1.85, 1.12, -5.2], fov: 56, label: 'The glowing door', grade: { bloomStrength: 0.12, bloomThreshold: 3.2 }, look: { yaw: [-50, 50], pitch: [-30, 25] } },
       back: { position: [1.1, 1.62, -3.3], target: [-0.9, 1.2, 4.6], fov: 60, label: 'Looking back', look: { yaw: [-60, 60], pitch: [-30, 30] } },
     };
     const edges = [
@@ -997,7 +1025,7 @@ export default {
     const S = (text) => ctx.say({ text, speaker: 'stauf', speakerName: 'Stauf' });
     const hotspots = [
       { id: 'infection', nodes: ['table', 'main', 'stairs', 'window', 'door'], box: { min: [PLATE.x - PLATE_R - 0.03, PLATE.y - 0.03, PLATE.z - PLATE_R - 0.03], max: [PLATE.x + PLATE_R + 0.03, PLATE.y + 0.06, PLATE.z + PLATE_R + 0.03] }, cursor: 'puzzle', label: 'The specimen plate', puzzle: inf.puzzle, priority: 3 },
-      { id: 'microscope', nodes: ['table'], box: { min: [TABLE.x + 0.4, TABLE_H, TABLE.z - 0.35], max: [TABLE.x + 0.75, TABLE_H + 0.5, TABLE.z + 0.0] }, cursor: 'examine', label: 'The microscope', onActivate: cap('The Microscope', 'Brass, and taller than any microscope has a right to be. Through the eyepiece something on the plate is moving — dividing — and it is looking back.') },
+      { id: 'microscope', nodes: ['table'], box: { min: [PLATE.x - 0.08, TABLE_H + 0.15, PLATE.z - 0.45], max: [PLATE.x + 0.2, TABLE_H + 0.56, PLATE.z - 0.05] }, cursor: 'examine', label: 'The microscope', onActivate: cap('The Microscope', 'Brass, cold, and leaning over the dish like a heron over a pond. Through the eyepiece something on the plate is moving — dividing — and it is looking back.') },
       { id: 'belljar', nodes: ['table'], box: { min: [TABLE.x + 0.42, TABLE_H, TABLE.z + 0.1], max: [TABLE.x + 0.68, TABLE_H + 0.3, TABLE.z + 0.35] }, cursor: 'examine', label: 'A bell jar', onActivate: cap('The Bell Jar', 'A tiny skull, no bigger than a child\'s fist, on a brass pin. The label has been scratched away, all but the word "Guest".') },
       {
         id: 'jack', nodes: ['bench', 'window'], box: { min: [-2.4, BT, BENCH.z - 0.12], max: [-2.08, BT + 0.32, BENCH.z + 0.2] }, cursor: 'talk', label: 'A jack-in-the-box',

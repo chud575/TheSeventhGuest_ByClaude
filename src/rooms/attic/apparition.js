@@ -66,7 +66,7 @@ void main() {
   vec3 q = vW * vec3(6.0, 3.0, 6.0) + vec3(0.0, -uTime * 0.45, uTime * 0.12);
   float smoke = fb(q);
   float s2 = fb(vW * vec3(15.0, 7.0, 15.0) + vec3(0.0, -uTime * 0.8, 0.0));
-  float rim = pow(edge, 3.0) * side * back * uRimGain * (0.7 + 0.6 * smoke) * mix(0.3, 1.0, smoothstep(0.08, 0.2, hy));
+  float rim = pow(edge, 4.5) * side * back * uRimGain * 1.6 * (0.7 + 0.6 * smoke) * mix(0.3, 1.0, smoothstep(0.08, 0.2, hy));
   // a whisper of volume inside the black: warm wrap from the furnace, cold fill from the room
   float wrap = clamp((dot(n, L) + 0.35) / 1.35, 0.0, 1.0);
   vec3 col = uCore * (0.65 + 0.7 * smoke) + uRim * (rim + 0.012 * wrap * wrap) + uFill * ndv * ndv;
@@ -398,7 +398,7 @@ export function buildApparition(mat, { shadowTex } = {}) {
   const caneMat = mat.clone(); caneMat.name = 'apparitionCane';
   caneMat.uniforms.uTime = mat.uniforms.uTime; caneMat.uniforms.uLightPos = mat.uniforms.uLightPos; caneMat.uniforms.uRimGain = { value: 0.55 };
   add(new THREE.SphereGeometry(0.022, 14, 10).scale(1, 0.85, 1).translate(knob.x, knob.y + 0.012, knob.z));
-  const foot = V3(-0.3, 0.0, 0.26);
+  const foot = V3(-0.29, 0.0, 0.17);
   const cg = new THREE.CylinderGeometry(0.0085, 0.0095, knob.distanceTo(foot), 10).translate(0, -knob.distanceTo(foot) / 2, 0);
   const cane = new THREE.Mesh(cg, caneMat);
   cane.position.copy(knob);

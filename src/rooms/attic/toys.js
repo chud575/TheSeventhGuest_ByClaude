@@ -135,18 +135,19 @@ export function buildRockingHorse(ctx, m) {
     const hoof = mesh(lathe([[0, 0], [0.026, 0], [0.024, 0.03], [0.019, 0.04], [0, 0.04]], 16), m.toyBlack); at(hoof, x1, y1 - 0.008, z * 1.6); hoof.rotation.z = x1 > 0 ? -0.5 : 0.5; g.add(hoof);
   }
   // mane: many fine strands down the crest; forelock
-  for (let i = 0; i < 26; i++) {
-    const t = i / 25;
-    const base = V3(0.15 + t * 0.18, 0.73 + t * 0.32, 0);
-    const s = (i % 2 ? 1 : -1);
-    const len = 0.11 - t * 0.05;
-    g.add(mesh(taperTube([base, base.clone().add(V3(-0.02, -len * 0.4, s * 0.03)), base.clone().add(V3(-0.035, -len, s * 0.045 + (i % 3 - 1) * 0.01))], [0.011, 0.008, 0.002], 5, 8), m.hair));
+  for (let i = 0; i < 64; i++) {
+    const t = i / 63;
+    const base = V3(0.15 + t * 0.18 + Math.sin(i * 7.1) * 0.006, 0.73 + t * 0.32, Math.sin(i * 3.3) * 0.008);
+    const s = (i % 3 === 0 ? -1 : 1);       // most of the mane falls to the off side
+    const len = (0.13 - t * 0.06) * (0.8 + 0.4 * Math.abs(Math.sin(i * 12.9)));
+    const w = 0.02 + 0.015 * Math.sin(i * 5.7);
+    g.add(mesh(taperTube([base, base.clone().add(V3(-0.015, -len * 0.3, s * 0.03)), base.clone().add(V3(-0.03 + w * 0.3, -len * 0.7, s * 0.048)), base.clone().add(V3(-0.04 + w, -len, s * (0.05 + (i % 4) * 0.006)))], [0.0065, 0.0055, 0.004, 0.0012], 5, 12), m.hair));
   }
   g.add(mesh(taperTube([V3(0.35, 1.06, 0), V3(0.39, 1.045, 0.01), V3(0.41, 1.0, 0.0)], [0.012, 0.008, 0.002], 5, 8), m.hair));
   // tail: a bunch of strands
-  for (let k = 0; k < 9; k++) {
-    const a = (k / 9) * Math.PI * 2;
-    g.add(mesh(taperTube([V3(-0.38, 0.65, 0), V3(-0.45, 0.58, Math.sin(a) * 0.02), V3(-0.49, 0.44 + Math.cos(a) * 0.02, Math.sin(a) * 0.035), V3(-0.47, 0.3 + (k % 3) * 0.02, Math.sin(a) * 0.04)], [0.012, 0.01, 0.007, 0.002], 5, 14), m.hair));
+  for (let k = 0; k < 26; k++) {
+    const a = (k / 26) * Math.PI * 2, r = 0.5 + 0.5 * Math.abs(Math.sin(k * 4.7));
+    g.add(mesh(taperTube([V3(-0.38, 0.65, 0), V3(-0.45, 0.59, Math.sin(a) * 0.015 * r), V3(-0.5, 0.46 + Math.cos(a) * 0.02 * r, Math.sin(a) * 0.03 * r), V3(-0.49 + Math.cos(a) * 0.02, 0.28 + (k % 5) * 0.025, Math.sin(a) * 0.045 * r)], [0.0075, 0.0065, 0.0045, 0.0012], 5, 14), m.hair));
   }
   // saddle, saddle cloth, girth, stirrups; bridle + reins
   const cloth = mesh(new THREE.CylinderGeometry(0.122, 0.122, 0.2, 40, 1, true, Math.PI / 2 - Math.PI * 0.6, Math.PI * 1.2).rotateZ(Math.PI / 2), m.saddleCloth || m.toyBlue);
