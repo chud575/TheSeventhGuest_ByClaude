@@ -90,7 +90,7 @@ export function buildMist({ timeUniform, moonDir, sheets, seed = 9, opacity = 0.
     uTime: timeUniform,
     uMoonDir: { value: moonDir.clone().normalize() },
     uDark: { value: new THREE.Color(0.03, 0.034, 0.043) },
-    uLit: { value: new THREE.Color(0.072, 0.078, 0.092) },
+    uLit: { value: new THREE.Color(0.085, 0.09, 0.104) },
     uOpacity: { value: opacity },
     uFlash: { value: 0 },
   };

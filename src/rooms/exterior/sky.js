@@ -148,7 +148,7 @@ void main() {
   // low dark scud bank along the horizon
   float scud = smoothstep(0.22, 0.02, el) * smoothstep(0.45, 0.7, fbm2(vec2(az * 4.0 + t * 0.01, el * 9.0), 5));
   dens = max(dens, scud * 0.9);
-  float phase = pow(mo, 60.0) * 1.3 + pow(mo, 12.0) * 0.32 + pow(mo, 3.0) * 0.12 + 0.05;
+  float phase = pow(mo, 60.0) * 1.3 + pow(mo, 12.0) * 0.32 + pow(mo, 3.0) * 0.14 + 0.085;
   vec3 cloudDark = vec3(0.014, 0.016, 0.021) + uHorizon * 0.35;
   vec3 silver = vec3(0.62, 0.66, 0.76);
   float thin = 1.0 - smoothstep(0.15, 1.0, dens);

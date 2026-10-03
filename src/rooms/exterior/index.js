@@ -171,7 +171,6 @@ export default {
     pathMat.roughness = 0.5;   // wet: the drive catches the moon as a soft glossy ribbon up to the door
     pathMat.normalScale.set(0.45, 0.45);
     pathMat.userData.specScale = 0.5;
-    if (P.get('pathdbg')) { const k = P.get('pathdbg'); if (k === 'rough') { pathMat.roughness = 1; pathMat.envMapIntensity = 0; } if (k === 'hide') pathMat.visible = false; if (k === 'black') { pathMat.color.setRGB(0, 0, 0); } }
     pathMat.polygonOffset = true; pathMat.polygonOffsetFactor = -2; pathMat.polygonOffsetUnits = -2;
     root.add(buildPath({ material: pathMat }));
     // far grass: crossed tuft cards (cheap), olive-grey
@@ -485,6 +484,8 @@ export default {
       sheets: [
         { x0: -24, x1: 26, z0: 38, z1: 64, count: 16, w: [10, 18], h: [2.0, 3.6] },
         { x0: -26, x1: 26, z0: 29, z1: 36, count: 9, w: [8, 14], h: [1.4, 2.4] },
+        // a low bank rolling across in front of the gate and along the fence (the hero's middle ground)
+        { x0: -10, x1: 16, z0: 33.5, z1: 37.5, count: 8, w: [6, 11], h: [0.9, 1.6] },
         { x0: -22, x1: 22, z0: 13, z1: 28, count: 9, w: [6, 12], h: [1.1, 2.0] },
         // layered moonlit banks between the gate and the house: the house sits back in haze
         { x0: -18, x1: 20, z0: 15, z1: 22, count: 8, w: [9, 15], h: [2.4, 4.2] },
@@ -701,7 +702,7 @@ export default {
         shadowTint: [0.9, 0.99, 1.06], highlightTint: [1.08, 1.0, 0.9], splitAmount: 0.55, splitBalance: 0.42,
         lift: [0.006, 0.0068, 0.0085], blackPoint: Number(P.get('bp') || 0.0),
         vignette: 0.46, vignetteSoftness: 0.7, grain: 0.032, bloomStrength: Number(P.get('bs') || 0.32), bloomThreshold: Number(P.get('bt') || 1.25), bloomRadius: 0.62,
-        godRayWeight: Number(P.get('grw') || 0.45), godRayThreshold: Number(P.get('grt') || 0.55), godRayDecay: 0.972, godRayDensity: 0.95,
+        godRayWeight: Number(P.get('grw') || 0.62), godRayThreshold: Number(P.get('grt') || 0.55), godRayDecay: 0.972, godRayDensity: 0.95,
         aoIntensity: 0.55, aoRadius: 0.5, fogDensity: 0,
       },
       environment: { position: [0, 3.0, 20], intensity: Number(P.get('envi2') || 0.6) },
