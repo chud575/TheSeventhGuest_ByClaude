@@ -191,8 +191,8 @@ export function createQueensPuzzle(ctx, { parent, center, size, homeZ, mats, cam
       glowMat.uniforms.uAmt.value = amt;
       // the rim light sweeps slowly from one side of the board to the other and back, low and warm
       const u = Math.sin(t * 0.45);
-      sweep.position.set(u * size * 0.65, 0.06, -size * 0.62);
-      sweep.intensity = 2.2 * amt;
+      sweep.position.set(u * size * 0.6, 0.11, -size * 0.7);
+      sweep.intensity = 1.1 * amt;
       return;
     }
     sweep.intensity = 0;

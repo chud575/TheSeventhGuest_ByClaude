@@ -77,7 +77,7 @@ export default {
     const boarSet = furTexture(ctx.textures, { a: [0.05, 0.04, 0.035], b: [0.2, 0.15, 0.11], key: 'boar' }).withRepeat(8, 8);
     const furMat = (set) => new THREE.MeshStandardMaterial({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, aoMap: set.ormMap, roughness: 1, metalness: 0, envMapIntensity: 0.4, name: 'fur' });
     const mat = {
-      wall: M.create('damask', { repeat: [1 / 0.78, 1 / 0.78], base: [0.03, 0.06, 0.13], motif: [0.1, 0.17, 0.31], sheen: 0.7, variant: 1 }),
+      wall: M.create('damask', { repeat: [1 / 0.78, 1 / 0.78], base: [0.028, 0.055, 0.12], motif: [0.13, 0.21, 0.38], sheen: 0.75, variant: 1 }),
       ceiling: M.create('plaster', { color: [0.06, 0.08, 0.15], cracks: 0.25, stains: 0.45, repeat: [0.5, 0.5] }),
       floor: M.create('parquet', { species: 'oak', ratio: 5, planksAcross: 2, repeat: [1.0, 1.0], polish: 0.2, wear: 0.7, color: [0.62, 0.55, 0.5], clearcoat: 0.12, clearcoatRoughness: 0.5, macro: 0.6, macroScale: 1.4 }),
       wood: M.create('mahogany', { repeat: [1.4, 1.4], color: [0.6, 0.4, 0.34] }),
