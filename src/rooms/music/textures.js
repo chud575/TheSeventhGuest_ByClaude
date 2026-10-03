@@ -581,3 +581,120 @@ export function portraitTexture(forge, { w = 1024, h = 1348 } = {}) {
     g.fillStyle = vg; g.fillRect(0, 0, w, h);
   }, { tile: false });
 }
+
+/**
+ * The view out of the bay in three parallax layers (each HDR-multiplied in its material):
+ *  sky  — gradient, a cold moon with a soft halo and a faint 22-degree ring, moonlit cloud banks, stars
+ *  mid  — the lawn with mown stripes, clipped yew hedges and topiary, the domed folly, a ragged
+ *         treeline of pines and bare oaks against the sky (alpha above the trees)
+ *  near — a gnarled bare tree just outside the glass, its twigs silhouetted (alpha elsewhere)
+ */
+const NIGHT_COMMON = /* glsl */ `
+float twig(vec2 p, vec2 base, float hgt, float seed, float lean) {
+  vec2 q = p - base;
+  q.x -= lean * q.y * q.y;
+  float d = 1e5;
+  float tw = 0.02 * (1.0 - clamp(q.y / hgt, 0.0, 1.0)) + 0.002;
+  d = min(d, max(abs(q.x - 0.012 * sin(q.y * 9.0 + seed)) - tw, max(-q.y, q.y - hgt)));
+  for (int i = 0; i < 14; i++) {
+    float fi = float(i);
+    float y0 = hgt * (0.18 + fi * 0.058);
+    float side = mod(fi, 2.0) < 0.5 ? -1.0 : 1.0;
+    float ang = side * (0.6 + 0.35 * sin(fi * 5.3 + seed));
+    vec2 b = rot2(ang) * (q - vec2(0.0, y0));
+    float len = hgt * (0.5 - fi * 0.03);
+    float bw = 0.006 * (1.0 - clamp(b.y / len, 0.0, 1.0)) + 0.0008;
+    d = min(d, max(abs(b.x + 0.012 * sin(b.y * 30.0 + fi)) - bw, max(-b.y, b.y - len)));
+    for (int j = 0; j < 3; j++) {
+      float fj = float(j);
+      vec2 c = rot2(-side * (0.5 + 0.2 * fj)) * (b - vec2(0.0, len * (0.3 + 0.22 * fj)));
+      float cl = len * (0.38 - 0.08 * fj);
+      d = min(d, max(abs(c.x + 0.006 * sin(c.y * 60.0 + fj)) - 0.0012 * (1.0 - clamp(c.y / cl, 0.0, 1.0)) - 0.0004, max(-c.y, c.y - cl)));
+    }
+  }
+  return d;
+}
+`;
+export function nightLayers(forge) {
+  const sky = forge.generate('music:nightsky2', {
+    size: 2048, aspect: 1.6, tile: false,
+    glsl: NIGHT_COMMON + /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 p = uv;
+  vec2 moon = vec2(0.33, 0.78);
+  float md = length((p - moon) * vec2(1.6, 1.0));
+  vec3 sky = mix(vec3(0.05, 0.07, 0.15), vec3(0.2, 0.27, 0.46), smoothstep(0.1, 1.0, p.y));
+  sky += vec3(0.12, 0.13, 0.16) * smoothstep(0.45, 0.0, p.y);                      // horizon glow
+  sky += vec3(0.55, 0.64, 0.85) * exp(-md * 5.0) * 0.8;                           // halo
+  sky += vec3(0.25, 0.3, 0.42) * smoothstep(0.012, 0.0, abs(md - 0.2)) * 0.25;    // faint ring
+  float cl = fbm(p * vec2(2.4, 3.6) + vec2(0.1, 0.4), vec2(4.0, 3.0), 7);
+  float cl2 = fbm(p * vec2(7.0, 9.0) + vec2(3.1, 0.2), vec2(7.0, 9.0), 5);
+  float cov = smoothstep(-0.12, 0.42, cl + cl2 * 0.25);
+  vec3 cloudCol = sky * 0.42 + vec3(0.03, 0.035, 0.06);
+  sky = mix(sky, cloudCol, cov * 0.82);
+  // silver linings toward the moon
+  sky += vec3(0.8, 0.85, 1.0) * smoothstep(0.12, 0.0, abs(cl + cl2 * 0.25 - 0.08)) * exp(-md * 2.4) * 0.65;
+  // moon disc with maria
+  float mare = fbm((p - moon) * 60.0, vec2(60.0), 4);
+  sky = mix(sky, vec3(1.0, 0.98, 0.94) * (1.45 - 0.25 * smoothstep(0.0, 0.5, mare)), smoothstep(0.034, 0.03, md));
+  vec2 g = p * vec2(220.0, 140.0);
+  vec2 id = floor(g); vec2 f = fract(g) - 0.5;
+  float st = smoothstep(0.1, 0.0, length(f - (hash22(id) - 0.5) * 0.6)) * step(0.955, hash12(id));
+  sky += vec3(0.75, 0.8, 0.95) * st * 0.7 * smoothstep(0.35, 0.8, p.y) * (1.0 - cov);
+  s.albedo = sky; s.alpha = 1.0; s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+  const mid = forge.generate('music:nightmid2', {
+    size: 2048, aspect: 2.2, tile: false,
+    glsl: NIGHT_COMMON + /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 p = uv;
+  float a = 0.0;
+  vec3 col = vec3(0.0);
+  // treeline: rounded oak crowns and pointed pines, ragged
+  float crown = 0.5 + 0.05 * fbm(vec2(p.x * 7.0, 1.0), vec2(7.0, 1.0), 5) + 0.03 * fbm(vec2(p.x * 40.0, 3.0), vec2(40.0, 1.0), 3);
+  float pine = 0.0;
+  for (int i = 0; i < 9; i++) { float fi = float(i); float x0 = fract(sin(fi * 91.7) * 437.1); float h = 0.08 + 0.06 * fract(sin(fi * 13.1) * 91.3); pine = max(pine, (h - abs(p.x - x0) * 3.2) * step(abs(p.x - x0), 0.04)); }
+  float top = max(crown, 0.48 + pine);
+  float tree = smoothstep(0.002, -0.002, p.y - top);
+  vec3 woods = mix(vec3(0.03, 0.04, 0.07), vec3(0.08, 0.1, 0.16), smoothstep(top - 0.2, top, p.y) * 0.6);
+  woods += vec3(0.12, 0.14, 0.2) * smoothstep(0.01, 0.0, top - p.y) * 0.35;     // moonlit crown edges
+  col = mix(col, woods, tree); a = max(a, tree);
+  // lawn: moonlit, with mown stripes receding
+  float horizon = 0.38 + 0.008 * sin(p.x * 5.0);
+  float lawn = smoothstep(0.002, -0.002, p.y - horizon);
+  float depth = clamp(p.y / horizon, 0.0, 1.0);
+  float stripes = 0.5 + 0.5 * sin((p.x - 0.5) / (0.06 + 0.25 * depth) * 3.14159 + 1.0);
+  vec3 grass = mix(vec3(0.16, 0.2, 0.28), vec3(0.08, 0.11, 0.16), depth) * (0.85 + 0.15 * stripes) * (0.85 + 0.15 * fbm(p * 40.0, vec2(40.0), 3));
+  col = mix(col, grass, lawn); a = max(a, lawn);
+  // the folly: a little domed temple on a rise, columns picked out by the moon
+  vec2 fp = p - vec2(0.64, horizon);
+  float dome = length(fp * vec2(1.0, 1.25) - vec2(0.0, 0.085)) - 0.03;
+  float ent = sdBox(fp - vec2(0.0, 0.075), vec2(0.036, 0.006));
+  float body = sdBox(fp - vec2(0.0, 0.036), vec2(0.032, 0.036));
+  float folly = min(min(max(dome, -fp.y + 0.08), body), ent);
+  float cols = step(0.5, fract((fp.x + 0.032) / 0.0128 + 0.25)) * step(abs(fp.x), 0.03) * step(abs(fp.y - 0.036), 0.032);
+  vec3 stone = mix(vec3(0.2, 0.23, 0.32), vec3(0.06, 0.07, 0.1), cols);
+  stone *= 0.8 + 0.4 * smoothstep(0.03, -0.03, fp.x);
+  float fm = smoothstep(0.0015, -0.0015, folly);
+  col = mix(col, stone, fm); a = max(a, fm);
+  // clipped yew hedges + topiary cones in the middle distance
+  float hedgeTop = 0.27 + 0.006 * fbm(vec2(p.x * 30.0, 0.0), vec2(30.0, 1.0), 3);
+  float hedge = smoothstep(0.002, -0.002, p.y - hedgeTop) * step(0.2, p.y) * step(0.12, abs(p.x - 0.5));
+  for (int i = 0; i < 4; i++) { float fi = float(i); float x0 = 0.18 + fi * 0.21; float cone = (0.12 - abs(p.x - x0) * 2.4) - (p.y - 0.2); hedge = max(hedge, smoothstep(0.0, 0.003, cone) * step(0.2, p.y) * step(p.y, 0.33)); }
+  col = mix(col, vec3(0.018, 0.026, 0.034) + vec3(0.04, 0.05, 0.07) * smoothstep(0.0, 0.02, p.y - hedgeTop + 0.02), hedge); a = max(a, hedge);
+  s.albedo = col; s.alpha = a; s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+  const near = forge.generate('music:nightnear2', {
+    size: 1536, aspect: 1.4, tile: false,
+    glsl: NIGHT_COMMON + /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 p = uv * vec2(1.4, 1.0);
+  float t = min(twig(p, vec2(0.06, -0.05), 1.0, 1.0, 0.35), twig(p, vec2(1.36, -0.05), 0.85, 3.0, -0.4));
+  float a = smoothstep(0.0022, -0.0022, t);
+  s.albedo = vec3(0.012, 0.014, 0.024); s.alpha = a; s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+  return { sky, mid, near };
+}

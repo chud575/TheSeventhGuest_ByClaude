@@ -42,6 +42,7 @@ views.forEach((yaw, vi) => {
       let occ = 0; for (const [s, w] of [[0.004, 0.5], [0.01, 0.3], [0.02, 0.2]]) occ += w * Math.max(0, Math.min(1, f(p[0] + n[0] * s, p[1] + n[1] * s, p[2] + n[2] * s) / s));
       const v = (0.15 + 0.85 * lam) * (0.4 + 0.6 * occ);
       c = [v * 235, v * 215, v * 195];
+      if (which === 'head') { f(p[0], p[1], p[2]); if (head.hair < head.skull) c = [v * 150, v * 170, v * 235]; }
     }
     const o = (j * R * views.length + vi * R + i) * 3;
     img[o] = c[0]; img[o + 1] = c[1]; img[o + 2] = c[2];

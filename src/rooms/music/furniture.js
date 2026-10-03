@@ -43,7 +43,7 @@ export function buildFireplace(ctx, { marble, iron, brass, gilt }) {
   // frieze tablet: a carved marble panel with a gilt bead frame and a small gilt lyre
   const tablet = new THREE.Mesh(new G.RoundedBoxGeometry(0.42, 0.17, 0.03, 2, 0.008), marble);
   tablet.position.set(0, openH + 0.2, D * 0.55 + 0.012); g.add(tablet);
-  const tFrame = new THREE.Mesh(G.frameGeometry(0.36, 0.12, { width: 0.012, depth: 0.008, uvScale: 2 }), gilt);
+  const tFrame = new THREE.Mesh(G.frameGeometry(0.38, 0.14, { width: 0.014, depth: 0.016, uvScale: 2 }), gilt);
   tFrame.position.set(0, openH + 0.2, D * 0.55 + 0.028); g.add(tFrame);
   {
     const lyre = new THREE.Group();
@@ -57,7 +57,18 @@ export function buildFireplace(ctx, { marble, iron, brass, gilt }) {
     const bar = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.006, 0.006), gilt); bar.position.y = 0.03; lyre.add(bar);
     const foot = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 8), gilt); foot.scale.set(1.4, 0.8, 0.6); foot.position.y = -0.03; lyre.add(foot);
     for (let i = 0; i < 4; i++) { const st = new THREE.Mesh(new THREE.CylinderGeometry(0.0012, 0.0012, 0.058, 4), gilt); st.position.set(-0.012 + i * 0.008, 0.0, 0); lyre.add(st); }
-    lyre.position.set(0, openH + 0.2, D * 0.55 + 0.03); g.add(lyre);
+    // carved relief round the lyre: C-scrolls with acanthus tips and a pair of husk garlands
+    for (const s2 of [-1, 1]) {
+      const sc = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.0075, 10, 22, Math.PI * 1.55), gilt);
+      sc.position.set(s2 * 0.105, 0.004, 0.004); sc.rotation.z = s2 > 0 ? -0.9 : Math.PI + 0.9; lyre.add(sc);
+      const curl = new THREE.Mesh(new THREE.SphereGeometry(0.009, 10, 8), gilt); curl.position.set(s2 * 0.118, -0.012, 0.006); lyre.add(curl);
+      const pts = [];
+      for (let k = 0; k <= 12; k++) { const t = k / 12; pts.push(new THREE.Vector3(s2 * (0.035 + 0.1 * t), 0.035 - 0.05 * Math.sin(t * Math.PI) - 0.005 * t, 0.006)); }
+      lyre.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.0042, 6), gilt));
+      for (let k = 1; k < 6; k++) { const p = pts[k * 2]; const h = new THREE.Mesh(new THREE.SphereGeometry(0.0062, 8, 6), gilt); h.scale.set(1, 1.5, 0.8); h.position.copy(p).add(new THREE.Vector3(0, -0.004, 0.002)); lyre.add(h); }
+    }
+    lyre.scale.setScalar(1.35);
+    lyre.position.set(0, openH + 0.2, D * 0.55 + 0.034); g.add(lyre);
   }
   // hearth slab
   const hearth = new THREE.Mesh(new G.RoundedBoxGeometry(W + 0.3, 0.05, 0.62, 2, 0.01), marble);
@@ -230,27 +241,108 @@ export function buildCabinet(ctx, { wood, glass, brass, books, giltPlain }) {
 }
 
 /** Balloon-back side chair. */
+/**
+ * Victorian balloon-back side chair: a moulded rail swept round a pinched balloon (narrow at the
+ * waist, a carved crest at the top), a carved cross-splat with a central boss, sabre back legs
+ * that run up into the stiles, turned front legs, a serpentine seat rail and a stuffed velvet seat
+ * with a domed cushion and a row of brass nailheads. Origin on the floor, seat front toward +Z.
+ */
 export function buildChair(ctx, { wood, velvet }) {
   const { geometry: G } = ctx;
+  const V2 = (x, y) => new THREE.Vector2(x, y), V3 = (x, y, z) => new THREE.Vector3(x, y, z);
   const g = new THREE.Group();
   g.name = 'chair';
-  const seat = new THREE.Mesh(new G.RoundedBoxGeometry(0.46, 0.08, 0.44, 3, 0.03), velvet);
-  seat.position.y = 0.47; g.add(seat);
-  const rail = new THREE.Mesh(new G.RoundedBoxGeometry(0.47, 0.06, 0.45, 2, 0.01), wood);
-  rail.position.y = 0.41; g.add(rail);
-  for (const [x, z] of [[-0.2, -0.19], [0.2, -0.19], [-0.2, 0.19], [0.2, 0.19]]) {
-    const leg = new THREE.Mesh(G.latheFromProfile([[0.02, 0], [0.014, 0.04], [0.02, 0.1], [0.024, 0.25], [0.018, 0.33], [0.024, 0.4], [0.0, 0.41]], 12), wood);
-    leg.position.set(x, 0, z); if (z < 0) leg.rotation.x = -0.06; g.add(leg);
+  const SEAT_Y = 0.44, BACK_Z = -0.2;
+  const brassNail = new THREE.MeshStandardMaterial({ color: 0xb08a48, metalness: 1, roughness: 0.35 });
+  // moulded cross-section (width in the plane of the back, depth front-to-back): a rounded rail with
+  // a raised bead along its face, so the rim light traces two lines
+  const rail = (w, d) => {
+    const pts = [];
+    for (let i = 0; i <= 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      let x = Math.cos(a) * w / 2, y = Math.sin(a) * d / 2;
+      if (y > 0) y += d * 0.18 * Math.exp(-((x / (w * 0.18)) ** 2));   // bead on the front face
+      pts.push(V2(x, y));
+    }
+    return pts;
+  };
+  // ---- the balloon: a smooth closed-top curve from stile to stile, pinched at the waist
+  const half = [[0.185, 0.0], [0.178, 0.1], [0.15, 0.17], [0.128, 0.215], [0.14, 0.27], [0.175, 0.34], [0.19, 0.41], [0.178, 0.47], [0.14, 0.515], [0.08, 0.542], [0.0, 0.552]];
+  const ctrl = [...half.map(([x, y]) => V3(-x, y, 0)), ...half.slice(0, -1).reverse().map(([x, y]) => V3(x, y, 0))];
+  const curve = new THREE.CatmullRomCurve3(ctrl, false, 'centripetal');
+  const pts = curve.getPoints(90);
+  const back = new THREE.Group();
+  back.position.set(0, SEAT_Y + 0.05, BACK_Z); back.rotation.x = -0.12;
+  back.add(new THREE.Mesh(G.sweepProfile(rail(0.034, 0.026), pts, { up: V3(0, 0, 1), uvScale: 2 }), wood));
+  // inner bead following the loop above the splat
+  const innerPts = curve.getPoints(90).filter((p) => p.y > 0.25).map((p) => V3(p.x * 0.84, 0.25 + (p.y - 0.25) * 0.86, 0.004));
+  back.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(innerPts), 80, 0.0045, 6), wood));
+  // carved cross-splat at the waist: a shallow S-scrolled rail with a central oval boss and leaf carving
+  {
+    const sp = [];
+    for (let i = 0; i <= 30; i++) { const t = i / 30, x = -0.13 + 0.26 * t; sp.push(V3(x, 0.215 + 0.018 * Math.cos(t * Math.PI * 2) - 0.012 * Math.sin(t * Math.PI), 0.002)); }
+    back.add(new THREE.Mesh(G.sweepProfile(rail(0.028, 0.022), sp, { up: V3(0, 0, 1), uvScale: 2 }), wood));
+    const boss = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.034, 0], [0.032, 0.006], [0.024, 0.012], [0.012, 0.016], [0, 0.017]], 24), wood);
+    boss.rotation.x = Math.PI / 2; boss.scale.set(1.25, 1, 0.85); boss.position.set(0, 0.205, 0.008); back.add(boss);
+    for (const s of [-1, 1]) for (let k = 0; k < 3; k++) {
+      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 6), wood);
+      leaf.scale.set(1.9, 0.55, 0.55); leaf.rotation.z = s * (0.35 + k * 0.35);
+      leaf.position.set(s * (0.045 + k * 0.022), 0.21 + 0.008 * Math.sin(k), 0.012); back.add(leaf);
+    }
   }
-  // balloon back: a torus-ish loop
-  const back = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.018, 8, 36), wood);
-  back.scale.set(1, 1.15, 1);
-  back.position.set(0, 0.83, -0.2); back.rotation.x = 0.12; g.add(back);
-  const splat = new THREE.Mesh(new G.RoundedBoxGeometry(0.34, 0.05, 0.025, 2, 0.01), wood);
-  splat.position.set(0, 0.7, -0.205); splat.rotation.x = 0.12; g.add(splat);
-  for (const x of [-0.2, 0.2]) {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.018, 0.3, 8), wood);
-    post.position.set(x, 0.6, -0.205); g.add(post);
+  // carved crest at the top of the balloon: a shell-and-leaf cartouche
+  {
+    const crest = new THREE.Group();
+    const shell = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.04, 0], [0.036, 0.01], [0.022, 0.018], [0, 0.021]], 20, ), wood);
+    { const p = shell.geometry.attributes.position; for (let i = 0; i < p.count; i++) { const a = Math.atan2(p.getZ(i), p.getX(i)); const k = 1 + 0.12 * Math.cos(a * 9); p.setX(i, p.getX(i) * k); p.setZ(i, p.getZ(i) * k); } shell.geometry.computeVertexNormals(); }
+    shell.rotation.x = Math.PI / 2; shell.scale.set(1, 1, 0.7); crest.add(shell);
+    for (const s of [-1, 1]) {
+      const sc = new THREE.Mesh(new THREE.TorusGeometry(0.014, 0.0055, 8, 18, Math.PI * 1.5), wood);
+      sc.position.set(s * 0.05, -0.006, 0.0); sc.rotation.z = s > 0 ? -0.6 : Math.PI + 0.6; crest.add(sc);
+    }
+    crest.position.set(0, 0.548, 0.012); back.add(crest);
+  }
+  g.add(back);
+  // ---- sabre back legs sweeping up into the stiles
+  for (const s of [-1, 1]) {
+    const path = [];
+    for (let i = 0; i <= 16; i++) { const t = i / 16; const y = t * (SEAT_Y + 0.06); path.push(V3(s * (0.185 + 0.012 * (1 - t)), y, BACK_Z - 0.07 * Math.pow(1 - t, 1.6) + 0.004)); }
+    g.add(new THREE.Mesh(G.sweepProfile(rail(0.03, 0.03), path, { up: V3(1, 0, 0), uvScale: 2 }), wood));
+  }
+  // ---- turned front legs: vase, rings, a tapering shaft, a peg foot on a brass castor
+  const legGeo = G.latheFromProfile([[0.0, 0], [0.016, 0], [0.016, 0.012], [0.011, 0.02], [0.014, 0.03], [0.012, 0.09], [0.017, 0.18], [0.02, 0.24], [0.016, 0.28], [0.022, 0.3], [0.016, 0.315], [0.02, 0.33], [0.024, 0.37], [0.024, 0.405], [0.0, 0.41]], 20);
+  for (const s of [-1, 1]) {
+    const leg = new THREE.Mesh(legGeo, wood); leg.position.set(s * 0.2, 0.012, 0.19); g.add(leg);
+    const cast = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.012, 12), brassNail); cast.position.set(s * 0.2, 0.006, 0.19); g.add(cast);
+  }
+  // ---- seat rail: serpentine front, moulded apron
+  const railPath = [];
+  for (let i = 0; i <= 20; i++) { const t = i / 20, x = -0.22 + 0.44 * t; railPath.push(V3(x, SEAT_Y - 0.035, 0.205 + 0.018 * Math.sin(t * Math.PI))); }
+  const loopRail = [V3(-0.205, SEAT_Y - 0.035, BACK_Z + 0.01), ...railPath, V3(0.205, SEAT_Y - 0.035, BACK_Z + 0.01)];
+  g.add(new THREE.Mesh(G.sweepProfile([V2(0, -0.035), V2(0.012, -0.035), V2(0.018, -0.022), V2(0.012, -0.01), V2(0.016, 0.02), V2(0.008, 0.035), V2(0, 0.035)], loopRail, { closed: true, uvScale: 2 }), wood));
+  // ---- the stuffed seat: a domed, serpentine-fronted cushion in velvet
+  {
+    const sg = new G.RoundedBoxGeometry(0.44, 0.07, 0.42, 6, 0.03);
+    const p = sg.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const u = x / 0.22, v = z / 0.21;
+      const dome = Math.max(0, 1 - Math.pow(Math.abs(u), 3)) * Math.max(0, 1 - Math.pow(Math.abs(v), 3));
+      if (y > 0) p.setY(i, y + dome * 0.035);
+      if (z > 0.1) p.setZ(i, z + 0.018 * Math.cos(u * Math.PI / 2) * (z / 0.21));           // serpentine front
+      p.setX(i, x * (1 - 0.06 * (0.5 - z / 0.42)));                                          // narrower at the back
+    }
+    sg.computeVertexNormals();
+    const seat = new THREE.Mesh(sg, velvet);
+    seat.position.set(0, SEAT_Y + 0.03, 0.0); g.add(seat);
+    // brass nailheads along the bottom edge of the upholstery
+    const nails = [];
+    for (let i = 0; i <= 30; i++) { const t = i / 30, x = -0.21 + 0.42 * t; nails.push(V3(x, SEAT_Y + 0.004, 0.214 + 0.018 * Math.sin(t * Math.PI))); }
+    for (const s of [-1, 1]) for (let i = 1; i < 14; i++) nails.push(V3(s * 0.222, SEAT_Y + 0.004, 0.2 - i * 0.029));
+    const im = new THREE.InstancedMesh(new THREE.SphereGeometry(0.0042, 8, 6), brassNail, nails.length);
+    const m4 = new THREE.Matrix4();
+    nails.forEach((pp, i) => { m4.makeTranslation(pp.x, pp.y, pp.z); im.setMatrixAt(i, m4); });
+    g.add(im);
   }
   return g;
 }

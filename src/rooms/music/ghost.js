@@ -77,6 +77,8 @@ uniform vec3 uColor;
 uniform vec3 uShadow;
 uniform vec3 uRim;
 uniform vec3 uKey;
+uniform vec3 uFillPos;
+uniform vec3 uFillColor;
 uniform float uOpacity;
 uniform float uIntensity;
 uniform float uDissolveY;
@@ -92,32 +94,59 @@ void main() {
   vec3 n = normalize(vN);
   vec3 v = normalize(cameraPosition - vW);
   if (dot(n, v) < 0.0) n = -n;
+  // regions from the sculpt: 0.05 silk, 0.1 coat cloth, 0.35 hair, 0.8 linen, 1.0 skin
+  float skin = smoothstep(0.9, 0.97, vTint);
+  float linen = smoothstep(0.6, 0.75, vTint) * (1.0 - skin);
+  float hair = smoothstep(0.25, 0.32, vTint) * (1.0 - smoothstep(0.45, 0.6, vTint));
+  float cloth = 1.0 - skin - linen - hair;
+  // fine surface detail so the rim light has structure to trace: a twill weave + nap on the cloth,
+  // strand grain on the hair, pores and fine creasing on the skin (procedural bump on the normal)
+  vec3 q = vLocal;
+  float e = 0.0015;
+  float fs = mix(mix(mix(55.0, 70.0, hair), 90.0, skin), 60.0, linen);
+  vec3 sc = mix(vec3(1.0), vec3(3.0, 0.6, 3.0), hair);
+  float h0 = fxNoise(q * fs * sc);
+  vec3 grad = vec3(fxNoise((q + vec3(e, 0.0, 0.0)) * fs * sc) - h0, fxNoise((q + vec3(0.0, e, 0.0)) * fs * sc) - h0, fxNoise((q + vec3(0.0, 0.0, e)) * fs * sc) - h0) / e;
+  float bump = mix(mix(0.0005, 0.0012, hair), 0.0004, skin);
+  n = normalize(n - (grad - n * dot(grad, n)) * bump);
   float ndv = clamp(dot(n, v), 0.0, 1.0);
-  float fres = pow(1.0 - ndv, 2.2);
+  float fres = pow(1.0 - ndv, 2.4);
   float key = clamp(dot(n, uKey), 0.0, 1.0);
-  float wrap = clamp(dot(n, uKey) * 0.5 + 0.5, 0.0, 1.0);
-  float occ = pow(vOcc, 1.6);
+  vec3 toFill = uFillPos - vW;
+  float fillD = length(toFill);
+  float fill = clamp(dot(n, toFill / fillD), 0.0, 1.0) * clamp(1.2 / (fillD * fillD), 0.0, 1.0);
+  float occ = pow(vOcc, 1.5);
   // slow inner "smoke" drifting upward through the body
   float flow = 0.6 * fxNoise(vLocal * 6.0 + vec3(0.0, -uTime * 0.35, uTime * 0.1)) + 0.4 * fxNoise(vLocal * 15.0 + vec3(0.0, -uTime * 0.7, 0.0));
   float d0 = (vLocal.y - uDissolveY) / max(uDissolveSoft, 1e-3);
   float mist = 0.5;
   if (d0 < 2.0) mist = fxFbm(vLocal * vec3(9.0, 3.0, 9.0) + vec3(0.0, -uTime * 0.8, 0.0));
-  // linen + skin (tint 1) read paler than the black coat (tint ~0.2)
-  float val = mix(0.22, 1.2, vTint);
-  vec3 body = mix(uShadow, uColor * val, (0.12 + 0.88 * key * key) * occ);
-  vec3 col = body * (0.55 + 0.45 * occ) + uRim * fres * (1.1 + 0.4 * vTint);
-  col *= 0.85 + 0.3 * flow;
-  // hands nearest the keys are the most solid part of him
+  // albedo by region: pale skin and linen, a grey-blue ghost of the black coat, dim hair
+  float val = cloth * 0.26 + hair * 0.48 + linen * 1.05 + skin * 1.0;
+  float lit = 0.1 + 0.9 * key * key;
+  vec3 body = mix(uShadow, uColor * val, lit * occ) + uFillColor * fill * val * occ * 0.55;
+  // a soft specular sheen on skin and silk (wet-looking cold light on the brow, nose, cheekbones)
+  vec3 hv = normalize(uKey + v);
+  float spec = pow(clamp(dot(n, hv), 0.0, 1.0), mix(18.0, 40.0, skin)) * (0.15 + 0.35 * skin) * occ;
+  vec3 col = body * (0.6 + 0.4 * occ) + uRim * fres * (1.0 + 0.3 * (linen + skin)) + uColor * spec;
+  col += uColor * 0.05 * (0.5 + val);   // a faint inner glow, so he never goes dead grey against the light
+  col *= 0.88 + 0.24 * flow;
+  // hands nearest the keys are among the most solid parts of him
   float hands = uHandBoost * smoothstep(0.3, 0.17, vLocal.z) * step(vLocal.y, 0.86);
-  // facing planes stay mostly clear, but the moonlit ones (brow, cheekbones, nose, beard, hands)
-  // gain body so the face reads as a face rather than a hollow mask
-  float a = mix(0.17, 0.8, fres) + (0.12 + 0.4 * key) * occ * mix(0.4, 1.3, vTint) + hands;
-  a *= (0.8 + 0.35 * flow) * mix(0.6, 1.0, occ);
+  // facing planes are nearly clear (the room shows through him); grazing ones glow; the lit planes of
+  // the face, the linen and the hands gain body so the features model in the cold key light
+  float solid = skin * 0.62 + linen * 0.5 + hair * 0.22 + cloth * 0.1;
+  float a = mix(0.05, 0.78, fres) + (0.2 + 0.8 * key) * occ * solid + fill * 0.12 * solid + hands;
+  a *= (0.82 + 0.3 * flow) * mix(0.55, 1.0, occ);
   // dissolve below uDissolveY into drifting wisps
   float d = d0 + (mist - 0.5) * 1.8;
   a *= smoothstep(0.0, 1.0, d);
-  a = clamp(a, 0.0, 0.95) * uOpacity;
-  gl_FragColor = vec4(col * uIntensity, a);
+  float vis = smoothstep(0.0, 1.0, d);
+  a = clamp(a, 0.0, 0.92) * uOpacity;
+  // premultiplied output with an additive glow on top: he lights the air around his contours
+  // without turning opaque (blend: ONE, ONE_MINUS_SRC_ALPHA)
+  vec3 glowAdd = (uRim * fres * 0.32 + uColor * 0.035 * (0.6 + val)) * uOpacity * vis * (0.85 + 0.3 * flow);
+  gl_FragColor = vec4(col * uIntensity * a + glowAdd, a);
 }`;
 
 function ghostMaterials(ctx, { dissolveY = -10, dissolveSoft = 0.25, wobble = 0.003, handBoost = 0, localMatrix = new THREE.Matrix4() } = {}) {
@@ -125,11 +154,13 @@ function ghostMaterials(ctx, { dissolveY = -10, dissolveSoft = 0.25, wobble = 0.
     uTime: ctx.time,
     uWobble: { value: wobble },
     uColor: { value: new THREE.Color(0xd6e2ff) },
-    uShadow: { value: new THREE.Color(0x1a2346) },
+    uShadow: { value: new THREE.Color(0x26345f) },
     uRim: { value: new THREE.Color(0x9fb8ff) },
-    uKey: { value: new THREE.Vector3(0.5, 0.55, -0.67).normalize() },
+    uKey: { value: new THREE.Vector3(0.45, 0.5, -0.74).normalize() },
+    uFillPos: { value: new THREE.Vector3(0, 1.7, 0) },
+    uFillColor: { value: new THREE.Color(1.0, 0.62, 0.32) },
     uOpacity: { value: 0.8 },
-    uIntensity: { value: 1.0 },
+    uIntensity: { value: 1.15 },
     uDissolveY: { value: dissolveY },
     uDissolveSoft: { value: dissolveSoft },
     uHandBoost: { value: handBoost },
@@ -139,6 +170,8 @@ function ghostMaterials(ctx, { dissolveY = -10, dissolveSoft = 0.25, wobble = 0.
   const color = new THREE.ShaderMaterial({
     vertexShader: defs + VERT, fragmentShader: FRAG, uniforms,
     transparent: true, depthWrite: false, depthFunc: THREE.LessEqualDepth, side: THREE.FrontSide, toneMapped: false,
+    blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+    blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
   });
   const depth = new THREE.ShaderMaterial({
     vertexShader: defs + VERT, fragmentShader: 'void main() { gl_FragColor = vec4(0.0); }', uniforms,
@@ -168,7 +201,7 @@ export async function buildGhostPianist(ctx) {
     group.add(holder);
     return holder;
   };
-  addPart(parts.body, { dissolveY: 0.4, dissolveSoft: 0.22, wobble: 0.003 }, null, 6);
+  addPart(parts.body, { dissolveY: 0.6, dissolveSoft: 0.13, wobble: 0.003 }, null, 6);   // the legs dissolve into wisps at the seat
   const head = addPart(parts.head, { wobble: 0.0012 }, header.head, 8);
   const arms = ['L', 'R'].map((k) => addPart(parts['arm' + k], { wobble: 0.0015, handBoost: 0.3 }, header.shoulders[k], 10));
   // a faint cold aura behind him, and a light that he casts on the keys and music desk
@@ -179,24 +212,32 @@ export async function buildGhostPianist(ctx) {
   }, { tile: false });
   const glowMat = new THREE.SpriteMaterial({ map: glowTex, color: new THREE.Color(0.32, 0.42, 0.75), transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
   const glow = new THREE.Sprite(glowMat);
-  glow.scale.set(1.1, 1.3, 1); glow.position.set(0, 1.0, 0.58); glow.renderOrder = 5;
+  glow.scale.set(0.95, 0.95, 1); glow.position.set(0, 1.16, 0.62); glow.renderOrder = 5;
   group.add(glow);
-  const light = new THREE.PointLight(0xbfd0ff, 0.6, 2.2, 2);
-  light.position.set(0, 1.0, 0.25);
+  // a tighter cold halo round the head and shoulders, so he separates from the moonlit wall
+  const haloMat = glowMat.clone(); haloMat.color = new THREE.Color(0.45, 0.58, 1.0);
+  const halo = new THREE.Sprite(haloMat);
+  halo.scale.set(0.5, 0.5, 1); halo.position.set(0, 1.28, 0.5); halo.renderOrder = 5;
+  group.add(halo);
+  // his cold light falls on the keys and the music desk only (it used to wash the bench cushion lavender)
+  const light = new THREE.PointLight(0xbfd0ff, 0.6, 0.9, 2);
+  light.position.set(0, 0.95, 0.1);
   group.add(light);
   group.traverse((o) => { o.userData.noBake = true; o.castShadow = false; o.receiveShadow = false; });
 
   const target = [0, 0];
   const dip = [0, 0];
-  const LIGHT = 0.6;
+  const LIGHT = 0.35;
   return {
     group, arms, head, light,
     setOpacity(v) {
       for (const m of mats) m.uniforms.uOpacity.value = v;
-      glowMat.opacity = 0.5 * v;
+      glowMat.opacity = 0.55 * v;
+      haloMat.opacity = 0.45 * v;
       light.intensity = LIGHT * v / 0.55;
     },
-    want: null,   // set by the room: (opacity) => void, eases toward it
+    want: null,
+    setFill(p) { for (const m of mats) m.uniforms.uFillPos.value.copy(p); },   // set by the room: (opacity) => void, eases toward it
     reachFor(x) {
       const side = x < 0.0 ? 0 : 1;
       target[side] = x; dip[side] = 1;

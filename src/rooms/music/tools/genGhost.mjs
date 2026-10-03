@@ -37,128 +37,314 @@ export { ell, rcone, sph, smin, smax };
 export const HEAD = [0, 1.31, 0.43];
 export const SHOULDER = { L: [-0.205, 1.045, 0.5], R: [0.205, 1.045, 0.5] };
 
+// ------------------------------------------------------------------ sculpt helpers
+function mulberry(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+// Catmull-Rom through control points -> n samples
+function crPath(cp, n) {
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const t = (i / n) * (cp.length - 1);
+    const k = Math.min(cp.length - 2, Math.floor(t)), f = t - k;
+    const p0 = cp[Math.max(0, k - 1)], p1 = cp[k], p2 = cp[k + 1], p3 = cp[Math.min(cp.length - 1, k + 2)];
+    const f2 = f * f, f3 = f2 * f;
+    out.push([0, 1, 2].map((a) => 0.5 * ((2 * p1[a]) + (-p0[a] + p2[a]) * f + (2 * p0[a] - 5 * p1[a] + 4 * p2[a] - p3[a]) * f2 + (-p0[a] + 3 * p1[a] - 3 * p2[a] + p3[a]) * f3)));
+  }
+  return out;
+}
+// a lock / strand clump: tapered chain of round cones with a bounding sphere
+function makeLock(cp, r0, r1, r2, n = 7) {
+  const pts = crPath(cp, n);
+  const rad = pts.map((_, i) => { const t = i / n; return t < 0.4 ? r0 + (r1 - r0) * (t / 0.4) : r1 + (r2 - r1) * ((t - 0.4) / 0.6); });
+  let c = [0, 0, 0]; for (const p of pts) { c[0] += p[0] / pts.length; c[1] += p[1] / pts.length; c[2] += p[2] / pts.length; }
+  let R = 0; pts.forEach((p, i) => { R = Math.max(R, len3(p[0] - c[0], p[1] - c[1], p[2] - c[2]) + rad[i]); });
+  return { pts, rad, c, R };
+}
+function lockDist(L, x, y, z, far) {
+  const b = len3(x - L.c[0], y - L.c[1], z - L.c[2]) - L.R;
+  if (b > far) return b;
+  let d = 1e9;
+  for (let i = 0; i < L.pts.length - 1; i++) d = Math.min(d, rcone(x, y, z, L.pts[i], L.pts[i + 1], L.rad[i], L.rad[i + 1]));
+  return d;
+}
+function lockField(locks, x, y, z, k, far = 0.03) {
+  let d = 1e9;
+  for (const L of locks) { const l = lockDist(L, x, y, z, far); d = d > 1e8 ? l : (l < d + k ? smin(d, l, k) : d); }
+  return d;
+}
+// IQ 2D polygon SDF
+function sdPoly(px, py, v) {
+  let d = (px - v[0][0]) ** 2 + (py - v[0][1]) ** 2, s = 1;
+  for (let i = 0, j = v.length - 1; i < v.length; j = i, i++) {
+    const ex = v[j][0] - v[i][0], ey = v[j][1] - v[i][1], wx = px - v[i][0], wy = py - v[i][1];
+    const t = Math.max(0, Math.min(1, (wx * ex + wy * ey) / (ex * ex + ey * ey)));
+    const bx = wx - ex * t, by = wy - ey * t;
+    d = Math.min(d, bx * bx + by * by);
+    const c1 = py >= v[i][1], c2 = py < v[j][1], c3 = ex * wy > ey * wx;
+    if ((c1 && c2 && c3) || (!c1 && !c2 && !c3)) s = -s;
+  }
+  return s * Math.sqrt(d);
+}
+
+// ------------------------------------------------------------------ head (relative to HEAD), faces -Z
+// Kessler as in the overmantel portrait: a high domed forehead with the hair receding from it,
+// thick dark hair swept back over the crown and bushing out over the ears to the collar, a full
+// squared beard with a heavy moustache, deep-set eyes under a strong brow, a straight nose.
+const SK = { c: [0, 0.022, 0.012], r: [0.078, 0.099, 0.097] };
+function onSkull(az, el, lift) {
+  // az 0 = straight ahead (-Z), +az toward +X; el = elevation; lift = metres off the skull
+  const dx = Math.sin(az) * Math.cos(el), dy = Math.sin(el), dz = -Math.cos(az) * Math.cos(el);
+  const rr = 1 / Math.sqrt((dx / SK.r[0]) ** 2 + (dy / SK.r[1]) ** 2 + (dz / SK.r[2]) ** 2);
+  return [SK.c[0] + dx * (rr + lift), SK.c[1] + dy * (rr + lift), SK.c[2] + dz * (rr + lift)];
+}
+function onSkullDir(dx, dy, dz, lift) {
+  const l = Math.hypot(dx, dy, dz); dx /= l; dy /= l; dz /= l;
+  const rr = 1 / Math.sqrt((dx / SK.r[0]) ** 2 + (dy / SK.r[1]) ** 2 + (dz / SK.r[2]) ** 2);
+  return [SK.c[0] + dx * (rr + lift), SK.c[1] + dy * (rr + lift), SK.c[2] + dz * (rr + lift)];
+}
+const HAIR_LOCKS = [], BEARD_LOCKS = [], MOUSTACHE = [], BROWS = [];
+{
+  const rnd = mulberry(1871);
+  const j = (a) => (rnd() - 0.5) * 2 * a;
+  // crown: combed straight back from the receding hairline, fanning a little, over the top to the nape
+  for (let i = 0; i < 15; i++) {
+    const u = (i / 14) * 2 - 1;                       // -1..1 across the head
+    const m0 = 0.9 + 0.25 * Math.abs(u) * 0 + j(0.05);
+    const cp = [];
+    for (let k = 0; k <= 5; k++) {
+      const t = k / 5;
+      const m = m0 + (Math.PI + 0.75 - m0) * t;       // meridian angle: 0 ahead, pi/2 up, pi behind
+      const lat = u * (0.6 + 0.1 * Math.sin(t * Math.PI) - 0.15 * t) + j(0.03);
+      const lift = 0.004 + 0.014 * Math.sin(t * Math.PI) + j(0.002);
+      cp.push(onSkullDir(lat, Math.sin(m), -Math.cos(m), lift));
+    }
+    HAIR_LOCKS.push(makeLock(cp, 0.007, 0.0125 + j(0.002), 0.004, 10));
+  }
+  // sides + back: thick masses from the temples swept back over the ears, bushing out, curling at the collar
+  for (const s of [-1, 1]) {
+    for (let i = 0; i < 16; i++) {
+      const v = i / 15;                                // 0 = high (temple / crown side) .. 1 = low (over the ear)
+      const el0 = 0.55 - v * 0.7 + j(0.06);
+      const az0 = s * (0.9 + v * 0.45 + j(0.08) + (i % 2) * 0.25);
+      const cp = [];
+      for (let k = 0; k <= 4; k++) {
+        const t = k / 4;
+        const az = az0 + s * (1.5 + 0.1 * v + j(0.1)) * t;      // back along the side of the head
+        const el = el0 - (0.55 + 0.35 * v) * t;            // and down toward the collar, nearly straight
+        const lift = 0.006 + (0.008 + 0.008 * v) * Math.sin(Math.min(1, t * 1.3) * Math.PI * 0.9) + j(0.002);
+        cp.push(onSkull(az, el, lift));
+      }
+      // ends flick outward / under at the collar
+      const e = cp[4];
+      cp.push([e[0] + s * 0.006, e[1] - 0.014, e[2] - 0.002]);
+      HAIR_LOCKS.push(makeLock(cp, 0.008, 0.0145 + j(0.002), 0.005, 8));
+    }
+  }
+  // back of the head: locks from the crown straight down to the collar
+  for (let i = 0; i < 9; i++) {
+    const u = (i / 8) * 2 - 1;
+    const cp = [];
+    for (let k = 0; k <= 4; k++) {
+      const t = k / 4;
+      const az = Math.PI + u * (0.7 + 0.25 * t) * -1;
+      const el = 0.75 - 1.4 * t;
+      cp.push(onSkull(az, el, 0.006 + 0.012 * Math.sin(t * Math.PI) + j(0.002)));
+    }
+    const e = cp[4]; cp.push([e[0], e[1] - 0.02, e[2] - 0.006]);
+    HAIR_LOCKS.push(makeLock(cp, 0.009, 0.015 + j(0.002), 0.005, 8));
+  }
+  // beard: clumps from the side-whiskers and the jaw falling to a squared fall below the chin
+  for (let i = 0; i < 22; i++) {
+    const u = (i / 21) * 2 - 1;                       // -1 (left whisker) .. 1 (right whisker)
+    const a = u * 1.45;                               // angle round the jaw, 0 = chin
+    const top = [Math.sin(a) * 0.066, -0.022 - 0.03 * (1 - Math.abs(u)) * 0 - 0.012 * Math.cos(a) + j(0.004), -Math.cos(a) * 0.072 + 0.012];
+    const mid = [Math.sin(a) * 0.07, -0.08 + j(0.006), -Math.cos(a) * 0.085 + 0.006];
+    const bot = [Math.sin(a) * 0.052 * (0.7 + 0.3 * Math.abs(u)), -0.128 - 0.018 * (1 - Math.abs(u)) + j(0.006), -Math.cos(a) * 0.072 + 0.0];
+    const tip = [bot[0] * 0.9, bot[1] - 0.014 + j(0.004), bot[2] + 0.01];
+    BEARD_LOCKS.push(makeLock([top, mid, bot, tip], 0.01, 0.015 + j(0.002), 0.007, 8));
+  }
+  // moustache: heavy wings from under the nose, drooping into the beard
+  for (const s of [-1, 1]) for (let i = 0; i < 4; i++) {
+    const o = i * 0.004;
+    MOUSTACHE.push(makeLock([[s * (0.003 + o), -0.042 - o * 0.3, -0.104], [s * (0.016 + o), -0.052 - o * 0.5, -0.1], [s * (0.026 + o * 0.5), -0.066 - o * 0.4, -0.092], [s * (0.03 + o * 0.5), -0.082, -0.084]], 0.0062, 0.0068, 0.0045, 6));
+  }
+  // eyebrows: short tufts along the brow ridge
+  for (const s of [-1, 1]) for (let i = 0; i < 3; i++) {
+    const x0 = 0.014 + i * 0.012;
+    BROWS.push(makeLock([[s * x0, 0.031 - i * 0.0005, -0.091 + i * 0.004], [s * (x0 + 0.012), 0.034 - i * 0.002, -0.087 + i * 0.005]], 0.004, 0.0045, 0.003, 3));
+  }
+}
+
+export function head(x, y, z) {
+  // ---- skull + face planes
+  let d = ell(x, y, z, SK.c, SK.r);                                                // cranium
+  d = smin(d, ell(x, y, z, [0, 0.05, -0.035], [0.068, 0.062, 0.058]), 0.02);       // high domed forehead
+  d = smin(d, ell(x, y, z, [0, -0.045, -0.025], [0.06, 0.06, 0.07]), 0.03);        // jaw
+  d = smin(d, ell(x, y, z, [0, -0.088, -0.058], [0.026, 0.024, 0.024]), 0.02);     // chin
+  // brow ridge: a continuous bar over the eyes, a little dip at the glabella
+  d = smin(d, rcone(x, y, z, [-0.048, 0.028, -0.072], [-0.012, 0.032, -0.088], 0.009, 0.01), 0.012);
+  d = smin(d, rcone(x, y, z, [0.048, 0.028, -0.072], [0.012, 0.032, -0.088], 0.009, 0.01), 0.012);
+  for (const s of [-1, 1]) {
+    // temples slightly hollow
+    d = smax(d, -ell(x, y, z, [s * 0.079, 0.03, -0.045], [0.012, 0.02, 0.02]), 0.012);
+    // cheekbones
+    d = smin(d, ell(x, y, z, [s * 0.047, -0.01, -0.066], [0.02, 0.012, 0.018]), 0.016);
+    // eye sockets, deep set
+    d = smax(d, -ell(x, y, z, [s * 0.031, 0.012, -0.094], [0.019, 0.014, 0.017]), 0.008);
+    // eyeball
+    d = smin(d, sph(x, y, z, [s * 0.031, 0.011, -0.07], 0.0118), 0.002);
+    // upper lid (heavy, hooded) and the crease above it, lower lid
+    d = smin(d, ell(x, y, z, [s * 0.031, 0.0175, -0.077], [0.0135, 0.0055, 0.0075]), 0.004);
+    d = smin(d, ell(x, y, z, [s * 0.031, 0.002, -0.079], [0.012, 0.0035, 0.0055]), 0.004);
+    // eye bags under the lower lid
+    d = smin(d, ell(x, y, z, [s * 0.033, -0.006, -0.078], [0.012, 0.005, 0.007]), 0.006);
+    // ears (mostly under the side hair)
+    d = smin(d, ell(x, y, z, [s * 0.079, 0.0, 0.008], [0.011, 0.03, 0.019]), 0.01);
+  }
+  // nose: straight bridge between the brows, a narrow wedge, rounded tip, nostril wings
+  d = smin(d, ell(x, y, z, [0, -0.004, -0.096], [0.0105, 0.03, 0.013]), 0.008);
+  d = smin(d, rcone(x, y, z, [0, 0.02, -0.092], [0, -0.024, -0.111], 0.0072, 0.0085), 0.006);
+  d = smin(d, sph(x, y, z, [0, -0.026, -0.109], 0.0092), 0.005);
+  for (const s of [-1, 1]) {
+    d = smin(d, sph(x, y, z, [s * 0.0125, -0.031, -0.099], 0.0075), 0.005);
+    d = smax(d, -sph(x, y, z, [s * 0.0068, -0.0375, -0.104], 0.003), 0.002);     // nostrils
+  }
+  // lips: the lower lip shows under the moustache
+  d = smin(d, ell(x, y, z, [0, -0.066, -0.091], [0.017, 0.0052, 0.0085]), 0.006);
+  // ---- hair, beard, moustache, brows
+  let hr = ell(x, y, z, SK.c, [SK.r[0] + 0.004, SK.r[1] + 0.004, SK.r[2] + 0.004]);  // a close cap under the locks
+  hr = smax(hr, -(z + 0.04 - Math.max(0, y - 0.06) * 0.0 - (y - 0.075) * -0.35), 0.01);   // receding hairline: clear the forehead
+  hr = smax(hr, (z - 0.02) - (y - 0.07) * -0.0 - 1, 0.01);
+  hr = smax(hr, -(y + 0.13), 0.02);
+  hr = smax(hr, -(y - 0.02 + Math.max(0, -z) * 1.2 + Math.max(0, z) * 1.6), 0.012);                         // the cap only above the ears at the front
+  // bulk under the locks: bushy over the ears, full at the back down to the collar
+  for (const s of [-1, 1]) hr = smin(hr, ell(x, y, z, [s * 0.062, -0.01, 0.03], [0.024, 0.055, 0.06]), 0.02);
+  hr = smin(hr, ell(x, y, z, [0, -0.025, 0.06], [0.07, 0.08, 0.05]), 0.02);
+  hr = smin(hr, lockField(HAIR_LOCKS, x, y, z, 0.0045), 0.005);
+  let br = ell(x, y, z, [0, -0.082, -0.042], [0.068, 0.058, 0.062]);                       // beard mass under the clumps
+  br = smax(br, -(-(y + 0.025) + Math.abs(x) * 0.15 - Math.max(0, -z - 0.075) * 0.5), 0.01);
+  br = smin(br, lockField(BEARD_LOCKS, x, y, z, 0.005), 0.007);
+  br = smax(br, -ell(x, y, z, [0, -0.064, -0.103], [0.016, 0.007, 0.02]), 0.003);     // lower lip shows through
+  const mo = lockField(MOUSTACHE, x, y, z, 0.003);
+  const bw = lockField(BROWS, x, y, z, 0.002);
+  hr = smin(hr, smin(br, smin(mo, bw, 0.002), 0.006), 0.006);
+  head.skull = d; head.hair = hr;
+  return smin(d, hr, 0.004);
+}
+export function headTint(x, y, z) {
+  head(x, y, z);
+  return head.hair < head.skull - 0.0005 ? 0.35 : 1;
+}
+
 // ------------------------------------------------------------------ body (torso, tailcoat, legs)
 // flattened round cone: squash the z axis so the shape becomes a hanging cloth panel
 function panel(x, y, z, a, b, r1, r2, squash) {
   const zc = (a[2] + b[2]) / 2;
   return rcone(x, y, zc + (z - zc) * squash, a, b, r1, r2) / Math.sqrt(squash);
 }
-export function body(x, y, z) {
-  let d = ell(x, y, z, [0, 0.63, 0.6], [0.175, 0.1, 0.15]);                        // pelvis / seat
-  d = smin(d, panel(x, y, z, [0, 0.66, 0.6], [0, 0.95, 0.51], 0.15, 0.17, 1.35), 0.06);  // torso (a chest, not a barrel), leaning to the keys
-  d = smin(d, ell(x, y, z, [0, 1.0, 0.5], [0.235, 0.075, 0.12]), 0.07);           // broad shoulders (padded coat)
-  for (const s of [-1, 1]) d = smin(d, sph(x, y, z, [s * 0.2, 1.01, 0.5], 0.06), 0.06);
-  d = smin(d, rcone(x, y, z, [0, 1.03, 0.49], [0, 1.22, 0.45], 0.05, 0.042), 0.03); // neck
-  // high stand collar with points, white stock and a full cravat bow
-  d = smin(d, rcone(x, y, z, [0, 1.06, 0.48], [0, 1.12, 0.465], 0.06, 0.056), 0.012);
-  d = smin(d, ell(x, y, z, [0, 1.04, 0.39], [0.05, 0.045, 0.03]), 0.015);
-  for (const s of [-1, 1]) d = smin(d, ell(x, y, z, [s * 0.036, 1.055, 0.37], [0.036, 0.02, 0.016]), 0.01);
-  // rolled coat collar standing behind the neck
-  d = smin(d, rcone(x, y, z, [-0.075, 1.09, 0.52], [0.075, 1.09, 0.52], 0.032, 0.032), 0.03);
-  d = smin(d, rcone(x, y, z, [0, 1.06, 0.55], [0, 1.13, 0.53], 0.05, 0.03), 0.03);
-  // shirt front / waistcoat: a raised V between the lapels
-  d = smin(d, ell(x, y, z, [0, 0.93, 0.392], [0.06, 0.1, 0.02]), 0.02);
-  // lapels: broad rolled ridges from collar to waist
-  for (const s of [-1, 1]) {
-    // broad silk-faced lapels rolling back from the collar to the waist, with a notch
-    d = smin(d, panel(x, y, z, [s * 0.105, 1.02, 0.378], [s * 0.04, 0.8, 0.428], 0.036, 0.018, 2.6), 0.01);
-    d = smin(d, rcone(x, y, z, [s * 0.135, 0.99, 0.392], [s * 0.1, 0.93, 0.396], 0.016, 0.011), 0.01);
-    d = smax(d, -sph(x, y, z, [s * 0.118, 0.975, 0.372], 0.012), 0.004);              // the notch
-  }
-  // waistcoat buttons + watch chain across the front
-  for (let k = 0; k < 4; k++) { const yy = 0.9 - k * 0.035; d = smin(d, sph(x, y, z, [0, yy, 0.49 - (yy - 0.66) * 0.37 - 0.014], 0.0075), 0.003); }
-  d = smin(d, rcone(x, y, z, [-0.05, 0.83, 0.42], [0.0, 0.81, 0.416], 0.003, 0.003), 0.002);
-  d = smin(d, rcone(x, y, z, [0.0, 0.81, 0.416], [0.05, 0.83, 0.42], 0.003, 0.003), 0.002);
-  // waist seam of the tailcoat + cut-away fronts
-  d += 0.004 * Math.exp(-((y - 0.77) ** 2) / 0.0002) * (z < 0.55 ? 1 : 0.3);
-  // vent between the tails
-  if (z > 0.68 && y < 0.72) d = Math.max(d, 0.006 + (0.72 - y) * 0.03 - Math.abs(x));
-  // coat tails: two long flat panels from the waist back, over the bench edge, falling behind
-  for (const s of [-1, 1]) {
-    d = smin(d, panel(x, y, z, [s * 0.075, 0.74, 0.71], [s * 0.085, 0.58, 0.79], 0.075, 0.07, 2.4), 0.04);
-    d = smin(d, panel(x, y, z, [s * 0.085, 0.58, 0.79], [s * 0.1, 0.2, 0.81], 0.07, 0.062, 2.8), 0.03);
-  }
-  // thighs + shins (the shader dissolves the legs away)
-  for (const s of [-1, 1]) {
-    d = smin(d, rcone(x, y, z, [s * 0.095, 0.6, 0.6], [s * 0.115, 0.585, 0.2], 0.08, 0.062), 0.04);
-    d = smin(d, rcone(x, y, z, [s * 0.115, 0.585, 0.2], [s * 0.125, 0.09, 0.27], 0.056, 0.045), 0.03);
-  }
-  // cloth folds: creases across the back, belly and the bend of the knees
-  d += 0.0015 * Math.sin(y * 70 + Math.sin(x * 20) * 2) * Math.max(0, 1 - Math.abs(y - 0.8) * 3) * (z > 0.5 ? 1 : 0.3);
-  d += 0.003 * Math.sin(z * 60 + x * 8) * Math.max(0, 1 - Math.abs(y - 0.6) * 8) * (z < 0.5 ? 1 : 0);
+// soft ridge around a 2D segment (cloth folds as a displacement along the projection axis)
+function ridge(u, v, a, b, w) {
+  const ex = b[0] - a[0], ey = b[1] - a[1];
+  const t = Math.max(0, Math.min(1, ((u - a[0]) * ex + (v - a[1]) * ey) / (ex * ex + ey * ey)));
+  const dx = u - a[0] - ex * t, dy = v - a[1] - ey * t;
+  const taper = Math.sin(Math.PI * (0.08 + 0.84 * t));
+  return Math.exp(-(dx * dx + dy * dy) / (w * w)) * taper;
+}
+// front projection (|x|, y): the coat lapel (notched, rolling from the collar to the top button)
+const LAPEL = [[0.03, 1.08], [0.026, 0.80], [0.07, 0.86], [0.122, 0.95], [0.142, 0.99], [0.114, 0.993], [0.12, 1.025], [0.08, 1.095]];
+// the opening between the lapels (waistcoat below, shirt-front, stock and tie above)
+const VOPEN = [[0.0, 1.12], [0.032, 1.12], [0.029, 0.80], [0.012, 0.77], [0.0, 0.765]];
+function torsoCore(x, y, z) {
+  let d = ell(x, y, z, [0, 0.63, 0.6], [0.165, 0.09, 0.14]);                          // pelvis on the seat
+  d = smin(d, ell(x, y, z, [0, 0.76, 0.565], [0.145, 0.12, 0.112]), 0.05);           // abdomen / waist
+  d = smin(d, ell(x, y, z, [0, 0.925, 0.515], [0.158, 0.13, 0.112]), 0.05);          // chest
+  d = smin(d, rcone(x, y, z, [-0.19, 1.02, 0.505], [0.19, 1.02, 0.505], 0.06, 0.06), 0.06);   // padded shoulders
+  for (const s of [-1, 1]) d = smin(d, ell(x, y, z, [s * 0.06, 0.95, 0.585], [0.08, 0.1, 0.04]), 0.05);   // shoulder blades under the cloth
   return d;
 }
-
-// value regions (0 = dark cloth, 1 = linen / skin): lets the coat, shirt and cravat read apart
+export function body(x, y, z) {
+  const ax = Math.abs(x);
+  let d = torsoCore(x, y, z);
+  let region = 0;                                    // 0 coat, 2 linen, 3 black silk
+  const front = z < 0.5;
+  // ---- the front opening: waistcoat + shirt recessed under the coat
+  const vo = sdPoly(ax, y, VOPEN);
+  if (front && vo < 0.003) d += 0.0045 * Math.min(1, Math.max(0, (0.003 - vo) / 0.004));
+  // ---- lapels: flat raised panels following the chest, with a crisp edge and a notch
+  const lp = sdPoly(ax, y, LAPEL);
+  if (front) {
+    const lap = Math.max(d - 0.0065, lp);
+    d = smin(d, lap, 0.002);
+    // roll line: the lapel lifts off the chest toward its outer edge
+    d -= 0.002 * Math.max(0, Math.min(1, -lp / 0.02)) * (ax > 0.06 ? 1 : 0.5) * (lp < 0 ? 1 : 0);
+  }
+  // ---- neck, coat collar, shirt collar, stock and tie
+  d = smin(d, rcone(x, y, z, [0, 1.03, 0.49], [0, 1.22, 0.45], 0.05, 0.043), 0.03);
+  const collarBand = rcone(x, y, z, [0, 1.065, 0.482], [0, 1.135, 0.466], 0.058, 0.054);   // white stock round the neck
+  d = smin(d, collarBand, 0.006);
+  // shirt collar points standing up against the jaw
+  for (const s of [-1, 1]) d = smin(d, panel(x, y, z, [s * 0.03, 1.1, 0.42], [s * 0.05, 1.155, 0.425], 0.012, 0.006, 3.0), 0.004);
+  // the coat collar rolling round the back of the neck
+  d = smin(d, rcone(x, y, z, [-0.085, 1.075, 0.505], [0, 1.115, 0.535], 0.026, 0.03), 0.02);
+  d = smin(d, rcone(x, y, z, [0.085, 1.075, 0.505], [0, 1.115, 0.535], 0.026, 0.03), 0.02);
+  // black silk tie: a small knot and two short ends falling over the shirt
+  const knot = ell(x, y, z, [0, 1.075, 0.418], [0.016, 0.012, 0.009]);
+  let tie = knot;
+  for (const s of [-1, 1]) tie = smin(tie, panel(x, y, z, [s * 0.004, 1.068, 0.415], [s * 0.012, 1.0, 0.405], 0.008, 0.011, 4.0), 0.004);
+  d = smin(d, tie, 0.003);
+  // waistcoat buttons, coat buttons, watch chain
+  for (let k = 0; k < 3; k++) { const yy = 0.93 - k * 0.045; d = smin(d, sph(x, y, z, [0, yy, 0.405 + (0.93 - yy) * 0.22], 0.0055), 0.002); }
+  for (const s of [-1, 1]) d = smin(d, sph(x, y, z, [s * 0.072, 0.805, 0.452], 0.008), 0.002);
+  d = smin(d, rcone(x, y, z, [-0.045, 0.83, 0.448], [0.0, 0.81, 0.448], 0.0025, 0.0025), 0.0015);
+  d = smin(d, rcone(x, y, z, [0.0, 0.81, 0.448], [0.045, 0.83, 0.448], 0.0025, 0.0025), 0.0015);
+  // ---- waist seam (tailcoat) + cloth folds
+  d += 0.0012 * Math.exp(-((y - 0.775) ** 2) / 0.00004);
+  if (front) {
+    for (const [a, b, amp] of [[[0.05, 0.80], [0.15, 0.775], 0.004], [[0.07, 0.755], [0.16, 0.74], 0.0035], [[0.06, 0.72], [0.14, 0.715], 0.003]]) d -= amp * ridge(ax, y, a, b, 0.008);
+  } else {
+    for (const [a, b, amp] of [[[0.07, 0.99], [0.12, 0.8], 0.004], [[0.02, 0.92], [0.07, 0.78], 0.0035], [[0.11, 0.97], [0.15, 0.85], 0.003]]) d -= amp * ridge(ax, y, a, b, 0.01);
+  }
+  // the coat's back seams: centre back, and side-back seams curving from the armholes to the waist buttons
+  if (!front) {
+    d += 0.0016 * Math.exp(-(x * x) / 0.000012) * (y > 0.78 && y < 1.09 ? 1 : 0);
+    for (const s of [-1, 1]) {
+      const sx = 0.068 + 0.075 * Math.pow(Math.max(0, Math.min(1, (y - 0.78) / 0.22)), 1.6);
+      d += 0.0014 * Math.exp(-((x - s * sx) ** 2) / 0.00001) * (y > 0.78 && y < 1.0 ? 1 : 0);
+      d -= 0.002 * Math.exp(-((x - s * 0.07) ** 2 + (y - 0.775) ** 2) / 0.00004);    // hip buttons
+    }
+  }
+  if (ax > 0.1) for (const [a, b, amp] of [[[0.48, 0.95], [0.56, 0.84], 0.003], [[0.5, 0.88], [0.58, 0.8], 0.003]]) d -= amp * ridge(z, y, a, b, 0.009);
+  // ---- coat tails: two long panels from the back waist over the bench edge, the vent between them
+  for (const s of [-1, 1]) {
+    d = smin(d, panel(x, y, z, [s * 0.068, 0.765, 0.668], [s * 0.078, 0.555, 0.752], 0.072, 0.07, 4.5), 0.03);
+    d = smin(d, panel(x, y, z, [s * 0.078, 0.555, 0.756], [s * 0.082, 0.43, 0.772], 0.068, 0.062, 5.0), 0.015);
+  }
+  if (z > 0.66 && y < 0.74) d = Math.max(d, 0.004 + (0.74 - y) * 0.02 - ax);
+  // ---- trousers: thighs along the seat, knees, shins (the shader dissolves the legs below the seat)
+  for (const s of [-1, 1]) {
+    d = smin(d, rcone(x, y, z, [s * 0.092, 0.605, 0.6], [s * 0.108, 0.59, 0.225], 0.078, 0.058), 0.04);
+    d = smin(d, sph(x, y, z, [s * 0.11, 0.59, 0.225], 0.058), 0.02);
+    d = smin(d, rcone(x, y, z, [s * 0.11, 0.585, 0.215], [s * 0.12, 0.1, 0.27], 0.052, 0.041), 0.025);
+    // pressed crease along the top of the thigh, a drag fold to the knee, folds behind the knee
+    d -= 0.0028 * Math.exp(-((ax - 0.103) ** 2) / 0.00006) * (z < 0.55 && z > 0.25 && y > 0.62 ? 1 : 0);
+    d -= 0.003 * ridge(z, y, [0.5, 0.66], [0.28, 0.635], 0.01) * (Math.abs(ax - 0.07) < 0.03 ? 1 : 0);
+    for (const yy of [0.56, 0.535]) d -= 0.003 * Math.exp(-((y - yy) ** 2) / 0.00004) * (z > 0.2 && z < 0.26 && x * s > 0 ? 1 : 0);
+  }
+  body.region = region;
+  return d;
+}
+// value regions: 0.1 coat cloth, 0.05 black silk tie, 0.8 linen (shirt, stock, collar points)
 export function bodyTint(x, y, z) {
-  let d = ell(x, y, z, [0, 1.04, 0.39], [0.06, 0.055, 0.04]);
-  for (const s of [-1, 1]) d = Math.min(d, ell(x, y, z, [s * 0.036, 1.055, 0.37], [0.046, 0.03, 0.03]));
-  d = Math.min(d, ell(x, y, z, [0, 0.93, 0.392], [0.05, 0.11, 0.035]));
-  d = Math.min(d, rcone(x, y, z, [0, 1.06, 0.48], [0, 1.13, 0.465], 0.065, 0.06));
-  return d < 0.004 ? 1 : 0;
-}
-export function headTint(x, y, z) {
-  // hair darker than the face
-  head(x, y, z);
-  return head.hair < head.skull - 0.0005 ? 0.3 : 1;
-}
-
-// ------------------------------------------------------------------ head (relative to HEAD), faces -Z
-export function head(x, y, z) {
-  let d = ell(x, y, z, [0, 0.02, 0.01], [0.074, 0.097, 0.092]);                   // cranium
-  d = smin(d, ell(x, y, z, [0, -0.05, -0.02], [0.058, 0.052, 0.072]), 0.03);      // jaw
-  d = smin(d, ell(x, y, z, [0, -0.09, -0.052], [0.027, 0.023, 0.026]), 0.02);     // chin
-  for (const s of [-1, 1]) d = smin(d, ell(x, y, z, [s * 0.028, 0.034, -0.068], [0.03, 0.012, 0.02]), 0.02);  // brows
-  d = smin(d, ell(x, y, z, [0, 0.046, -0.08], [0.01, 0.01, 0.008]), 0.01);        // frown knot between the brows
-  for (const s of [-1, 1]) {
-    d = smin(d, ell(x, y, z, [s * 0.044, -0.014, -0.056], [0.017, 0.011, 0.017]), 0.016); // high cheekbones
-    d = smax(d, -sph(x, y, z, [s * 0.03, 0.012, -0.092], 0.018), 0.01);                   // sockets
-    d = smin(d, sph(x, y, z, [s * 0.03, 0.011, -0.067], 0.0115), 0.003);                  // eyes (set back)
-    d = smin(d, ell(x, y, z, [s * 0.03, 0.017, -0.076], [0.013, 0.0045, 0.006]), 0.005);  // heavy upper lids
-    d = smax(d, -ell(x, y, z, [s * 0.05, -0.05, -0.066], [0.016, 0.022, 0.01]), 0.012);   // hollow cheeks
-    d = smax(d, -rcone(x, y, z, [s * 0.022, -0.04, -0.1], [s * 0.035, -0.07, -0.09], 0.004, 0.003), 0.004); // nasolabial folds
-    d = smin(d, ell(x, y, z, [s * 0.078, 0.0, 0.006], [0.012, 0.031, 0.02]), 0.01);       // ears
+  const ax = Math.abs(x);
+  if (y > 1.055 && y < 1.16 && z < 0.5) {
+    const tie = ell(x, y, z, [0, 1.075, 0.418], [0.02, 0.016, 0.014]);
+    if (tie < 0.002) return 0.05;
+    return 0.8;                                                   // stock + collar points
   }
-  // aquiline nose: bridge, hump, tip, nostril wings
-  d = smin(d, rcone(x, y, z, [0, 0.026, -0.086], [0, -0.026, -0.107], 0.0085, 0.0115), 0.008);
-  d = smin(d, sph(x, y, z, [0, 0.0, -0.1], 0.0085), 0.006);
-  for (const s of [-1, 1]) d = smin(d, sph(x, y, z, [s * 0.012, -0.034, -0.099], 0.009), 0.006);
-  // mouth: thin lips pressed in a downturned line, and a drooping moustache
-  d = smin(d, ell(x, y, z, [0, -0.059, -0.087], [0.021, 0.0065, 0.01]), 0.008);
-  d = smax(d, -ell(x, y, z, [0, -0.061 - 0.004 * x * x * 400, -0.101], [0.025, 0.0025, 0.012]), 0.004);
-  // hair: the high, receding forehead of the portrait, then a full mane swept straight back
-  // over the crown and falling thick over the ears to the collar; strand grooves follow the sweep
-  let hr = ell(x, y, z, [0, 0.036, 0.03], [0.088, 0.102, 0.106]);                      // crown, ~1.5-2 cm proud
-  hr = smin(hr, ell(x, y, z, [0, -0.035, 0.065], [0.084, 0.095, 0.062]), 0.04);        // back of the head, down to the collar
-  for (const s of [-1, 1]) {
-    hr = smin(hr, ell(x, y, z, [s * 0.078, -0.01, 0.035], [0.034, 0.072, 0.066]), 0.03); // bushy over the ears
-    hr = smin(hr, ell(x, y, z, [s * 0.072, -0.08, 0.055], [0.032, 0.05, 0.045]), 0.03);  // ends curling at the collar
-    hr = smin(hr, ell(x, y, z, [s * 0.06, 0.07, 0.07], [0.04, 0.04, 0.05]), 0.03);       // swept-back wings at the crown
+  if (y > 0.96 && y <= 1.055 && z < 0.47 && sdPoly(ax, y, VOPEN) < 0.002) {
+    if (ax < 0.016 && y > 0.995) return 0.05;                     // tie ends
+    return 0.8;                                                   // shirt front
   }
-  // locks + strands: big lumps break the silhouette, fine grooves run back over the top and down the sides
-  const topW0 = Math.max(0, Math.min(1, (y + 0.01) * 18));
-  const lump = topW0 * Math.sin(x * 100 + Math.sin(z * 30) * 2) + (1 - topW0) * Math.sin((y + z * 0.6) * 110 + Math.sin(x * 30));
-  const sweepTop = Math.sin(x * 330 + Math.sin(z * 30) * 3 + Math.sin(y * 21));
-  const sweepSide = Math.sin((y + z * 0.6) * 300 + Math.sin(x * 25) * 2);
-  const topW = Math.max(0, Math.min(1, (y + 0.01) * 18));
-  hr += 0.0028 * lump + 0.0012 * sweepTop * topW + 0.0005 * sweepSide * (1 - topW);
-  hr = smax(hr, -(z + 0.05 - Math.max(0, y - 0.05) * 0.4 + Math.max(0, 0.05 - y) * 0.6), 0.014);  // receding hairline, off the face
-  hr = smax(hr, -(y + 0.16), 0.02);                                                   // not below the collar
-  // beard: a full, squared beard from the side-whiskers round the jaw, falling onto the cravat,
-  // with a heavy moustache over the lip (as in the overmantel portrait)
-  let br = ell(x, y, z, [0, -0.072, -0.03], [0.07, 0.066, 0.062]);
-  br = smin(br, ell(x, y, z, [0, -0.135, -0.045], [0.055, 0.06, 0.042]), 0.035);        // the fall below the chin
-  for (const s of [-1, 1]) br = smin(br, ell(x, y, z, [s * 0.066, -0.035, -0.005], [0.022, 0.05, 0.03]), 0.02);  // whiskers to the hair
-  br = smax(br, -(-(y + 0.022) - Math.max(0, -z - 0.07) * 0.6 + Math.abs(x) * 0.25), 0.012);  // top edge: below the cheekbones
-  br = smax(br, -ell(x, y, z, [0, -0.06, -0.1], [0.018, 0.008, 0.02]), 0.004);          // the lower lip shows through
-  br += 0.0016 * Math.sin(x * 300 + Math.sin(y * 40) * 2) + 0.003 * Math.sin(x * 90 + Math.sin(y * 25) * 1.5);  // vertical strands + clumps
-  // moustache: two drooping wings from under the nose into the beard
-  let mo = 1;
-  for (const s of [-1, 1]) mo = Math.min(mo, rcone(x, y, z, [s * 0.004, -0.043, -0.106], [s * 0.034, -0.064, -0.088], 0.01, 0.0075));
-  mo += 0.0008 * Math.sin(x * 500);
-  hr = smin(hr, smin(br, mo, 0.012), 0.012);
-  head.skull = d; head.hair = hr;
-  return smin(d, hr, 0.006);
+  return 0.1;
 }
 
 // ------------------------------------------------------------------ arm (relative to shoulder), s = -1 left / +1 right

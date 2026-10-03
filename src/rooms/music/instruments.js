@@ -208,85 +208,308 @@ export function buildHarp(ctx, { gilt, giltPlain, wood, box = wood }) {
   return g;
 }
 
-/** Violin-family outline (half), y from 0 (bottom) to 1 (top), x = half width (normalised). */
-function celloOutline() {
-  const half = [
-    [0.0, 0.0], [0.17, 0.008], [0.3, 0.04], [0.38, 0.1], [0.42, 0.18], [0.43, 0.26], [0.41, 0.33], [0.37, 0.38],
-    [0.33, 0.41], [0.29, 0.43], [0.27, 0.46], [0.27, 0.5], [0.28, 0.54], [0.31, 0.57], [0.35, 0.62], [0.37, 0.69],
-    [0.36, 0.77], [0.32, 0.84], [0.25, 0.9], [0.16, 0.95], [0.07, 0.985], [0.0, 1.0],
-  ];
-  return half;
+/*
+ * Cello, modelled to real proportions: a 0.755 m body (lower bout 0.44, C-bouts 0.23, upper bout
+ * 0.344) with pointed corners, 12 cm ribs, arched spruce top with real f-holes (alpha-cut through
+ * the plate, a dark interior behind them), flamed maple back and ribs, purfling, an ebony
+ * fingerboard dead centre, a carved bridge, tailpiece, four strings, pegbox, pegs and a scroll.
+ * Local frame: y up from the bottom of the body, top plate faces +Z.
+ */
+const CELLO_L = 0.755;
+function celloHalfOutline() {
+  const seg = (cp, n) => {
+    const out = [];
+    for (let i = 0; i <= n; i++) {
+      const t = (i / n) * (cp.length - 1), k = Math.min(cp.length - 2, Math.floor(t)), f = t - k;
+      const p0 = cp[Math.max(0, k - 1)], p1 = cp[k], p2 = cp[k + 1], p3 = cp[Math.min(cp.length - 1, k + 2)];
+      const c = (a) => 0.5 * ((2 * p1[a]) + (-p0[a] + p2[a]) * f + (2 * p0[a] - 5 * p1[a] + 4 * p2[a] - p3[a]) * f * f + (-p0[a] + 3 * p1[a] - 3 * p2[a] + p3[a]) * f * f * f);
+      out.push([c(0), c(1)]);
+    }
+    return out;
+  };
+  // three spans meeting at sharp corners: lower bout, C-bout, upper bout
+  const lower = seg([[0, 0], [0.1, 0.007], [0.172, 0.036], [0.212, 0.09], [0.22, 0.15], [0.21, 0.212], [0.188, 0.258], [0.172, 0.292]], 36);
+  const cb = seg([[0.172, 0.292], [0.142, 0.302], [0.122, 0.33], [0.115, 0.375], [0.12, 0.42], [0.138, 0.452], [0.16, 0.466]], 24);
+  const upper = seg([[0.16, 0.466], [0.166, 0.49], [0.172, 0.54], [0.164, 0.6], [0.14, 0.655], [0.1, 0.705], [0.05, 0.742], [0, CELLO_L]], 30);
+  return [...lower, ...cb.slice(1), ...upper.slice(1)];
+}
+function halfWidthAt(half, y) {
+  let best = 0;
+  for (let i = 0; i < half.length - 1; i++) {
+    const a = half[i], b = half[i + 1];
+    if ((a[1] - y) * (b[1] - y) <= 0 && a[1] !== b[1]) { const t = (y - a[1]) / (b[1] - a[1]); best = Math.max(best, a[0] + (b[0] - a[0]) * t); }
+  }
+  return best;
+}
+function celloTextures(ctx) {
+  // spruce top under an amber-red oil varnish: straight fine grain along the body, wider toward the flanks
+  const top = ctx.textures.generate('music:cellotop2', {
+    size: 1024, normalStrength: 0.12, tile: false,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  float x = uv.y - 0.5;                                   // across (v), 0 = centre joint
+  float w = fbm(vec2(uv.x * 3.0, uv.y * 2.0), vec2(3.0, 2.0), 3) * 0.004;
+  float g = abs(x) + w;
+  float spacing = mix(0.0045, 0.009, smoothstep(0.0, 0.5, abs(x)));
+  float line = smoothstep(0.55, 1.0, sin(g / spacing * 6.2831) * 0.5 + 0.5);
+  vec3 varnish = mix(vec3(0.42, 0.15, 0.05), vec3(0.58, 0.27, 0.09), 0.5 + 0.5 * fbm(uv * vec2(2.0, 3.0), vec2(2.0, 3.0), 4));
+  // worn / burnished centre where the player's knees and bow have rubbed through to the amber ground
+  float wear = smoothstep(0.24, 0.0, length((uv - vec2(0.42, 0.5)) * vec2(1.0, 1.4)));
+  varnish = mix(varnish, vec3(0.66, 0.38, 0.14), wear * 0.35);
+  vec3 col = varnish * (1.0 - 0.28 * line);
+  s.albedo = col; s.height = 0.5 - 0.15 * line; s.rough = 0.32 + 0.12 * line; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+  // one-piece flamed maple back + ribs: grain along the body, tiger flames sweeping across it
+  const back = ctx.textures.generate('music:celloback2', {
+    size: 1024, normalStrength: 0.1, tile: true,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  float x = uv.y - 0.5;
+  float wav = fbm(vec2(uv.x * 4.0, uv.y * 3.0), vec2(4.0, 3.0), 3);
+  float flame = sin((uv.x * 26.0 + abs(x) * 9.0 + wav * 2.2) * 6.2831) * 0.5 + 0.5;
+  flame = smoothstep(0.25, 0.85, flame);
+  float grain = sin((uv.y * 140.0 + wav * 6.0) * 6.2831) * 0.5 + 0.5;
+  vec3 dark = vec3(0.3, 0.1, 0.035), light = vec3(0.6, 0.29, 0.1);
+  vec3 col = mix(dark, light, 0.25 + 0.6 * flame) * (0.93 + 0.07 * grain);
+  s.albedo = col; s.height = 0.5 + 0.03 * flame; s.rough = 0.3; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+  // f-hole mask (alpha): canvas in body space, x in [-0.25, 0.25], y in [0, L]
+  const W = 512, H = 1024;
+  const mask = ctx.textures.canvas('music:cellofholes', W, H, (g) => {
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+    const P = (x, y) => [((x + 0.25) / 0.5) * W, (1 - y / CELLO_L) * H];
+    const S = W / 0.5;
+    g.fillStyle = '#000';
+    for (const s of [-1, 1]) {
+      // eyes: the upper one nearer the centre line, the lower one wider and lower
+      const up = [s * 0.073, 0.428], lo = [s * 0.098, 0.268];
+      g.beginPath(); g.arc(...P(...up), 0.0062 * S, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.arc(...P(...lo), 0.0072 * S, 0, Math.PI * 2); g.fill();
+      // the stem: a long S, wider in the middle, tapering into each eye
+      const N = 40, left = [], right = [];
+      for (let i = 0; i <= N; i++) {
+        const t = i / N;
+        const y = lo[1] + (up[1] - lo[1]) * t;
+        const x = lo[0] + (up[0] - lo[0]) * (t - 0.18 * Math.sin(t * Math.PI * 2) * 1.0) + s * 0.006 * Math.sin(t * Math.PI * 2);
+        const w = 0.0016 + 0.0026 * Math.sin(Math.PI * t);
+        left.push(P(x - w, y)); right.push(P(x + w, y));
+      }
+      g.beginPath(); g.moveTo(...left[0]); for (const p of left) g.lineTo(...p); for (let i = right.length - 1; i >= 0; i--) g.lineTo(...right[i]); g.closePath(); g.fill();
+      // the nicks at the waist of the f
+      const mid = [lo[0] + (up[0] - lo[0]) * 0.5, (lo[1] + up[1]) / 2];
+      for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(...P(mid[0] + sd * 0.0035, mid[1] + 0.003)); g.lineTo(...P(mid[0] + sd * 0.0085, mid[1])); g.lineTo(...P(mid[0] + sd * 0.0035, mid[1] - 0.003)); g.closePath(); g.fill(); }
+    }
+  }, { tile: false, srgb: false });
+  return { top, back, mask };
 }
 
 export function buildCello(ctx, { wood, ebony, giltPlain }) {
   const { geometry: G } = ctx;
+  void wood; void giltPlain;
   const g = new THREE.Group();
   g.name = 'cello';
-  const L = 0.76, Wd = 0.5;
-  const half = celloOutline();
-  const shape = new THREE.Shape();
-  const pts = [...half.map(([x, y]) => new THREE.Vector2(x * Wd, y * L)), ...half.slice(1, -1).reverse().map(([x, y]) => new THREE.Vector2(-x * Wd, y * L))];
-  shape.setFromPoints(new THREE.SplineCurve(pts.concat([pts[0]])).getPoints(120));
-  const body = new THREE.ExtrudeGeometry(shape, { depth: 0.11, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.012, bevelSegments: 5, curveSegments: 48 });
-  body.translate(0, 0, -0.055);
-  // arch the top and back plates
-  {
-    const p = body.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      const x = p.getX(i) / (Wd * 0.43), y = p.getY(i) / L, z = p.getZ(i);
-      const arch = Math.max(0, 1 - x * x) * Math.sin(Math.PI * Math.min(1, Math.max(0, y))) * 0.022;
-      p.setZ(i, z + Math.sign(z) * arch);
+  const L = CELLO_L, RIB = 0.118;
+  const half = celloHalfOutline();
+  const hw = (y) => halfWidthAt(half, y);
+  const tex = celloTextures(ctx);
+  const varnishOpts = { roughness: 1, metalness: 0, clearcoat: 0.55, clearcoatRoughness: 0.28, envMapIntensity: 0.35, sheen: 0.0 };
+  const topMat = new THREE.MeshPhysicalMaterial({ map: tex.top.map, normalMap: tex.top.normalMap, roughnessMap: tex.top.roughnessMap, alphaMap: tex.mask, alphaTest: 0.5, side: THREE.DoubleSide, ...varnishOpts });
+  const backMat = new THREE.MeshPhysicalMaterial({ map: tex.back.map, normalMap: tex.back.normalMap, roughnessMap: tex.back.roughnessMap, side: THREE.DoubleSide, ...varnishOpts });
+  const arch = (u, y) => 0.021 * Math.pow(Math.max(0, Math.sin(Math.PI * u)), 0.85) * Math.pow(Math.max(0, Math.sin(Math.PI * Math.min(1, Math.max(0, y / L)))), 0.45);
+  // ---- arched plates (grid meshes so they can carry the arching), planar UVs along the body
+  const plate = (sgn, mat, inset = 0) => {
+    const NY = 150, NX = 44, pos = [], uv = [], idx = [];
+    for (let j = 0; j <= NY; j++) {
+      const y = 0.002 + (L - 0.004) * (j / NY);
+      const w = Math.max(0.004, hw(y) + 0.003 - inset);
+      for (let i = 0; i <= NX; i++) {
+        const u = i / NX, x = (u * 2 - 1) * w;
+        pos.push(x, y, sgn * (RIB / 2 + arch(u, y) - inset * 0.6));
+        uv.push(y / L, (x + 0.25) / 0.5);
+      }
     }
-    body.computeVertexNormals();
+    for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+      const a = j * (NX + 1) + i, b = a + NX + 1;
+      if (sgn > 0) idx.push(a, a + 1, b, a + 1, b + 1, b); else idx.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx); geo.computeVertexNormals();
+    return new THREE.Mesh(geo, mat);
+  };
+  // the alpha mask is laid out with u across, v along: swap so it lines up with the plate UVs
+  tex.mask.center.set(0.5, 0.5); tex.mask.rotation = 0; tex.mask.matrixAutoUpdate = false;
+  tex.mask.matrix.set(0, 1, 0, 1, 0, 0, 0, 0, 1);   // (u, v) -> (v, u)
+  g.add(plate(1, topMat));
+  g.add(plate(-1, backMat));
+  // dark interior seen through the f-holes
+  const inside = plate(1, new THREE.MeshBasicMaterial({ color: 0x0a0503 }), 0.012);
+  g.add(inside);
+  // ---- ribs: a ring round the outline
+  {
+    const loop = [...half, ...half.slice(1, -1).reverse().map(([x, y]) => [-x, y])];
+    const pos = [], uv = [], idx = [];
+    let acc = 0;
+    for (let i = 0; i <= loop.length; i++) {
+      const p = loop[i % loop.length];
+      if (i > 0) { const q = loop[i - 1]; acc += Math.hypot(p[0] - q[0], p[1] - q[1]); }
+      pos.push(p[0], p[1], -RIB / 2, p[0], p[1], RIB / 2);
+      uv.push(acc, 0.45, acc, 0.55);
+    }
+    for (let i = 0; i < loop.length; i++) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx); geo.computeVertexNormals();
+    g.add(new THREE.Mesh(geo, backMat));
+    // purfling: a fine black inlay just inside the edge of both plates
+    const purf = new THREE.MeshStandardMaterial({ color: 0x0a0604, roughness: 0.4 });
+    for (const sgn of [-1, 1]) {
+      const pts = [];
+      for (let i = 0; i < half.length; i += 2) { const [x, y] = half[i]; if (y < 0.006 || y > L - 0.006) continue; pts.push(new THREE.Vector3(x - 0.0045, y, sgn * (RIB / 2 + 0.0012))); }
+      const all = [...pts, ...pts.slice().reverse().map((p) => new THREE.Vector3(-p.x, p.y, p.z))];
+      g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(all, true), 300, 0.0011, 4, true), purf));
+    }
   }
-  const varnish = wood;
-  const bodyMesh = new THREE.Mesh(G.applyBoxUVs(body, 2.5), varnish);
-  bodyMesh.position.y = 0.0;
-  g.add(bodyMesh);
-  // f-holes (dark slivers)
-  const fMat = new THREE.MeshBasicMaterial({ color: 0x050302 });
-  for (const s of [-1, 1]) {
-    const fs = new THREE.Shape();
-    fs.moveTo(0, 0); fs.bezierCurveTo(0.012, 0.05, -0.012, 0.11, 0.004, 0.16); fs.lineTo(0.0, 0.16); fs.bezierCurveTo(-0.016, 0.11, 0.008, 0.05, -0.004, 0); fs.closePath();
-    const f = new THREE.Mesh(new THREE.ShapeGeometry(fs, 12), fMat);
-    f.position.set(s * 0.085, L * 0.36, 0.11);
-    f.scale.x = s;
-    g.add(f);
+  const topZ = (y) => RIB / 2 + arch(0.5, y);
+  // ---- neck, fingerboard (ebony, dead centre), nut
+  const ebonyMat = new THREE.MeshPhysicalMaterial({ color: 0x0c0a09, roughness: 0.35, clearcoat: 0.3, clearcoatRoughness: 0.3 });
+  const neckLen = 0.28, nutY = L + neckLen;
+  {
+    const neck = new THREE.Mesh(new G.RoundedBoxGeometry(0.034, neckLen + 0.03, 0.04, 3, 0.014), backMat);
+    neck.position.set(0, L + neckLen / 2 - 0.005, RIB / 2 - 0.004); g.add(neck);
+    const heel = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.024, 0], [0.02, 0.03], [0.0, 0.05]], 16), backMat);
+    heel.rotation.x = Math.PI; heel.position.set(0, L + 0.02, RIB / 2 - 0.035); heel.scale.set(1, 1, 0.7); g.add(heel);
+    // fingerboard: tapered, cambered, raised over the top toward the bridge
+    const fbLen = 0.58, y0 = nutY - fbLen;
+    const shape = new THREE.Shape();
+    shape.moveTo(-0.0155, nutY); shape.lineTo(0.0155, nutY); shape.lineTo(0.022, y0); shape.lineTo(-0.022, y0); shape.closePath();
+    const fg = new THREE.ExtrudeGeometry(shape, { depth: 0.01, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.002, bevelSegments: 2 });
+    const p = fg.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const y = p.getY(i), t = (y - y0) / fbLen;
+      const camber = 0.004 * (1 - Math.pow(p.getX(i) / 0.022, 2));
+      p.setZ(i, p.getZ(i) + (p.getZ(i) > 0.005 ? camber : 0) + RIB / 2 + 0.016 + (1 - t) * 0.02 + (t * 0.0));
+    }
+    fg.computeVertexNormals();
+    g.add(new THREE.Mesh(fg, ebonyMat));
+    const nut = new THREE.Mesh(new THREE.BoxGeometry(0.033, 0.006, 0.008), ebonyMat);
+    nut.position.set(0, nutY, RIB / 2 + 0.032); g.add(nut);
   }
-  // neck, fingerboard, pegbox, scroll
-  const neck = new THREE.Mesh(new G.RoundedBoxGeometry(0.045, 0.3, 0.05, 2, 0.012), varnish);
-  neck.position.set(0, L + 0.13, 0.03); g.add(neck);
-  const fbGeo = new G.RoundedBoxGeometry(0.06, 0.58, 0.018, 2, 0.006);
-  { const p = fbGeo.attributes.position; for (let i = 0; i < p.count; i++) { const v = p.getY(i) / 0.58 + 0.5; p.setX(i, p.getX(i) * (1.15 - v * 0.45)); } fbGeo.computeVertexNormals(); }
-  const fb = new THREE.Mesh(fbGeo, ebony);
-  fb.position.set(0, L + 0.0, 0.15); fb.rotation.x = 0.06; g.add(fb);
-  const pegbox = new THREE.Mesh(new G.RoundedBoxGeometry(0.04, 0.16, 0.05, 2, 0.01), varnish);
-  pegbox.position.set(0, L + 0.34, 0.02); pegbox.rotation.x = -0.15; g.add(pegbox);
-  const scroll = new THREE.Mesh(new THREE.TorusGeometry(0.025, 0.014, 10, 24, Math.PI * 1.8), varnish);
-  scroll.rotation.y = Math.PI / 2; scroll.position.set(0, L + 0.44, 0.0); g.add(scroll);
-  for (let i = 0; i < 4; i++) {
-    const peg = new THREE.Mesh(G.latheFromProfile([[0.006, 0], [0.007, 0.04], [0.016, 0.05], [0.016, 0.07], [0.0, 0.075]], 10), ebony);
-    peg.rotation.z = (i % 2 ? 1 : -1) * Math.PI / 2;
-    peg.position.set(0, L + 0.29 + i * 0.03, 0.02); g.add(peg);
+  // ---- pegbox + scroll, angled back
+  const head = new THREE.Group();
+  head.position.set(0, nutY, RIB / 2 + 0.01); head.rotation.x = -0.32;
+  {
+    for (const s of [-1, 1]) {
+      const cheek = new THREE.Mesh(new G.RoundedBoxGeometry(0.008, 0.17, 0.042, 2, 0.003), backMat);
+      cheek.position.set(s * 0.017, 0.085, -0.012); head.add(cheek);
+    }
+    const floorB = new THREE.Mesh(new G.RoundedBoxGeometry(0.034, 0.17, 0.008, 2, 0.003), backMat);
+    floorB.position.set(0, 0.085, -0.03); head.add(floorB);
+    const dark = new THREE.Mesh(new THREE.PlaneGeometry(0.026, 0.16), new THREE.MeshBasicMaterial({ color: 0x0a0503 }));
+    dark.position.set(0, 0.085, -0.025); head.add(dark);
+    // scroll: a tapering tube wound in an Archimedean spiral (2.3 turns), wide across
+    const spiral = [];
+    for (let i = 0; i <= 120; i++) {
+      const t = i / 120, a = t * Math.PI * 2 * 2.3, r = 0.034 * (1 - 0.8 * t);
+      spiral.push(new THREE.Vector3(0, 0.205 + r * Math.cos(a) - 0.034 * 0.0, -0.012 - r * Math.sin(a) + 0.0));
+    }
+    const sg = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(spiral), 240, 1, 10, false);
+    {
+      const pp = sg.attributes.position, path = new THREE.CatmullRomCurve3(spiral);
+      // taper the tube radius along the spiral, and widen it across (x) into a volute
+      for (let i = 0; i < pp.count; i++) {
+        const k = Math.floor(i / 11) / 240;
+        const c = path.getPoint(Math.min(1, k));
+        const dx = pp.getX(i) - c.x, dy = pp.getY(i) - c.y, dz = pp.getZ(i) - c.z;
+        const r = 0.011 * (1 - 0.7 * k) + 0.002;
+        pp.setXYZ(i, c.x + dx * r * 2.0, c.y + dy * r, c.z + dz * r);
+      }
+      sg.computeVertexNormals();
+    }
+    head.add(new THREE.Mesh(sg, backMat));
+    // four pegs, heads alternating sides
+    for (let i = 0; i < 4; i++) {
+      const s = i % 2 ? 1 : -1;
+      const peg = new THREE.Mesh(G.latheFromProfile([[0.004, 0], [0.005, 0.045], [0.009, 0.05], [0.017, 0.058], [0.018, 0.075], [0.008, 0.082], [0, 0.083]], 12), ebonyMat);
+      peg.rotation.z = -s * Math.PI / 2;
+      peg.position.set(-s * 0.022, 0.03 + i * 0.033, -0.012); head.add(peg);
+    }
   }
-  // bridge, tailpiece, strings, endpin
-  const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.06, 0.008), new THREE.MeshStandardMaterial({ color: 0xc8a878, roughness: 0.6 }));
-  bridge.position.set(0, L * 0.38, 0.15); g.add(bridge);
-  const tail = new THREE.Mesh(new G.RoundedBoxGeometry(0.06, 0.2, 0.014, 2, 0.006), ebony);
-  tail.position.set(0, L * 0.17, 0.14); tail.rotation.x = 0.1; g.add(tail);
-  const strMat = new THREE.MeshStandardMaterial({ color: 0xcfc8b8, roughness: 0.3, metalness: 0.8 });
-  for (let i = 0; i < 4; i++) {
-    const x = (i - 1.5) * 0.011;
-    const a = new THREE.Vector3(x * 1.4, L * 0.25, 0.155), b = new THREE.Vector3(x * 0.7, L + 0.27, 0.165);
-    const len = a.distanceTo(b);
-    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.0008, 0.0008, len, 4), strMat);
-    s.position.copy(a).lerp(b, 0.5); s.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
-    g.add(s);
+  g.add(head);
+  // ---- bridge: carved maple, heart and kidney cut-outs, feet following the arching
+  const bridgeY = 0.348;
+  {
+    const sh = new THREE.Shape();
+    sh.moveTo(-0.046, 0); sh.lineTo(-0.03, 0); sh.quadraticCurveTo(-0.022, 0.016, -0.008, 0.022); sh.quadraticCurveTo(0, 0.025, 0.008, 0.022);
+    sh.quadraticCurveTo(0.022, 0.016, 0.03, 0); sh.lineTo(0.046, 0); sh.lineTo(0.044, 0.04); sh.quadraticCurveTo(0.034, 0.055, 0.043, 0.072);
+    sh.quadraticCurveTo(0.02, 0.094, 0, 0.096); sh.quadraticCurveTo(-0.02, 0.094, -0.043, 0.072); sh.quadraticCurveTo(-0.034, 0.055, -0.044, 0.04); sh.closePath();
+    const heart = new THREE.Path(); heart.absellipse(0, 0.05, 0.0065, 0.0095, 0, Math.PI * 2, true); sh.holes.push(heart);
+    for (const s of [-1, 1]) { const k = new THREE.Path(); k.absellipse(s * 0.024, 0.06, 0.0065, 0.0035, 0, Math.PI * 2, true); sh.holes.push(k); }
+    const bg = new THREE.ExtrudeGeometry(sh, { depth: 0.006, bevelEnabled: true, bevelThickness: 0.0015, bevelSize: 0.001, bevelSegments: 1, curveSegments: 10 });
+    bg.translate(0, 0, -0.003);
+    bg.rotateX(Math.PI / 2); bg.rotateX(-Math.PI / 2);   // keep in XY, facing +z... (stands upright on the top)
+    const bridge = new THREE.Mesh(bg, new THREE.MeshStandardMaterial({ color: 0xc9a26a, roughness: 0.6 }));
+    // stand it up: shape XY -> local X (across) and Z (height off the plate)
+    bridge.rotation.x = Math.PI / 2; bridge.position.set(0, bridgeY, topZ(bridgeY) - 0.001);
+    bridge.rotation.set(Math.PI / 2, 0, 0); bridge.scale.set(1, 1, -1);
+    g.add(bridge);
   }
-  const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.006, 0.22, 8), new THREE.MeshStandardMaterial({ color: 0xbbbbbb, roughness: 0.3, metalness: 1 }));
-  pin.position.set(0, -0.11, 0); g.add(pin);
-  const button = new THREE.Mesh(new THREE.SphereGeometry(0.016, 12, 8), ebony);
-  button.position.set(0, -0.005, 0); g.add(button);
+  // ---- tailpiece, tail gut, endpin
+  const tailTop = 0.24, tailBot = 0.03;
+  {
+    const sh = new THREE.Shape();
+    sh.moveTo(-0.029, tailTop); sh.quadraticCurveTo(0, tailTop + 0.008, 0.029, tailTop); sh.lineTo(0.016, tailBot); sh.quadraticCurveTo(0, tailBot - 0.006, -0.016, tailBot); sh.closePath();
+    const tg = new THREE.ExtrudeGeometry(sh, { depth: 0.008, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 2 });
+    const p = tg.attributes.position;
+    for (let i = 0; i < p.count; i++) { const y = p.getY(i); p.setZ(i, p.getZ(i) + topZ(y) + 0.012 + (y - tailBot) * 0.04); }
+    tg.computeVertexNormals();
+    g.add(new THREE.Mesh(tg, ebonyMat));
+    const saddle = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.008, 0.012), ebonyMat);
+    saddle.position.set(0, 0.004, RIB / 2 + 0.004); g.add(saddle);
+  }
+  const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.006, 0.2, 8), new THREE.MeshStandardMaterial({ color: 0xbbbbbb, roughness: 0.3, metalness: 1 }));
+  pin.position.set(0, -0.1, 0); g.add(pin);
+  const button = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.02, 0], [0.022, 0.012], [0.012, 0.02], [0, 0.02]], 14), ebonyMat);
+  button.rotation.x = Math.PI; button.position.set(0, 0.012, 0); g.add(button);
+  // ---- strings: tailpiece -> bridge crown -> nut, then into the pegbox (A D G C)
+  {
+    const strMat = new THREE.MeshStandardMaterial({ color: 0xd2ccc0, roughness: 0.3, metalness: 0.85 });
+    const bridgeTop = topZ(bridgeY) + 0.094;
+    for (let i = 0; i < 4; i++) {
+      const o = (i - 1.5);
+      const r = 0.0006 + 0.00025 * i;
+      const pts = [
+        new THREE.Vector3(o * 0.011, tailTop - 0.01, topZ(tailTop) + 0.022),
+        new THREE.Vector3(o * 0.0118, bridgeY, bridgeTop + 0.003 - Math.abs(o) * 0.004),
+        new THREE.Vector3(o * 0.0058, nutY, RIB / 2 + 0.036),
+        new THREE.Vector3(o * 0.004, nutY + 0.03, RIB / 2 + 0.02),
+      ];
+      for (let k = 0; k < pts.length - 1; k++) {
+        const a = pts[k], b = pts[k + 1], len = a.distanceTo(b);
+        const s = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 5), strMat);
+        s.position.copy(a).lerp(b, 0.5); s.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+        g.add(s);
+      }
+    }
+  }
+  // ---- the bow, leaning beside it: octagonal pernambuco stick, ebony frog, pale horsehair
+  {
+    const bow = new THREE.Group();
+    const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0055, 0.72, 8), new THREE.MeshPhysicalMaterial({ color: 0x3a1608, roughness: 0.35, clearcoat: 0.6 }));
+    stick.position.y = 0.36; bow.add(stick);
+    const hair = new THREE.Mesh(new THREE.BoxGeometry(0.009, 0.66, 0.0012), new THREE.MeshStandardMaterial({ color: 0xe0d8c6, roughness: 0.85 }));
+    hair.position.set(0, 0.37, 0.016); bow.add(hair);
+    const frog = new THREE.Mesh(new G.RoundedBoxGeometry(0.014, 0.045, 0.022, 2, 0.004), ebonyMat);
+    frog.position.set(0, 0.035, 0.009); bow.add(frog);
+    const tip = new THREE.Mesh(new G.RoundedBoxGeometry(0.008, 0.02, 0.02, 2, 0.003), new THREE.MeshStandardMaterial({ color: 0xe8e0d0, roughness: 0.5 }));
+    tip.position.set(0, 0.715, 0.008); bow.add(tip);
+    bow.position.set(0.25, -0.1, 0.02); bow.rotation.set(0.05, 0.4, -0.2);
+    g.add(bow);
+  }
   return g;
 }
 

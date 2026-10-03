@@ -11,7 +11,7 @@ import { nameboardTexture, soundboardTexture, fretworkTexture, sheetMusicTexture
  */
 
 export const KEY = {
-  whiteW: 0.0235, whiteL: 0.148, whiteH: 0.022, gap: 0.0016,
+  whiteW: 0.0235, whiteL: 0.148, whiteH: 0.022, gap: 0.0012,
   blackW: 0.0128, blackL: 0.094, blackH: 0.012,
   top: 0.735,         // height of white key tops
   front: 0.17,        // z of white key fronts
@@ -20,6 +20,50 @@ export const KEY = {
 };
 const CASE = { halfW: 0.75, rimBottom: 0.6, rimTop: 0.99, len: 1.95 };
 const LID_FRONT = 0.3;
+
+/*
+ * Piano wire: an anisotropic (Kajiya-Kay) highlight along each wire from the candelabrum and the
+ * moon, and a screen-space width floor — a wire thinner than ~0.7 px is widened to that and its
+ * alpha scaled by the true coverage, so hundreds of sub-pixel wires filter to a sheen without moire.
+ */
+function wireMaterial(base, U) {
+  return new THREE.ShaderMaterial({
+    uniforms: { ...U, uBase: { value: base } },
+    transparent: true, depthWrite: false,
+    vertexShader: /* glsl */ `
+      uniform float uPx;
+      varying vec3 vT; varying vec3 vW; varying float vCov;
+      void main() {
+        mat4 im = instanceMatrix;
+        vec3 axis = (im * vec4(0.0, 1.0, 0.0, 0.0)).xyz;
+        float L = length(axis); vec3 T = axis / L;
+        vec3 rx = (im * vec4(position.x, 0.0, position.z, 0.0)).xyz;
+        float r = length((im * vec4(1.0, 0.0, 0.0, 0.0)).xyz);
+        vec3 c = (im * vec4(0.0, 0.0, 0.0, 1.0)).xyz + T * position.y * L;
+        vec4 wc = modelMatrix * vec4(c, 1.0);
+        float w = (projectionMatrix * viewMatrix * wc).w;
+        float re = max(r, w * uPx * 0.75);
+        vCov = r / re;
+        vec4 wp = modelMatrix * vec4(c + rx * (re / r), 1.0);
+        vW = wp.xyz; vT = normalize(mat3(modelMatrix) * T);
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uBase; uniform vec3 uL1Pos; uniform vec3 uL1Col; uniform vec3 uL2Dir; uniform vec3 uL2Col; uniform float uOpacity;
+      varying vec3 vT; varying vec3 vW; varying float vCov;
+      float kk(vec3 T, vec3 H, float p) { float th = dot(T, H); return pow(sqrt(max(0.0, 1.0 - th * th)), p); }
+      void main() {
+        vec3 V = normalize(cameraPosition - vW);
+        vec3 T = normalize(vT);
+        vec3 d1 = uL1Pos - vW; float a1 = 1.6 / (0.3 + dot(d1, d1)); vec3 L1 = normalize(d1);
+        vec3 H1 = normalize(L1 + V), H2 = normalize(uL2Dir + V);
+        float dif1 = sqrt(max(0.0, 1.0 - pow(dot(T, L1), 2.0)));
+        vec3 col = uBase * (0.03 + 0.12 * dif1 * a1 * uL1Col * 0.4 + 0.04 * uL2Col);
+        col += uBase * (kk(T, H1, 260.0) * uL1Col * a1 * 1.1 + kk(T, H2, 260.0) * uL2Col * 0.5);
+        gl_FragColor = vec4(col, clamp(vCov, 0.0, 1.0) * uOpacity * 0.9);
+      }`,
+  });
+}
 
 const isBlack = (midi) => [1, 3, 6, 8, 10].includes(((midi % 12) + 12) % 12);
 
@@ -99,6 +143,11 @@ function backAt(pts, x) {
 }
 
 export function buildPiano(ctx, { ebony, brass, gold }) {
+  const wireU = {
+    uPx: { value: 0.001 }, uOpacity: { value: 1 },
+    uL1Pos: { value: new THREE.Vector3(0, 1.7, 0) }, uL1Col: { value: new THREE.Color(1.0, 0.62, 0.3).multiplyScalar(2.2) },
+    uL2Dir: { value: new THREE.Vector3(0.45, 0.42, -0.79).normalize() }, uL2Col: { value: new THREE.Color(0.55, 0.66, 1.0).multiplyScalar(0.9) },
+  };
   const { materials: M, geometry: G } = ctx;
   const piano = new THREE.Group();
   piano.name = 'piano';
@@ -178,42 +227,45 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
       const xf = -0.47 + i * 0.0115, xb = -0.685 + i * 0.0098;
       bass.push([xf, 0.215, xb, backAt(inner, xb) - 0.07, i < 8 ? 1 : 2]);
     }
-    const tex = ctx.textures.canvas('music:pianostrings', CW, CH, (g) => {
-      g.clearRect(0, 0, CW, CH);
-      g.lineCap = 'round';
-      const line = (x0, y0, x1, y1, w, color) => { const [a0, b0] = toC(x0, y0), [a1, b1] = toC(x1, y1); g.strokeStyle = color; g.lineWidth = w; g.beginPath(); g.moveTo(a0, b0); g.lineTo(a1, b1); g.stroke(); };
-      // treble / tenor (steel), unisons drawn as tight groups
-      for (const [x0, y0, x1, y1, n] of treble) {
-        for (let k = 0; k < n; k++) {
-          const o = (k - (n - 1) / 2) * 0.0017;
-          line(x0 + o, y0, x1 + o, y1, 3.4, 'rgba(10,8,6,0.4)');
-          line(x0 + o, y0, x1 + o, y1, 2.1, 'rgba(245,243,236,1)');
-        }
-      }
-      // bass (copper wound), over the top
-      for (const [x0, y0, x1, y1, n] of bass) {
-        for (let k = 0; k < n; k++) {
-          const o = (k - (n - 1) / 2) * 0.0042;
-          line(x0 + o, y0, x1 + o, y1, 6.5, 'rgba(10,6,3,0.6)');
-          line(x0 + o, y0, x1 + o, y1, 4.2, 'rgba(176,104,52,1)');
-          line(x0 + o, y0, x1 + o, y1, 1.4, 'rgba(240,180,120,0.9)');
-        }
-      }
-      // hitch-pin ends and agraffes: tiny bright studs
-      g.fillStyle = 'rgba(230,226,215,1)';
-      for (const [x0, y0, x1, y1] of [...treble, ...bass]) {
-        for (const [x, y] of [[x0, y0], [x1, y1 + 0.03]]) { const [cx, cy] = toC(x, y); g.beginPath(); g.arc(cx, cy, 2.4, 0, Math.PI * 2); g.fill(); }
-      }
-    }, { tile: false });
-    tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.anisotropy = 16;
-    const strMat = new THREE.MeshStandardMaterial({ map: tex, transparent: true, metalness: 0.85, roughness: 0.22, depthWrite: false, side: THREE.DoubleSide, envMapIntensity: 1.4 });
-    const sp = new THREE.Mesh(new THREE.PlaneGeometry(X1 - X0, Y1 - Y0), strMat);
-    sp.rotation.x = -Math.PI / 2;
-    // plane: u -> x, v -> y(back). PlaneGeometry v=1 at +y(local) -> after rotation -z = back... flip so v=0 is front
-    sp.geometry.attributes.uv.array.forEach((v, i, arr) => { if (i % 2 === 1) arr[i] = 1 - v; });
-    sp.position.set((X0 + X1) / 2, 0.903, -(Y0 + Y1) / 2);
-    sp.renderOrder = 2; sp.userData.noShadow = true; sp.castShadow = false;
-    add(sp);
+    // real wires: instanced thin steel cylinders (bright, anisotropic-looking in the probe) in three
+    // groups — treble and tenor straight back to the long bridge, the copper-wound bass overstrung
+    // across them toward the tail
+    const wires = [];   // [x0, z0, x1, z1, radius, copper]
+    for (const [x0, y0, x1, y1, n] of treble) {
+      for (let k = 0; k < n; k++) { const o = (k - (n - 1) / 2) * 0.0017; wires.push([x0 + o, y0, x1 + o, y1, 0.00055 + 0.00025 * (n === 2 ? 1 : 0), 0]); }
+    }
+    for (const [x0, y0, x1, y1, n] of bass) {
+      for (let k = 0; k < n; k++) { const o = (k - (n - 1) / 2) * 0.0042; wires.push([x0 + o, y0, x1 + o, y1, 0.0016 - 0.0005 * (n - 1), 1]); }
+    }
+    const wireGeo = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
+    const steelW = wireMaterial(new THREE.Color(0.75, 0.74, 0.72), wireU);
+    const copperW = wireMaterial(new THREE.Color(0.62, 0.34, 0.16), wireU);
+    const nSteel = wires.filter((w) => !w[5]).length;
+    const imS = new THREE.InstancedMesh(wireGeo, steelW, nSteel);
+    const imC = new THREE.InstancedMesh(wireGeo, copperW, wires.length - nSteel);
+    for (const im of [imS, imC]) {
+      im.renderOrder = 2; im.userData.noBake = false; im.frustumCulled = false;
+      im.onBeforeRender = (renderer, scene, camera) => {
+        const rt = renderer.getRenderTarget();
+        const h = rt ? rt.height : renderer.domElement.height;
+        wireU.uPx.value = 2 / (camera.projectionMatrix.elements[5] * Math.max(1, h));
+      };
+    }
+    let iS = 0, iC = 0;
+    const wm = new THREE.Matrix4(), wq = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+    for (const [x0, y0, x1, y1, r, cu] of wires) {
+      const yy = cu ? 0.912 : 0.904;            // the bass crosses over the top of the tenor
+      const a = new THREE.Vector3(x0, yy, -y0), b2 = new THREE.Vector3(x1, yy - 0.006, -y1);
+      const len = a.distanceTo(b2);
+      wq.setFromUnitVectors(up, b2.clone().sub(a).normalize());
+      wm.compose(a.clone().lerp(b2, 0.5), wq, new THREE.Vector3(r, len, r));
+      if (cu) imC.setMatrixAt(iC++, wm); else imS.setMatrixAt(iS++, wm);
+    }
+    for (const im of [imS, imC]) { im.castShadow = false; im.userData.noShadow = true; add(im); }
+    // hitch pins at the tail ends, agraffes at the front
+    const hitch = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.0018, 0.0018, 0.012, 6), new THREE.MeshStandardMaterial({ color: 0xd8d4cc, metalness: 1, roughness: 0.25, envMapIntensity: 1.6 }), wires.length);
+    wires.forEach(([, , x1, y1, , cu], i) => { wm.compose(new THREE.Vector3(x1, 0.9, -y1 - 0.03), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1)); hitch.setMatrixAt(i, wm); void cu; });
+    hitch.castShadow = false; add(hitch);
     // bridges: a long curved maple bridge for the treble/tenor, a short one for the bass
     const maple = new THREE.MeshStandardMaterial({ color: 0x8a5a2c, roughness: 0.55 });
     const bridgePts = treble.filter((_, i) => i % 6 === 0).map(([, , x1, y1]) => new THREE.Vector3(x1, 0.889, -y1 - 0.004));
@@ -223,12 +275,13 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
     // tuning pins: two staggered rows of steel pins across the pin block
     const steel = new THREE.MeshStandardMaterial({ color: 0xd0ccc2, roughness: 0.22, metalness: 1.0 });
     const m = new THREE.Matrix4();
-    const NP = 230;
-    const pin = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.0028, 0.0028, 0.03, 8), steel, NP);
+    const NP = 460;
+    const pin = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.0026, 0.0026, 0.03, 8), steel, NP);
+    steel.envMapIntensity = 2.0;
     for (let i = 0; i < NP; i++) {
       const x = -0.66 + (i / (NP - 1)) * 1.36;
-      const row = i % 2;
-      m.compose(new THREE.Vector3(x, 0.892, -(0.115 + row * 0.028)), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
+      const row = i % 3;
+      m.compose(new THREE.Vector3(x, 0.892, -(0.105 + row * 0.022)), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
       pin.setMatrixAt(i, m);
     }
     pin.castShadow = false;
@@ -259,21 +312,24 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
   lidPivot.position.set(-CASE.halfW, CASE.rimTop, 0);
   {
     const lidPts = clipBelow(offsetPoly(pts, -0.006), LID_FRONT);
-    const g = flatExtrude(shapeOf(lidPts), 0.02, 0, 0.004);
+    const g = flatExtrude(shapeOf(lidPts), 0.012, 0.0065, 0.0065);   // ~25 mm with a rounded edge
     g.translate(CASE.halfW, 0, 0);
-    const lid = new THREE.Mesh(g, ebony);
+    // the lid gets its own lacquer so it can mirror the gilt plate and strings from a probe under it
+    const lidMat = ebony.clone();
+    const lid = new THREE.Mesh(g, lidMat);
+    lidPivot.userData.lidMat = lidMat;
     lidPivot.add(lid);
     // folded front flap lying on top of the lid
     const flapPts = [new THREE.Vector2(-CASE.halfW, 0.0), new THREE.Vector2(CASE.halfW, 0.0), new THREE.Vector2(CASE.halfW, LID_FRONT - 0.005), new THREE.Vector2(-CASE.halfW, LID_FRONT - 0.005)];
     const fg = flatExtrude(shapeOf(flapPts), 0.018, 0.026, 0.003);
     fg.translate(CASE.halfW, 0, -LID_FRONT - 0.01);
-    lidPivot.add(new THREE.Mesh(fg, ebony));
-    // brass hinges along the straight side
-    for (const z of [-0.45, -1.05, -1.6]) {
-      const h = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.09, 12), brass);
-      h.rotation.x = Math.PI / 2; h.position.set(0, 0.004, z);
-      lidPivot.add(h);
-    }
+    lidPivot.add(new THREE.Mesh(fg, lidMat));
+    // continuous brass piano hinge along the straight side, with knuckle rings
+    const hinge = new THREE.Mesh(new THREE.CylinderGeometry(0.0065, 0.0065, CASE.len - LID_FRONT - 0.08, 14), brass);
+    hinge.rotation.x = Math.PI / 2; hinge.position.set(-0.004, 0.004, -(LID_FRONT + CASE.len) / 2);
+    lidPivot.add(hinge);
+    const knG = new THREE.TorusGeometry(0.0068, 0.0012, 6, 14);
+    for (let i = 0; i < 26; i++) { const k = new THREE.Mesh(knG, brass); k.position.set(-0.004, 0.004, -LID_FRONT - 0.06 - i * 0.06); lidPivot.add(k); }
   }
   const LID_ANGLE = 0.62;
   lidPivot.rotation.z = -LID_ANGLE;
@@ -316,18 +372,23 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
   // fallboard folded open: only its bevelled front edge shows, a thin band of mirror lacquer
   // behind the keys carrying the gilt maker's decal; felt strip along the key backs
   {
-    const lacquer = new THREE.MeshPhysicalMaterial({ color: 0x050505, roughness: 0.22, metalness: 0, clearcoat: 1.0, clearcoatRoughness: 0.06, envMapIntensity: 0.7 });
-    const fb = add(new THREE.Mesh(new G.RoundedBoxGeometry(1.31, 0.058, 0.03, 3, 0.01), lacquer));
-    fb.position.set(0, KEY.top + 0.03, -0.006);
-    fb.rotation.x = -0.1;
+    // one moulded board, swept along the keyboard: a vertical lacquered face carrying the decal, a
+    // rounded top edge and a small bead at its foot. A satin rather than mirror coat, so the candle
+    // highlights spread into soft bands instead of streaking along every edge
+    const lacquer = new THREE.MeshPhysicalMaterial({ color: 0x060505, roughness: 0.3, metalness: 0, clearcoat: 1.0, clearcoatRoughness: 0.13, envMapIntensity: 0.5 });
+    const prof = [[-0.045, 0.064], [-0.004, 0.064], [0.003, 0.062], [0.0075, 0.057], [0.009, 0.05], [0.009, 0.013], [0.0115, 0.01], [0.0115, 0.004], [0.008, 0.0], [-0.02, 0.0]].map(([x, y]) => new THREE.Vector2(x, y));
+    const fb = add(new THREE.Mesh(G.sweepProfile(prof, [new THREE.Vector3(-0.655, 0, 0), new THREE.Vector3(0.655, 0, 0)], { uvScale: 2 }), lacquer));
+    fb.position.set(0, KEY.top + 0.003, 0.0);
+    for (const sx of [-1, 1]) {   // end caps
+      const cap = add(new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(prof.map((p) => new THREE.Vector2(p.x, p.y)))), lacquer));
+      cap.rotation.y = sx * Math.PI / 2; cap.position.set(sx * 0.655, KEY.top + 0.003, 0);
+      cap.material = lacquer; cap.geometry.computeVertexNormals();
+      if (sx < 0) cap.scale.x = -1;
+    }
     const nt = nameboardTexture(ctx.textures);
     const name = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.0446), new THREE.MeshStandardMaterial({ map: nt, transparent: true, metalness: 0.85, roughness: 0.3, color: 0xffffff, depthWrite: false, emissiveMap: nt, emissive: new THREE.Color(0.22, 0.16, 0.06), polygonOffset: true, polygonOffsetFactor: -2 }));
-    name.position.set(0, KEY.top + 0.032, 0.0098);
-    name.rotation.x = -0.1;
+    name.position.set(0, KEY.top + 0.035, 0.0096);
     add(name);
-    // the folded board itself, slid back under the desk (only a sliver of its top shows)
-    const top = add(new THREE.Mesh(new G.RoundedBoxGeometry(1.31, 0.02, 0.045, 2, 0.008), lacquer));
-    top.position.set(0, KEY.top + 0.056, -0.032);
     // red baize strip along the back of the keys (key-back felt), so the key ends don't float
     const baize = add(new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.006, 0.012), new THREE.MeshStandardMaterial({ color: 0x4a0e12, roughness: 1 })));
     baize.position.set(0, KEY.top + 0.004, 0.016);
@@ -356,6 +417,21 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
       page.position.set(x, 0.19, 0.012); page.rotation.y = ry;
       desk.add(page);
     }
+  }
+  // a brass swing-arm candle sconce screwed to the case at the bass end of the desk: the warm key
+  // light that falls off across the keyboard from left to right
+  {
+    const arm = new THREE.Group();
+    const cup = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.026, 0], [0.03, 0.006], [0.02, 0.012], [0.014, 0.03], [0.02, 0.034], [0.0, 0.035]], 18), brass);
+    arm.add(cup);
+    const pan = new THREE.Mesh(G.latheFromProfile([[0, -0.004], [0.042, -0.002], [0.045, 0.004], [0.0, 0.004]], 20), brass);
+    arm.add(pan);
+    const rod = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(0, -0.004, 0), new THREE.Vector3(-0.03, -0.03, 0.02), new THREE.Vector3(-0.07, -0.05, 0.03), new THREE.Vector3(-0.09, -0.06, 0.03)]), 16, 0.005, 8), brass);
+    arm.add(rod);
+    const c = ctx.fx.candle({ height: 0.13, radius: 0.0105, light: true, lightIntensity: 0.45, lightDistance: 2.2, seed: 77, burn: 0.8 });
+    c.position.y = 0.033; arm.add(c);
+    arm.position.set(-0.6, KEY.top + 0.12, -0.03);
+    add(arm);
   }
   desk.position.set(0, KEY.top + 0.07, -0.085);
   desk.rotation.x = -0.24;
@@ -400,7 +476,7 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
     add(lyre);
   }
 
-  piano.userData = { keys, lidPivot, desk };
+  piano.userData = { keys, lidPivot, desk, wireU };
   return piano;
 }
 
@@ -419,7 +495,7 @@ function buildKeys(ctx, piano) {
     xOf.set(m, (l + r) / 2 + nudge[m % 12] * KEY.blackW * 0.6);
   }
   // white key geometry: bevelled top front edge; pivot at the back (z = 0 at the back end)
-  const wg = new G.RoundedBoxGeometry(KEY.whiteW - KEY.gap, KEY.whiteH, KEY.whiteL + 0.25, 3, 0.0024);
+  const wg = new G.RoundedBoxGeometry(KEY.whiteW - KEY.gap, KEY.whiteH, KEY.whiteL + 0.25, 3, 0.0018);
   wg.translate(0, -KEY.whiteH / 2, -(KEY.whiteL + 0.25) / 2);
   const bgeo = new G.RoundedBoxGeometry(KEY.blackW, KEY.blackH + 0.012, KEY.blackL + 0.2, 3, 0.0028);
   bgeo.translate(0, (KEY.blackH + 0.012) / 2 - 0.012, -(KEY.blackL + 0.2) / 2);
@@ -429,7 +505,18 @@ function buildKeys(ctx, piano) {
     for (let i = 0; i < p.count; i++) { const y = p.getY(i); if (y > 0.004) p.setX(i, p.getX(i) * 0.8); }
     bgeo.computeVertexNormals();
   }
-  const ivory = new THREE.MeshPhysicalMaterial({ color: 0xe9e0cc, roughness: 0.38, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.2, sheen: 0.1, sheenColor: new THREE.Color(0.95, 0.95, 1.0), emissive: new THREE.Color(0x000000) });
+  // old ivory: warm cream with fine lengthwise grain (normal + albedo), a satin polish
+  const ivTex = ctx.textures.generate('music:ivory', {
+    size: 256, normalStrength: 0.08,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  float n = fbm(vec2(uv.x * 2.0, uv.y * 24.0), vec2(2.0, 24.0), 4);
+  float lines = sin((uv.y * 60.0 + n * 2.0) * 6.2831) * 0.5 + 0.5;
+  vec3 c = mix(vec3(0.93, 0.89, 0.8), vec3(0.88, 0.82, 0.7), 0.35 * lines + 0.4 * (fbm(uv * 3.0, vec2(3.0), 3) * 0.5 + 0.5));
+  s.albedo = c; s.height = 0.5 + 0.05 * lines; s.rough = 0.33 + 0.06 * lines; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+  const ivory = new THREE.MeshPhysicalMaterial({ map: ivTex.map, normalMap: ivTex.normalMap, roughnessMap: ivTex.roughnessMap, color: 0xf6eedc, roughness: 1.0, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.25, sheen: 0.1, sheenColor: new THREE.Color(0.95, 0.95, 1.0), emissive: new THREE.Color(0x000000) });
   const jet = new THREE.MeshPhysicalMaterial({ color: 0x0b0a0a, roughness: 0.28, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.12 });
   const white = new THREE.InstancedMesh(wg, ivory, whiteMidi.length);
   const black = new THREE.InstancedMesh(bgeo, jet, blackMidi.length);
