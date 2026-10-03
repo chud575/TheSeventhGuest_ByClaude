@@ -103,7 +103,7 @@ export default {
     // ================================================================ materials
     const pbr = (set, opts = {}, Phys = false) => new (Phys ? THREE.MeshPhysicalMaterial : THREE.MeshStandardMaterial)({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, metalnessMap: set.ormMap, aoMap: set.ormMap, roughness: 1, metalness: 1, ...opts });
     const timber = timberTexture(ctx.textures);
-    const timberDark = timberTexture(ctx.textures, { key: 'timberDark', base: [0.12, 0.075, 0.045] });
+    const timberDark = timberTexture(ctx.textures, { key: 'timberDark', base: [0.17, 0.11, 0.068] });
     const linen = linenTexture(ctx.textures);
     const brickTex = brickTexture(ctx.textures);
     const brickDarkTex = brickTexture(ctx.textures, { key: 'brickDark', base: [0.3, 0.15, 0.11], mortar: [0.28, 0.26, 0.24], bloom: 0.25, missing: 0.006 });
@@ -598,7 +598,7 @@ export default {
       // picture frames leaning on the right knee wall
       const fr = buildFrameStack(ctx, mat); fr.position.set(3.35, 0, -1.1); fr.rotation.y = -Math.PI / 2; add(fr);
       // the toy chest in the foreground, a ball rolled away from it, the bench chair
-      const tc = buildToyChest(ctx, mat); tc.position.set(-1.7, 0, 0.75); tc.rotation.y = 0.9; add(tc);
+      const tc = buildToyChest(ctx, mat); tc.position.set(-2.05, 0, 0.55); tc.rotation.y = 1.25; add(tc);
       add(at(new THREE.Mesh(new THREE.SphereGeometry(0.06, 20, 14), mat.ball), -0.55, 0.06, 1.55));
       const tr = buildTrain(ctx, mat); tr.position.set(-0.75, 0, 1.95); tr.rotation.y = 2.2; add(tr);
       const chair = buildChair(ctx, mat); chair.position.set(-1.55, 0, BENCH.z + 0.85); chair.rotation.y = Math.PI + 0.35; add(chair);
@@ -659,7 +659,7 @@ export default {
       // the bench to the wall
       web(0.4, V3(BENCH.x - 1.25, 0.86, Z0 + 0.03), [0, 0, Math.PI / 2], 2);
       // hanging strands from the collars
-      const strandMat = beamLit(new THREE.MeshStandardMaterial({ color: 0xbfc4cc, transparent: true, opacity: 0.35, depthWrite: false, roughness: 1, side: THREE.DoubleSide, emissive: new THREE.Color(0.03, 0.035, 0.05), name: 'strands' }), 3.0);
+      const strandMat = beamLit(new THREE.MeshStandardMaterial({ color: 0xbfc4cc, transparent: true, opacity: 0.22, depthWrite: false, roughness: 1, side: THREE.DoubleSide, emissive: new THREE.Color(0.01, 0.012, 0.016), name: 'strands' }), 4.0);
       // an extra collar tie near the gable, festooned with a sagging sheet web that hangs into the moon beam
       const cy = 3.08, cz = Z0 + 0.72;
       const cw = 2 * (HALF * (1 - (cy - KNEE) / RISE)) - 0.25;
@@ -677,7 +677,7 @@ export default {
         const st = add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.0012, 3), strandMat));
         st.position.set(x, cy - 0.07, cz + 0.02 + (i % 3) * 0.015); st.renderOrder = 4; st.userData.noShadow = true;
       }
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < 3; i++) {
         const z = TRUSS_Z[0] + 0.11 + 0.05 * (i % 3 - 1);
         const x = -1.3 + (i * 0.37) % 2.6;
         const len = 0.25 + ((i * 0.53) % 0.4);
@@ -717,8 +717,8 @@ export default {
     const candleLight = new THREE.PointLight(0xff9a48, 1.8, 3.5, 2); candleLight.position.set(-1.9, BT + 0.3, BENCH.z + 0.25); root.add(candleLight);
     // the furnace light from the stair beyond the door: a shadowed spot through the gap + red fill
     const doorCX = (DOOR.x0 + DOOR.x1) / 2;
-    const hellSpot = new THREE.SpotLight(0xff5a24, 34, 12, 0.85, 0.5, 2);
-    hellSpot.position.set(doorCX + 0.15, 1.45, Z0 - WALL_T - 0.22); hellSpot.target.position.set(doorCX + 0.05, 0.0, Z0 + 2.8);
+    const hellSpot = new THREE.SpotLight(0xff5a24, 30, 12, 0.6, 0.6, 2);
+    hellSpot.position.set(doorCX + 0.15, 1.45, Z0 - WALL_T - 0.22); hellSpot.target.position.set(doorCX - 0.15, 0.0, Z0 + 1.7);
     hellSpot.castShadow = Q.shadows;
     hellSpot.shadow.mapSize.set(1024, 1024); hellSpot.shadow.bias = -0.002; hellSpot.shadow.normalBias = 0.06; hellSpot.shadow.radius = 4;
     hellSpot.shadow.camera.near = 0.3; hellSpot.shadow.camera.far = 12;
@@ -775,8 +775,8 @@ export default {
       const lg = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.058, 0.19, 6, 1, true), mat.chimney); lg.position.y = 0.12; lg.userData.noShadow = true; ln.add(lg);
       const cnd = fx.candle({ height: 0.07, radius: 0.016, light: false, seed: 31 }); cnd.position.y = 0.025; ln.add(cnd);
       ln.position.set(-3.08, 0.36 + 0.13, 0.45); add(ln);
-      const ll = new THREE.PointLight(0xff9448, 1.6, 4, 2); ll.position.set(-3.0, 0.62, 0.45); root.add(ll);
-      ctx.onUpdate((dt, t) => { ll.intensity = 1.6 * (0.9 + 0.1 * Math.sin(t * 8.1) * Math.sin(t * 2.7)); });
+      const ll = new THREE.PointLight(0xff9448, 3.2, 5, 2); ll.position.set(-3.0, 0.62, 0.45); root.add(ll);
+      ctx.onUpdate((dt, t) => { ll.intensity = 3.2 * (0.9 + 0.1 * Math.sin(t * 8.1) * Math.sin(t * 2.7)); });
     }
 
     let solvedCine = false, puzzleActive = false;
@@ -810,14 +810,19 @@ export default {
     {
       const camB = new THREE.Vector3();
       const beams = shafts.map((sh) => ({ sh, i0: sh.material.uniforms.uIntensity.value }));
-      ctx.onUpdate(() => {
+      // per-viewpoint haze: from the table the beam is seen down its length and would veil the bench behind it
+      const NODE_BEAM = { table: 0.5, back: 0.8 };
+      let nodeMul = 1;
+      ctx.onUpdate((dt) => {
         if (puzzleActive) return;
+        const want = ctx.nav?.moving ? nodeMul : (NODE_BEAM[ctx.nav?.current] ?? 1);
+        nodeMul = ctx.shot ? want : nodeMul + (want - nodeMul) * Math.min(1, (dt || 0) * 1.5);
         for (const b of beams) {
           const u = b.sh.material.uniforms;
           camB.copy(ctx.camera.position).sub(u.uOrigin.value).applyMatrix3(u.uInv.value);
           const r = Math.hypot(camB.x, camB.y);
           const inside = camB.z > -0.05 && camB.z < 1.05 ? 1 - THREE.MathUtils.smoothstep(r, 0.9, 2.2) : 0;
-          u.uIntensity.value = b.i0 * (1 - 0.8 * inside);
+          u.uIntensity.value = b.i0 * (1 - 0.8 * inside) * (b === beams[0] ? nodeMul : 1);
         }
       });
     }
@@ -948,7 +953,7 @@ export default {
         id: 'door-locked', nodes: ['door', 'main', 'window', 'table'], box: doorBox, cursor: 'examine', label: 'The glowing door', enabled: () => !ctx.state.isSolved(INFECTION_ID),
         onActivate: async () => { ctx.audio.sfx?.('thud'); await S('Not yet, not yet! Nobody goes up those stairs until they have played my *last* game.'); },
       },
-      { id: 'dummy', nodes: ['door', 'table', 'main'], box: { min: [2.45, 0.8, -0.45], max: [2.95, 1.5, 0.05] }, cursor: 'ghost', label: 'A dressmaker\'s dummy', onActivate: cap('The Dummy', 'It is wearing a tape measure like a noose. For a moment its shoulders seem to rise and fall.') },
+      { id: 'dummy', nodes: ['door', 'table', 'main'], box: { min: [2.7, 0.8, -0.6], max: [3.2, 1.5, -0.1] }, cursor: 'ghost', label: 'A dressmaker\'s dummy', onActivate: cap('The Dummy', 'It is wearing a tape measure like a noose. For a moment its shoulders seem to rise and fall.') },
       { id: 'trunk', nodes: ['door', 'table'], box: { min: [2.75, 0.0, -2.9], max: [3.35, 0.7, -1.9] }, cursor: 'examine', label: 'An open trunk', onActivate: cap('The Trunk', 'Letters, hundreds of them, all addressed to the same man: "Mr. H. Stauf, Toymaker". Every one is an order for a doll.') },
       { id: 'sheets', nodes: ['main', 'stairs'], box: { min: [2.3, 0, 2.3], max: [3.4, 1.1, 3.3] }, cursor: 'ghost', label: 'A sheeted chair', onActivate: cap('Under the Sheet', 'The shape beneath the dust sheet is a chair. You are almost sure it is a chair. It was not facing that way a moment ago.') },
       { id: 'chimney', nodes: ['main', 'stairs', 'back'], box: { min: [CHIM.x0, 0, CHIM.z0], max: [CHIM.x1, 2.5, CHIM.z1] }, cursor: 'examine', label: 'The chimney stack', onActivate: cap('The Chimney', 'Warm to the touch, though every fire in the house below is cold. From somewhere inside it comes a child\'s laughter, rising.') },

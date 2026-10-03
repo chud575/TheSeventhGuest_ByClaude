@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { CELLS, RADIUS } from './hexx.js';
 
 /** Hand-hewn roof timber: grain along U (1 tile = 1.2 m x 0.3 m), adze facets, drying checks, dust in the pores. */
-export function timberTexture(forge, { key = 'timber', base = [0.2, 0.13, 0.08] } = {}) {
+export function timberTexture(forge, { key = 'timber', base = [0.27, 0.18, 0.115] } = {}) {
   return forge.generate(`attic:${key}`, {
     size: 1024, aspect: 2, normalStrength: 3.6,
     uniforms: { uBase: base },
@@ -69,7 +69,7 @@ void surface(vec2 uv, inout Surface s) {
   float tone = hash12(vec2(id, bid));
   float grain = vnoise(vec2(uv.x * 40.0, (y + seed * 7.0) * 18.0), vec2(40.0, rows * 18.0));
   float g2 = 0.5 + 0.5 * sin((uv.x * 3.0 + fbm(vec2(uv.x, y * 0.3 + seed), vec2(2.0, 3.0), 3) * 1.3 + f * 0.6) * 31.4);
-  vec3 c = mix(vec3(0.16, 0.1, 0.065), vec3(0.28, 0.19, 0.12), tone) * (0.8 + 0.25 * grain) * (0.9 + 0.12 * g2);
+  vec3 c = mix(vec3(0.24, 0.16, 0.1), vec3(0.4, 0.29, 0.19), tone) * (0.8 + 0.25 * grain) * (0.9 + 0.12 * g2);
   float gap = smoothstep(0.0, 0.035, f) * smoothstep(1.0, 0.965, f);
   float butt = smoothstep(0.0, 0.006, bx) * smoothstep(1.0, 0.994, bx);
   gap *= butt;
@@ -151,14 +151,14 @@ void surface(vec2 uv, inout Surface s) {
   float lath = smoothstep(0.0, 0.08, lf) * smoothstep(0.72, 0.62, lf);
   float lg = vnoise(vec2(uv.x * 30.0, floor(ly) * 3.1), vec2(30.0, 120.0));
   vec3 lathC = mix(vec3(0.03, 0.025, 0.02), vec3(0.32, 0.22, 0.13) * (0.7 + 0.4 * lg), lath);
-  vec3 pl = vec3(0.6, 0.58, 0.53) * (0.82 + 0.18 * n);
+  vec3 pl = vec3(0.47, 0.45, 0.41) * (0.8 + 0.2 * n);
   float damp = smoothstep(0.1, 0.55, fbm(uv * vec2(1.0, 0.5) + 3.3, vec2(2.0, 1.0), 5) + (0.5 - uv.y) * 0.3);
   pl = mix(pl, pl * vec3(0.62, 0.6, 0.5), damp * 0.6);
   float soot = smoothstep(0.3, 0.9, uv.y) * 0.25;
   pl *= 1.0 - soot;
   float cr = voronoiEdge(uv * 6.0 + n * 0.3, vec2(6.0), 0.9);
-  float crack = smoothstep(0.03, 0.0, cr) * step(0.4, fbmv(uv * 3.0, vec2(3.0), 3));
-  pl *= 1.0 - crack * 0.5;
+  float crack = smoothstep(0.012, 0.0, cr) * step(0.55, fbmv(uv, vec2(3.0), 3));
+  pl *= 1.0 - crack * 0.28;
   float rim = smoothstep(0.30, 0.34, fbm(uv * 1.0 + 7.7, vec2(2.0), 5) + 0.12 * n) - blown;
   vec3 c = mix(pl, lathC, blown);
   c = mix(c, c * 0.6, clamp(rim, 0.0, 1.0));
@@ -559,11 +559,13 @@ export function dappleTexture(forge) {
     size: 1024, normalStrength: 0.6,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
-  vec4 v = voronoi(uv * 5.0, vec2(5.0), 0.9);
-  float ring = smoothstep(0.15, 0.32, v.x) * (1.0 - smoothstep(0.32, 0.5, v.x));
+  vec4 v = voronoi(uv * 4.0, vec2(4.0), 0.95);
   float n = fbmv(uv, vec2(4.0), 5);
-  vec3 base = vec3(0.5, 0.5, 0.49) * (0.85 + 0.2 * n);
-  vec3 c = mix(base * 0.55, base * 1.15, 1.0 - ring * 0.8);
+  float br = fbmv(uv + 0.5, vec2(24.0), 3);
+  // dapples: pale blotches with soft edges, separated by a darker grey network
+  float spot = smoothstep(0.66 + 0.14 * br, 0.22, v.x) * step(0.1, hash12(v.zw));
+  vec3 dark = vec3(0.34, 0.34, 0.35) * (0.85 + 0.25 * n), light = vec3(0.74, 0.73, 0.7);
+  vec3 c = mix(dark, light, spot * (0.75 + 0.25 * n));
   float wear = smoothstep(0.62, 0.8, fbmv(uv + 0.3, vec2(6.0), 4));
   c = mix(c, vec3(0.36, 0.25, 0.16), wear * 0.75);           // worn through to the wood
   float cr = smoothstep(0.02, 0.0, voronoiEdge(uv * 30.0, vec2(30.0), 1.0)) * 0.5;

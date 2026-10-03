@@ -110,18 +110,21 @@ export function buildRockingHorse(ctx, m) {
   const dt = dappleTexture(ctx.textures).withRepeat(2.2, 2.2);
   const dapple = new THREE.MeshPhysicalMaterial({ map: dt.map, normalMap: dt.normalMap, roughnessMap: dt.ormMap, roughness: 1, clearcoat: 0.5, clearcoatRoughness: 0.35, envMapIntensity: 0.6, name: 'dapple' });
   const legMat = new THREE.MeshPhysicalMaterial({ color: 0x2a2624, roughness: 0.45, clearcoat: 0.4, name: 'horseLegs' });
-  // body barrel
-  const body = smoothShape([[-0.36, 0.64], [-0.3, 0.7], [-0.15, 0.69], [-0.02, 0.665], [0.1, 0.68], [0.2, 0.72], [0.27, 0.69], [0.3, 0.6], [0.24, 0.53], [0.1, 0.505], [-0.12, 0.505], [-0.28, 0.53], [-0.37, 0.59]]);
-  g.add(mesh(carved(body, 0.12, 0.05, G), dapple));
-  // neck + head (narrower)
-  const nh = smoothShape([[0.12, 0.66], [0.2, 0.76], [0.27, 0.88], [0.32, 0.98], [0.355, 1.04], [0.39, 1.045], [0.43, 1.0], [0.5, 0.9], [0.555, 0.84], [0.56, 0.8], [0.53, 0.78], [0.47, 0.8], [0.4, 0.84], [0.36, 0.83], [0.33, 0.75], [0.3, 0.62], [0.2, 0.58]]);
-  g.add(mesh(carved(nh, 0.06, 0.03, G), dapple));
+  // body barrel, neck and head: lofted tapered tubes with elliptical sections, capped
+  const loft = (pts, radii, sz, seg = 20, tub = 28) => { const t = taperTube(pts, radii, seg, tub); t.scale(1, 1, sz); return t; };
+  g.add(mesh(loft([V3(-0.37, 0.6, 0), V3(-0.26, 0.615, 0), V3(-0.05, 0.6, 0), V3(0.14, 0.62, 0), V3(0.27, 0.62, 0)], [0.1, 0.13, 0.125, 0.128, 0.105], 0.8), dapple));
+  g.add(at(mesh(new THREE.SphereGeometry(0.1, 20, 14).scale(0.9, 1, 0.8), dapple), -0.37, 0.6, 0));
+  g.add(at(mesh(new THREE.SphereGeometry(0.105, 20, 14).scale(0.9, 1, 0.8), dapple), 0.27, 0.62, 0));
+  g.add(mesh(loft([V3(0.17, 0.64, 0), V3(0.26, 0.77, 0), V3(0.32, 0.9, 0), V3(0.355, 0.99, 0)], [0.1, 0.085, 0.07, 0.06], 0.62), dapple));
+  g.add(mesh(loft([V3(0.34, 1.0, 0), V3(0.41, 0.96, 0), V3(0.49, 0.875, 0), V3(0.54, 0.825, 0)], [0.062, 0.058, 0.047, 0.04], 0.62), dapple));
+  g.add(at(mesh(new THREE.SphereGeometry(0.062, 18, 12).scale(1, 1, 0.62), dapple), 0.345, 1.0, 0));
+  g.add(at(mesh(new THREE.SphereGeometry(0.041, 16, 12).scale(1.1, 0.95, 0.66), dapple), 0.545, 0.82, 0));
   // ears, nostrils, glass eyes, blaze
   for (const s of [-1, 1]) {
-    const ear = mesh(new THREE.ConeGeometry(0.017, 0.07, 10), dapple); ear.scale.set(1, 1, 0.6); at(ear, 0.355, 1.085, s * 0.024); ear.rotation.set(s * -0.2, 0, 0.35); g.add(ear);
-    g.add(at(mesh(new THREE.SphereGeometry(0.014, 14, 10), m.glassEye), 0.425, 0.975, s * 0.056));
-    g.add(at(mesh(new THREE.TorusGeometry(0.015, 0.003, 6, 16), m.toyBlack), 0.425, 0.975, s * 0.058));
-    g.add(at(mesh(new THREE.SphereGeometry(0.008, 8, 6), m.toyBlack), 0.548, 0.83, s * 0.022));
+    const ear = mesh(new THREE.ConeGeometry(0.017, 0.07, 10), dapple); ear.scale.set(1, 1, 0.6); at(ear, 0.33, 1.075, s * 0.022); ear.rotation.set(s * -0.2, 0, 0.35); g.add(ear);
+    g.add(at(mesh(new THREE.SphereGeometry(0.012, 14, 10), m.glassEye), 0.4, 0.985, s * 0.034));
+    g.add(at(mesh(new THREE.TorusGeometry(0.013, 0.0025, 6, 16), m.toyBlack), 0.4, 0.985, s * 0.036));
+    g.add(at(mesh(new THREE.SphereGeometry(0.007, 8, 6), m.toyBlack), 0.58, 0.825, s * 0.017));
   }
   // legs in a flying gallop, hooves screwed to the bow
   const legs = [[0.2, 0.55, 0.05, 0.44, 0.135], [0.2, 0.55, -0.05, 0.4, 0.13], [-0.27, 0.56, 0.05, -0.46, 0.137], [-0.27, 0.56, -0.05, -0.42, 0.132]];
@@ -134,12 +137,12 @@ export function buildRockingHorse(ctx, m) {
   // mane: many fine strands down the crest; forelock
   for (let i = 0; i < 26; i++) {
     const t = i / 25;
-    const base = V3(0.18 + t * 0.19, 0.74 + t * 0.3, 0);
+    const base = V3(0.15 + t * 0.18, 0.73 + t * 0.32, 0);
     const s = (i % 2 ? 1 : -1);
     const len = 0.11 - t * 0.05;
     g.add(mesh(taperTube([base, base.clone().add(V3(-0.02, -len * 0.4, s * 0.03)), base.clone().add(V3(-0.035, -len, s * 0.045 + (i % 3 - 1) * 0.01))], [0.011, 0.008, 0.002], 5, 8), m.hair));
   }
-  g.add(mesh(taperTube([V3(0.38, 1.045, 0), V3(0.42, 1.03, 0.01), V3(0.44, 0.99, 0.0)], [0.012, 0.008, 0.002], 5, 8), m.hair));
+  g.add(mesh(taperTube([V3(0.35, 1.06, 0), V3(0.39, 1.045, 0.01), V3(0.41, 1.0, 0.0)], [0.012, 0.008, 0.002], 5, 8), m.hair));
   // tail: a bunch of strands
   for (let k = 0; k < 9; k++) {
     const a = (k / 9) * Math.PI * 2;
@@ -154,9 +157,9 @@ export function buildRockingHorse(ctx, m) {
     g.add(mesh(taperTube([V3(-0.03, 0.76, s * 0.07), V3(-0.03, 0.6, s * 0.13), V3(-0.03, 0.44, s * 0.125)], [0.004, 0.004, 0.004], 4, 8), m.saddle));
     const st = mesh(new THREE.TorusGeometry(0.02, 0.0035, 5, 14, Math.PI * 1.4), m.brass); st.rotation.set(0, Math.PI / 2, Math.PI * 0.8); at(st, -0.03, 0.42, s * 0.125); g.add(st);
   }
-  const brPts = [V3(0.53, 0.8, 0.028), V3(0.45, 0.92, 0.04), V3(0.39, 1.02, 0.033)];
+  const brPts = [V3(0.535, 0.81, 0.028), V3(0.45, 0.9, 0.038), V3(0.37, 1.02, 0.036)];
   for (const s of [-1, 1]) g.add(mesh(taperTube(brPts.map((p) => V3(p.x, p.y, p.z * s)), [0.004, 0.004, 0.004], 4, 10), m.saddle));
-  g.add(mesh(taperTube([V3(0.5, 0.88, -0.04), V3(0.505, 0.9, 0), V3(0.5, 0.88, 0.04)], [0.004, 0.004, 0.004], 4, 8), m.saddle));
+  g.add(mesh(taperTube([V3(0.5, 0.85, -0.032), V3(0.505, 0.88, 0), V3(0.5, 0.85, 0.032)], [0.004, 0.004, 0.004], 4, 8), m.saddle));
   for (const s of [-1, 1]) g.add(mesh(taperTube([V3(0.54, 0.8, s * 0.03), V3(0.38, 0.72, s * 0.08), V3(0.12, 0.72, s * 0.07)], [0.0035, 0.0035, 0.0035], 4, 14), m.saddle));
   // bow rockers with turned stretchers
   const R = 1.9, span = 0.62;

@@ -107,7 +107,7 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
   // Stauf's presence while he thinks: a sickly green glow creeps round the bezel and up off the plate
   const staufRing = new THREE.Mesh(new THREE.TorusGeometry(plateRadius + 0.012, 0.006, 8, 128).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.35, 1.0, 0.12).multiplyScalar(2.2), transparent: true, opacity: 0, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
   staufRing.position.y = 0.01; staufRing.userData.noBake = true; staufRing.renderOrder = 6; group.add(staufRing);
-  const staufLight = new THREE.PointLight(0x7aff3a, 0, 1.4, 2); staufLight.position.set(0, 0.18, 0); group.add(staufLight);
+  const staufLight = new THREE.PointLight(0x7aff3a, 0, 1.2, 2); staufLight.position.set(0, 0.45, -0.1); group.add(staufLight);
   let presence = 0;
   const blues = new THREE.InstancedMesh(blob, blueMat, H.N + 1);
   const greens = new THREE.InstancedMesh(blob, greenMat, H.N + 1);
@@ -218,6 +218,24 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
   }
 
   let P = null;           // live puzzle ctx while the puzzle is open
+  /** result banner centred over the plate, in the game's title-card typography */
+  let bannerEl = null, bannerT = 0;
+  function banner(small, big, sec = 5) {
+    if (typeof document === 'undefined') return;
+    bannerEl?.remove();
+    const el = document.createElement('div');
+    el.className = 't7-title-card';
+    el.style.cssText = 'top: 36vh; padding: 18px 60px 14px; background: radial-gradient(ellipse at center, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0) 72%); z-index: 60;';
+    const a = document.createElement('div'); a.className = 'small'; a.textContent = small;
+    const b = document.createElement('div'); b.className = 'big'; b.textContent = big;
+    const r = document.createElement('div'); r.className = 'rule';
+    el.append(a, b, r);
+    (document.querySelector('.t7-ui') || document.body).append(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+    if (ctx.shot) el.classList.add('show');
+    bannerEl = el; clearTimeout(bannerT);
+    bannerT = setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 1500); if (bannerEl === el) bannerEl = null; }, sec * 1000);
+  }
   const quip = (text) => { if (moves - lastQuip < 3) return; lastQuip = moves; (P?.say || ctx.say)?.({ text, speaker: 'stauf', speakerName: 'Stauf' }); };
 
   function endIfOver(nextToMove) {
@@ -225,15 +243,14 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
     if (!r) return false;
     result = r; phase = 'over'; selected = -1;
     r.filled.forEach((j, k) => { delay[j] = 0.3 + k * 0.04; });
-    const ui = (P?.ui || ctx.ui);
     if (r.winner === H.BLUE) {
       phase = 'solved';
       P?.status?.(statusLine());
-      ui?.titleCard?.('The plate is yours', `Blue ${H.count(board, H.BLUE)}  ·  Green ${H.count(board, H.GREEN)}`, 4.5);
+      banner('The plate is yours', `Blue ${H.count(board, H.BLUE)}  ·  Green ${H.count(board, H.GREEN)}`);
       setTimeout(() => P?.solve?.(), 1600);
     } else {
       P?.status?.(statusLine());
-      ui?.titleCard?.(r.winner === H.GREEN ? 'Stauf\'s culture takes the plate' : 'Neither culture prevails', `Blue ${H.count(board, H.BLUE)}  ·  Green ${H.count(board, H.GREEN)}`, 4.5);
+      banner(r.winner === H.GREEN ? 'Stauf\'s culture takes the plate' : 'Neither culture prevails', `Blue ${H.count(board, H.BLUE)}  ·  Green ${H.count(board, H.GREEN)}`);
       ctx.audio?.sfx?.('thud');
       onLose?.(r);
       (P?.say || ctx.say)?.({ text: r.winner === H.GREEN ? 'Ha! My little *pets* have eaten yours. Again? You have all the time in the world... *forever*.' : 'A draw? How *dull*. Again.', speaker: 'stauf', speakerName: 'Stauf' });
@@ -301,7 +318,7 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
       stepScales(dt);
       if (phase === 'stauf' && !busy()) { thinkT -= dt; if (thinkT <= 0) staufMove(); }
       presence += ((phase === 'stauf' ? 1 : 0) - presence) * Math.min(1, dt * 3);
-      { const pulse = 0.55 + 0.45 * Math.sin(t * 5.0) * Math.sin(t * 1.7 + 1.0); staufRing.material.opacity = presence * (0.35 + 0.5 * pulse); staufLight.intensity = presence * (0.25 + 0.35 * pulse); }
+      { const pulse = 0.55 + 0.45 * Math.sin(t * 5.0) * Math.sin(t * 1.7 + 1.0); staufRing.material.opacity = presence * (0.35 + 0.5 * pulse); staufLight.intensity = presence * (0.05 + 0.08 * pulse); }
       writeInstances(t); writeRings(t);
     },
     cursorAt(ndc, p) {
@@ -332,11 +349,11 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
       for (let i = 0; i < H.N; i++) { delay[i] = POS[i].length() * 6; board[i] = H.BLUE; }
       phase = 'solved'; selected = -1; result = { winner: H.BLUE, blue: H.N, green: 0, filled: [] };
       p.status(statusLine());
-      (p.ui || ctx.ui)?.titleCard?.('The plate is yours', `Blue ${H.N}  ·  Green 0`, 4.5);
+      banner('The plate is yours', `Blue ${H.N}  ·  Green 0`);
       setTimeout(() => p.solve(), 1800);
     },
     async onSolved(p) { phase = 'solved'; await onSolved?.(p); },
-    teardown() { selected = -1; hover = -1; P = null; },
+    teardown() { selected = -1; hover = -1; P = null; bannerEl?.remove(); bannerEl = null; },
   };
 
   writeInstances(0); writeRings(0);

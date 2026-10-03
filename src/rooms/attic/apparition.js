@@ -108,20 +108,20 @@ export function buildApparition(mat) {
   const g = new THREE.Group(); g.name = 'staufSilhouette';
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
   // long frock coat: flared skirts, narrow waist, chest, sloping shoulders
-  const robe = latheE([[0, 0.0], [0.29, 0.02], [0.27, 0.15], [0.225, 0.45], [0.185, 0.78], [0.152, 0.98], [0.162, 1.12], [0.19, 1.28], [0.212, 1.38], [0.2, 1.44], [0.15, 1.5], [0.07, 1.54], [0.052, 1.58], [0, 1.6]], 64, 0.58);
+  const robe = latheE([[0, 0.0], [0.29, 0.02], [0.27, 0.15], [0.225, 0.45], [0.185, 0.78], [0.152, 0.98], [0.162, 1.12], [0.188, 1.28], [0.2, 1.36], [0.185, 1.43], [0.14, 1.49], [0.08, 1.53], [0.05, 1.57], [0, 1.6]], 64, 0.58);
   { const p = robe.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i); const a = Math.atan2(z, x); const k = Math.max(0, 1 - y / 1.0); const f = 1 + k * (0.09 * Math.sin(a * 7 + 0.4) + 0.05 * Math.sin(a * 13 + 1.1)); p.setXYZ(i, x * f, y + k * 0.03 * Math.sin(a * 5), z * f); } robe.computeVertexNormals(); }
   g.add(new THREE.Mesh(robe, mat));
   // collar points flaring up
   g.add(new THREE.Mesh(latheE([[0.07, 1.48], [0.095, 1.53], [0.085, 1.6], [0.06, 1.62]], 18, 0.8), mat));
   // head: long skull, gaunt jaw
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.095, 20, 16), mat);
-  head.scale.set(0.82, 1.12, 0.95); head.position.set(0, 1.69, 0.01); g.add(head);
+  // head + neck baked in figure space (the shader's smoke and hem fade read local Y)
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.095, 20, 16).scale(0.8, 1.12, 0.92).translate(0, 1.685, 0.012), mat));
+  g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.12, 12).translate(0, 1.58, 0.0), mat));
   // stovepipe hat
-  const hat = new THREE.Mesh(latheE([[0.0, 1.765], [0.125, 1.76], [0.13, 1.772], [0.085, 1.785], [0.078, 1.8], [0.084, 1.95], [0.086, 1.965], [0, 1.965]], 24, 0.9), mat);
-  hat.rotation.z = -0.06; hat.position.x = 0.01; g.add(hat);
+  g.add(new THREE.Mesh(latheE([[0.0, 1.765], [0.125, 1.76], [0.13, 1.772], [0.085, 1.785], [0.078, 1.8], [0.084, 1.95], [0.086, 1.965], [0, 1.965]], 24, 0.9), mat));
   // left arm hanging onto a cane
   g.add(new THREE.Mesh(limb([V(-0.19, 1.4, 0), V(-0.24, 1.2, 0.02), V(-0.25, 1.0, 0.06), V(-0.24, 0.86, 0.1)], [0.06, 0.05, 0.042, 0.035]), mat));
-  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 10).scale(0.8, 1.2, 1), mat).translateX(-0.24).translateY(0.82).translateZ(0.11));
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 10).scale(0.8, 1.2, 1).translate(-0.24, 0.82, 0.11), mat));
   g.add(new THREE.Mesh(limb([V(-0.24, 0.85, 0.11), V(-0.27, 0.4, 0.16), V(-0.29, 0.0, 0.2)], [0.012, 0.011, 0.01], 6), mat));
   // right arm raised, long fingers curling to beckon
   g.add(new THREE.Mesh(limb([V(0.19, 1.4, 0), V(0.27, 1.22, 0.08), V(0.3, 1.24, 0.24), V(0.3, 1.36, 0.36)], [0.06, 0.05, 0.04, 0.032]), mat));
