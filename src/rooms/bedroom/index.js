@@ -237,7 +237,7 @@ export default {
       board: new THREE.MeshPhysicalMaterial({ map: boardSet.map, normalMap: boardSet.normalMap, roughnessMap: boardSet.ormMap, roughness: 1, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.3, envMapIntensity: 0.55, name: 'board' }),
       frostGlass: new THREE.MeshPhysicalMaterial({ color: 0xd8d4c8, roughness: 0.55, transmission: 0, transparent: true, opacity: 0.72, side: THREE.DoubleSide, name: 'frost' }),
       mirror: new THREE.MeshPhysicalMaterial({ map: mirrorSet.map, normalMap: mirrorSet.normalMap, normalScale: new THREE.Vector2(0.8, 0.8), roughnessMap: mirrorSet.ormMap, metalnessMap: mirrorSet.ormMap, roughness: 2.6, metalness: 1, envMapIntensity: 1.25, color: new THREE.Color(0.72, 0.72, 0.72), emissive: new THREE.Color(0.5, 0.48, 0.44), emissiveMap: mirrorGlint.map, emissiveIntensity: 0.1, side: THREE.DoubleSide, name: 'mirror' }),
-      lampGlobe: new THREE.MeshStandardMaterial({ color: 0x3a2a18, map: etchedGlassTex(ctx), emissive: new THREE.Color(1.0, 0.56, 0.24), emissiveMap: etchedGlassTex(ctx), emissiveIntensity: 0.42, roughness: 0.45, transparent: true, opacity: 0.95, name: 'lampGlobe' }),
+      lampGlobe: new THREE.MeshBasicMaterial({ map: etchedGlassTex(ctx), color: new THREE.Color(0.62, 0.34, 0.14), transparent: true, opacity: 0.96, name: 'lampGlobe' }),
       sconceGlass: new THREE.MeshStandardMaterial({ color: 0x5a4a38, emissive: new THREE.Color(1.0, 0.7, 0.42), emissiveMap: etchedGlassTex(ctx), emissiveIntensity: 1.1, roughness: 0.5, transparent: true, opacity: 0.88, side: THREE.DoubleSide, depthWrite: false, name: 'sconceGlass' }),
       velvetRose: M.create('velvet', { color: [0.24, 0.1, 0.11], crush: 0.6, repeat: [3, 3], sheen: 1.0, sheenRoughness: 0.4, sheenColor: [0.5, 0.24, 0.26], envMapIntensity: 0.2 }),
       velvetChair: M.create('leather', { color: [0.2, 0.07, 0.05], wear: 0.7, buttons: 1, repeat: [4, 4], clearcoat: 0.3, clearcoatRoughness: 0.45 }),
@@ -249,7 +249,7 @@ export default {
       atticBoard: M.create('wood', { species: 'oak', boards: 3, boardLength: 1.2, polish: 0.1, wear: 0.9, tint: [0.55, 0.5, 0.46], repeat: [1, 1], side: THREE.DoubleSide, clearcoat: 0 }),
       atticBeam: M.create('wood', { species: 'oak', boards: 0, polish: 0.05, wear: 0.8, tint: [0.42, 0.36, 0.32], repeat: [1.5, 1.5], clearcoat: 0 }),
       atticPlaster: M.create('plaster', { color: [0.42, 0.42, 0.44], cracks: 0.8, stains: 0.8, repeat: [0.8, 0.8], side: THREE.DoubleSide }),
-      rug: (() => { const r = persianRug(ctx); return new THREE.MeshPhysicalMaterial({ map: r.map, normalMap: r.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), roughnessMap: r.ormMap, aoMap: r.ormMap, roughness: 1, metalness: 0, sheen: 0.5, sheenRoughness: 0.6, sheenColor: new THREE.Color(0.45, 0.36, 0.32), specularIntensity: 0.35, envMapIntensity: 0.3, name: 'rug' }); })(),
+      rug: (() => { const r = persianRug(ctx); return new THREE.MeshPhysicalMaterial({ map: r.map, normalMap: r.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), roughnessMap: r.ormMap, aoMap: r.ormMap, roughness: 1, metalness: 0, sheen: 0.5, sheenRoughness: 0.6, sheenColor: new THREE.Color(0.45, 0.36, 0.32), specularIntensity: 0.35, envMapIntensity: 0.3, side: THREE.DoubleSide, name: 'rug' }); })(),
     };
     addDust(mats.canopyWood, 0.4);
     mats.curtain.shadowSide = THREE.DoubleSide;
