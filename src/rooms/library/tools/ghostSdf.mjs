@@ -289,7 +289,7 @@ export function headColor(px, py, pz, region) {
     return [g, g * 0.98, g * 0.96];
   }
   if (region === 'cravat') { const g = 0.9 + 0.06 * n; return [g, g * 0.985, g * 0.95]; }
-  if (region === 'coat') { const g = 0.1 + 0.05 * n; return [g * 1.0, g * 1.02, g * 1.1]; }
+  if (region === 'coat') { const g = 0.17 + 0.06 * n; return [g * 1.0, g * 1.0, g * 1.06]; }
   if (region === 'waistcoat') {
     const btn = len3(px, ((py + 0.245) % 0.04 + 0.04) % 0.04 - 0.02, pz - 0.094) < 0.007 && py < -0.23;
     if (btn) return [0.55, 0.5, 0.42];

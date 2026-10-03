@@ -105,3 +105,27 @@ export function mesh(geo, mat, name, { cast = true, receive = true } = {}) {
   m.castShadow = cast; m.receiveShadow = receive;
   return m;
 }
+
+/** World-space low-frequency albedo variation (breaks up texture tiling on walls). */
+export function addMacro(material, { amount = 0.25, scale = 0.7, key = 'macro' } = {}) {
+  const prev = material.onBeforeCompile;
+  material.onBeforeCompile = (sh, r) => {
+    prev?.call(material, sh, r);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vMacroW;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvMacroW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vMacroW;
+float mHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float mNoise(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(mHash(i), mHash(i + vec3(1, 0, 0)), f.x), mix(mHash(i + vec3(0, 1, 0)), mHash(i + vec3(1, 1, 0)), f.x), f.y),
+             mix(mix(mHash(i + vec3(0, 0, 1)), mHash(i + vec3(1, 0, 1)), f.x), mix(mHash(i + vec3(0, 1, 1)), mHash(i + vec3(1, 1, 1)), f.x), f.y), f.z); }`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+  { float mn = mNoise(vMacroW * ${scale.toFixed(3)}) * 0.6 + mNoise(vMacroW * ${(scale * 2.7).toFixed(3)}) * 0.4;
+    diffuseColor.rgb *= 1.0 - ${amount.toFixed(3)} * (mn - 0.35); }`);
+  };
+  const prevKey = material.customProgramCacheKey?.bind(material);
+  material.customProgramCacheKey = () => `${prevKey ? prevKey() : ''}|${key}-${amount}-${scale}`;
+  return material;
+}

@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { L, V3 } from './lib.js';
+import { L, V3, addMacro } from './lib.js';
 import { buildShell, wallToWorld, OPEN } from './shell.js';
 import { buildBookcase } from './bookcase.js';
 import { buildProps, SPOTS } from './props.js';
 import { buildGhost } from './ghost.js';
 import { createTelescopePuzzle, telescopeMeta, PUZZLE_ID, RIDDLE, PHRASE } from './puzzleTelescope.js';
+import { DEFAULT_GRADE } from '../../engine/post/PostFX.js';
 import { tapestryMap, globeMap, nightSky, riddleCard, brickMap, timberMap, cofferGlassMap, vanitasMap, treelineMap, rainGlassMap, hintPagesTex } from './textures.js';
 
 /**
@@ -14,7 +15,8 @@ import { tapestryMap, globeMap, nightSky, riddleCard, brickMap, timberMap, coffe
  * on its lectern, and the Telescope puzzle.
  */
 const { X0, X1, Z0, Z1, H } = L;
-const GHOST_POS = V3(0.0, 1.9, -0.25);
+const GHOST_POS = V3(0.0, 1.81, -0.25);
+const GRADE = { exposure: 1.25, contrast: 1.2, saturation: 0.8, shadowTint: [0.93, 1.0, 1.03], highlightTint: [1.1, 1.0, 0.86], splitAmount: 0.5, lift: [0, 0, 0], blackPoint: 0.012, bloomStrength: 0.32, bloomThreshold: 1.5, godRayWeight: 0.25, vignette: 0.45, aoIntensity: 1.2, aoRadius: 0.4 };
 
 export default {
   id: 'library',
@@ -46,14 +48,14 @@ export default {
     const van = vanitasMap(ctx);
     const tree = treelineMap(ctx);
     const rain = rainGlassMap(ctx).withRepeat(1.4, 1.4);
-    const timberMat = (set) => new THREE.MeshPhysicalMaterial({ map: set.map, normalMap: set.normalMap, normalScale: new THREE.Vector2(1.2, 1.2), roughnessMap: set.roughnessMap, aoMap: set.aoMap, roughness: 1, metalness: 0, clearcoat: 0.08, clearcoatRoughness: 0.6, envMapIntensity: 0.5, name: 'timber' });
+    const timberMat = (set) => new THREE.MeshPhysicalMaterial({ map: set.map, normalMap: set.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), roughnessMap: set.roughnessMap, aoMap: set.aoMap, roughness: 1, metalness: 0, clearcoat: 0.08, clearcoatRoughness: 0.6, envMapIntensity: 0.5, name: 'timber' });
     const mat = {
       floor: M.create('wood', { species: 'oak', boards: 6, boardLength: 0.36, polish: 0.32, wear: 0.75, figure: 0.6, tint: [0.44, 0.39, 0.36], repeat: [1 / 3.0, 1 / 1.02], size: hi ? 2048 : 1024, physical: true, clearcoat: 0.18, clearcoatRoughness: 0.45, macro: 0.45 }),
       brick: new THREE.MeshStandardMaterial({ map: brickRep.map, normalMap: brickRep.normalMap, normalScale: new THREE.Vector2(1.5, 1.5), roughnessMap: brickRep.roughnessMap, aoMap: brickRep.aoMap, aoMapIntensity: 1, roughness: 1, metalness: 0, envMapIntensity: 0.35, name: 'brick' }),
       timber: timberMat(timberH),
       timberV: timberMat(timberV),
       timberDark: M.create('wood', { species: 'walnut', boards: 0, polish: 0.4, wear: 0.4, tint: [0.42, 0.36, 0.33], repeat: [1, 1], physical: true, clearcoat: 0.3, clearcoatRoughness: 0.35 }),
-      beam: M.create('wood', { species: 'oak', boards: 0, polish: 0.3, wear: 0.5, figure: 0.9, tint: [0.42, 0.34, 0.28], repeat: [1 / 1.2, 1 / 0.6], normalScale: 1.6, physical: true, clearcoat: 0.15, clearcoatRoughness: 0.5, envMapIntensity: 0.35 }),
+      beam: M.create('wood', { species: 'oak', boards: 0, polish: 0.3, wear: 0.5, figure: 0.9, tint: [0.3, 0.23, 0.18], repeat: [1 / 1.2, 1 / 0.6], normalScale: 1.6, physical: true, clearcoat: 0.1, clearcoatRoughness: 0.6, envMapIntensity: 0.15 }),
       beamMould: M.create('wood', { species: 'walnut', boards: 0, polish: 0.5, wear: 0.4, tint: [0.4, 0.33, 0.28], repeat: [3, 3], physical: true, clearcoat: 0.3, clearcoatRoughness: 0.35 }),
       caseWood: M.create('wood', { species: 'walnut', boards: 0, polish: 0.7, wear: 0.3, figure: 0.8, tint: [0.5, 0.42, 0.36], repeat: [1.4, 1.4], normalScale: 1.4, physical: true, clearcoat: 0.3, clearcoatRoughness: 0.28 }),
       caseDark: new THREE.MeshStandardMaterial({ color: 0x0d0907, roughness: 0.85, metalness: 0 }),
@@ -82,7 +84,7 @@ export default {
       giltEdge: new THREE.MeshStandardMaterial({ color: 0xc89a48, roughness: 0.4, metalness: 0.85 }),
       letterPaper: new THREE.MeshStandardMaterial({ color: 0xb3a07a, roughness: 0.92, side: THREE.DoubleSide }),
       stoolFabric: new THREE.MeshPhysicalMaterial({ map: tapRep.map, normalMap: tapRep.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), roughnessMap: tapRep.roughnessMap, roughness: 1, metalness: 0, sheen: 0.5, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.4, 0.22, 0.14), envMapIntensity: 0.25 }),
-      vanitas: new THREE.MeshPhysicalMaterial({ map: van.map, normalMap: van.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), roughnessMap: van.roughnessMap, roughness: 1, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.2, envMapIntensity: 0.5 }),
+      vanitas: new THREE.MeshPhysicalMaterial({ map: van.map, normalMap: van.normalMap, normalScale: new THREE.Vector2(0.35, 0.35), roughnessMap: van.roughnessMap, roughness: 1.2, metalness: 0, clearcoat: 0.2, clearcoatRoughness: 0.45, envMapIntensity: 0.4 }),
       treeline: new THREE.MeshBasicMaterial({ map: tree.map, transparent: true, depthWrite: false, color: new THREE.Color(1.6, 1.6, 1.6), toneMapped: true }),
       ribbon: new THREE.MeshStandardMaterial({ color: 0x5a0a10, roughness: 0.6, side: THREE.DoubleSide }),
       lampShade: new THREE.MeshStandardMaterial({ color: 0x302418, emissive: new THREE.Color(1.0, 0.66, 0.34), emissiveIntensity: 1.5, roughness: 0.4, transparent: true, opacity: 0.94, side: THREE.DoubleSide }),
@@ -103,6 +105,11 @@ export default {
       cord: new THREE.MeshStandardMaterial({ color: 0x1a0c08, roughness: 0.8 }),
     };
 
+    if (ctx.params.get('vandbg')) mat.vanitas = new THREE.MeshBasicMaterial({ map: van.map });
+    addMacro(mat.brick, { amount: 0.35, scale: 0.6, key: 'brick' });
+    addMacro(mat.timber, { amount: 0.25, scale: 0.8, key: 'timber' });
+    addMacro(mat.timberV, { amount: 0.25, scale: 0.8, key: 'timberv' });
+
     // ================================================================ build
     const shell = buildShell(ctx, root, mat);
     const bookcase = buildBookcase(ctx, root, mat);
@@ -118,16 +125,6 @@ export default {
     card.receiveShadow = true;
     root.add(card);
 
-    // a single brass oil lamp on the bookcase counter (left bay): warm practical on the books
-    {
-      const lamp = props.makeOilLamp({ shadeColor: 0xffb070, scale: 0.85, seed: 41 });
-      lamp.position.copy(bookcase.toWorld(0.9, 0.8, 0.34));
-      root.add(lamp);
-      const pl = new THREE.PointLight(0xffa456, 2.6, 6, 2);
-      pl.position.copy(bookcase.toWorld(0.9, 1.15, 0.45));
-      root.add(pl);
-      ctx.onUpdate((dt, t) => { pl.intensity = 2.6 * (0.94 + 0.06 * Math.sin(t * 7.3) * Math.sin(t * 2.9 + 1)); });
-    }
 
     // ================================================================ telescope aim + puzzle
     const friezeWorld = bookcase.frieze.worldCenter.clone();
@@ -139,7 +136,10 @@ export default {
       const pos = tube.localToWorld(V3(0, 0.0, 0.8));
       return { position: pos.toArray(), target: friezeWorld.toArray(), fov: 12.5 };
     };
+    // ctx.post.reset() returns to the engine default; restore this room's grade instead
+    const restoreGrade = (dur = 0.8) => ctx.post.set({ ...structuredClone(DEFAULT_GRADE), ...structuredClone(GRADE) }, dur);
     const tel = createTelescopePuzzle(ctx, {
+      restoreGrade,
       parent: bookcase.group,
       frieze: bookcase.frieze,
       telescope: { tubeVisible: (v) => { props.telescope.visible = v; } },
@@ -182,8 +182,23 @@ export default {
     root.add(new THREE.HemisphereLight(0x2a2c34, 0x24170e, 0.25));
     // the bay window's moon spill
     root.add(fx.areaLight({ center: wallToWorld('left', OPEN.bay.x + OPEN.bay.w / 2, OPEN.bay.y + 1.1, 0.05).toArray(), normal: [1, -0.2, 0], width: OPEN.bay.w, height: OPEN.bay.h, color: 0x8ea6ff, intensity: 2.4 }));
+    // moonlight through the bay window: the glazing bars throw their pattern across the floor and the telescope
+    const bayC = wallToWorld('left', OPEN.bay.x + OPEN.bay.w / 2, OPEN.bay.y + 1.1, 0);
+    const bayMoon = new THREE.SpotLight(0xa8bce8, 900, 14, 0.3, 0.5, 2);
+    bayMoon.position.copy(bayC).add(V3(-3.6, 0.9, 0.9));
+    bayMoon.target.position.set(-2.2, 0.2, 0.7);
+    bayMoon.castShadow = ctx.quality.shadows;
+    bayMoon.shadow.mapSize.set(1024, 1024);
+    bayMoon.shadow.bias = -0.0006; bayMoon.shadow.normalBias = 0.02; bayMoon.shadow.radius = 4;
+    bayMoon.shadow.camera.near = 1.5; bayMoon.shadow.camera.far = 12;
+    root.add(bayMoon, bayMoon.target);
     // warm bounce from the lamps onto the bookcase (keeps the walnut and leather reading brown)
     root.add(fx.areaLight({ center: [-1.0, 1.5, -1.2], normal: [0, 0.1, -1], width: 3.2, height: 1.6, color: 0xffa868, intensity: 1.3 }));
+    // warm wash on the bookcase, as if from the lamps and the glow off the desk (no shadows, soft edge)
+    const bw = new THREE.SpotLight(0xffb070, 130, 11, 0.62, 1.0, 2);
+    bw.position.set(-1.0, 2.7, 0.2);
+    bw.target.position.set(-2.25, 1.5, -4.8);
+    root.add(bw, bw.target);
     // a cold key on the ghost's face (a skylight pane singles him out) + a warm kicker from the lamps below
     const gk = new THREE.SpotLight(0xdfe4f0, 9, 5, 0.22, 0.9, 2);
     gk.position.copy(GHOST_POS).add(V3(-0.85, 0.75, 0.95));
@@ -197,6 +212,17 @@ export default {
     const fillW = new THREE.PointLight(0xffa060, 1.6, 4.5, 2);
     fillW.position.set(0.05, 1.1, 0.9);
     root.add(fillW);
+    // the music-room door would otherwise be a black hole: a low warm glow from the sconce side
+    const doorGlow = new THREE.PointLight(0xffa060, 3.5, 3.5, 2);
+    doorGlow.position.copy(wallToWorld('right', OPEN.rightDoor.x + OPEN.rightDoor.w * 0.9, 1.5, 0.9));
+    root.add(doorGlow);
+    // cold fill in the bay so the curtains and reveal read
+    const bayFill = new THREE.PointLight(0x8094c0, 0.9, 3.5, 2);
+    bayFill.position.set(-3.4, 1.9, 1.0);
+    root.add(bayFill);
+    const fillC = new THREE.PointLight(0xffa466, 1.4, 3.0, 2);
+    fillC.position.set(0.85, 1.5, 0.3);
+    root.add(fillC);
 
     // ================================================================ volumetrics: shafts from the skylights + dust + floor mist
     const moonDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
@@ -255,7 +281,7 @@ export default {
           await ctx.nav.lookAt(GHOST_POS.clone().add(V3(0, 0.1, 0)), 1.1);
           await ctx.say(ghostLines[ghostTalks++ % ghostLines.length]);
           await h.wait(0.4);
-          ctx.post.reset(1.0);
+          restoreGrade(1.0);
           await ctx.nav.returnToNode(1.0);
         }),
       },
@@ -336,7 +362,7 @@ export default {
       scene: root,
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
-      grade: { exposure: 1.25, contrast: 1.2, saturation: 0.8, shadowTint: [0.93, 1.0, 1.03], highlightTint: [1.1, 1.0, 0.86], splitAmount: 0.5, lift: [0, 0, 0], blackPoint: 0.012, bloomStrength: 0.32, bloomThreshold: 1.5, godRayWeight: 0.25, vignette: 0.45, aoIntensity: 1.2, aoRadius: 0.4 },
+      grade: GRADE,
       environment: { position: [-0.6, 1.9, -0.8], intensity: 0.8 },
       onEnter() {
         if (!ctx.state.has('library.greeted')) {

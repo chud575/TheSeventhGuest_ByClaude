@@ -8,7 +8,7 @@ import { flicker } from '../../engine/fx/Flame.js';
 
 export const SPOTS = {
   desk: { x: -1.05, z: -0.35, ry: 0 },             // long axis along z, drawers face the room (+x)
-  chair: { x: -0.4, z: -0.45, ry: -1.45 },      // upholstered stool drawn up to the desk
+  chair: { x: -0.42, z: -0.95, ry: -1.45 },      // upholstered stool drawn up to the desk
   wing: { x: 0.68, z: -0.62, ry: -0.78 },
   globe: { x: 0.24, z: -1.7 },
   telescope: { x: -3.2, z: 2.05 },
@@ -103,9 +103,15 @@ export function buildProps(ctx, root, mat) {
   const out = {};
 
   // ---------------------------------------------------------------- oil lamp factory (brass font, collar, chimney, frosted globe)
-  const lampGlobeMat = (shadeColor) => new THREE.MeshPhysicalMaterial({
-    color: 0xf2e6d2, roughness: 0.32, metalness: 0, transparent: true, opacity: 0.55, side: THREE.DoubleSide,
-    emissive: new THREE.Color(shadeColor), emissiveIntensity: 0.45, clearcoat: 0.6, clearcoatRoughness: 0.2, depthWrite: false,
+  // frosted glass lit from within: unlit (its own flame would blow it out), brighter through the middle band
+  const frost = ctx.textures.canvas('library:frost:v1', 64, 256, (g2, w, h) => {
+    const grd = g2.createLinearGradient(0, 0, 0, h);
+    grd.addColorStop(0, '#5a4a38'); grd.addColorStop(0.35, '#e8d2b0'); grd.addColorStop(0.6, '#fff0d8'); grd.addColorStop(0.85, '#c8b090'); grd.addColorStop(1, '#4a3c2c');
+    g2.fillStyle = grd; g2.fillRect(0, 0, w, h);
+    for (let i = 0; i < 400; i++) { g2.fillStyle = `rgba(0,0,0,${0.03 + 0.04 * ((i * 7919) % 13) / 13})`; g2.fillRect((i * 37) % w, (i * 101) % h, 2, 2); }
+  }, { tile: false });
+  const lampGlobeMat = (shadeColor) => new THREE.MeshBasicMaterial({
+    map: frost, color: new THREE.Color(shadeColor).multiplyScalar(1.15), transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false,
   });
   out.makeOilLamp = ({ shadeColor = 0xffb070, scale = 1, seed = 11, flameIntensity = 7 } = {}) => {
     const lamp = new THREE.Group();
@@ -124,7 +130,7 @@ export function buildProps(ctx, root, mat) {
     shade.userData.noShadow = true;
     shade.renderOrder = 5;
     lamp.add(shade);
-    const core = new THREE.Mesh(new THREE.SphereGeometry(0.03, 24, 16), new THREE.MeshBasicMaterial({ color: new THREE.Color(shadeColor).multiplyScalar(1.4), transparent: true, opacity: 0.35, toneMapped: false, depthWrite: false }));
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.03, 24, 16), new THREE.MeshBasicMaterial({ color: new THREE.Color(shadeColor).multiplyScalar(1.2), transparent: true, opacity: 0.18, toneMapped: false, depthWrite: false }));
     core.scale.set(1, 1.4, 1); core.position.y = 0.37; core.userData.noShadow = true;
     lamp.add(core);
     const flame = ctx.fx.flame({ height: 0.04, width: 0.015, intensity: flameIntensity, seed });
@@ -216,7 +222,7 @@ export function buildProps(ctx, root, mat) {
       let y = Hh;
       bs.forEach(([wz, h, dx, m], i) => {
         const b = leatherBook(wz, h, dx, m, mat.pageEdge);
-        b.rotation.y = 0.14 * i - 0.12 + Math.PI; b.position.set(-0.2, y, -0.5);
+        b.rotation.y = 0.14 * i - 0.12 + Math.PI; b.position.set(-0.2, y, -0.18);
         objs.add(b); y += h;
       });
     }
@@ -249,11 +255,11 @@ export function buildProps(ctx, root, mat) {
 
     // oil lamp (the room's warm key) at the far end of the desk
     {
-      const lamp = out.makeOilLamp({ shadeColor: 0xffb070, seed: 11 });
-      lamp.position.set(-0.12, Hh, -0.48);
+      const lamp = out.makeOilLamp({ shadeColor: 0xffb070, seed: 11, flameIntensity: 4 });
+      lamp.position.set(-0.1, Hh, -0.55);
       g.add(lamp);
       const pl = new THREE.PointLight(0xffa252, 3.0, 10, 2);
-      pl.position.set(-0.12, Hh + 0.39, -0.48);
+      pl.position.set(-0.1, Hh + 0.39, -0.55);
       pl.castShadow = ctx.quality.shadows;
       pl.shadow.mapSize.set(1024, 1024);
       pl.shadow.bias = -0.002; pl.shadow.normalBias = 0.025; pl.shadow.radius = 6;
@@ -441,12 +447,12 @@ export function buildProps(ctx, root, mat) {
       arm.rotateY(-a);
       stand.push(arm);
     }
-    g.add(mesh(merge(stand), mat.mahogany, 'globe-stand'));
+    g.add(mesh(merge(stand), mat.caseWood, 'globe-stand'));
     // horizon ring (flat wooden annulus with a printed calendar band)
     const ring = new THREE.Mesh(new THREE.RingGeometry(R + 0.012, R + 0.075, 96, 1), mat.horizonRing);
     ring.rotation.x = -Math.PI / 2; ring.position.y = cy;
     g.add(ring);
-    const ringEdge = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.075, R + 0.075, 0.018, 96, 1, true), mat.mahogany);
+    const ringEdge = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.075, R + 0.075, 0.018, 96, 1, true), mat.caseWood);
     ringEdge.position.y = cy - 0.009;
     g.add(ringEdge);
     // tilted axis assembly: brass meridian + sphere
@@ -637,7 +643,7 @@ export function buildProps(ctx, root, mat) {
 
   // ================================================================ rug (faded Persian)
   {
-    const rug = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 3.4), ctx.materials.create('rug', { palette: 'heriz', aspect: 2.3 / 3.4, knots: 200, wear: 0.7, fringe: 0.04, seed: 7, size: 1536 }));
+    const rug = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 3.4), ctx.materials.create('rug', { palette: 'heriz', colors: { field: [0.3, 0.07, 0.05], border: [0.1, 0.05, 0.04], ivory: [0.42, 0.34, 0.24], gold: [0.45, 0.3, 0.12], teal: [0.1, 0.13, 0.11], dark: [0.05, 0.035, 0.03], rose: [0.38, 0.14, 0.09] }, aspect: 2.3 / 3.4, knots: 200, wear: 0.7, fringe: 0.04, seed: 7, size: 1536 }));
     rug.rotation.x = -Math.PI / 2; rug.rotation.z = 0.04;
     rug.position.set(-1.7, 0.005, -2.3);
     rug.receiveShadow = true;

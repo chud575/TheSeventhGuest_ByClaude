@@ -173,7 +173,7 @@ void surface(vec2 uv, inout Surface s) {
 
 // ------------------------------------------------------------------ wing-chair tapestry
 export function tapestryMap(ctx) {
-  return ctx.textures.generate('library:tapestry:v3', {
+  return ctx.textures.generate('library:tapestry:v4', {
     size: 1024, tile: true, normalStrength: 1.0,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
@@ -186,7 +186,7 @@ void surface(vec2 uv, inout Surface s) {
   float inner = sdRhombus(q, vec2(0.2, 0.26));
   float dots = length(fract(q * 6.0) - 0.5) - 0.18;
   float stripes = sin(q.y * 70.0 + sin(q.x * 18.0) * 2.0);
-  vec3 rust = vec3(0.36, 0.1, 0.05), black = vec3(0.04, 0.025, 0.02), ochre = vec3(0.42, 0.24, 0.09), wine = vec3(0.2, 0.045, 0.035);
+  vec3 rust = vec3(0.4, 0.15, 0.06), black = vec3(0.045, 0.03, 0.02), ochre = vec3(0.46, 0.3, 0.12), wine = vec3(0.24, 0.09, 0.045);
   vec3 col = wine;
   col = mix(col, black, smoothstep(0.02, -0.02, med));
   col = mix(col, rust, smoothstep(0.02, -0.02, med + 0.06) * (0.6 + 0.4 * stripes));
@@ -207,29 +207,46 @@ void surface(vec2 uv, inout Surface s) {
 // ------------------------------------------------------------------ letter atlas (brass prisms of the frieze)
 export const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ ';
 export function letterAtlas(ctx) {
-  const cols = 8, rows = 4, cell = 192;
-  return ctx.textures.canvas('library:letters:v2', cols * cell, rows * cell, (g, w, h) => {
+  // brushed, tarnished brass plates with a deeply engraved serif capital, the cut filled with bright gilt
+  const cols = 8, rows = 4, cell = 256;
+  return ctx.textures.canvas('library:letters:v3', cols * cell, rows * cell, (g, w, h) => {
     for (let i = 0; i < LETTERS.length; i++) {
       const x = (i % cols) * cell, y = Math.floor(i / cols) * cell;
-      // tarnished brass tile
-      const grd = g.createLinearGradient(x, y, x + cell, y + cell);
-      grd.addColorStop(0, '#b08a45'); grd.addColorStop(0.5, '#8a6a32'); grd.addColorStop(1, '#5c4520');
+      const grd = g.createLinearGradient(x, y, x, y + cell);
+      grd.addColorStop(0, '#6e5428'); grd.addColorStop(0.45, '#8c6c34'); grd.addColorStop(0.55, '#7a5d2b'); grd.addColorStop(1, '#4a3618');
       g.fillStyle = grd; g.fillRect(x, y, cell, cell);
-      // bevel
-      g.strokeStyle = 'rgba(255,230,170,0.5)'; g.lineWidth = 6; g.strokeRect(x + 6, y + 6, cell - 12, cell - 12);
-      g.strokeStyle = 'rgba(40,25,10,0.7)'; g.lineWidth = 3; g.strokeRect(x + 12, y + 12, cell - 24, cell - 24);
-      // grime speckle (deterministic)
-      for (let k = 0; k < 220; k++) {
-        const a = Math.sin(i * 91.7 + k * 12.9898) * 43758.5453, b = Math.sin(i * 17.3 + k * 78.233) * 12345.678;
-        const px = x + (a - Math.floor(a)) * cell, py = y + (b - Math.floor(b)) * cell;
-        g.fillStyle = `rgba(30,20,8,${0.08 + 0.12 * ((a * 7) % 1 + 1) % 1})`; g.fillRect(px, py, 3, 3);
+      // brushing (horizontal hairlines)
+      for (let k = 0; k < 140; k++) {
+        const a = Math.sin(i * 31.7 + k * 12.9898) * 43758.5453; const fr = a - Math.floor(a);
+        g.fillStyle = `rgba(${fr > 0.5 ? '255,225,160' : '30,20,8'},${0.04 + 0.05 * fr})`;
+        g.fillRect(x, y + fr * cell, cell, 1);
       }
+      // tarnish blotches
+      for (let k = 0; k < 30; k++) {
+        const a = Math.sin(i * 91.7 + k * 7.13) * 43758.5453, b = Math.sin(i * 17.3 + k * 78.233) * 12345.678;
+        const px = x + (a - Math.floor(a)) * cell, py = y + (b - Math.floor(b)) * cell;
+        const rg = g.createRadialGradient(px, py, 0, px, py, 26);
+        rg.addColorStop(0, 'rgba(25,30,15,0.25)'); rg.addColorStop(1, 'rgba(25,30,15,0)');
+        g.fillStyle = rg; g.fillRect(px - 26, py - 26, 52, 52);
+      }
+      // bevelled border: bright top-left, dark bottom-right
+      g.strokeStyle = 'rgba(255,230,170,0.45)'; g.lineWidth = 5; g.beginPath(); g.moveTo(x + 4, y + cell - 4); g.lineTo(x + 4, y + 4); g.lineTo(x + cell - 4, y + 4); g.stroke();
+      g.strokeStyle = 'rgba(20,12,4,0.7)'; g.beginPath(); g.moveTo(x + cell - 4, y + 4); g.lineTo(x + cell - 4, y + cell - 4); g.lineTo(x + 4, y + cell - 4); g.stroke();
+      // fine engraved border rule
+      g.strokeStyle = 'rgba(20,12,4,0.6)'; g.lineWidth = 2; g.strokeRect(x + 16, y + 16, cell - 32, cell - 32);
+      g.strokeStyle = 'rgba(255,220,140,0.35)'; g.lineWidth = 1; g.strokeRect(x + 18, y + 18, cell - 32, cell - 32);
       const ch = LETTERS[i];
       if (ch !== ' ') {
         g.font = `700 ${Math.round(cell * 0.66)}px Cinzel, "Times New Roman", serif`;
         g.textAlign = 'center'; g.textBaseline = 'middle';
-        g.fillStyle = 'rgba(255,236,190,0.55)'; g.fillText(ch, x + cell / 2 + 2, y + cell / 2 + 6);
-        g.fillStyle = '#1a1006'; g.fillText(ch, x + cell / 2, y + cell / 2 + 4);
+        const cx = x + cell / 2, cy = y + cell / 2 + 8;
+        // the cut: dark wall on the upper-left, highlight lip lower-right
+        g.fillStyle = 'rgba(10,6,2,0.95)'; g.fillText(ch, cx - 3, cy - 3);
+        g.fillStyle = 'rgba(255,235,180,0.5)'; g.fillText(ch, cx + 2, cy + 2);
+        // gilt inlay
+        const gg = g.createLinearGradient(cx - 60, cy - 70, cx + 60, cy + 70);
+        gg.addColorStop(0, '#f6dc8a'); gg.addColorStop(0.5, '#d9a93e'); gg.addColorStop(1, '#a87a22');
+        g.fillStyle = gg; g.fillText(ch, cx, cy);
       }
     }
   }, { tile: false });
@@ -420,7 +437,7 @@ void surface(vec2 uv, inout Surface s) {
 
 // ------------------------------------------------------------------ aged, adzed oak timber (grain along U; tile 1.6 m x 0.4 m)
 export function timberMap(ctx, size = 2048) {
-  return ctx.textures.generate('library:timber:v2', {
+  return ctx.textures.generate('library:timber:v4', {
     size, aspect: 4.0, tile: true, normalStrength: 2.2,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
@@ -430,15 +447,15 @@ void surface(vec2 uv, inout Surface s) {
   float fine = fbm(vec2(uv.x, vy), vec2(4.0, 160.0), 3) * 0.5 + 0.5;
   float rings = fract(abs(vy - 0.5) * 22.0 + fbm(uv + 1.3, vec2(3.0, 2.0), 3) * 0.7);
   float late = smoothstep(0.0, 0.3, rings) * (1.0 - smoothstep(0.5, 1.0, rings));
-  vec3 early = vec3(0.24, 0.16, 0.1), lateC = vec3(0.13, 0.085, 0.055);
-  vec3 col = mix(early, lateC, clamp(0.35 + late * 0.35 + (fine - 0.5) * 0.7, 0.0, 1.0));
+  vec3 early = vec3(0.22, 0.15, 0.095), lateC = vec3(0.15, 0.1, 0.065);
+  vec3 col = mix(early, lateC, clamp(0.4 + late * 0.2 + (fine - 0.5) * 0.7, 0.0, 1.0));
   // medullary ray flecks (oak)
   float ray = smoothstep(0.8, 0.95, vnoise(uv * vec2(40.0, 300.0), vec2(40.0, 300.0)));
   col = mix(col, col * 1.35, ray * 0.4);
   // adze scallops: shallow dished cuts across the grain, irregular spacing
   float ax = uv.x * 26.0 + fbm(uv + 4.0, vec2(4.0, 2.0), 3) * 1.2;
   float sc = fract(ax);
-  float scallop = 1.0 - pow(abs(sc - 0.5) * 2.0, 2.0);
+  float scallop = (1.0 - pow(abs(sc - 0.5) * 2.0, 2.0)) * 0.5;
   float scEdge = smoothstep(0.06, 0.0, min(sc, 1.0 - sc));
   // drying checks: long dark cracks along the grain
   float chk = 0.0;
@@ -456,7 +473,7 @@ void surface(vec2 uv, inout Surface s) {
   col *= 1.0 - scEdge * 0.18;
   col = mix(col, vec3(0.02, 0.015, 0.01), chk * 0.85);
   s.albedo = col;
-  s.height = 0.5 + scallop * 0.18 - scEdge * 0.06 + (fine - 0.5) * 0.08 + late * 0.03 - chk * 0.4;
+  s.height = 0.5 + scallop * 0.18 - scEdge * 0.06 + (fine - 0.5) * 0.08 + late * 0.01 - chk * 0.4;
   s.rough = 0.72 - grime * 0.08 + chk * 0.2;
   s.metal = 0.0;
   s.ao = 1.0 - chk * 0.6 - scEdge * 0.1;
@@ -501,87 +518,101 @@ void surface(vec2 uv, inout Surface s) {
 
 // ------------------------------------------------------------------ vanitas still life (painted: chiaroscuro, brushwork, craquelure)
 export function vanitasMap(ctx) {
-  return ctx.textures.generate('library:vanitas:v1', {
-    size: 1024, aspect: 0.72 / 0.52, tile: false, normalStrength: 1.0,
+  return ctx.textures.generate('library:vanitas:v3', {
+    size: 1024, aspect: 0.72 / 0.52, tile: false, normalStrength: 0.6,
     glsl: /* glsl */ `
-float sdSeg(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h); }
 float sdEll(vec2 p, vec2 c, vec2 r) { vec2 q = (p - c) / r; return (length(q) - 1.0) * min(r.x, r.y); }
+// lambert-ish shade of a pseudo-sphere (centre c, radius r) lit from the upper left
+float sph(vec2 p, vec2 c, float r) {
+  vec2 q = (p - c) / r; float z = sqrt(max(0.0, 1.0 - dot(q, q)));
+  vec3 n = normalize(vec3(q, z + 0.001));
+  return clamp(dot(n, normalize(vec3(-0.55, 0.55, 0.62))), 0.0, 1.0);
+}
 void surface(vec2 uv, inout Surface s) {
-  vec2 p = vec2(uv.x * 1.385, uv.y);   // aspect-correct, x 0..1.385
-  vec2 L = normalize(vec2(-0.7, 0.7));  // light from the upper left
-  // brushwork: directional strokes
+  vec2 p = vec2(uv.x * 1.385, uv.y);
   float stroke1 = fbm(vec2(p.x * 3.0 + p.y * 1.5, p.y * 0.6), vec2(60.0, 8.0), 4);
   float stroke2 = fbm(vec2(p.x * 0.8, p.y * 2.5 - p.x * 0.7), vec2(10.0, 50.0), 3);
-  // background: umber murk, warmer glow around the candle
-  vec2 cand = vec2(1.02, 0.62);
-  float glow = exp(-length((p - cand) * vec2(1.0, 1.2)) * 3.2);
-  vec3 col = mix(vec3(0.035, 0.028, 0.02), vec3(0.16, 0.11, 0.06), glow * 0.9 + 0.08 * (stroke2 * 0.5 + 0.5));
+  vec2 cand = vec2(1.0, 0.66);
+  float glow = exp(-length((p - cand) * vec2(0.9, 1.1)) * 2.6);
+  // murky umber ground, warmed around the flame and toward the upper left (the painted light source)
+  vec3 col = mix(vec3(0.06, 0.045, 0.03), vec3(0.3, 0.2, 0.1), glow * 0.8 + 0.12 * (stroke2 * 0.5 + 0.5));
+  col += vec3(0.08, 0.06, 0.035) * smoothstep(0.9, 0.0, length(p - vec2(0.2, 0.9)));
   // table top + front edge
   float table = step(p.y, 0.3);
-  vec3 tcol = mix(vec3(0.12, 0.07, 0.04), vec3(0.22, 0.14, 0.08), smoothstep(0.0, 0.3, p.y)) * (0.85 + 0.3 * stroke1);
-  tcol *= 0.6 + 0.6 * glow;
+  vec3 tcol = mix(vec3(0.16, 0.09, 0.05), vec3(0.36, 0.23, 0.12), smoothstep(0.05, 0.3, p.y)) * (0.8 + 0.35 * stroke1) * (0.7 + 0.6 * glow);
   col = mix(col, tcol, table);
-  col = mix(col, vec3(0.3, 0.2, 0.1) * (0.5 + glow), stroke(p.y - 0.3, 0.0, 0.004) * 0.7);
-  // red drape falling over the table edge at left, with folds
-  float drapeX = 0.42 + 0.06 * sin(p.y * 9.0);
-  float drape = step(p.x, drapeX) * step(p.y, 0.44 - 0.12 * p.x);
-  float folds = sin(p.x * 46.0 + sin(p.y * 7.0) * 2.0) * 0.5 + 0.5;
-  vec3 dcol = vec3(0.32, 0.04, 0.03) * (0.35 + 0.9 * folds) * (0.7 + 0.5 * glow);
-  dcol += vec3(0.25, 0.08, 0.04) * pow(folds, 8.0) * 0.6;
+  col = mix(col, vec3(0.55, 0.38, 0.2) * (0.6 + glow), stroke(p.y - 0.3, 0.0, 0.003) * 0.8);
+  // crimson drape over the table edge at left, with deep folds
+  float drapeX = 0.46 + 0.05 * sin(p.y * 9.0);
+  float drape = step(p.x, drapeX) * step(p.y, 0.46 - 0.1 * p.x);
+  float folds = sin(p.x * 40.0 + sin(p.y * 7.0) * 2.0) * 0.5 + 0.5;
+  vec3 dcol = vec3(0.5, 0.07, 0.05) * (0.25 + 1.0 * folds) * (0.75 + 0.4 * smoothstep(0.5, 0.0, p.x));
+  dcol += vec3(0.5, 0.2, 0.1) * pow(folds, 10.0) * 0.5;
   col = mix(col, dcol, drape);
-  // book stack (right): three tilted volumes
+  // book stack (right): three tilted volumes with page edges
   for (int i = 0; i < 3; i++) {
     float fi = float(i);
-    vec2 c = vec2(1.03 + fi * 0.015, 0.33 + fi * 0.065);
+    vec2 c = vec2(1.02 + fi * 0.02, 0.335 + fi * 0.062);
     vec2 q = rot2(0.04 - fi * 0.05) * (p - c);
-    float b = sdBox(q, vec2(0.2 - fi * 0.025, 0.03));
-    vec3 bc = fi == 0.0 ? vec3(0.25, 0.12, 0.05) : (fi == 1.0 ? vec3(0.1, 0.12, 0.06) : vec3(0.3, 0.06, 0.04));
-    float pages = step(q.x, -0.16 + fi * 0.025 + 0.15) * step(0.0, q.x - 0.12 + fi * 0.02);
-    bc = mix(bc, vec3(0.62, 0.52, 0.35), pages * 0.8);
-    bc *= 0.55 + 0.7 * clamp(0.5 + q.y * 12.0, 0.0, 1.0) * (0.6 + glow);
+    float b = sdBox(q, vec2(0.21 - fi * 0.03, 0.03));
+    vec3 bc = fi == 0.0 ? vec3(0.42, 0.2, 0.08) : (fi == 1.0 ? vec3(0.16, 0.2, 0.1) : vec3(0.5, 0.1, 0.06));
+    float pages = step(0.0, q.x - (0.12 - fi * 0.03)) * step(abs(q.y), 0.022);
+    bc = mix(bc, vec3(0.85, 0.72, 0.5), pages * 0.85);
+    bc *= (0.45 + 0.75 * clamp(0.5 + q.y * 14.0, 0.0, 1.0)) * (0.65 + 0.6 * glow);
     col = mix(col, bc * (0.85 + 0.25 * stroke1), fill(b, 0.003));
   }
-  // candle on top of the books + flame + halo
-  float candle = sdBox(p - vec2(1.04, 0.5), vec2(0.022, 0.07));
-  col = mix(col, vec3(0.78, 0.7, 0.55) * (0.7 + 0.4 * smoothstep(1.06, 1.02, p.x)), fill(candle, 0.003));
-  float fl = sdEll(p, vec2(1.04, 0.605), vec2(0.011, 0.028));
-  col += vec3(1.0, 0.7, 0.3) * exp(-max(fl, 0.0) * 60.0) * 0.8;
-  col = mix(col, vec3(1.0, 0.93, 0.7), fill(fl, 0.003));
-  // the skull (three-quarter view), lit from the left
-  vec2 sc = vec2(0.68, 0.42);
-  float cran = sdEll(p, sc + vec2(0.0, 0.03), vec2(0.13, 0.115));
-  float face = sdEll(p, sc + vec2(0.05, -0.06), vec2(0.085, 0.075));
-  float jaw = sdEll(p, sc + vec2(0.06, -0.13), vec2(0.06, 0.035));
-  float sk = min(min(cran, face), jaw + 0.004);
-  // fake normal from the cranium ellipse for shading
-  vec2 nrm = normalize((p - sc - vec2(-0.02, 0.0)) / vec2(0.13, 0.12));
-  float shade = clamp(dot(nrm, L) * 0.6 + 0.5, 0.0, 1.0);
-  shade = mix(shade, shade * 0.5 + 0.5 * glow, 0.3);
-  vec3 bone = vec3(0.72, 0.64, 0.48) * (0.15 + 0.95 * shade) * (0.85 + 0.3 * stroke1);
-  float socketL = sdEll(p, sc + vec2(0.005, -0.03), vec2(0.03, 0.026));
-  float socketR = sdEll(p, sc + vec2(0.085, -0.035), vec2(0.024, 0.024));
-  float nasal = sdEll(p, sc + vec2(0.05, -0.08), vec2(0.012, 0.02));
-  float teeth = step(abs(p.y - (sc.y - 0.115)), 0.012) * step(abs(p.x - sc.x - 0.055), 0.045);
-  bone = mix(bone, vec3(0.03, 0.02, 0.015), fill(min(min(socketL, socketR), nasal), 0.006));
-  bone = mix(bone, bone * (0.6 + 0.4 * step(0.5, fract(p.x * 120.0))), teeth);
-  col = mix(col, bone, fill(sk, 0.004));
-  // a dark rim between skull and murk (painted contour)
-  col *= 1.0 - stroke(sk, 0.0, 0.004) * 0.4;
-  // hourglass on the far left behind the drape
-  vec2 hp = p - vec2(0.22, 0.47);
-  float hg = max(abs(hp.y) - 0.1, abs(hp.x) - (0.012 + 0.05 * abs(hp.y) / 0.1));
-  col = mix(col, vec3(0.38, 0.3, 0.18) * (0.5 + 0.6 * smoothstep(0.05, -0.05, hp.x)), fill(hg, 0.003) * 0.85);
-  col = mix(col, vec3(0.2, 0.12, 0.06), (fill(sdBox(hp - vec2(0.0, 0.105), vec2(0.06, 0.008)), 0.002) + fill(sdBox(hp + vec2(0.0, 0.105), vec2(0.06, 0.008)), 0.002)));
-  // varnish: yellowed, darkest at the edges; craquelure
-  float edgeV = smoothstep(0.0, 0.25, min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y)));
-  col *= mix(0.55, 1.0, edgeV);
-  col *= vec3(1.0, 0.9, 0.7);
-  float crack = 1.0 - smoothstep(0.0, 0.02, voronoiEdge(uv * vec2(38.0, 28.0), vec2(38.0, 28.0), 0.9));
-  col *= 1.0 - crack * 0.35;
+  // candle + flame + halo
+  float candle = sdBox(p - vec2(1.04, 0.52), vec2(0.022, 0.075));
+  col = mix(col, vec3(0.9, 0.82, 0.62) * (0.65 + 0.45 * smoothstep(1.065, 1.02, p.x)), fill(candle, 0.003));
+  float fl = sdEll(p, vec2(1.04, 0.635), vec2(0.012, 0.03));
+  col += vec3(1.0, 0.7, 0.3) * exp(-max(fl, 0.0) * 45.0) * 0.7;
+  col = mix(col, vec3(1.0, 0.95, 0.75), fill(fl, 0.003));
+  // the skull, three-quarter view toward the candle
+  vec2 sc = vec2(0.66, 0.43);
+  float cran = sdEll(p, sc + vec2(0.0, 0.035), vec2(0.13, 0.115));
+  float face = sdEll(p, sc + vec2(0.055, -0.055), vec2(0.09, 0.08));
+  float cheek = sdEll(p, sc + vec2(0.1, -0.075), vec2(0.03, 0.04));
+  float jaw = sdEll(p, sc + vec2(0.07, -0.135), vec2(0.065, 0.035));
+  float sk = min(min(min(cran, face), cheek), jaw + 0.003);
+  float sh = sph(p, sc + vec2(0.03, -0.02), 0.17);
+  // warm reflected light from the candle on the right side
+  float bounce = smoothstep(0.0, 0.12, p.x - sc.x) * 0.35;
+  vec3 bone = vec3(0.86, 0.78, 0.6) * (0.18 + 1.05 * sh) + vec3(0.5, 0.3, 0.1) * bounce;
+  bone *= 0.88 + 0.25 * stroke1;
+  // planes: brow ridge highlight, temple hollow, cheek shadow
+  bone *= 1.0 + 0.3 * fill(sdEll(p, sc + vec2(0.045, -0.005), vec2(0.085, 0.012)), 0.012);
+  bone *= 1.0 - 0.4 * fill(sdEll(p, sc + vec2(-0.045, -0.02), vec2(0.03, 0.045)), 0.02);
+  float socketL = sdEll(p, sc + vec2(0.012, -0.038), vec2(0.036, 0.031));
+  float socketR = sdEll(p, sc + vec2(0.094, -0.043), vec2(0.026, 0.029));
+  float nasal = sdEll(p, sc + vec2(0.058, -0.088), vec2(0.013, 0.022));
+  float holes = min(min(socketL, socketR), nasal);
+  bone = mix(bone, vec3(0.025, 0.016, 0.01), fill(holes, 0.004));
+  bone = mix(bone, bone * 0.55, stroke(holes, 0.004, 0.004));      // soft painted rim round each cavity
+  // teeth: a row of small blocks with dark gaps, a missing one
+  float ty = sc.y - 0.118;
+  float tband = step(abs(p.y - ty), 0.013) * step(abs(p.x - sc.x - 0.062), 0.045);
+  float gap = step(0.78, fract((p.x - sc.x) * 95.0)) + step(0.0, p.x - sc.x - 0.07) * step(p.x - sc.x - 0.08, 0.0);
+  bone = mix(bone, vec3(0.03, 0.02, 0.015), tband * clamp(gap, 0.0, 1.0));
+  bone = mix(bone, vec3(0.03, 0.02, 0.015), stroke(p.y - ty, 0.0, 0.0018) * step(abs(p.x - sc.x - 0.062), 0.045));
+  col = mix(col, bone, fill(sk, 0.003));
+  col *= 1.0 - stroke(sk, 0.0, 0.003) * 0.5;
+  // cast shadow of the skull on the table
+  col *= 1.0 - 0.5 * fill(sdEll(p, sc + vec2(-0.08, -0.17), vec2(0.13, 0.025)), 0.03) * table;
+  // hourglass at the far left, behind the drape
+  vec2 hp = p - vec2(0.24, 0.5);
+  float hg = max(abs(hp.y) - 0.1, abs(hp.x) - (0.01 + 0.05 * abs(hp.y) / 0.1));
+  col = mix(col, vec3(0.55, 0.45, 0.28) * (0.35 + 0.8 * smoothstep(0.05, -0.05, hp.x)), fill(hg, 0.003) * 0.8);
+  col = mix(col, vec3(0.35, 0.2, 0.1), (fill(sdBox(hp - vec2(0.0, 0.105), vec2(0.06, 0.008)), 0.002) + fill(sdBox(hp + vec2(0.0, 0.105), vec2(0.06, 0.008)), 0.002)));
+  // varnish: yellowed, darker toward the edges; fine craquelure
+  float edgeV = smoothstep(0.0, 0.2, min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y)));
+  col *= mix(0.6, 1.0, edgeV);
+  col *= vec3(1.0, 0.92, 0.75);
+  float crack = 1.0 - smoothstep(0.0, 0.012, voronoiEdge(uv * vec2(46.0, 34.0), vec2(46.0, 34.0), 0.9));
+  col *= 1.0 - crack * 0.18;
   s.albedo = col;
-  s.height = 0.5 + stroke1 * 0.08 + stroke2 * 0.04 - crack * 0.3;
-  s.rough = 0.35 + crack * 0.3;
-  s.metal = 0.0; s.ao = 1.0 - crack * 0.3;
+  s.height = 0.5 + stroke1 * 0.06 + stroke2 * 0.03 - crack * 0.12;
+  s.rough = 0.4 + crack * 0.2;
+  s.metal = 0.0; s.ao = 1.0 - crack * 0.15;
 }`,
   });
 }
