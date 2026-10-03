@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Bucket, mat4, rng } from './lib.js';
-import { height } from './terrain.js';
+import { height, scatter, pathCurve } from './terrain.js';
+import { instanced } from './lib.js';
 import { gnarledTree } from './trees.js';
 
 /** The Stauf family plot: leaning headstones, a Celtic cross, an obelisk, a broken column. */
@@ -128,5 +129,89 @@ export function buildDressing(ctx, M, { rocks = [], bushes = [] }) {
     m.castShadow = true; m.receiveShadow = true;
     group.add(m);
   }
+  return group;
+}
+
+/** Small field stones lining both verges of the carriage drive (instanced, a few templates). */
+export function buildVerge(ctx, M, { from = 0.25, to = 0.9, seed = 61 } = {}) {
+  const R = rng(seed);
+  const temps = [boulderGeometry(101, 1), boulderGeometry(102, 1), boulderGeometry(103, 1)];
+  const lists = temps.map(() => []);
+  const n = 260;
+  for (let i = 0; i < n; i++) {
+    const t = from + (to - from) * (i / n) + (R() - 0.5) * 0.002;
+    const p = pathCurve.getPointAt(Math.min(1, t));
+    const tan = pathCurve.getTangentAt(Math.min(1, t));
+    const side = new THREE.Vector3(tan.z, 0, -tan.x).normalize();
+    for (const sgn of [-1, 1]) {
+      if (R() < 0.35) continue;
+      const off = 1.18 + R() * 0.35;
+      const x = p.x + side.x * off * sgn, z = p.z + side.z * off * sgn;
+      const r = 0.06 + Math.pow(R(), 2.5) * 0.22;
+      lists[i % 3].push(mat4(x, height(x, z) + r * 0.05, z, (R() - 0.5) * 0.4, R() * 6.28, (R() - 0.5) * 0.4, r * (0.9 + R() * 0.5), r, r * (0.9 + R() * 0.5)));
+    }
+  }
+  const g = new THREE.Group();
+  g.name = 'verge';
+  temps.forEach((t, i) => g.add(instanced(t, M.rock, lists[i], { name: `verge${i}`, cast: true })));
+  return g;
+}
+
+/** Fallen oak leaves: curled little cards, instanced, darker wet ones on the drive. */
+export function buildLeafLitter(ctx, { regions, count = 2500, seed = 44 }) {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, -0.5);
+  shape.bezierCurveTo(0.3, -0.35, 0.42, 0.05, 0.22, 0.25);
+  shape.bezierCurveTo(0.32, 0.32, 0.18, 0.5, 0, 0.5);
+  shape.bezierCurveTo(-0.18, 0.5, -0.32, 0.32, -0.22, 0.25);
+  shape.bezierCurveTo(-0.42, 0.05, -0.3, -0.35, 0, -0.5);
+  const geo = new THREE.ShapeGeometry(shape, 4);
+  // curl: lift the edges
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i); p.setXYZ(i, x, y, x * x * 0.9 + y * y * 0.2); }
+  geo.rotateX(-Math.PI / 2);
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.75, side: THREE.DoubleSide, name: 'leaves' });
+  mat.userData.groundShade = true;
+  const pts = scatter({ regions, count, seed });
+  const R = rng(seed + 1);
+  const ms = pts.map((q) => {
+    const s = 0.05 + R() * 0.05;
+    return mat4(q.x, q.y + 0.012, q.z, (R() - 0.5) * 0.6, R() * 6.28, (R() - 0.5) * 0.6, s, s, s);
+  });
+  const m = instanced(geo, mat, ms, { name: 'leafLitter', cast: false });
+  const c = new THREE.Color();
+  for (let i = 0; i < ms.length; i++) {
+    const k = R();
+    if (k < 0.5) c.setRGB(0.16, 0.08, 0.035); else if (k < 0.8) c.setRGB(0.24, 0.14, 0.06); else c.setRGB(0.09, 0.07, 0.05);
+    c.multiplyScalar((0.7 + R() * 0.6) * 0.5);
+    m.setColorAt(i, c);
+  }
+  m.instanceColor.needsUpdate = true;
+  return m;
+}
+
+/** A toppled, broken garden urn with its plinth and shards, half sunk in the grass. */
+export function buildBrokenUrn(ctx, M, { x, z, ry = 0 }) {
+  const G = ctx.geometry;
+  const B = new Bucket();
+  const y = height(x, z);
+  const prof = [[0.0, 0], [0.16, 0], [0.16, 0.04], [0.1, 0.08], [0.08, 0.16], [0.12, 0.2], [0.24, 0.3], [0.3, 0.42], [0.31, 0.52], [0.27, 0.6], [0.24, 0.64], [0.3, 0.68], [0.32, 0.72], [0.0, 0.72]];
+  const urn = new THREE.LatheGeometry(prof.map(([r, yy]) => new THREE.Vector2(r, yy)), 24, 0.4, Math.PI * 2 - 1.5);
+  // lying on its side, rim toward the camera
+  B.add(urn, M.grave, mat4(x, y + 0.22, z, 0, ry, Math.PI / 2 - 0.15), { uvScale: 1 });
+  // the square plinth it fell from, tilted in the turf
+  B.add(new THREE.BoxGeometry(0.5, 0.55, 0.5), M.grave, mat4(x - 0.9, y + 0.15, z - 0.4, 0.08, ry + 0.3, 0.12), { uvScale: 1 });
+  B.add(G.latheFromProfile([[0.0, 0], [0.36, 0], [0.36, 0.05], [0.32, 0.09], [0.0, 0.09]], 4), M.grave, mat4(x - 0.88, y + 0.42, z - 0.38, 0.08, ry + 0.3 + Math.PI / 4, 0.12), { uv: 'box', uvScale: 1 });
+  // shards
+  const R = rng(9);
+  for (let i = 0; i < 6; i++) {
+    const g = new THREE.LatheGeometry(prof.slice(4, 9).map(([r, yy]) => new THREE.Vector2(r, yy)), 4, R() * 6, 0.5 + R() * 0.4);
+    const sx = x + 0.4 + R() * 0.8, sz = z + (R() - 0.5) * 0.9;
+    B.add(g, M.grave, mat4(sx, height(sx, sz) + 0.02, sz, R() * 3, R() * 6, R() * 3, 0.9), { uvScale: 1 });
+  }
+  const group = new THREE.Group();
+  group.name = 'brokenUrn';
+  B.build(group, { name: 'urn' });
   return group;
 }

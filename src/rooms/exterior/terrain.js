@@ -238,3 +238,136 @@ function mergeSimple(list) {
 }
 
 export { pathCurve };
+
+/**
+ * Clump template: `blades` curved, tapered blades radiating from a small footprint.
+ * Vertex colour darkens toward the root (AO in the thatch); normals lean upward so
+ * the clump lights like a soft volume rather than flat cards.
+ */
+function bladeClump(seed, { blades = 18, segs = 3, height = 1, spread = 0.12 } = {}) {
+  const R = rng(seed);
+  const pos = [], nor = [], col = [];
+  const v = new THREE.Vector3();
+  for (let b = 0; b < blades; b++) {
+    const a = R() * Math.PI * 2;
+    const r0 = Math.sqrt(R()) * spread;
+    const bx = Math.cos(a) * r0, bz = Math.sin(a) * r0;
+    const h = height * (0.45 + 0.55 * R());
+    const lean = 0.15 + R() * 0.55;                  // outward lean
+    const la = a + (R() - 0.5) * 0.9;
+    const w0 = 0.012 + R() * 0.012;
+    const face = la + Math.PI / 2 + (R() - 0.5) * 0.8;
+    const fx = Math.cos(face), fz = Math.sin(face);
+    const ring = [];
+    for (let i = 0; i <= segs; i++) {
+      const t = i / segs;
+      const off = lean * h * t * t;
+      const cx = bx + Math.cos(la) * off, cz = bz + Math.sin(la) * off;
+      const cy = h * t * (1 - 0.25 * lean * t);
+      const w = w0 * (1 - t * 0.92);
+      ring.push([cx - fx * w, cy, cz - fz * w, cx + fx * w, cy, cz + fz * w, t]);
+    }
+    const nX = Math.cos(la) * 0.35, nZ = Math.sin(la) * 0.35;
+    for (let i = 0; i < segs; i++) {
+      const p = ring[i], q = ring[i + 1];
+      const quad = [[p[0], p[1], p[2], p[6]], [p[3], p[4], p[5], p[6]], [q[0], q[1], q[2], q[6]], [q[3], q[4], q[5], q[6]]];
+      for (const k of [0, 1, 2, 1, 3, 2]) {
+        const [x, y, z, t] = quad[k];
+        pos.push(x, y, z);
+        v.set(nX, 0.9, nZ).normalize();
+        nor.push(v.x, v.y, v.z);
+        const c = 0.12 + 0.88 * Math.pow(t, 0.7);
+        col.push(c, c, c);
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  return g;
+}
+
+/**
+ * Real blade grass in clumps, three/four clump scales, patchy (bare earth between
+ * clumps, denser in hollows and along the fence), olive-grey dead straw.
+ * Returns a Group of InstancedMeshes (one per template).
+ */
+export function buildBladeGrass({ material, regions, count = 6000, seed = 21, avoid = [], pathClear = 1.3 }) {
+  const templates = [
+    bladeClump(seed + 1, { blades: 22, segs: 3, height: 1, spread: 0.1 }),
+    bladeClump(seed + 2, { blades: 14, segs: 3, height: 1, spread: 0.07 }),
+    bladeClump(seed + 3, { blades: 30, segs: 4, height: 1, spread: 0.16 }),
+  ];
+  const R = rng(seed);
+  const lists = templates.map(() => []);
+  const cols = templates.map(() => []);
+  const total = regions.reduce((s, r) => s + r.weight, 0);
+  const c = new THREE.Color();
+  for (const r of regions) {
+    const n = Math.round(count * r.weight / total);
+    let placed = 0, tries = 0;
+    while (placed < n && tries < n * 6) {
+      tries++;
+      const x = r.x0 + (r.x1 - r.x0) * R();
+      const z = r.z0 + (r.z1 - r.z0) * R();
+      // patchiness: clumps gather where the low-frequency noise is high
+      const dens = fbm(x * 0.35 + 11, z * 0.35 + 5, 3);
+      if (R() > THREE.MathUtils.smoothstep(dens, 0.32, 0.62)) continue;
+      if (z > 9) { const pn = pathNearest(x, z); if (pn.dist < pathClear + R() * 0.5) continue; }
+      if (avoid.some((a) => Math.hypot(x - a[0], z - a[1]) < a[2])) continue;
+      const y = height(x, z);
+      // 4 clump scales: tufts, knee-high clumps, tall stands, the odd giant
+      const k = R();
+      const s = k < 0.45 ? 0.18 + R() * 0.12 : k < 0.8 ? 0.32 + R() * 0.15 : k < 0.97 ? 0.5 + R() * 0.2 : 0.75 + R() * 0.25;
+      const ti = Math.floor(R() * templates.length);
+      lists[ti].push(new THREE.Matrix4().compose(
+        new THREE.Vector3(x, y - 0.02, z),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler((R() - 0.5) * 0.2, R() * Math.PI * 2, (R() - 0.5) * 0.2)),
+        new THREE.Vector3(s * (0.8 + R() * 0.5), s * (0.85 + dens * 0.5), s * (0.8 + R() * 0.5)),
+      ));
+      // olive-grey dead straw, some greener, some bleached
+      const v = (0.55 + R() * 0.55) * 0.55;
+      const g = R();
+      if (g < 0.25) c.setRGB(0.20 * v, 0.215 * v, 0.15 * v);
+      else if (g < 0.85) c.setRGB(0.27 * v, 0.26 * v, 0.19 * v);
+      else c.setRGB(0.36 * v, 0.34 * v, 0.27 * v);
+      cols[ti].push(c.clone());
+      placed++;
+    }
+  }
+  const group = new THREE.Group();
+  group.name = 'bladeGrass';
+  templates.forEach((t, i) => {
+    if (!lists[i].length) return;
+    const m = instanced(t, material, lists[i], { cast: false, receive: true, name: `bladeGrass${i}` });
+    cols[i].forEach((cc, j) => m.setColorAt(j, cc));
+    m.instanceColor.needsUpdate = true;
+    group.add(m);
+  });
+  return group;
+}
+
+/** Scatter positions helper for dressing (deterministic). */
+export function scatter({ regions, count, seed = 3, avoidPath = 0, onPath = false, pathBand = null }) {
+  const R = rng(seed);
+  const out = [];
+  const total = regions.reduce((s, r) => s + r.weight, 0);
+  for (const r of regions) {
+    const n = Math.round(count * r.weight / total);
+    let placed = 0, tries = 0;
+    while (placed < n && tries < n * 8) {
+      tries++;
+      const x = r.x0 + (r.x1 - r.x0) * R();
+      const z = r.z0 + (r.z1 - r.z0) * R();
+      if (z > 9 && (avoidPath || pathBand)) {
+        const pn = pathNearest(x, z);
+        if (avoidPath && pn.dist < avoidPath) continue;
+        if (pathBand && (pn.dist < pathBand[0] || pn.dist > pathBand[1])) continue;
+      }
+      out.push({ x, z, y: height(x, z), r: R() });
+      placed++;
+    }
+  }
+  return out;
+}

@@ -93,6 +93,10 @@ export function createFogUniforms() {
     uHFogMax: { value: 0.92 },
     uHFogFlash: { value: 0.0 },
     uHFogTime: { value: 0 },
+    // moon rim light (backlit silhouettes): world-space light dir, colour, strength
+    uRimDir: { value: new THREE.Vector3(0, 0.5, -1).normalize() },
+    uRimColor: { value: new THREE.Color(0.55, 0.66, 1.0) },
+    uRimStrength: { value: 1.0 },
   };
 }
 
@@ -107,6 +111,9 @@ uniform float uHFogHaze;
 uniform float uHFogMax;
 uniform float uHFogFlash;
 uniform float uHFogTime;
+uniform vec3 uRimDir;
+uniform vec3 uRimColor;
+uniform float uRimStrength;
 ${FX_NOISE.replace(/fx/g, 'hf')}
 vec4 hfogEval(vec3 camPos, vec3 wpos) {
   vec3 rd = wpos - camPos;
@@ -132,6 +139,32 @@ vec4 hfogEval(vec3 camPos, vec3 wpos) {
 }
 `;
 
+/**
+ * Moon rim: a grazing-angle sheen on surfaces that face the (back-lighting) moon.
+ * Lets rooflines, finials, cresting, branches and bars catch a silver edge while the
+ * camera-facing facades stay in deep shadow. userData.rim = strength (e.g. 1).
+ */
+function rimChunk(m) {
+  if (!m.userData.rim) return '';
+  return `{ vec3 rn = normalize(normal); vec3 rv = normalize(vViewPosition);
+  vec3 rl = normalize((viewMatrix * vec4(uRimDir, 0.0)).xyz);
+  float ndv = clamp(dot(rn, rv), 0.0, 1.0);
+  float fr = pow(1.0 - ndv, 3.0);
+  float face = smoothstep(-0.15, 0.55, dot(rn, rl));
+  float back = 0.35 + 0.65 * clamp(-dot(rv, rl) * 0.5 + 0.5, 0.0, 1.0);
+  gl_FragColor.rgb += uRimColor * (fr * face * back * uRimStrength * ${Number(m.userData.rim).toFixed(3)}) * (0.25 + diffuseColor.rgb * 2.0); }\n`;
+}
+/** Ground grime: darken + green the bottom of a surface (moss, rising damp) between world y0 and y0+h. */
+function grimeChunk(m) {
+  const g = m.userData.grime;
+  if (!g) return '';
+  const f = (v) => Number(v).toFixed(3);
+  return `{ float gy = clamp((vHFogW.y - ${f(g.y0)}) / ${f(g.h)}, 0.0, 1.0);
+  float gn = hfNoise(vHFogW * vec3(2.3, 5.0, 2.3)) * 0.5 + hfNoise(vHFogW * 7.0) * 0.25;
+  float gm = 1.0 - smoothstep(0.0, 1.0, gy + (gn - 0.4) * 0.5);
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * vec3(0.32, 0.4, 0.26), gm * ${f(g.moss ?? 1)}); }\n`;
+}
+
 /** Patch a Standard/Physical/Basic material so it receives the exterior height fog. */
 export function patchFog(material, U) {
   if (material.userData.hfog) return material;
@@ -151,13 +184,14 @@ export function patchFog(material, U) {
   vHFogW = (modelMatrix * hw).xyz; }`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\nvarying vec3 vHFogW;\n${HFOG_PARS}`)
-      .replace('#include <fog_fragment>', `${material.userData.groundShade ? `{ float gd = length(vHFogW - cameraPosition);
+      .replace('#include <fog_fragment>', `${rimChunk(material)}${grimeChunk(material)}${material.userData.groundShade ? `{ float gd = length(vHFogW - cameraPosition);
   float cs = hfNoise(vec3(vHFogW.xz * 0.045 + vec2(uHFogTime * 0.03, uHFogTime * 0.01), 3.7));
-  gl_FragColor.rgb *= mix(0.5, 1.0, smoothstep(1.5, 11.0, gd)) * mix(0.55, 1.1, smoothstep(0.3, 0.7, cs)); }` : ''}
+  gl_FragColor.rgb *= mix(0.75, 1.0, smoothstep(1.5, 9.0, gd)) * mix(0.6, 1.1, smoothstep(0.3, 0.7, cs)); }` : ''}
 { vec4 hf = hfogEval(cameraPosition, vHFogW); gl_FragColor.rgb = mix(gl_FragColor.rgb, hf.rgb, hf.a); }`);
   };
   const key = material.customProgramCacheKey?.bind(material);
-  material.customProgramCacheKey = () => (key ? key() : '') + '|hfog' + (material.userData.groundShade ? 'g' : '');
+  const ud = material.userData;
+  material.customProgramCacheKey = () => (key ? key() : '') + '|hfog' + (ud.groundShade ? 'g' : '') + (ud.rim ? `r${ud.rim}` : '') + (ud.grime ? `m${ud.grime.y0},${ud.grime.h},${ud.grime.moss ?? 1}` : '');
   material.needsUpdate = true;
   return material;
 }

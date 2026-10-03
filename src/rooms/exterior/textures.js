@@ -152,35 +152,49 @@ void surface(vec2 uv, inout Surface s) {
   s.ao = 0.7 + 0.3 * s.height;
 }` });
 
-  // Path: irregular flagstones set in dark earth and gravel; alpha-ragged edges across U.
-  const path = T.generate('ext:path2', {
-    size: 1024, aspect: 0.5, tile: true, normalStrength: 3.0,
+  // Carriage drive: packed gravel with two wheel ruts (puddled, mirror-wet), a mossy crown
+  // between them, scattered larger cobbles, ragged grass-eaten verges. u across (2.5 m), v along (5 m/tile).
+  const path = T.generate('ext:path4', {
+    size: 1024, aspect: 0.5, tile: true, normalStrength: 3.2,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
-  vec2 p = vec2(uv.x * 1.0, uv.y * 2.0);   // 1 x 2 aspect: 2.4 m wide, 4.8 m long
-  vec4 v = voronoi(p * vec2(4.0, 4.0), vec2(4.0, 8.0), 0.85);
-  float edge = voronoiEdge(p * vec2(4.0, 4.0), vec2(4.0, 8.0), 0.85);
+  vec2 p = vec2(uv.x * 1.0, uv.y * 2.0);
   float n = fbm(p, vec2(8.0, 16.0), 5) * 0.5 + 0.5;
-  float stone = smoothstep(0.03, 0.09, edge + (n - 0.5) * 0.04);
-  float h = hash12(v.zw);
-  vec3 sc = mix(vec3(0.26, 0.25, 0.235), vec3(0.36, 0.34, 0.31), h) * (0.75 + 0.45 * n);
-  sc = mix(sc, vec3(0.16, 0.19, 0.12), smoothstep(0.6, 0.85, fbm(p + 1.3, vec2(6.0, 12.0), 4) * 0.5 + 0.5) * 0.5);
-  vec4 gv = voronoi(p * 70.0, vec2(70.0, 140.0), 1.0);
-  vec3 gravel = mix(vec3(0.07, 0.06, 0.05), vec3(0.2, 0.19, 0.18), hash12(gv.zw)) * smoothstep(0.6, 0.2, gv.x);
-  vec3 col = mix(gravel, sc, stone);
-  // wet dark wheel ruts / puddle sheen near centre
-  float wet = smoothstep(0.62, 0.8, fbm(p + 5.0, vec2(3.0, 6.0), 5) * 0.5 + 0.5);
-  col *= 1.0 - wet * 0.35;
-  // ragged edges across the width, eaten by grass
+  float wob = (fbm(vec2(0.0, p.y * 3.0), vec2(1.0, 6.0), 3)) * 0.035;
+  float u = uv.x + wob;
+  float rutD = min(abs(u - 0.29), abs(u - 0.71));
+  float rut = 1.0 - smoothstep(0.035, 0.085, rutD + (n - 0.5) * 0.02);
+  float crown = smoothstep(0.12, 0.05, abs(u - 0.5) + (n - 0.5) * 0.06);
+  // gravel: three sizes of stones
+  vec4 g1 = voronoi(p * vec2(55.0, 55.0), vec2(55.0, 110.0), 1.0);
+  vec4 g2 = voronoi(p * vec2(22.0, 22.0), vec2(22.0, 44.0), 0.9);
+  vec4 g3 = voronoi(p * vec2(7.0, 7.0), vec2(7.0, 14.0), 0.8);
+  float s1 = smoothstep(0.55, 0.15, g1.x);
+  float s2 = smoothstep(0.42, 0.18, g2.x) * step(0.55, hash12(g2.zw));
+  float s3 = smoothstep(0.3, 0.16, g3.x) * step(0.8, hash12(g3.zw + 2.0));
+  vec3 grav = mix(vec3(0.12, 0.115, 0.105), vec3(0.42, 0.40, 0.37), s1 * (0.5 + 0.5 * hash12(g1.zw)));
+  grav = mix(grav, vec3(0.46, 0.44, 0.41) * (0.7 + 0.5 * hash12(g2.zw + 1.0)), s2);
+  grav = mix(grav, vec3(0.5, 0.48, 0.45) * (0.75 + 0.4 * hash12(g3.zw + 3.0)), s3);
+  grav *= 0.8 + 0.35 * n;
+  // ruts: compacted dark mud, puddles in the low spots
+  vec3 mud = vec3(0.06, 0.05, 0.04) * (0.8 + 0.4 * n);
+  float pud = smoothstep(0.5, 0.56, fbm(p * vec2(1.0, 1.0) + 3.3, vec2(4.0, 8.0), 5) * 0.5 + 0.5) * smoothstep(0.3, 0.9, rut + crown * 0.0);
+  vec3 col = mix(grav, mud, rut * 0.92);
+  // mossy crown with a few straw blades
+  float straw = vnoise(vec2(p.x * 300.0, p.y * 30.0), vec2(1e4));
+  vec3 moss = mix(vec3(0.06, 0.07, 0.04), vec3(0.16, 0.15, 0.1), straw);
+  col = mix(col, moss, crown * smoothstep(0.35, 0.65, n) * 0.85);
+  col = mix(col, vec3(0.012, 0.014, 0.018), pud);
+  // ragged edges, eaten by grass
   float e = min(uv.x, 1.0 - uv.x);
   float rag = fbm(vec2(uv.x * 0.2, p.y * 3.0), vec2(1.0, 6.0), 5) * 0.06;
   s.alpha = smoothstep(0.03, 0.09, e + rag);
-  col = mix(vec3(0.12, 0.11, 0.07), col, smoothstep(0.05, 0.16, e + rag));
+  col = mix(vec3(0.09, 0.085, 0.06), col, smoothstep(0.05, 0.16, e + rag));
   s.albedo = col;
-  s.height = stone * (0.6 + 0.2 * n) + (1.0 - stone) * 0.2 * smoothstep(0.6, 0.2, gv.x);
-  s.rough = mix(0.9, 0.68, stone) - wet * 0.2;
+  s.height = 0.55 + s1 * 0.12 + s2 * 0.2 + s3 * 0.3 - rut * 0.35 - pud * 0.1;
+  s.rough = mix(mix(0.92, 0.75, rut), 0.04, pud);
   s.metal = 0.0;
-  s.ao = mix(0.5, 1.0, stone);
+  s.ao = mix(0.55, 1.0, s1 * 0.5 + 0.5) * (1.0 - rut * 0.2);
 }` });
 
   // Weathered dressed stone blocks for the foundation, piers, steps. 1 tile = 2 m.
@@ -270,7 +284,66 @@ void surface(vec2 uv, inout Surface s) {
   s.ao = mix(0.4, 1.0, 1.0 - crack);
 }` });
 
-  return { siding, slate, bark, ground, path, ashlar, trim, iron, rock };
+  // Tooled limestone without joints (geometry supplies the blocks): pitted, lichen
+  // rosettes, black rain streaks, a little orange iron staining. 1 tile = 1 m.
+  const limestone = T.generate('ext:limestone1', {
+    size: 1024, normalStrength: 3.5,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  float n = fbm(uv, vec2(5.0), 6) * 0.5 + 0.5;
+  float n2 = fbm(uv + 4.1, vec2(20.0), 5) * 0.5 + 0.5;
+  // tooling: fine parallel chisel strokes in patches
+  float tool = vnoise(vec2(uv.x * 260.0 + n * 6.0, uv.y * 14.0), vec2(1e4));
+  float pits = smoothstep(0.62, 0.8, fbm(uv + 1.7, vec2(60.0), 4) * 0.5 + 0.5);
+  vec3 col = mix(vec3(0.27, 0.26, 0.24), vec3(0.42, 0.40, 0.36), n) * (0.85 + 0.25 * n2);
+  col *= 0.94 + 0.08 * tool;
+  // lichen rosettes (pale grey-green) and dark moss
+  vec4 lv = voronoi(uv * 9.0, vec2(9.0), 1.0);
+  float lich = smoothstep(0.42, 0.2, lv.x) * step(0.72, hash12(lv.zw)) * smoothstep(0.4, 0.7, n2);
+  col = mix(col, vec3(0.55, 0.57, 0.48), lich * 0.6);
+  float moss = smoothstep(0.62, 0.82, fbm(uv + 7.7, vec2(4.0), 5) * 0.5 + 0.5);
+  col = mix(col, vec3(0.08, 0.1, 0.05), moss * 0.55);
+  // black vertical rain streaks
+  float streak = smoothstep(0.55, 0.95, fbm(vec2(uv.x * 14.0, uv.y * 0.7), vec2(14.0, 1.0), 4) * 0.5 + 0.5);
+  col *= 1.0 - streak * 0.55;
+  float rust = smoothstep(0.75, 0.9, fbm(vec2(uv.x * 6.0, uv.y * 1.2) + 9.0, vec2(6.0, 1.0), 4) * 0.5 + 0.5);
+  col = mix(col, col * vec3(1.25, 0.85, 0.6), rust * 0.5);
+  col *= 1.0 - pits * 0.45;
+  s.albedo = col;
+  s.height = 0.5 + n * 0.25 + tool * 0.03 - pits * 0.2 + lich * 0.05;
+  s.rough = 0.9 - lich * 0.05;
+  s.metal = 0.0;
+  s.ao = 1.0 - pits * 0.4;
+}` });
+
+  // Granite headstones: grey speckled granite and pale limestone variants share one map;
+  // 1 tile = 1 m. Lichen blooms, dark damp toward the base handled by grime chunk.
+  const granite = T.generate('ext:granite1', {
+    size: 1024, normalStrength: 2.5,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  float n = fbm(uv, vec2(4.0), 6) * 0.5 + 0.5;
+  vec4 c1 = voronoi(uv * 140.0, vec2(140.0), 1.0);
+  vec4 c2 = voronoi(uv * 60.0, vec2(60.0), 1.0);
+  float h1 = hash12(c1.zw), h2 = hash12(c2.zw);
+  vec3 col = vec3(0.33, 0.33, 0.335) * (0.85 + 0.3 * n);
+  col = mix(col, vec3(0.08, 0.08, 0.09), step(0.72, h1) * 0.8);       // black mica
+  col = mix(col, vec3(0.52, 0.51, 0.5), step(0.85, h2) * 0.5);        // feldspar
+  vec4 lv = voronoi(uv * 6.0, vec2(6.0), 1.0);
+  float lich = smoothstep(0.5, 0.15, lv.x + (fbm(uv * 3.0, vec2(12.0), 3)) * 0.2) * step(0.55, hash12(lv.zw));
+  col = mix(col, mix(vec3(0.5, 0.52, 0.42), vec3(0.42, 0.4, 0.25), hash12(lv.zw + 2.0)), lich * 0.75);
+  float moss = smoothstep(0.6, 0.85, fbm(uv + 2.2, vec2(5.0), 5) * 0.5 + 0.5);
+  col = mix(col, vec3(0.07, 0.09, 0.05), moss * 0.6);
+  float streak = smoothstep(0.6, 0.95, fbm(vec2(uv.x * 10.0, uv.y * 0.8), vec2(10.0, 1.0), 4) * 0.5 + 0.5);
+  col *= 1.0 - streak * 0.4;
+  s.albedo = col;
+  s.height = 0.5 + n * 0.15 + lich * 0.12 + h1 * 0.02;
+  s.rough = 0.72 + lich * 0.2;
+  s.metal = 0.0;
+  s.ao = 1.0;
+}` });
+
+  return { siding, slate, bark, ground, path, ashlar, trim, iron, rock, limestone, granite };
 }
 
 /** Build a MeshStandardMaterial from a forge TextureSet. */
