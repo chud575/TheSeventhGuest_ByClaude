@@ -513,3 +513,22 @@ void surface(vec2 uv, inout Surface s) {
 }`,
   });
 }
+
+/**
+ * Dense Heriz for the dining room: derived from the engine's rug design but with a
+ * 2.4x finer herati field, finer spandrels and border repeat, and a wide pale-ivory
+ * outer guard that catches the moon shaft (as in the reference paintings).
+ */
+export function denseHerizTexture(forge, rugGen, { colors, aspect, knots = 560, wear = 0.8, fringe = 0.03, seed = 21, size = 2048 } = {}) {
+  const def = rugGen({ palette: 'heriz', colors, aspect, knots, wear, fringe, seed, size });
+  let g = def.glsl;
+  const rep = (a, b) => { if (!g.includes(a)) console.warn('[dining] rug patch miss:', a); g = g.split(a).join(b); };
+  rep('vec2 h = fract(fa * 5.0 + 0.5) - 0.5;', 'vec2 h = fract(fa * 12.0 + 0.5) - 0.5;');
+  rep('edge = min(edge, e2 / 5.0);', 'edge = min(edge, e2 / 12.0);');
+  rep('vec2 h = fract(f * 7.0) - 0.5;', 'vec2 h = fract(f * 16.0) - 0.5;');
+  rep('edge = min(edge, e2 / 7.0);', 'edge = min(edge, e2 / 16.0);');
+  rep('floor(2.0 * L / 0.14)', 'floor(2.0 * L / 0.085)');
+  rep('float b0 = 0.018, b1 = 0.05, b2 = 0.062, b3 = 0.2, b4 = 0.212, b5 = 0.245, b6 = 0.255;', 'float b0 = 0.012, b1 = 0.034, b2 = 0.082, b3 = 0.19, b4 = 0.2, b5 = 0.226, b6 = 0.236;');
+  rep('int mc = medallion(f, min(FA, FL) * 0.62, er);', 'int mc = medallion(f, min(FA, FL) * 0.5, er);');
+  return forge.generate(`dining:denseheriz:${def.key}`, { ...def, glsl: g, key: undefined });
+}

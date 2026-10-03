@@ -502,6 +502,124 @@ def storm(W=2048, H=1280, seed=303, name='storm'):
     save(name, img, bump)
 
 
+def abbey(W=2048, H=1280, seed=517, name='abbey'):
+    """A moonlit ruined abbey above a still lake (Romantic, mid-key so it holds from
+    across the room): luminous cloud-banked sky, the moon low over far hills, the
+    roofless nave and a tall empty traceried window catching the light, an oak
+    framing the left, reeds and a path in the foreground."""
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    u = xx / W; v = yy / H
+    moon = (0.3, 0.27)
+    md = np.hypot((u - moon[0]) * W / H, v - moon[1])
+    # sky: warm-grey glow round the moon into cool blue-green at the zenith
+    sky = lerp(col(150, 156, 150), col(52, 66, 78), ss(0.0, 0.9, md * 1.1 + (0.45 - v) * 0.4))
+    c1 = noise(H, W, 420, seed, 6, 0.55); c2 = noise(H, W, 160, seed + 1, 5, 0.5)
+    band = ss(0.05, 0.25, v) * ss(0.62, 0.4, v)
+    clouds = ss(0.45, 0.72, c1 * 0.7 + c2 * 0.4 - 0.05 + band * 0.12)
+    shade = 0.55 + 0.6 * ss(0.3, 0.8, c2)
+    cl_col = lerp(col(78, 86, 92), col(196, 192, 172), np.clip(np.exp(-md * 2.6) * 1.3 * shade, 0, 1))
+    sky = lerp(sky, cl_col, clouds * 0.85)
+    rim = ss(0.0, 0.08, np.clip(c1 - 0.44, 0, 1)) * (1 - clouds) * np.exp(-md * 3.0)
+    sky += rim[..., None] * col(230, 220, 190) * 0.35
+    sky += (np.exp(-md * 7.0) * 0.5)[..., None] * col(250, 240, 210)
+    sky = lerp(sky, col(252, 248, 232), ss(0.032, 0.026, md))
+    img = sky
+    # far hills: three soft layers with atmospheric perspective
+    for i, (base, amp, cell, c) in enumerate([(0.56, 0.06, 700, (104, 114, 112)), (0.6, 0.07, 500, (84, 96, 92)), (0.64, 0.05, 380, (66, 78, 72))]):
+        line = ridge_line(W, base, amp, cell, seed + 10 + i, sharp=0.8) * H
+        m = ss(-1.5, 1.5, yy - line[None, :])
+        tex = 0.88 + 0.24 * noise(H, W, 90, seed + 20 + i, 4)
+        img = lerp(img, col(*c) * tex[..., None], m)
+    # lake with the moon's broken reflection
+    lake_top = 0.665 * H
+    lake = ss(lake_top - 1.5, lake_top + 1.5, yy)
+    ripple = snoise(H, W, 120, 3, seed + 30)
+    refl_sky = lerp(col(70, 82, 86), col(140, 146, 138), np.exp(-np.abs(u - moon[0]) * 6) * (1 - ss(0.66, 1.0, v)))
+    glitter = np.exp(-((u - moon[0] - 0.01 * np.sin(v * 140)) / 0.022) ** 2) * ss(0.4, 0.75, ripple) * ss(0.98, 0.7, v)
+    water = refl_sky * (0.85 + 0.25 * ripple)[..., None] + glitter[..., None] * col(240, 232, 200) * 0.75
+    img = lerp(img, water, lake)
+    # far shore treeline (soft dark band)
+    tl = ss(-2, 2, yy - (lake_top - 10 - 26 * noise(1, W, 40, seed + 31, 4)[0][None, :])) * (1 - lake)
+    img = lerp(img, col(40, 50, 46) * (0.85 + 0.3 * noise(H, W, 18, seed + 32, 3))[..., None], tl * 0.9)
+    # ---- the abbey ruin on a rise (right of centre)
+    ab = Image.new('L', (W, H), 0); d = ImageDraw.Draw(ab)
+    lit = Image.new('L', (W, H), 0); dl = ImageDraw.Draw(lit)
+    gx0, gy = int(W * 0.5), int(H * 0.705)
+    d.rectangle([int(W * 0.5), gy - 2, int(W * 0.86), gy + 70], fill=255)
+    def lancet(dr, x, y, w, h, fill):
+        r = w / 2
+        dr.rectangle([x - r, y - h + w * 0.9, x + r, y], fill=fill)
+        dr.pieslice([x - w * 0.9, y - h, x + w * 0.9 - 0.0, y - h + w * 1.8], 270 - 33, 270 + 33, fill=fill)
+        dr.ellipse([x - r, y - h + w * 0.25, x + r, y - h + w * 1.35], fill=fill)
+    # gable end wall with the great window
+    wx, wy = int(W * 0.66), gy
+    d.polygon([(wx - 120, wy), (wx - 120, wy - 300), (wx, wy - 420), (wx + 120, wy - 300), (wx + 120, wy)], fill=255)
+    for sx in (-1, 1):  # buttresses
+        d.polygon([(wx + sx * 120, wy), (wx + sx * 150, wy), (wx + sx * 138, wy - 330), (wx + sx * 122, wy - 345)], fill=255)
+    # broken nave walls receding left and right with arcades
+    d.polygon([(wx + 120, wy), (wx + 120, wy - 210), (wx + 200, wy - 180), (wx + 240, wy - 230), (wx + 300, wy - 150), (wx + 330, wy - 160), (wx + 380, wy - 60), (wx + 380, wy)], fill=255)
+    d.polygon([(wx - 120, wy), (wx - 120, wy - 200), (wx - 190, wy - 170), (wx - 230, wy - 120), (wx - 260, wy - 130), (wx - 300, wy - 40), (wx - 300, wy)], fill=255)
+    # holes: the great window and arcades let the sky through
+    hole = Image.new('L', (W, H), 0); dh = ImageDraw.Draw(hole)
+    lancet(dh, wx, wy - 70, 120, 280, 255)
+    for k, x in enumerate([wx + 170, wx + 240, wx + 310]): lancet(dh, x, wy - 20, 34, 120 - k * 12, 255)
+    for k, x in enumerate([wx - 170, wx - 235]): lancet(dh, x, wy - 20, 32, 110 - k * 10, 255)
+    # tracery mullions back in the great window
+    trac = Image.new('L', (W, H), 0); dt = ImageDraw.Draw(trac)
+    for dx in (-30, 0, 30): dt.rectangle([wx + dx - 3, wy - 250, wx + dx + 3, wy - 70], fill=255)
+    dt.ellipse([wx - 34, wy - 330, wx + 34, wy - 262], outline=255, width=6)
+    for dx in (-30, 30): dt.ellipse([wx + dx - 16, wy - 280, wx + dx + 16, wy - 248], outline=255, width=5)
+    A = blur(np.asarray(ab, np.float32) / 255, 1.0)
+    Araw = A.copy()
+    Hh = blur(np.asarray(hole, np.float32) / 255, 0.8) * (1 - blur(np.asarray(trac, np.float32) / 255, 0.7))
+    stone_n = noise(H, W, 14, seed + 40, 4); course = 0.5 + 0.5 * np.sin(yy * 2 * np.pi / 9.0)
+    # moonlight from the upper left: west faces lit, ivy-dark patches, soft cast shadow on the right
+    litk = np.clip(0.55 + 0.45 * ss(wx + 140, wx - 140, xx), 0, 1) * (0.8 + 0.25 * stone_n) * (0.92 + 0.08 * course)
+    ivy = ss(0.55, 0.75, noise(H, W, 60, seed + 41, 4)) * ss(wy - 330, wy - 40, yy)
+    stone = lerp(col(66, 68, 64), col(150, 146, 128), litk * (0.75 + 0.25 * ss(wy, wy - 380, yy))) * (1 - 0.45 * ivy)[..., None]
+    stone *= (0.8 + 0.2 * ss(wy + 5, wy - 120, yy))[..., None]
+    stone = lerp(stone, col(40, 52, 40), ivy * 0.5)
+    img = lerp(img, stone, A * (1 - Hh))
+    # grassy rise under the ruin
+    mound_top = gy + 4 + 150 * ((u - 0.7) / 0.3) ** 2 + 10 * noise(1, W, 50, seed + 43, 4)[0][None, :]
+    rise = ss(-3, 3, yy - mound_top)
+    img = lerp(img, col(42, 52, 40) * (0.75 + 0.45 * noise(H, W, 22, seed + 42, 4))[..., None] * (0.8 + 0.3 * ss(gy + 80, gy, yy))[..., None], np.clip(rise * 1.3, 0, 1))
+    # ---- the oak on the left, foliage masses lit on the moon side
+    oak = np.zeros((H, W), np.float32)
+    trunk = Image.new('L', (W, H), 0); dk = ImageDraw.Draw(trunk)
+    dk.polygon([(int(W * 0.06), H), (int(W * 0.09), int(H * 0.45)), (int(W * 0.12), int(H * 0.45)), (int(W * 0.17), H)], fill=255)
+    for (x0, y0, x1, y1, w) in [(0.1, 0.5, 0.22, 0.3, 26), (0.11, 0.55, 0.0, 0.32, 24), (0.1, 0.45, 0.13, 0.12, 22), (0.15, 0.36, 0.27, 0.18, 14)]:
+        dk.line([(W * x0, H * y0), (W * x1, H * y1)], fill=255, width=w)
+    T = blur(np.asarray(trunk, np.float32) / 255, 1.2)
+    fol = noise(H, W, 70, seed + 50, 5, 0.55)
+    blobs = np.exp(-(((u - 0.12) / 0.17) ** 2 + ((v - 0.22) / 0.2) ** 2)) + 0.7 * np.exp(-(((u - 0.25) / 0.08) ** 2 + ((v - 0.2) / 0.1) ** 2)) + 0.6 * np.exp(-(((u - 0.02) / 0.08) ** 2 + ((v - 0.45) / 0.18) ** 2))
+    F = ss(0.55, 0.62, fol * 0.55 + blobs * 0.55)
+    flit = ss(0.4, 0.8, noise(H, W, 30, seed + 51, 4)) * ss(0.35, 0.05, u) * 0.7 + 0.15
+    leaves = lerp(col(18, 26, 22), col(76, 92, 70), flit * ss(0.55, 0.3, v))
+    bark = col(26, 24, 20) * (0.8 + 0.5 * snoise(H, W, 4, 30, seed + 52))[..., None] * (1 + 1.2 * ss(W * 0.12, W * 0.08, xx))[..., None]
+    img = lerp(img, bark, T)
+    img = lerp(img, leaves, F)
+    # ---- foreground meadow, path and reeds
+    fgl = H * (0.84 + 0.05 * np.sin(u * 5.0 + 1.0)) + 12 * noise(1, W, 60, seed + 60, 4)[0][None, :]
+    fg = ss(-2, 2, yy - fgl)
+    grass = col(38, 46, 34) * (0.75 + 0.45 * snoise(H, W, 3, 26, seed + 61, angle=4))[..., None]
+    path = np.exp(-((u - 0.42 - (v - 0.84) * 1.6) / (0.03 + (v - 0.84) * 0.5)) ** 2) * fg
+    grass = lerp(grass, col(110, 108, 94), np.clip(path, 0, 1) * 0.7)
+    img = lerp(img, grass, fg)
+    reeds = Image.new('L', (W, H), 0); dr = ImageDraw.Draw(reeds)
+    r = np.random.default_rng(seed + 70)
+    for k in range(220):
+        x = W * (0.18 + 0.4 * r.random()); y0 = H * (0.85 + 0.04 * r.random()); h = H * (0.03 + 0.06 * r.random())
+        dr.line([(x, y0), (x + (r.random() - 0.5) * 12, y0 - h)], fill=int(150 + 100 * r.random()), width=2)
+    R_ = blur(np.asarray(reeds, np.float32) / 255, 0.6)
+    img = lerp(img, col(30, 38, 28), R_ * 0.85)
+    # unify: a cool glaze, gentle vignette so the eye stays on window and moon
+    vg = 1 - 0.32 * ss(0.35, 0.95, np.hypot((u - 0.5) * 1.1, (v - 0.48) * 1.3))
+    img = np.clip(img * vg[..., None] * np.array([1.08, 1.06, 1.0], np.float32), 0, 1)
+    img, bump = age_canvas(img, seed, crack_cell=80, varnish=0.8, grime=0.6, smear=2.5, kuw=2)
+    save(name, img, bump)
+
+
 if __name__ == '__main__':
     which = sys.argv[1:] or ['lady', 'gent', 'youth', 'storm', 'vale']
     for w in which:
@@ -509,4 +627,5 @@ if __name__ == '__main__':
         elif w == 'gent': gent()
         elif w == 'youth': gent('youth', 's3.png', 512, 640, 233, fsz=330, fy=80, keep=(128, 118, 90, 112))
         elif w == 'storm': storm()
+        elif w == 'abbey': abbey()
         elif w == 'vale': storm(512, 640, 411, 'vale')

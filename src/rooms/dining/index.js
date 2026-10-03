@@ -1,9 +1,12 @@
 import * as THREE from 'three';
-import { buildChair, webBackGeometry, buildTable, buildSideboard, buildCandelabrum, buildChandelier, buildPlaceSetting, plateGeometry, discUV, gobletGeometry, napkinGeometry, cutleryGeometries } from './furniture.js';
+import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
+import { heavyFrameProfile, cartoucheGeometry, buildDoorLeaf, buildArchitrave, buildChair, webBackGeometry, buildTable, buildSideboard, buildCandelabrum, buildChandelier, buildPlaceSetting, plateGeometry, discUV, gobletGeometry, napkinGeometry, cutleryGeometries } from './furniture.js';
 import { nightGardenTexture, ganacheTexture, spongeTexture, chinaTexture, ceilingFieldTexture, tuftedTexture, flameMahoganyTexture, giltPlateTexture, tombTexture, laceTexture, frostTexture } from './textures.js';
 import { buildCurtain, buildSwagValance, buildTassel } from './drapery.js';
 import { treeLayerTexture, frostPaneTexture, foxingTexture } from './textures.js';
 import { createCakePuzzle, cakeMeta, CAKE_ID } from './puzzleCake.js';
+import { denseHerizTexture } from './textures.js';
+import { rug as rugGenerator } from '../../engine/materials/generators/rug.js';
 import { mergeStatic } from './merge.js';
 import { createGuestMaterial, loadGuestGeometry } from './guestFx.js';
 
@@ -67,42 +70,52 @@ export default {
 
     // ================================================================ materials
     const mat = {
-      wall: M.create('damask', { base: [0.085, 0.12, 0.3], motif: [0.16, 0.22, 0.46], sheen: 0.85, aging: 0.45, variant: 0, repeat: [1 / 0.42, 1 / 0.42], macro: 0.4, size: 1024 }),
+      wall: M.create('damask', { base: [0.085, 0.12, 0.3], motif: [0.16, 0.22, 0.46], sheen: 0.5, aging: 0.45, variant: 0, repeat: [1 / 0.26, 1 / 0.26], macro: 0.4, size: 1024, normalScale: 0.45 }),
       paint: M.create('plaster', { color: [0.09, 0.12, 0.28], cracks: 0.15, stains: 0.35, roughness: 0.7, repeat: [0.7, 0.7] }),
       niche: M.create('plaster', { color: [0.035, 0.045, 0.1], cracks: 0.25, stains: 0.5, repeat: [1, 1] }),
       ceiling: M.create('plaster', { color: [0.1, 0.13, 0.28], cracks: 0.3, stains: 0.45, repeat: [0.45, 0.45] }),
       beam: M.create('plaster', { color: [0.34, 0.07, 0.06], cracks: 0.1, stains: 0.4, roughness: 0.6, repeat: [1, 1] }),
-      floor: M.create('parquet', { species: 'walnut', ratio: 5, planksAcross: 2, repeat: [0.95, 0.95], polish: 0.65, wear: 0.45 }),
+      floor: M.create('parquet', { species: 'walnut', ratio: 5, planksAcross: 2, repeat: [0.7, 0.7], polish: 0.6, wear: 0.5, macro: 0.5 }),
       wood: M.create('mahogany', { repeat: [1.4, 1.4], color: [0.62, 0.42, 0.36] }),
       woodTop: M.create('mahogany', { repeat: [0.8, 0.8], color: [0.6, 0.4, 0.34] }),
-      panel: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.75, repeat: [1.1, 1.1], clearcoat: 0.5, clearcoatRoughness: 0.25, color: [0.36, 0.24, 0.21] }),
+      panel: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.75, repeat: [1.1, 1.1], clearcoat: 0.5, clearcoatRoughness: 0.28, color: [0.24, 0.15, 0.12] }),
+      doorWood: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.7, repeat: [1.6, 1.6], clearcoat: 0.45, clearcoatRoughness: 0.3, color: [0.2, 0.12, 0.09] }),
       crown: M.create('gilded', { pattern: 0, repeats: 4, wear: 0.45, dirt: 0.55, repeat: [1 / 0.55, 1] }),
-      frieze: M.create('gilded', { pattern: 2, repeats: 3, ground: 1, groundColor: [0.03, 0.04, 0.1], wear: 0.35, dirt: 0.5, repeat: [1 / 1.15, 1] }),
+      frieze: M.create('gilded', { pattern: 2, repeats: 3, ground: 1, groundColor: [0.03, 0.04, 0.1], wear: 0.35, dirt: 0.5, repeat: [1 / 1.15, 1], normalScale: 0.55 }),
       gilt: M.create('gold', { wear: 0.45, dirt: 0.5, repeat: [2, 1] }),
       frame: M.create('gilded', { pattern: 1, repeats: 3, wear: 0.45, dirt: 0.65, repeat: [1 / 0.45, 1] }),
-      drape: M.create('velvet', { color: [0.05, 0.1, 0.36], crush: 0.45, repeat: [2.2, 2.2], side: THREE.DoubleSide, sheen: 1.0, sheenColor: [0.35, 0.5, 0.9], sheenRoughness: 0.5, roughness: 0.85, normalScale: 0.25 }),
+      drape: M.create('velvet', { color: [0.05, 0.1, 0.36], crush: 0.3, repeat: [1.4, 1.4], side: THREE.DoubleSide, sheen: 0.6, sheenColor: [0.3, 0.42, 0.8], sheenRoughness: 0.75, roughness: 0.9, normalScale: 0.15 }),
       seat: M.create('velvet', { color: [0.1, 0.19, 0.3], crush: 0.4, pattern: 1, repeat: [4, 4], sheenColor: [0.3, 0.45, 0.6] }),
       brass: M.create('brass', { tarnish: 0.3, polish: 0.75, repeat: [3, 3] }),
       glass: M.create('glass', { dirt: 0.55, transparent: true, opacity: 0.12 }),
-      rug: M.create('rug', { palette: 'heriz', colors: { field: [0.24, 0.045, 0.05], border: [0.05, 0.065, 0.15], ivory: [0.44, 0.37, 0.3], gold: [0.42, 0.29, 0.14], teal: [0.1, 0.17, 0.2], dark: [0.04, 0.03, 0.035], rose: [0.36, 0.15, 0.14] }, aspect: 3.3 / 5.0, knots: 420, wear: 0.8, fringe: 0.03, seed: 21, size: 2048, roughness: 0.95, alphaTest: 0.5, physical: true, sheen: 0.8, sheenRoughness: 0.7, sheenColor: [0.5, 0.35, 0.33] }),
+      rug: null,
       runner: M.create('rug', { palette: 'kashan', colors: { ivory: [0.5, 0.44, 0.36], field: [0.26, 0.05, 0.07], gold: [0.45, 0.32, 0.15] }, aspect: 0.85 / 5.8, knots: 150, wear: 0.75, fringe: 0.012, seed: 5, size: 2048, alphaTest: 0.5, roughness: 0.95 }),
       silver: M.basic('silver', { roughness: 0.25, envMapIntensity: 1.3 }),
       crystal: M.basic('crystal', { envMapIntensity: 1.5, opacity: 0.3 }),
       porcelain: M.basic('porcelain'),
-      linen: M.basic('cloth', { color: 0xb4ada0, roughness: 0.92 }),
+      linen: M.basic('cloth', { color: 0xb4ada0, roughness: 0.92, side: THREE.DoubleSide, sheenRoughness: 0.5 }),
       iron: M.basic('iron'),
       black: M.basic('black', { color: 0x0a0806 }),
       wine: new THREE.MeshPhysicalMaterial({ color: 0x3a0308, roughness: 0.12, transmission: 0, clearcoat: 1, clearcoatRoughness: 0.12, name: 'wine' }),
     };
+    {
+      const rs = denseHerizTexture(ctx.textures, rugGenerator, { colors: { field: [0.26, 0.045, 0.05], border: [0.05, 0.065, 0.16], ivory: [0.62, 0.55, 0.45], gold: [0.46, 0.31, 0.14], teal: [0.1, 0.18, 0.21], dark: [0.04, 0.03, 0.035], rose: [0.4, 0.16, 0.15] }, aspect: 3.3 / 5.0, knots: 600, wear: 0.75, fringe: 0.03, seed: 21, size: 2048 });
+      mat.rug = new THREE.MeshPhysicalMaterial({ map: rs.map, normalMap: rs.normalMap, normalScale: new THREE.Vector2(1.2, 1.2), roughnessMap: rs.ormMap, aoMap: rs.ormMap, roughness: 1, metalness: 0, alphaTest: 0.5, sheen: 0.8, sheenRoughness: 0.6, sheenColor: new THREE.Color(0.55, 0.42, 0.38), envMapIntensity: 0.5, name: 'rug' });
+      mat.rug.map.anisotropy = 8;
+    }
     mat.rosePlaster = M.create('plaster', { color: [0.22, 0.24, 0.3], cracks: 0.2, stains: 0.5, roughness: 0.9, repeat: [3, 3] });
     mat.tassel = M.create('velvet', { color: [0.5, 0.36, 0.16], crush: 0.2, repeat: [6, 6], sheen: 1, sheenColor: [0.9, 0.7, 0.35] });
     mat.giltDark = M.create('gold', { wear: 0.6, dirt: 0.8, repeat: [2, 1], color: [0.45, 0.4, 0.36] });
-    mat.standSilver = M.basic('silver', { roughness: 0.34, envMapIntensity: 0.5, color: 0x86868a });
-    mat.chairWood = M.create('mahogany', { repeat: [1.4, 1.4], color: [0.2, 0.1, 0.08], roughness: 0.95, clearcoat: 0.8, clearcoatRoughness: 0.24 });
+    mat.standSilver = M.basic('silver', { roughness: 0.25, metalness: 1, envMapIntensity: 0.9, color: 0xb0b0b4 });
+    mat.chairWood = M.create('mahogany', { repeat: [1.4, 1.4], color: [0.13, 0.065, 0.05], roughness: 1.1, clearcoat: 0.5, clearcoatRoughness: 0.32 });
+    // M.create's `color` does not take arrays: apply the intended albedo multipliers here
+    mat.panel.color.setRGB(0.6, 0.48, 0.45); mat.doorWood.color.setRGB(0.48, 0.38, 0.35);
+    mat.chairWood.color.setRGB(0.5, 0.37, 0.33); mat.giltDark.color.setRGB(0.45, 0.4, 0.36);
+    mat.chairWood.roughness = 1;
     const tuft = tuftedTexture(ctx.textures).withRepeat(1 / 0.36, 1 / 0.36);
     mat.seat = new THREE.MeshPhysicalMaterial({ map: tuft.map, normalMap: tuft.normalMap, roughnessMap: tuft.ormMap, aoMap: tuft.ormMap, roughness: 1, metalness: 0, sheen: 1, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.3, 0.5, 0.6), name: 'tufted' });
     const fm = flameMahoganyTexture(ctx.textures);
-    mat.woodTop = new THREE.MeshPhysicalMaterial({ map: fm.map, normalMap: fm.normalMap, normalScale: new THREE.Vector2(0.3, 0.3), roughnessMap: fm.ormMap, roughness: 1, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.14, envMapIntensity: 0.9, name: 'flameMahogany' });
+    mat.woodTop = new THREE.MeshPhysicalMaterial({ map: fm.map, normalMap: fm.normalMap, normalScale: new THREE.Vector2(0.3, 0.3), roughnessMap: fm.ormMap, roughness: 1, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.22, envMapIntensity: 0.8, name: 'flameMahogany' });
     const gp = giltPlateTexture(ctx.textures);
     mat.plate = new THREE.MeshPhysicalMaterial({ map: gp.map, normalMap: gp.normalMap, roughnessMap: gp.ormMap, metalnessMap: gp.ormMap, roughness: 1, metalness: 1, clearcoat: 1, clearcoatRoughness: 0.12, color: 0xe0dcd4, name: 'giltPlate' });
     const lc = laceTexture(ctx.textures);
@@ -115,16 +128,31 @@ export default {
     mat.china = new THREE.MeshPhysicalMaterial({ map: chinaSet.map, normalMap: chinaSet.normalMap, roughness: 0.12, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, name: 'china' });
     const ganSet = ganacheTexture(ctx.textures), spSet = spongeTexture(ctx.textures);
     const cakeMats = {
-      ganache: new THREE.MeshPhysicalMaterial({ map: ganSet.map, normalMap: ganSet.normalMap, roughnessMap: ganSet.ormMap, roughness: 1, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.18, name: 'ganache' }),
+      ganache: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(2.4, 1.9, 1.7), map: ganSet.map, normalMap: ganSet.normalMap, roughnessMap: ganSet.ormMap, roughness: 1, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.18, name: 'ganache' }),
       sponge: new THREE.MeshStandardMaterial({ map: spSet.map, normalMap: spSet.normalMap, roughnessMap: spSet.ormMap, aoMap: spSet.ormMap, roughness: 1, metalness: 0, name: 'sponge' }),
       cream: new THREE.MeshPhysicalMaterial({ color: 0xbfb29a, roughness: 0.55, sheen: 0.5, sheenColor: new THREE.Color(1, 0.95, 0.9), name: 'cream' }),
       sugar: new THREE.MeshPhysicalMaterial({ color: 0xc9c1b0, roughness: 0.7, sheen: 0.4, sheenRoughness: 0.6, sheenColor: new THREE.Color(1, 0.92, 0.85), name: 'sugar' }),
-      crumb: new THREE.MeshStandardMaterial({ color: 0x4a0c0c, roughness: 0.9, name: 'crumb' }),
-      ganacheDrip: new THREE.MeshPhysicalMaterial({ color: 0x1c0a05, roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.15, name: 'ganacheDrip' }),
+      crumb: new THREE.MeshStandardMaterial({ color: 0x2e140a, roughness: 0.85, name: 'crumb' }),
+      ganacheDrip: new THREE.MeshPhysicalMaterial({ color: 0x2a120a, roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.15, name: 'ganacheDrip' }),
       socket: new THREE.MeshStandardMaterial({ color: 0x0b0503, roughness: 0.6, name: 'socket' }),
       stone: (() => { const t = tombTexture(ctx.textures); return new THREE.MeshStandardMaterial({ map: t.map, normalMap: t.normalMap, roughnessMap: t.ormMap, roughness: 1, metalness: 0, color: 0xb0b0b4, name: 'tombstone' }); })(),
     };
 
+    const cornerG = cartoucheGeometry(G, 'corner'), centreG = cartoucheGeometry(G, 'centre');
+    /** heavy carved frame: stepped profile + acanthus corner sprays and a centre cartouche, patina in the recesses */
+    const carvedFrame = (g, w, h, fw, depth) => {
+      g.add(new THREE.Mesh(G.frameGeometry(w, h, { width: fw, depth, profile: heavyFrameProfile(fw, depth), uvScale: 1 }), mat.frame));
+      const k = fw / 0.14;
+      for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        const c = new THREE.Mesh(cornerG, mat.gilt);
+        c.position.set(sx * (w / 2 + fw * 0.82), sy * (h / 2 + fw * 0.82), depth * 0.72);
+        c.rotation.z = Math.atan2(-sy, -sx) + Math.PI / 4; c.scale.setScalar(k); g.add(c);
+      }
+      for (const sy of [-1, 1]) {
+        const c = new THREE.Mesh(centreG, mat.gilt);
+        c.position.set(0, sy * (h / 2 + fw * 0.55), depth * 0.7); c.rotation.z = sy > 0 ? 0 : Math.PI; c.scale.setScalar(k * (sy > 0 ? 1.15 : 0.8)); g.add(c);
+      }
+    };
     // ================================================================ shell: floor, ceiling
     const P = [V3(X0 + C, 0, Z0), V3(X1 - C, 0, Z0), V3(X1, 0, Z0 + C), V3(X1, 0, Z1), V3(X0, 0, Z1), V3(X0, 0, Z0 + C)];
     {
@@ -165,10 +193,31 @@ export default {
       openLower.front.push({ x, y: -0.01, w: d.w, h: DADO + 0.02 });
       openUpper.front.push({ x, y: -0.01, w: d.w, h: d.h - DADO + 0.01 });
     }
+    /** wall piece whose openings touch the bottom edge become notches in the outline (earcut drops holes that cross the boundary) */
+    const wallPiece = (len, h, opens) => {
+      const holes = opens.filter((o) => o.y > 0.001), notches = opens.filter((o) => o.y <= 0.001).sort((a, b) => a.x - b.x);
+      if (!notches.length) return G.wallWithOpenings(len, h, holes, { uvScale: 1 });
+      const geos = [];
+      const outline = (x0, x1, ns) => {
+        const pts = [V2(x0, 0)];
+        for (const n of ns) { const top = Math.min(n.y + n.h, h); pts.push(V2(n.x, 0), V2(n.x, top), V2(n.x + n.w, top), V2(n.x + n.w, 0)); }
+        pts.push(V2(x1, 0), V2(x1, h), V2(x0, h));
+        const sh = new THREE.Shape(pts);
+        for (const o of holes.filter((o) => o.x > x0 && o.x + o.w < x1)) { const hp = new THREE.Path(); hp.moveTo(o.x, o.y); hp.lineTo(o.x, o.y + o.h); hp.lineTo(o.x + o.w, o.y + o.h); hp.lineTo(o.x + o.w, o.y); hp.lineTo(o.x, o.y); sh.holes.push(hp); }
+        geos.push(new THREE.ShapeGeometry(sh, 24));
+      };
+      // full-height notches split the wall into separate pieces
+      let x0 = 0, run = [];
+      for (const n of notches) {
+        if (n.y + n.h >= h - 0.001) { if (n.x - x0 > 0.001) outline(x0, n.x, run); run = []; x0 = n.x + n.w; } else run.push(n);
+      }
+      if (len - x0 > 0.001) outline(x0, len, run);
+      return G.mergeGeometries(geos);
+    };
     for (const s of segs) {
-      const up = new THREE.Mesh(G.wallWithOpenings(s.len, H - DADO, openUpper[s.name], { uvScale: 1 }), mat.wall);
+      const up = new THREE.Mesh(wallPiece(s.len, H - DADO, openUpper[s.name]), mat.wall);
       up.position.y = DADO; s.grp.add(up);
-      const lo = new THREE.Mesh(G.wallWithOpenings(s.len, DADO, openLower[s.name], { uvScale: 1 }), mat.paint);
+      const lo = new THREE.Mesh(wallPiece(s.len, DADO, openLower[s.name]), mat.paint);
       s.grp.add(lo);
     }
     // open-path helper in world space
@@ -390,7 +439,7 @@ export default {
         // shell hood carved in the arch: radial flutes
         for (let i = 0; i < 11; i++) {
           const a = Math.PI * (i + 0.5) / 11;
-          const fl = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.004, r * 0.85, 6), mat.gilt);
+          const fl = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.004, r * 0.85, 6), mat.giltDark);
           fl.position.set(Math.cos(a) * r * 0.45, NICHE.bottom + h - r + Math.sin(a) * r * 0.45, -NICHE.depth + 0.02);
           fl.rotation.z = a - Math.PI / 2; g.add(fl);
         }
@@ -427,7 +476,7 @@ export default {
           }
         });
         // a weak lamp hidden in the hood keeps the china glinting
-        const nl = new THREE.PointLight(0xffb070, 0.9, 2.2, 2);
+        const nl = new THREE.PointLight(0xffb070, 0.6, 2.2, 2);
         const wp = new THREE.Vector3(0, NICHE.bottom + h - 0.25, -NICHE.depth + 0.15);
         nl.position.copy(wp); g.add(nl); nicheLights.push(nl);
       }
@@ -436,13 +485,6 @@ export default {
     // ================================================================ doors (front wall)
     {
       const s = S.front;
-      const leaf = (w, h) => {
-        const g = new THREE.Group();
-        g.add(at(new THREE.Mesh(G.boxUV(w, h, 0.05, 1), mat.panel), 0, h / 2, 0));
-        const rows = [[0.55, 0.75], [1.55, 0.95], [2.2, 0.3]].filter(([y, hh]) => y + hh / 2 < h - 0.05);
-        for (const [y, hh] of rows) { const p = new THREE.Mesh(G.raisedPanel(w - 0.16, hh, { border: 0.05, bevel: 0.025 }), mat.panel); p.position.set(0, y, 0.025); g.add(p); }
-        return g;
-      };
       // brass knob on a rose, with a keyhole escutcheon below
       const knobG = G.latheFromProfile([[0, 0], [0.012, 0], [0.01, 0.025], [0.022, 0.04], [0.028, 0.055], [0.022, 0.068], [0, 0.072]], 20).rotateX(Math.PI / 2);
       const roseG = G.latheFromProfile([[0, 0], [0.032, 0], [0.034, 0.004], [0.026, 0.01], [0.012, 0.012], [0, 0.012]], 24).rotateX(Math.PI / 2);
@@ -455,21 +497,27 @@ export default {
         const k = new THREE.Mesh(knobG, mat.brass); k.position.set(x, y, 0.035); g.add(k);
         const e = new THREE.Mesh(escG, mat.brass); e.position.set(x, y - 0.13, 0.026); g.add(e);
       };
+      const doorMats = { wood: mat.doorWood, brass: mat.brass, gilt: mat.gilt };
       for (const [key, d] of Object.entries(DOORS)) {
         const g = new THREE.Group();
         g.position.set(lx.front(d.x), 0, -0.04);
         if (key === 'foyer') {
-          for (const sd of [-1, 1]) { const l = leaf(d.w / 2 - 0.01, d.h - 0.01); l.position.x = sd * d.w / 4; g.add(l); hardware(g, sd * 0.07, 1.02); }
+          for (const sd of [-1, 1]) {
+            const l = buildDoorLeaf(G, doorMats, { w: d.w / 2 - 0.006, h: d.h - 0.01, stile: 0.11, hingeSide: sd, rows: [[0.24, 0.86], [1.06, 2.0], [2.14, d.h - 0.13]] });
+            l.position.x = sd * d.w / 4; g.add(l); hardware(g, sd * 0.07, 1.02);
+          }
         } else {
-          g.add(leaf(d.w - 0.02, d.h - 0.01));
+          g.add(buildDoorLeaf(G, doorMats, { w: d.w - 0.02, h: d.h - 0.01, stile: 0.11, hingeSide: -1, rows: [[0.22, 0.84], [1.02, 1.82], [1.96, d.h - 0.13]] }));
           hardware(g, d.w / 2 - 0.1, 1.0);
         }
-        const cas = new THREE.Mesh(G.sweepProfile(G.PROFILES.chairRail(0.12, 0.035), [V3(-d.w / 2 - 0.06, 0, 0), V3(-d.w / 2 - 0.06, d.h + 0.06, 0), V3(d.w / 2 + 0.06, d.h + 0.06, 0), V3(d.w / 2 + 0.06, 0, 0)], { up: V3(0, 0, 1), uvScale: 1, flipOutward: true }), mat.panel);
-        cas.position.z = 0.04; g.add(cas);
+        const arc = buildArchitrave(G, doorMats, { w: d.w + 0.01, h: d.h + 0.005, width: 0.13, cornice: key !== 'foyer' });
+        arc.position.z = 0.04; g.add(arc);
         // pediment over the foyer door
         if (key === 'foyer') {
-          const ped = new THREE.Mesh(G.sweepProfile(G.PROFILES.crown(0.14, 0.1), [V3(-d.w / 2 - 0.2, 0, 0.0), V3(-d.w / 2 - 0.2, 0, -0.16), V3(d.w / 2 + 0.2, 0, -0.16), V3(d.w / 2 + 0.2, 0, 0.0)].map((p) => V3(p.x, p.y, p.z)), { uvScale: 1, flipOutward: true }), mat.gilt);
-          ped.position.set(0, d.h + 0.2, 0.2); g.add(ped);
+          const fw = d.w + 0.3;
+          const fr = new THREE.Mesh(new G.RoundedBoxGeometry(fw + 0.04, 0.18, 0.035, 2, 0.006), mat.doorWood); fr.position.set(0, d.h + 0.24, 0.058); g.add(fr);
+          const ped = new THREE.Mesh(G.sweepProfile(G.PROFILES.crown(0.14, 0.1), [V3(-fw / 2 - 0.1, 0, 0.0), V3(-fw / 2 - 0.1, 0, -0.16), V3(fw / 2 + 0.1, 0, -0.16), V3(fw / 2 + 0.1, 0, 0.0)], { uvScale: 1, flipOutward: true }), mat.gilt);
+          ped.position.set(0, d.h + 0.33, 0.2); g.add(ped);
         }
         s.grp.add(g);
       }
@@ -504,25 +552,17 @@ export default {
       sconce(-1.12); sconce(1.12);
       const mg = new THREE.Group();
       const mw = 0.9, mh = 1.5;
-      const glassM = new THREE.MeshPhysicalMaterial({ color: 0x8a9098, metalness: 1, roughness: 0.04, envMapIntensity: 1.0, name: 'mirror' });
-      const mirror = new THREE.Mesh(new THREE.PlaneGeometry(mw, mh), glassM); mirror.userData.keep = true; mirror.userData.noBake = true;
+      // a real (half-resolution) planar reflection, silvering slightly tarnished
+      const mirror = new Reflector(new THREE.PlaneGeometry(mw, mh), { clipBias: 0.003, textureWidth: Math.round(ctx.renderer.domElement.width * 0.5) || 512, textureHeight: Math.round(ctx.renderer.domElement.height * 0.5) || 512, color: 0x8f8a82 });
+      mirror.userData.keep = true; mirror.userData.noBake = true; mirror.userData.noShadow = true;
       mg.add(mirror);
       const fox = foxingTexture(ctx.textures);
       const foxM = new THREE.MeshStandardMaterial({ map: fox.map, transparent: true, depthWrite: false, roughness: 0.9, metalness: 0, name: 'foxing' });
       const fp = new THREE.Mesh(new THREE.PlaneGeometry(mw, mh), foxM); fp.position.z = 0.002; fp.userData.noBake = true; fp.userData.noShadow = true; mg.add(fp);
-      // one-off cube capture of the room from the mirror (after the room is in the scene)
-      const cubeRT = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType });
-      const cubeCam = new THREE.CubeCamera(0.05, 20, cubeRT);
-      let mirrorFrames = 0;
-      ctx.onUpdate(() => {
-        if (mirrorFrames++ !== 2) return;
-        mirror.getWorldPosition(cubeCam.position); cubeCam.position.z -= 0.6;
-        mirror.visible = false; fp.visible = false;
-        try { cubeCam.update(ctx.renderer, ctx.scene); glassM.envMap = cubeRT.texture; glassM.envMapIntensity = 0.9; glassM.needsUpdate = true; } catch (e) { console.warn(e); }
-        mirror.visible = true; fp.visible = true;
-      });
-      mg.add(new THREE.Mesh(G.frameGeometry(mw, mh, { width: 0.12, depth: 0.07, uvScale: 1 }), mat.frame));
-      const crest = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 10), mat.gilt); crest.scale.set(2.2, 0.9, 0.35); crest.position.set(0, mh / 2 + 0.14, 0.04); mg.add(crest);
+      // a faint smoky veil over the glass so it reads as old silvering, not a window
+      const veil = new THREE.Mesh(new THREE.PlaneGeometry(mw, mh), new THREE.MeshBasicMaterial({ color: 0x0a0c12, transparent: true, opacity: 0.28, depthWrite: false }));
+      veil.position.z = 0.001; veil.userData.noBake = true; veil.userData.noShadow = true; mg.add(veil);
+      carvedFrame(mg, mw, mh, 0.13, 0.08);
       mg.position.set(lx.front(-2.0), 1.95, 0.035); s.grp.add(mg);
     }
 
@@ -604,9 +644,24 @@ export default {
       for (const dz of [0.06, 0.3]) { const g = new THREE.Mesh(gobletGeometry(G, 0.7), mat.crystal); g.position.set(X0 + 0.38, 0.95, SB_Z + dz); add(g); }
       const bowl = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.06, 0], [0.04, 0.03], [0.025, 0.06], [0.06, 0.075], [0.16, 0.12], [0.165, 0.13], [0, 0.09]], 32), mat.silver);
       bowl.position.set(X0 + 0.3, 0.93, SB_Z + 0.62); add(bowl);
-      const fruitG = new THREE.SphereGeometry(0.04, 14, 10);
-      const fm = [new THREE.MeshPhysicalMaterial({ color: 0x5a0c12, roughness: 0.35, clearcoat: 0.5 }), new THREE.MeshPhysicalMaterial({ color: 0x2a1030, roughness: 0.3, clearcoat: 0.6 })];
-      for (let i = 0; i < 7; i++) { const a = i * 2.4; const f = new THREE.Mesh(fruitG, fm[i % 2]); f.position.set(X0 + 0.3 + Math.cos(a) * 0.07 * (i ? 1 : 0), 0.93 + 0.13 + (i ? 0 : 0.05), SB_Z + 0.62 + Math.sin(a) * 0.07 * (i ? 1 : 0)); add(f); }
+      // fruit: two pears and a bunch of black grapes spilling over the rim
+      const pearG = G.latheFromProfile([[0, 0], [0.022, 0.003], [0.034, 0.018], [0.036, 0.035], [0.028, 0.055], [0.018, 0.075], [0.014, 0.09], [0.008, 0.1], [0, 0.102]], 20);
+      const pearM = new THREE.MeshPhysicalMaterial({ color: 0x8a7a2a, roughness: 0.45, clearcoat: 0.3, clearcoatRoughness: 0.5, name: 'pear' });
+      const stalkM = new THREE.MeshStandardMaterial({ color: 0x3a2814, roughness: 0.8 });
+      for (const [dx, dz, rx, rz] of [[-0.04, 0.03, 0.15, 0.1], [0.05, -0.02, -0.25, 0.35]]) {
+        const pr = new THREE.Mesh(pearG, pearM); pr.position.set(X0 + 0.3 + dx, 0.93 + 0.1, SB_Z + 0.62 + dz); pr.rotation.set(rx, 0, rz); add(pr);
+        const st = new THREE.Mesh(new THREE.CylinderGeometry(0.0025, 0.002, 0.03, 6), stalkM); st.position.set(0, 0.11, 0); pr.add(st);
+      }
+      const grapeM = new THREE.MeshPhysicalMaterial({ color: 0x1c0c22, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.4, sheen: 0.6, sheenRoughness: 0.4, sheenColor: new THREE.Color(0.35, 0.32, 0.45), name: 'grape' });
+      const gG = new THREE.SphereGeometry(0.0115, 10, 8); gG.scale(1, 1.12, 1);
+      const grapes = [];
+      for (let i = 0; i < 46; i++) {
+        const t = i / 46, a = i * 2.39996, r = 0.045 * (1 - t * 0.8);
+        const m = new THREE.Matrix4().makeTranslation(Math.cos(a) * r, 0.04 - t * 0.12 + 0.01 * Math.sin(i * 1.7), Math.sin(a) * r * 0.8);
+        grapes.push(gG.clone().applyMatrix4(m));
+      }
+      const bunch = new THREE.Mesh(G.mergeGeometries(grapes), grapeM);
+      bunch.position.set(X0 + 0.36, 0.93 + 0.12, SB_Z + 0.53); bunch.rotation.set(0.2, 0, -1.1); add(bunch);
     }
 
     // ================================================================ paintings
@@ -620,23 +675,40 @@ export default {
     };
     const oil = async (name) => {
       const [map, bump] = await Promise.all([loadTex(`${name}.jpg`), loadTex(`${name}_bump.png`, false)]);
-      return new THREE.MeshPhysicalMaterial({ map, bumpMap: bump, bumpScale: 1.6, roughness: 0.36, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.22, envMapIntensity: 0.5, name: `oil:${name}` });
+      return new THREE.MeshPhysicalMaterial({ map, bumpMap: bump, bumpScale: 1.6, roughness: 0.5, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.3, envMapIntensity: 0.5, name: `oil:${name}` });
     };
-    const oils = Object.fromEntries(await Promise.all(['lady', 'storm', 'gent', 'youth', 'vale'].map(async (n) => [n, await oil(n)])));
+    const oils = Object.fromEntries(await Promise.all(['lady', 'abbey', 'gent', 'youth', 'vale'].map(async (n) => [n, await oil(n)])));
     const hang = (s, x, y, w, h, opts) => {
       const g = new THREE.Group();
       g.add(new THREE.Mesh(new THREE.PlaneGeometry(w, h), oils[opts.oil]));
-      g.add(new THREE.Mesh(G.frameGeometry(w, h, { width: opts.frameW ?? 0.11, depth: 0.065, uvScale: 1 }), mat.frame));
-      // cartouche at the top of the big frames
-      if ((opts.frameW ?? 0.11) >= 0.12) {
-        const ct = new THREE.Mesh(new THREE.SphereGeometry(0.08, 14, 10), mat.gilt); ct.scale.set(1.6, 0.8, 0.35); ct.position.set(0, h / 2 + 0.11, 0.04); g.add(ct);
-        for (const sd of [-1, 1]) { const sc = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.014, 6, 14, Math.PI * 1.3), mat.gilt); sc.position.set(sd * 0.16, h / 2 + 0.1, 0.035); sc.rotation.z = sd > 0 ? 0.3 : Math.PI - 0.3 - Math.PI * 0.3; g.add(sc); }
-      }
+      const fw = opts.frameW ?? 0.11;
+      if (fw >= 0.12) carvedFrame(g, w, h, fw, 0.08);
+      else g.add(new THREE.Mesh(G.frameGeometry(w, h, { width: fw, depth: 0.05, profile: heavyFrameProfile(fw, 0.045), uvScale: 1 }), mat.frame));
       g.position.set(x, y, 0.035); s.grp.add(g);
       return g;
     };
-    hang(S.left, Z1 - SB_Z, 2.25, 1.0, 1.42, { oil: 'lady', frameW: 0.13 });
-    hang(S.right, (-1.45 - (Z0 + C)), 2.2, 2.05, 1.28, { oil: 'storm', frameW: 0.14 });
+    hang(S.left, Z1 - SB_Z, 2.05, 1.0, 1.42, { oil: 'lady', frameW: 0.14 });
+    /** brass picture light: shaded hood on two swan-neck arms, a soft warm spot washing the canvas */
+    const pictureLight = (s, x, y, w, h, intensity) => {
+      const g = new THREE.Group();
+      const top = y + h / 2 + 0.24;
+      const hood = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, w * 0.42, 24, 1, true, Math.PI * 0.15, Math.PI * 1.2), mat.brass);
+      hood.material = mat.brass; hood.rotation.z = Math.PI / 2; hood.position.set(x, top, 0.24); g.add(hood);
+      for (const sd of [-1, 1]) {
+        const cap = new THREE.Mesh(new THREE.CircleGeometry(0.045, 20), mat.brass); cap.rotation.y = sd * Math.PI / 2; cap.position.set(x + sd * w * 0.21, top, 0.24); g.add(cap);
+        const arm = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V3(x + sd * w * 0.12, top - 0.2, 0.0), V3(x + sd * w * 0.12, top - 0.12, 0.12), V3(x + sd * w * 0.12, top, 0.2), V3(x + sd * w * 0.12, top + 0.01, 0.235)]), 16, 0.008, 8), mat.brass);
+        g.add(arm);
+        const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.012, 16), mat.brass); plate.rotation.x = Math.PI / 2; plate.position.set(x + sd * w * 0.12, top - 0.2, 0.006); g.add(plate);
+      }
+      const glow = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.4, 0.02), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.75, 0.45).multiplyScalar(3), toneMapped: false }));
+      glow.rotation.x = Math.PI / 2; glow.position.set(x, top - 0.035, 0.24); glow.userData.noBake = true; g.add(glow);
+      const L = new THREE.SpotLight(0xffc690, intensity, 3.2, 0.75, 0.9, 2);
+      L.position.set(x, top - 0.04, 0.26); L.target.position.set(x, y - h * 0.12, 0); g.add(L, L.target);
+      s.grp.add(g);
+    };
+    pictureLight(S.left, Z1 - SB_Z, 2.05, 1.0, 1.42, 2.2);
+    pictureLight(S.right, (-1.45 - (Z0 + C)), 2.15, 2.0, 1.25, 3.2);
+    hang(S.right, (-1.45 - (Z0 + C)), 2.1, 2.0, 1.25, { oil: 'abbey', frameW: 0.15 });
     hang(S.back, S.back.len / 2 - 1.26, 2.36, 0.24, 0.3, { oil: 'youth', frameW: 0.05 });
     hang(S.back, S.back.len / 2 - 1.26, 1.86, 0.24, 0.3, { oil: 'vale', frameW: 0.05 });
     hang(S.back, S.back.len / 2 + 1.28, 2.08, 0.42, 0.54, { oil: 'gent', frameW: 0.07 });
@@ -652,7 +724,7 @@ export default {
     moon.map = fx.windowCookie({ cols: 2, rows: 4 });
     root.add(moon, moon.target);
     root.add(new THREE.HemisphereLight(0x4a62b8, 0x140e0a, 0.6));
-    root.add(fx.areaLight({ center: [0, WIN.sill + WIN.h / 2, Z0 - 0.12], normal: [0, -0.35, 1], width: WIN.w - 0.1, height: WIN.h - 0.1, color: 0x8ea6ff, intensity: 4 }));
+    root.add(fx.areaLight({ center: [0, WIN.sill + WIN.h / 2, Z0 - 0.12], normal: [0, -0.35, 1], width: WIN.w - 0.1, height: WIN.h - 0.1, color: 0x8ea6ff, intensity: 2.5 }));
     // gasolier: one shadowed warm light at the globe ring + a soft up-light for the ceiling
     let chandBase = 7, spotK = 0.6;
     const chandLight = new THREE.PointLight(0xffa860, 10, 12, 2);
@@ -672,12 +744,13 @@ export default {
     // sideboard candles
     const sbLight = new THREE.PointLight(0xffa04a, 2.6, 3, 2); sbLight.position.set(X0 + 0.5, 1.35, SB_Z - 0.45); root.add(sbLight);
     // table candle glow (no shadow)
+    let tBase = 1.2;
     const tLight = new THREE.PointLight(0xffa04a, 1.2, 3, 2); tLight.position.set(T.x, TABLE_H + 0.45, T.z + 0.2); root.add(tLight);
     ctx.onUpdate((dt, t) => {
       const f = 0.96 + 0.025 * Math.sin(t * 7.3) * Math.sin(t * 2.9) + 0.015 * Math.sin(t * 13.1);
       chandLight.intensity = chandBase * f; upLight.intensity = 0.6 * f; chandSpot.intensity = chandBase * spotK * f;
       sbLight.intensity = 2.6 * (0.9 + 0.1 * Math.sin(t * 9.7 + 1) * Math.sin(t * 4.1));
-      tLight.intensity = 1.2 * (0.9 + 0.1 * Math.sin(t * 8.3) * Math.sin(t * 3.3 + 2));
+      tLight.intensity = tBase * (0.9 + 0.1 * Math.sin(t * 8.3) * Math.sin(t * 3.3 + 2));
     });
 
     // volumetric moon beam + dust + low mist
@@ -695,10 +768,10 @@ export default {
       parent: root, origin: cakeOrigin, side: 0.088, height: 0.1, plates, mats: cakeMats,
       camera: { position: [T.x, 2.12, T.z + 1.05], target: [T.x, TABLE_H, T.z + 0.06], fov: 50 },
       onSetup: () => {
-        spotK = 0.25; chandBase = 4; mat.woodTop.clearcoatRoughness = 0.34; mat.woodTop.roughness = 1.4; foyerSpill.intensity = 0.15; sconceLights.forEach((l) => { l.userData.i0 ??= l.intensity; l.intensity = l.userData.i0 * 0.3; });
+        spotK = 0.18; chandBase = 4; tBase = 0.3; chandSpot.penumbra = 1.0; chandSpot.angle = 1.2; mat.woodTop.clearcoatRoughness = 0.34; mat.woodTop.roughness = 1.4; foyerSpill.intensity = 0.15; sconceLights.forEach((l) => { l.userData.i0 ??= l.intensity; l.intensity = l.userData.i0 * 0.3; });
         ctx.post.set({ exposure: 1.45, bloomThreshold: 1.9, bloomStrength: 0.15, godRayWeight: 0.0, vignette: 0.5 }, 0.8);
       },
-      onTeardown: () => { spotK = 0.6; chandBase = 7; mat.woodTop.clearcoatRoughness = 0.14; mat.woodTop.roughness = 1; foyerSpill.intensity = 2.2; sconceLights.forEach((l) => { if (l.userData.i0) l.intensity = l.userData.i0; }); ctx.post.reset(1.0); },
+      onTeardown: () => { spotK = 0.6; chandBase = 7; tBase = 1.2; chandSpot.penumbra = 0.7; chandSpot.angle = 1.05; mat.woodTop.clearcoatRoughness = 0.22; mat.woodTop.roughness = 1; foyerSpill.intensity = 2.2; sconceLights.forEach((l) => { if (l.userData.i0) l.intensity = l.userData.i0; }); ctx.post.reset(1.0); },
       onBeat: () => {
         // the candles gutter, the gasolier dims, and the guests take their seats
         ghostFade.target = 1; chandBase = 4.5; gutter.t = 0;
@@ -835,8 +908,8 @@ export default {
         onActivate: () => ctx.ui.caption('A lady in black, painted by candlelight. Her place card is still on the table: the seat nearest the window.', { title: 'The Portrait' }),
       },
       {
-        id: 'painting-right', nodes: ['main', 'table', 'back'], box: { min: [X1 - 0.15, 1.4, -2.6], max: [X1, 3.0, -0.3] }, cursor: 'examine', label: 'A mountain storm',
-        onActivate: () => ctx.ui.caption('Mountains in a storm. The varnish has crazed into a web so fine it seems to move.', { title: 'The Landscape' }),
+        id: 'painting-right', nodes: ['main', 'table', 'back'], box: { min: [X1 - 0.15, 1.4, -2.6], max: [X1, 3.0, -0.3] }, cursor: 'examine', label: 'A ruined abbey',
+        onActivate: () => ctx.ui.caption('A ruined abbey by moonlight. Look long enough and a light seems to move behind the great window.', { title: 'The Landscape' }),
       },
       {
         id: 'portrait', nodes: ['window', 'main'], box: { min: [1.0, 1.7, Z0], max: [1.55, 2.45, Z0 + 0.12] }, cursor: 'talk', label: 'A small portrait',
@@ -908,7 +981,7 @@ export default {
       scene: root,
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
-      grade: { exposure: 2.1, contrast: 1.12, saturation: 0.95, bloomStrength: 0.28, bloomThreshold: 1.7, godRayWeight: 0.1, godRayThreshold: 3.0, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4, shadowTint: [0.8, 0.95, 1.22], highlightTint: [1.1, 1.0, 0.86] },
+      grade: { chromaticAberration: 0.00012, exposure: 2.1, contrast: 1.12, saturation: 0.95, bloomStrength: 0.28, bloomThreshold: 1.7, godRayWeight: 0.1, godRayThreshold: 3.0, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4, shadowTint: [0.8, 0.95, 1.22], highlightTint: [1.1, 1.0, 0.86] },
       environment: { position: [0.0, 1.8, 1.2], intensity: 0.8 },
       onEnter() {
         if (!ctx.state.has('dining.greeted')) {

@@ -62,7 +62,7 @@ function rayPoly(o, d, poly) {
  * edges catch the light; everything is merged into a single geometry.
  * Origin at the bottom centre of the back, +y up, +z toward the sitter.
  */
-export function webBackGeometry(G, { height = 0.86, w0 = 0.175, w1 = 0.215, thick = 0.024, frame = 0.034 } = {}) {
+export function webBackGeometry(G, { height = 0.86, w0 = 0.165, w1 = 0.215, thick = 0.028, frame = 0.042 } = {}) {
   const ext = (shape, depth = thick, bevel = 0.0045) => {
     const g = new THREE.ExtrudeGeometry(shape, { depth: depth - bevel * 2, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel * 0.85, bevelSegments: 2, curveSegments: 10 });
     g.translate(0, 0, -depth / 2 + bevel);
@@ -106,14 +106,14 @@ export function webBackGeometry(G, { height = 0.86, w0 = 0.175, w1 = 0.215, thic
     }
   }
   // spokes
-  const spokes = 9;
+  const spokes = 11;
   for (let k = 0; k < spokes; k++) {
     const a = THREE.MathUtils.degToRad(-74 + (148 * k) / (spokes - 1));
     const d = V2(Math.sin(a), Math.cos(a));
     const O = V2(B.x + d.x * 0.06, B.y + d.y * 0.06);
     const L = 0.06 + rayPoly(O, d, inner) + 0.012;
     const n = V2(-d.y, d.x);
-    const r0 = bossR - 0.01, wA = 0.0085, wB = 0.0058;
+    const r0 = bossR - 0.01, wA = 0.0125, wB = 0.0085;
     const p0 = V2(B.x + d.x * r0, B.y + d.y * r0), p1 = V2(B.x + d.x * L, B.y + d.y * L);
     const sp = new THREE.Shape();
     sp.moveTo(p0.x - n.x * wA, p0.y - n.y * wA); sp.lineTo(p1.x - n.x * wB, p1.y - n.y * wB);
@@ -121,7 +121,7 @@ export function webBackGeometry(G, { height = 0.86, w0 = 0.175, w1 = 0.215, thic
     parts.push(ext(sp, thick * 0.8, 0.0035));
   }
   // concentric web rails (gently scalloped between the spokes)
-  for (const [R, w] of [[0.27, 0.0085], [0.52, 0.008]]) {
+  for (const [R, w] of [[0.27, 0.0115], [0.52, 0.011]]) {
     let run = [];
     const flush = () => {
       if (run.length > 2) {
@@ -142,6 +142,24 @@ export function webBackGeometry(G, { height = 0.86, w0 = 0.175, w1 = 0.215, thic
       if (inPoly(pIn, inner) && p.y > railH) run.push([a, sc]); else flush();
     }
     flush();
+  }
+  // pierced fan crest standing on the top rail: a half-disc with radiating slots and a beaded rim
+  {
+    const cy = crest(0) - 0.004, R = 0.075;
+    const fs = new THREE.Shape();
+    fs.moveTo(-R, cy); fs.absarc(0, cy, R, Math.PI, 0, true); fs.lineTo(-R, cy);
+    for (let k = 0; k < 6; k++) {
+      const a0 = Math.PI * (k + 0.18) / 6, a1 = Math.PI * (k + 0.82) / 6;
+      const hp = new THREE.Path();
+      hp.moveTo(Math.cos(a0) * 0.022, cy + Math.sin(a0) * 0.022);
+      hp.lineTo(Math.cos(a0) * (R - 0.014), cy + Math.sin(a0) * (R - 0.014));
+      hp.absarc(0, cy, R - 0.014, a0, a1, false);
+      hp.lineTo(Math.cos(a1) * 0.022, cy + Math.sin(a1) * 0.022);
+      fs.holes.push(hp);
+    }
+    parts.push(ext(fs, thick * 0.9, 0.004));
+    const boss = new THREE.Shape(); boss.moveTo(-0.02, cy); boss.absarc(0, cy, 0.02, Math.PI, 0, true); boss.lineTo(-0.02, cy);
+    parts.push(ext(boss, thick + 0.008, 0.005));
   }
   const g = G.mergeGeometries(parts.map((x) => { for (const k of Object.keys(x.attributes)) if (!['position', 'normal', 'uv'].includes(k)) x.deleteAttribute(k); return x; }));
   return dropDegenerate(G.applyBoxUVs(g, 1.6));
@@ -284,18 +302,32 @@ export function buildSideboard(ctx, mats, { w = 1.75, d = 0.56, h = 0.93 } = {})
     const knob = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.012, 0], [0.008, 0.012], [0.016, 0.02], [0.0, 0.03]], 12), mats.brass);
     knob.rotation.x = Math.PI / 2; knob.position.set(x, bodyY, d / 2 - 0.0); g.add(knob);
   }
-  // six square tapered legs with spade feet
+  // six turned, reeded and tapered legs: collar, reeded shaft, ring and a peg foot
   const legH = h - 0.035 - bodyH;
-  const legGeo = new THREE.CylinderGeometry(0.03, 0.017, legH, 4, 1);
-  legGeo.rotateY(Math.PI / 4);
-  const footGeo = new THREE.CylinderGeometry(0.02, 0.014, 0.05, 4, 1); footGeo.rotateY(Math.PI / 4);
+  const legGeo = G.latheFromProfile([[0, 0], [0.012, 0], [0.014, 0.02], [0.011, 0.045], [0.016, 0.06], [0.018, 0.075], [0.016, 0.09],
+    [0.017, legH * 0.55], [0.022, legH - 0.07], [0.026, legH - 0.055], [0.022, legH - 0.04], [0.028, legH - 0.025], [0.028, legH], [0, legH]], 36);
+  { // reeding: shallow vertical flutes on the shaft
+    const lp = legGeo.attributes.position;
+    for (let i = 0; i < lp.count; i++) {
+      const y = lp.getY(i); if (y < 0.1 || y > legH - 0.075) continue;
+      const a = Math.atan2(lp.getZ(i), lp.getX(i)), k = 1 + 0.07 * Math.pow(Math.abs(Math.cos(a * 8)), 0.5) - 0.035;
+      lp.setX(i, lp.getX(i) * k); lp.setZ(i, lp.getZ(i) * k);
+    }
+    legGeo.computeVertexNormals();
+  }
   for (const x of [-w / 2 + 0.05, -w * 0.17, w * 0.17, w / 2 - 0.05]) for (const z of [-d / 2 + 0.05, d / 2 - 0.05]) {
     if (Math.abs(x) < 0.4 && z < 0) continue;
-    const l = new THREE.Mesh(legGeo, mats.wood); l.position.set(x, legH / 2 + 0.03, z); g.add(l);
-    const f = new THREE.Mesh(footGeo, mats.wood); f.position.set(x, 0.025, z); g.add(f);
-    // gilt collar
-    const c = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.012, 0.045), mats.gilt); c.position.set(x, legH + 0.024, z); g.add(c);
+    const l = new THREE.Mesh(legGeo, mats.wood); l.position.set(x, 0, z); g.add(l);
+    const c = new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.004, 6, 20), mats.gilt); c.rotation.x = Math.PI / 2; c.position.set(x, legH - 0.04, z); g.add(c);
   }
+  // cock-beading round each drawer opening and a moulded edge under the top
+  for (const [x, fw] of fronts) {
+    const bw = fw - 0.012, bh = bodyH - 0.03;
+    for (const [len, px, py, rz] of [[bw, 0, bh / 2, Math.PI / 2], [bw, 0, -bh / 2, Math.PI / 2], [bh, bw / 2, 0, 0], [bh, -bw / 2, 0, 0]]) {
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, len, 8), mats.wood); b.rotation.z = rz; b.position.set(x + px, bodyY + py, d / 2 - 0.018); g.add(b);
+    }
+  }
+  const lip = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, w + 0.02, 10), mats.wood); lip.rotation.z = Math.PI / 2; lip.position.set(0, h - 0.04, d / 2 - 0.01); g.add(lip);
   // back gallery
   const gal = new THREE.Mesh(new G.RoundedBoxGeometry(w, 0.12, 0.025, 2, 0.008), mats.wood);
   gal.position.set(0, h + 0.06, -d / 2 + 0.02); g.add(gal);
@@ -425,34 +457,39 @@ export function gobletGeometry(G, s = 1) {
   return G.latheFromProfile([[0, 0], [0.034, 0.0], [0.033, 0.004], [0.008, 0.012], [0.005, 0.03], [0.009, 0.075], [0.004, 0.09], [0.022, 0.1], [0.036, 0.13], [0.038, 0.165], [0.0365, 0.168], [0.034, 0.13], [0.02, 0.104], [0.0, 0.1]].map(([r, y]) => [r * s, y * s]), 24);
 }
 
-/** standing bishop's-mitre napkin: two-peaked starched cone with fold creases */
-export function napkinGeometry(G, { rx = 0.055, rz = 0.02, h = 0.14 } = {}) {
-  const U = 48, V = 18;
-  const pos = [], idx = [];
-  for (let j = 0; j <= V; j++) {
-    const v = j / V;
-    for (let i = 0; i <= U; i++) {
-      const u = i / U, a = u * Math.PI * 2;
-      const top = h * (0.55 + 0.45 * Math.pow(Math.abs(Math.sin(a)), 3.0));   // mitre point front and back
-      const y = v * top;
-      const k = Math.pow(1 - v, 0.75) * 0.92 + 0.08;
-      const crease = 1 + 0.07 * Math.abs(Math.sin(a * 3)) * (1 - v);
-      const flat = Math.abs(Math.sin(a)) > 0.2 ? 1 : 1;
-      pos.push(Math.cos(a) * rx * k * crease * flat, y, Math.sin(a) * rz * k * crease * (0.55 + 0.45 * (1 - v)));
-    }
-  }
+/**
+ * Standing bishop's-mitre napkin: two tall pointed panels (front and back) rising
+ * from a folded cuff, with crisp pleat creases (flat-shaded so the folds read).
+ */
+export function napkinGeometry(G, { rx = 0.05, rz = 0.026, h = 0.15 } = {}) {
+  const U = 24, V = 6;
+  const pos = [];
+  const P = (i, j) => {
+    const u = i / U, v = j / V, a = u * Math.PI * 2;
+    const sa = Math.abs(Math.sin(a));
+    // pointed mitre peaks front/back (a = 90, 270 deg), low shoulders at the sides
+    const top = h * (0.42 + 0.58 * Math.pow(sa, 2.2));
+    const y = v * top;
+    // pleat creases: zig-zag in the radius, deeper toward the base
+    const tri = Math.abs(((u * 8) % 1) - 0.5) * 2;
+    const pleat = 1 + 0.16 * (tri - 0.5) * (1 - v * 0.6);
+    // panels converge toward the peak; the cuff flares slightly at the base
+    const taper = (1 - Math.pow(v, 1.4) * 0.72) * (j === 0 ? 1.06 : 1);
+    return [Math.cos(a) * rx * taper * pleat, y, Math.sin(a) * rz * taper * pleat * (1 - v * 0.35)];
+  };
   for (let j = 0; j < V; j++) for (let i = 0; i < U; i++) {
-    const a = j * (U + 1) + i, b = a + 1, c = a + U + 1, d = c + 1;
-    idx.push(a, c, b, b, c, d);
+    const a = P(i, j), b = P(i + 1, j), c = P(i, j + 1), d = P(i + 1, j + 1);
+    pos.push(...a, ...c, ...b, ...b, ...c, ...d);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setIndex(idx);
   g.computeVertexNormals();
-  const n = pos.length / 3;
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n * 2), 2));
-  const dbl = g.toNonIndexed();
-  return dbl;
+  // make sure the faces point outward
+  const p = g.attributes.position, n = g.attributes.normal;
+  let dot = 0; for (let i = 0; i < p.count; i++) dot += p.getX(i) * n.getX(i) + p.getZ(i) * n.getZ(i);
+  if (dot < 0) { const arr = p.array; for (let t = 0; t < arr.length; t += 9) for (let k = 0; k < 3; k++) { const tmp = arr[t + 3 + k]; arr[t + 3 + k] = arr[t + 6 + k]; arr[t + 6 + k] = tmp; } g.computeVertexNormals(); }
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(p.count * 2), 2));
+  return g;
 }
 
 function flatExtrude(shape, t) {
@@ -509,4 +546,134 @@ export function buildPlaceSetting(ctx, mats, { chinaMat, cutlery, napkin } = {})
   const wine = new THREE.Mesh(G.latheFromProfile([[0, 0.11], [0.024, 0.115], [0.03, 0.13], [0.0, 0.13]], 16), mats.wine); wine.position.set(0.16, 0, -0.17); g.add(wine);
   const gob2 = new THREE.Mesh(gobletGeometry(G, 0.8), mats.crystal); gob2.position.set(0.23, 0, -0.1); g.add(gob2);
   return g;
+}
+
+// ------------------------------------------------------------------ doors
+/**
+ * A real six-panel-style door leaf: stiles and rails (rounded, 5 cm thick), raised
+ * fields with a broad 3.5 cm bevel, an ovolo sticking bead round every opening and
+ * three butt hinges on the hinge side. Origin bottom centre, +z = room side.
+ * `rows` = panel openings from the bottom: [[y0, y1], ...] in metres.
+ */
+export function buildDoorLeaf(G, mats, { w = 0.74, h = 2.6, t = 0.05, stile = 0.115, rows = null, hingeSide = -1 } = {}) {
+  const g = new THREE.Group();
+  const parts = [], beads = [], brass = [];
+  const box = (bw, bh, bd, x, y, z, r = 0.006) => { const b = new G.RoundedBoxGeometry(bw, bh, bd, 2, r); b.translate(x, y, z); parts.push(G.applyBoxUVs(b.index ? b.toNonIndexed() : b, 1)); };
+  rows = rows || [[0.24, 0.86], [1.04, 1.86], [2.0, h - 0.13]];
+  // stiles
+  for (const s of [-1, 1]) box(stile, h, t, s * (w / 2 - stile / 2), h / 2, 0);
+  // rails between/around the openings
+  let y = 0;
+  for (const [y0, y1] of rows) { if (y0 - y > 0.01) box(w - stile * 2 + 0.01, y0 - y, t * 0.96, 0, (y + y0) / 2, 0); y = y1; }
+  if (h - y > 0.01) box(w - stile * 2 + 0.01, h - y, t * 0.96, 0, (y + h) / 2, 0);
+  // raised fields + sticking beads
+  const iw = w - stile * 2;
+  for (const [y0, y1] of rows) {
+    const ph = y1 - y0, cy = (y0 + y1) / 2;
+    box(iw + 0.01, ph + 0.01, 0.012, 0, cy, -0.006, 0.003);                                // panel ground
+    const bev = Math.min(0.035, iw * 0.18, ph * 0.18);
+    const fw = iw / 2 - bev - 0.008, fh = ph / 2 - bev - 0.008;
+    const sh = new THREE.Shape();
+    sh.moveTo(-fw, -fh); sh.lineTo(fw, -fh); sh.lineTo(fw, fh); sh.lineTo(-fw, fh); sh.lineTo(-fw, -fh);
+    const f = new THREE.ExtrudeGeometry(sh, { depth: 0.004, bevelEnabled: true, bevelThickness: 0.013, bevelSize: bev, bevelSegments: 1 });
+    f.translate(0, cy, 0.0);
+    parts.push(G.applyBoxUVs(f.index ? f.toNonIndexed() : f, 1));
+    // ovolo bead: a quarter-round rod lining the opening
+    const rod = (len, x, yy, rotZ) => { const c = new THREE.CylinderGeometry(0.009, 0.009, len, 8, 1); c.rotateZ(rotZ); c.scale(1, 1, 0.8); c.translate(x, yy, t / 2 - 0.006); beads.push(c.toNonIndexed()); };
+    rod(iw, 0, y0 + 0.006, Math.PI / 2); rod(iw, 0, y1 - 0.006, Math.PI / 2);
+    rod(ph, -iw / 2 + 0.006, cy, 0); rod(ph, iw / 2 - 0.006, cy, 0);
+  }
+  // butt hinges (knuckle + leaf)
+  for (const hy of [0.25, h / 2 + 0.1, h - 0.25]) {
+    const k = new THREE.CylinderGeometry(0.008, 0.008, 0.1, 10); k.translate(hingeSide * (w / 2 + 0.002), hy, t / 2 - 0.004); brass.push(k.toNonIndexed());
+    for (const dy of [-0.051, 0.051]) { const c = new THREE.SphereGeometry(0.009, 10, 6); c.translate(hingeSide * (w / 2 + 0.002), hy + dy, t / 2 - 0.004); brass.push(c.toNonIndexed()); }
+    const l = new THREE.BoxGeometry(0.03, 0.09, 0.002); l.translate(hingeSide * (w / 2 - 0.014), hy, t / 2 + 0.001); brass.push(l.toNonIndexed());
+  }
+  const strip = (gs) => gs.map((x) => { for (const k of Object.keys(x.attributes)) if (!['position', 'normal', 'uv'].includes(k)) x.deleteAttribute(k); if (!x.attributes.uv) x.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(x.attributes.position.count * 2), 2)); return x; });
+  g.add(new THREE.Mesh(G.mergeGeometries(strip(parts)), mats.wood));
+  g.add(new THREE.Mesh(G.mergeGeometries(strip(beads.map((b) => G.applyBoxUVs(b, 2)))), mats.wood));
+  g.add(new THREE.Mesh(G.mergeGeometries(strip(brass)), mats.brass));
+  return g;
+}
+
+/** moulded architrave (12 cm, stepped) with plinth blocks and a cornice head; origin bottom centre of the opening */
+export function buildArchitrave(G, mats, { w, h, width = 0.13, cornice = true }) {
+  const g = new THREE.Group();
+  // stepped profile: back band, fillet, cyma, bead (x = out from wall, y = across from the opening edge outward)
+  const prof = [V2(0, 0), V2(0.012, 0), V2(0.014, 0.004), V2(0.02, 0.012), V2(0.026, 0.03), V2(0.028, 0.05), V2(0.02, 0.058), V2(0.02, 0.07), V2(0.034, 0.085), V2(0.036, 0.1), V2(0.03, 0.11), V2(0.03, width - 0.008), V2(0.024, width), V2(0, width)];
+  const path = [V3(-w / 2, 0.2, 0), V3(-w / 2, h, 0), V3(w / 2, h, 0), V3(w / 2, 0.2, 0)];
+  // sweep the profile so +y of the profile points away from the opening
+  const m = new THREE.Mesh(G.sweepProfile(prof.map((p) => V2(p.y, p.x)), path, { up: V3(0, 0, 1), uvScale: 2, flipOutward: true }), mats.wood);
+  g.add(m);
+  for (const s of [-1, 1]) { const pb = new THREE.Mesh(new G.RoundedBoxGeometry(width + 0.02, 0.22, 0.045, 2, 0.006), mats.wood); pb.position.set(s * (w / 2 + width / 2), 0.11, 0.0225); g.add(pb); }
+  if (cornice) {
+    const fw = w + width * 2 + 0.04;
+    const fr = new THREE.Mesh(new G.RoundedBoxGeometry(fw, 0.16, 0.03, 2, 0.006), mats.wood); fr.position.set(0, h + width + 0.08, 0.015); g.add(fr);
+    const cr = new THREE.Mesh(G.sweepProfile(G.PROFILES.crown(0.1, 0.08), [V3(-fw / 2 - 0.08, 0, 0.0), V3(-fw / 2 - 0.08, 0, -0.11), V3(fw / 2 + 0.08, 0, -0.11), V3(fw / 2 + 0.08, 0, 0.0)], { uvScale: 1, flipOutward: true }), mats.gilt);
+    cr.position.set(0, h + width + 0.16, 0.11); g.add(cr);
+  }
+  return g;
+}
+
+// ------------------------------------------------------------------ carved frames
+/** heavy 4-step frame profile (x = out of the wall, y = inward from the outer edge): ogee, flat, bead, cove, sight lip */
+export function heavyFrameProfile(width = 0.14, depth = 0.075) {
+  const pts = [[0, 0], [0.4, 0], [0.62, 0.03], [0.8, 0.07], [0.95, 0.13], [1.0, 0.2], [0.95, 0.26], [0.86, 0.3], [0.84, 0.34], [0.84, 0.46],
+    [0.88, 0.49], [0.93, 0.53], [0.88, 0.57], [0.82, 0.6]];
+  for (let i = 1; i <= 8; i++) { const t = i / 8; pts.push([0.82 - Math.sin(t * Math.PI / 2) * 0.42, 0.6 + t * 0.3]); }
+  pts.push([0.46, 0.93], [0.52, 0.96], [0.46, 0.99], [0.3, 1.0]);
+  return pts.map(([x, y]) => V2(x * depth, y * width));
+}
+
+/** an acanthus leaf: lobed outline, extruded with a bevel and curled forward along its length (+y) */
+function acanthusLeaf(len, w, curl = 0.5) {
+  const sh = new THREE.Shape();
+  const N = 24, side = [];
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    const env = Math.sin(Math.PI * Math.pow(t, 0.8)) * (1 - 0.25 * t);
+    const lobes = 1 + 0.28 * Math.max(0, Math.sin(t * Math.PI * 5));
+    side.push(V2(env * w * 0.5 * lobes, t * len));
+  }
+  sh.moveTo(0, 0);
+  for (const p of side) sh.lineTo(p.x, p.y);
+  for (let i = side.length - 2; i >= 0; i--) sh.lineTo(-side[i].x, side[i].y);
+  const g = new THREE.ExtrudeGeometry(sh, { depth: 0.004, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.003, bevelSegments: 2, curveSegments: 4 });
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i), x = p.getX(i), t = y / len;
+    // central rib ridge + forward curl at the tip
+    p.setZ(i, p.getZ(i) + 0.006 * (1 - Math.min(1, Math.abs(x) / (w * 0.15))) + curl * len * t * t * 0.6);
+    p.setY(i, y - curl * len * t * t * t * 0.25);
+  }
+  g.computeVertexNormals();
+  return g.index ? g.toNonIndexed() : g;
+}
+
+/**
+ * Carved cartouche ornament (merged): `corner` = an acanthus spray fanning out of
+ * a frame corner along the diagonal; `centre` = a shell of leaves with two C-scrolls
+ * and a boss, for the middle of the top rail. Faces +z, origin at its base.
+ */
+export function cartoucheGeometry(G, kind = 'corner', s = 1) {
+  const parts = [];
+  const put = (g, rz, x, y, z = 0) => { g.rotateZ(rz); g.translate(x, y, z); for (const k of Object.keys(g.attributes)) if (!['position', 'normal'].includes(k)) g.deleteAttribute(k); parts.push(g); };
+  if (kind === 'corner') {
+    // spray pointing inward along +x+y diagonal from the corner
+    const fan = [-0.75, -0.38, 0, 0.38, 0.75];
+    fan.forEach((a, i) => put(acanthusLeaf(0.11 - Math.abs(a) * 0.04, 0.05, 0.45), -Math.PI / 4 + a, 0, 0, 0.002 * i));
+    const boss = new THREE.SphereGeometry(0.022, 14, 10); boss.scale(1, 1, 0.7); put(boss.toNonIndexed(), 0, 0.012, 0.012, 0.012);
+    for (const sd of [-1, 1]) { const c = new THREE.TorusGeometry(0.03, 0.008, 6, 16, Math.PI * 1.3); put(c.toNonIndexed(), sd > 0 ? 0.2 : Math.PI * 0.5 - 0.2, sd > 0 ? 0.06 : -0.005, sd > 0 ? -0.005 : 0.06, 0.004); }
+  } else {
+    const n = 7;
+    for (let i = 0; i < n; i++) { const a = -1.2 + (2.4 * i) / (n - 1); put(acanthusLeaf(0.13 - Math.abs(a) * 0.03, 0.055, 0.4), a, 0, 0, 0.002 * (3 - Math.abs(i - 3))); }
+    for (const sd of [-1, 1]) {
+      const c = new THREE.TorusGeometry(0.045, 0.011, 8, 20, Math.PI * 1.4); put(c.toNonIndexed(), sd > 0 ? -0.3 : Math.PI + 0.3 - Math.PI * 0.4, sd * 0.14, 0.03, 0.006);
+      put(acanthusLeaf(0.12, 0.045, 0.3), sd * (Math.PI / 2 + 0.25), sd * 0.06, 0.012, 0.0);
+    }
+    const boss = new THREE.SphereGeometry(0.03, 16, 10); boss.scale(1.2, 1, 0.7); put(boss.toNonIndexed(), 0, 0, 0.03, 0.016);
+  }
+  const g = G.mergeGeometries(parts);
+  g.scale(s, s, s);
+  return G.applyBoxUVs(g, 4);
 }

@@ -32,6 +32,7 @@ export const cakeMeta = {
 const MARKS = '020010001001000000200000000102200101000000000202000000'.split('').map(Number);
 const SOLUTION = [0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 2, 2, 2, 1, 1, 0, 0, 0, 0, 2, 2, 2, 2, 3, 1, 3, 4, 4, 4, 2, 2, 4, 5, 5, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 3, 3, 5, 5, 5, 5, 5, 3, 3];
 const SLICE = 9, GUESTS = 6;
+const PLATE_R = 0.1;          // a served slice must fit inside this radius on the plate
 
 /** 54 unit triangles of a hexagon of side 3 (flat top). Same ordering as the authoring solver. */
 export function buildCells(s = 1) {
@@ -214,8 +215,8 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
           beads.push(bg);
         }
         // ganache drips running down the outer face
-        if ((beadN * 7) % 5 < 2) {
-          const len = 0.012 + 0.03 * Math.abs(Math.sin(beadN * 2.3));
+        if ((beadN * 7) % 5 < 3) {
+          const len = 0.016 + 0.036 * Math.abs(Math.sin(beadN * 2.3));
           const dg = dripGeometry(len);
           const nx = (a.y - b.y), nz = (b.x - a.x); const nl = Math.hypot(nx, nz) || 1;
           const cxw = a.x + (b.x - a.x) * t, czw = a.y + (b.y - a.y) * t;
@@ -247,11 +248,11 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
     if (mk === 1) {
       const sk = new THREE.Mesh(skullG, mats.sugar); sk.castShadow = true;
       sk.add(new THREE.Mesh(socketG, mats.socket));
-      sk.position.set(0, height + 0.001, 0); sk.scale.setScalar(1.2);
+      sk.position.set(0, height + 0.001, 0); sk.scale.setScalar(1.5);
       sk.rotation.set(-0.5, ((c.i * 37) % 7 - 3) * 0.08, 0, 'YXZ');
       m.add(sk);
     } else if (mk === 2) {
-      const tb = new THREE.Mesh(tombG, mats.stone); tb.castShadow = true; tb.scale.setScalar(1.08);
+      const tb = new THREE.Mesh(tombG, mats.stone); tb.castShadow = true; tb.scale.setScalar(1.35);
       tb.position.set(0, height, 0.002);
       tb.rotation.set(-0.12 + ((c.i * 13) % 5) * 0.03, ((c.i * 29) % 7 - 3) * 0.1, ((c.i * 7) % 5 - 2) * 0.04);
       m.add(tb);
@@ -318,12 +319,19 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
     served.push({ plate: k, cells: ids.slice() });
     const c = centroid(ids);
     const p = plateWorld(k);
-    const off = new THREE.Vector3(p.x - c.x, p.y + 0.028 - homes[ids[0]].y, p.z - c.z);
+    // keep the slice's orientation as the guest sees it (its tip still points at the cake),
+    // and shrink it, if need be, so that no crumb overhangs the plate rim or knocks a glass
+    const yaw = Math.atan2(-p.z, p.x) - Math.atan2(-c.z, c.x);
+    let maxR = 0;
+    for (const i of ids) for (const v of cells[i].v) maxR = Math.max(maxR, Math.hypot(v[0] - c.x, -v[1] - c.z));
+    const sc = Math.min(1, PLATE_R / maxR);
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
     ids.forEach((i, n) => {
       owner[i] = k;
-      const to = homes[i].clone().add(off);
-      if (instant) { meshes[i].position.copy(to); return; }
-      anims.push({ mesh: meshes[i], from: meshes[i].position.clone(), to, t: -n * 0.025, d: 1.35, lift: 0.16, tilt: [0.22 * Math.sign(off.z || 1), -0.22 * Math.sign(off.x || 1)] });
+      const rx = (homes[i].x - c.x) * sc, rz = (homes[i].z - c.z) * sc;
+      const to = new THREE.Vector3(p.x + rx * cy + rz * sy, p.y + 0.013, p.z - rx * sy + rz * cy);
+      if (instant) { meshes[i].position.copy(to); meshes[i].rotation.set(0, yaw, 0); meshes[i].scale.setScalar(sc); return; }
+      anims.push({ mesh: meshes[i], from: meshes[i].position.clone(), to, t: -n * 0.025, d: 1.35, lift: 0.16, tilt: [0.22 * Math.sign(p.z - c.z || 1), -0.22 * Math.sign(p.x - c.x || 1)], rot0: meshes[i].rotation.y, rot1: yaw, s0: meshes[i].scale.x, s1: sc });
     });
     if (!instant) burst(c);
   }
@@ -366,8 +374,8 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
     plateUsed[k] = false;
     s.cells.forEach((i, n) => {
       owner[i] = -1;
-      if (instant) { meshes[i].position.copy(homes[i]); return; }
-      anims.push({ mesh: meshes[i], from: meshes[i].position.clone(), to: homes[i].clone(), t: -n * 0.02, d: 1.1, lift: 0.14 });
+      if (instant) { meshes[i].position.copy(homes[i]); meshes[i].rotation.set(0, 0, 0); meshes[i].scale.setScalar(1); return; }
+      anims.push({ mesh: meshes[i], from: meshes[i].position.clone(), to: homes[i].clone(), t: -n * 0.02, d: 1.1, lift: 0.14, rot0: meshes[i].rotation.y, rot1: 0, s0: meshes[i].scale.x, s1: 1 });
     });
   }
   function refreshOverlays(t = 0) {
@@ -387,7 +395,7 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
   function resetAll(instant = true) {
     anims.length = 0; selected.clear(); served.length = 0; plateUsed.fill(false);
     owner = new Array(cells.length).fill(-1);
-    meshes.forEach((m, i) => m.position.copy(homes[i]));
+    meshes.forEach((m, i) => { m.position.copy(homes[i]); m.rotation.set(0, 0, 0); m.scale.setScalar(1); });
     solvedFlag = false;
     refreshOverlays();
   }
@@ -485,7 +493,8 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
         a.mesh.position.y += Math.sin(u * Math.PI) * a.lift;
         const tl = Math.sin(u * Math.PI) * (a.tilt ? 1 : 0);
         if (a.tilt) { a.mesh.rotation.x = a.tilt[0] * tl; a.mesh.rotation.z = a.tilt[1] * tl; }
-        if (u >= 1) { a.mesh.position.copy(a.to); a.mesh.rotation.set(0, 0, 0); anims.splice(k, 1); }
+        if (a.rot1 !== undefined) { a.mesh.rotation.y = a.rot0 + (a.rot1 - a.rot0) * e; a.mesh.scale.setScalar(a.s0 + (a.s1 - a.s0) * e); }
+        if (u >= 1) { a.mesh.position.copy(a.to); a.mesh.rotation.set(0, a.rot1 ?? 0, 0); if (a.s1 !== undefined) a.mesh.scale.setScalar(a.s1); anims.splice(k, 1); }
       }
       for (const [i, left] of shakes) {
         const l = left - dt;

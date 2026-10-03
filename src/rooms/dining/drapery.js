@@ -36,7 +36,7 @@ const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return
  * One drape hanging from y = 0 (rod) down to y = -height (floor), spanning x in [0, width]
  * when open. `outer` = 0 gathers toward x = 0 at the tie-back. Faces +z.
  */
-export function buildCurtain({ width = 0.85, height = 2.6, folds = 10, depth = 0.05, tieback = 0.36, squeeze = 0.32, pool = 0.14, seed = 1, U = 120, V = 80 } = {}) {
+export function buildCurtain({ width = 0.85, height = 2.6, folds = 10, depth = 0.05, tieback = 0.36, squeeze = 0.32, pool = 0.14, seed = 1, U = 170, V = 130 } = {}) {
   const phases = Array.from({ length: folds + 2 }, (_, i) => hash(seed * 13 + i) * 0.6);
   const tbV = 1 - tieback;                       // v (from top) of the tie-back
   return gridGeometry(U, V, (u, v, p, st) => {
@@ -47,13 +47,18 @@ export function buildCurtain({ width = 0.85, height = 2.6, folds = 10, depth = 0
     // the inner (leading) edge sweeps in a curve; outer edge stays near the wall
     const x = width * u * sq;
     // pleats: deeper where compressed; irregular phase per fold
-    const fu = u * folds;
+    // folds drift sideways down the drop, so they taper, merge and break instead of running as pipes
+    const fu = u * folds + 0.28 * Math.sin(v * 4.1 + u * 9.0 + seed) + 0.12 * Math.sin(v * 11.0 + u * 23.0);
     const fi = Math.floor(fu);
-    const ph = phases[Math.min(fi, folds)] ?? 0;
+    const ph = phases[Math.min(Math.max(fi, 0), folds)] ?? 0;
     const wave = Math.sin((fu + ph * 0.3) * Math.PI * 2);
-    const sharp = Math.sign(wave) * Math.pow(Math.abs(wave), 0.75);
+    const sharp = Math.sign(wave) * Math.pow(Math.abs(wave), 0.8);
     const comp = 1 / Math.max(sq, 0.2);
-    let z = depth * sharp * (0.55 + 0.45 * Math.min(comp, 3.2)) * (0.8 + 0.4 * hash(fi + seed));
+    const life = 0.55 + 0.45 * Math.sin(v * 5.3 + fi * 1.7 + seed) * Math.sin(v * 2.1 + fi * 0.9);
+    let z = depth * sharp * (0.55 + 0.45 * Math.min(comp, 3.2)) * (0.8 + 0.4 * hash(fi + seed)) * (0.7 + 0.3 * life);
+    // secondary horizontal folds: soft sags between rod and tie-back, crumple below it
+    const below = v > tbV ? 1 : 0.35;
+    z += 0.006 * below * Math.sin(v * height * 7.0 + u * 6.0 + seed) * Math.sin(u * Math.PI);
     // fabric bellies forward between rod and tie-back, top pinch-pleats
     z += 0.05 * Math.sin(Math.min(v / tbV, 1) * Math.PI) * u;
     if (v < 0.04) z *= 0.5 + 12 * v;
@@ -76,7 +81,7 @@ export function buildSwagValance({ width = 2.4, n = 3, drop = 0.5, seed = 3 } = 
   const sw = width / n * 1.12;
   for (let k = 0; k < n; k++) {
     const cx = -width / 2 + (k + 0.5) * (width / n);
-    const g = gridGeometry(60, 26, (s, t, p, st) => {
+    const g = gridGeometry(90, 40, (s, t, p, st) => {
       const sn = Math.sin(s * Math.PI);
       const hem = drop * (0.22 + 0.78 * Math.pow(sn, 0.9));
       const y = -t * hem;
@@ -92,10 +97,10 @@ export function buildSwagValance({ width = 2.4, n = 3, drop = 0.5, seed = 3 } = 
   // jabots (cascades) at both ends: zig-zag pleats, hem slanting longer toward the outside
   for (const side of [-1, 1]) {
     const jw = 0.34, jmin = 0.55, jmax = 1.05;
-    const g = gridGeometry(36, 30, (u, v, p, st) => {
+    const g = gridGeometry(90, 40, (u, v, p, st) => {
       const L = jmin + (jmax - jmin) * u;
       const y = -v * L;
-      const tri = Math.abs(((u * 5) % 1) - 0.5) * 2 - 0.5;
+      const tri = Math.sin(u * 5 * Math.PI * 2) * 0.42;
       const z = 0.07 + tri * 0.05 + 0.02 * v;
       const x = side * (width / 2 - jw + u * jw + 0.06);
       p.set(x, y, z);
