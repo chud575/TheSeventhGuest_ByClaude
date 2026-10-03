@@ -90,7 +90,7 @@ export function wallTileTexture(forge, size = 2048) {
       float grout = 1.0 - smoothstep(0.0011, 0.0021, de);
       float pillow = domeh(-de + 0.005, 0.005);
       float replaced = step(0.955, h4.x);           // a later, whiter, uncrazed tile
-      float cracked = step(0.93, h4.y) * (1.0 - replaced);
+      float cracked = step(0.985, h4.y) * (1.0 - replaced);
       vec3 cream = mix(vec3(0.86, 0.82, 0.72), vec3(0.9, 0.89, 0.84), replaced);
       vec3 col = cream * (0.95 + 0.1 * h3.x);
       col = mix(col, vec3(0.82, 0.83, 0.76), h3.y * 0.3);
@@ -600,7 +600,7 @@ export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 
       float speck = vnoise(uv * 1800.0, vec2(1800.0));
       // spill round the block, skewed toward the pantry side
       vec2 c = w - (uBlock.xy + vec2(-0.25, 0.05));
-      float spill = exp(-dot(c * vec2(0.62, 0.95), c * vec2(0.62, 0.95)) * 1.1);
+      float spill = exp(-dot(c * vec2(0.62, 0.95), c * vec2(0.62, 0.95)) * 2.3);
       float a = smoothstep(0.3, 0.75, spill * (0.35 + 1.05 * n1)) * (0.45 + 0.55 * smoothstep(0.35, 0.65, n2));
       // split sack: a dense fan of flour poured toward the block
       vec2 cs = w - uSack;

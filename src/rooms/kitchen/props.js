@@ -300,7 +300,7 @@ export function buildDresser(ctx, mat, { L = 1.9 } = {}) {
     g.add(side);
   }
   // shelves (with a plate groove rail on the upper two)
-  const shelfYs = [1.24, 1.56, 1.88, 2.22, 2.52];
+  const shelfYs = [1.26, 1.52, 1.78, 2.2, 2.52];
   for (const y of shelfYs) {
     g.add(mk(rbox(G, L - 0.06, 0.025, SD, 0.004), paint, 0, y - 0.0125, SD / 2));
     // front lip moulding

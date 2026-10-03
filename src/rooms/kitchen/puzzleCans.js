@@ -40,37 +40,55 @@ function scramble(n) {
   return a;
 }
 
+// circumferential bead ribs pressed into the body (in the gilt bands, clear of the letter)
+const BEADS = [0.0205, 0.0265, 0.0855, 0.0915];
+const bead = (y) => { let d = 0; for (const b of BEADS) d = Math.max(d, Math.exp(-((y - b) ** 2) / 0.0000016)); return d * 0.0011; };
+
 function tinGeometry(G) {
   const r = CAN_R, h = CAN_H;
-  // rolled seams top & bottom, slightly waisted body under the label, lid with expansion rings
+  // double-seamed rims top & bottom (a rolled bead standing proud), beaded body, lid with expansion rings
   const pts = [
-    [0.0, 0.0015], [r * 0.86, 0.0015], [r * 0.9, 0.0], [r + 0.0012, 0.0012], [r + 0.0018, 0.004], [r + 0.0012, 0.0075], [r, 0.009],
-    [r - 0.0004, 0.012], [r - 0.0004, h - 0.012],
-    [r, h - 0.009], [r + 0.0012, h - 0.0075], [r + 0.0018, h - 0.004], [r + 0.0012, h - 0.0008], [r * 0.95, h], [r * 0.92, h - 0.003],
-    [r * 0.8, h - 0.0035], [r * 0.76, h - 0.0025], [r * 0.72, h - 0.0035], [r * 0.52, h - 0.0035], [r * 0.48, h - 0.002], [r * 0.44, h - 0.0035], [0.0, h - 0.0035],
+    [0.0, 0.0015], [r * 0.86, 0.0015], [r * 0.9, 0.0], [r + 0.0008, 0.0006], [r + 0.0022, 0.0022], [r + 0.0024, 0.0045], [r + 0.0018, 0.0068], [r + 0.0004, 0.0078], [r, 0.009],
   ];
-  return G.latheFromProfile(pts, 40);
+  for (let y = 0.012; y <= h - 0.012 + 1e-6; y += 0.0015) pts.push([r - 0.0004 - bead(y), y]);
+  pts.push(
+    [r, h - 0.009], [r + 0.0004, h - 0.0078], [r + 0.0018, h - 0.0068], [r + 0.0024, h - 0.0045], [r + 0.0022, h - 0.0018], [r + 0.0012, h - 0.0004], [r * 0.97, h], [r * 0.94, h - 0.0028],
+    [r * 0.82, h - 0.0034], [r * 0.79, h - 0.0022], [r * 0.76, h - 0.0034], [r * 0.6, h - 0.0034], [r * 0.57, h - 0.0024], [r * 0.54, h - 0.0034], [r * 0.3, h - 0.0034], [r * 0.27, h - 0.0026], [r * 0.24, h - 0.0034], [0.0, h - 0.0034],
+  );
+  return G.latheFromProfile(pts, 56);
 }
 
-function labelGeometry(rect, seed) {
-  const h = CAN_H - 0.026;
-  const g = new THREE.CylinderGeometry(CAN_R + 0.0006, CAN_R + 0.0006, h, 48, 6, true);
+/** Label (lithographed print) skin following the beads; dented per seed. */
+function labelGeometry(rect, seed, dentAmt = 1) {
+  const y0 = 0.013, y1 = CAN_H - 0.013;
+  const pts = [];
+  const N = 64;
+  for (let j = 0; j <= N; j++) { const y = y0 + (j / N) * (y1 - y0); pts.push(new THREE.Vector2(CAN_R + 0.0002 - bead(y), y)); }
+  const g = new THREE.LatheGeometry(pts, 72);
   g.rotateY(Math.PI);                       // u = 0.5 faces +Z
-  g.translate(0, 0.013 + h / 2, 0);
   const uv = g.attributes.uv, pos = g.attributes.position;
   for (let i = 0; i < uv.count; i++) uv.setXY(i, rect.u0 + uv.getX(i) * (rect.u1 - rect.u0), rect.v0 + uv.getY(i) * (rect.v1 - rect.v0));
-  // a dent or two, away from the letter
-  const da = Math.PI + (((seed * 1.7) % 2) - 1) * 1.2, dy = 0.03 + (seed % 5) * 0.012;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-    const a = Math.atan2(x, z);
-    let d = Math.cos(a - da); d = Math.max(0, d - 0.9) / 0.1;
-    const fy = Math.exp(-((y - dy) ** 2) / 0.00025);
-    const k = 1 - d * fy * 0.06 + 0.002 * Math.sin(a * 7 + seed);
-    pos.setXYZ(i, x * k, y, z * k);
-  }
+  dent(pos, seed, dentAmt);
   g.computeVertexNormals();
   return g;
+}
+
+/** Push a dent (or two) into a tin's side, away from the letter face. */
+function dent(pos, seed, amt) {
+  if (amt <= 0) return;
+  const dents = [[Math.PI + (((seed * 1.7) % 2) - 1) * 1.3, 0.025 + (seed % 5) * 0.014, 0.06 * amt]];
+  if (seed % 3 === 0) dents.push([((seed * 2.3) % 6.28), 0.08, 0.035 * amt]);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    if (y < 0.006 || y > CAN_H - 0.006) continue;
+    const a = Math.atan2(x, z);
+    let k = 1 + 0.0015 * Math.sin(a * 7 + seed);
+    for (const [da, dy, s] of dents) {
+      let d = Math.cos(a - da); d = Math.max(0, d - 0.88) / 0.12;
+      k -= d * d * Math.exp(-((y - dy) ** 2) / 0.0003) * s;
+    }
+    pos.setXYZ(i, x * k, y, z * k);
+  }
 }
 
 /**
@@ -83,10 +101,10 @@ function labelGeometry(rect, seed) {
 export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, onSolved } = {}) {
   const { geometry: G } = ctx;
   const letters = SOLUTION.split('');
-  const atlas = await buildLabelAtlas(letters);
+  const atlas = await buildLabelAtlas(letters, { extras: ['7'] });
   const labelMat = new THREE.MeshPhysicalMaterial({
     map: atlas.map, roughnessMap: atlas.orm, metalnessMap: atlas.orm, roughness: 1, metalness: 1,
-    clearcoat: 0.35, clearcoatRoughness: 0.35, envMapIntensity: 1.0, name: 'canLabel',
+    clearcoat: 0.3, clearcoatRoughness: 0.45, envMapIntensity: 0.85, name: 'canLabel',
   });
   const tinGeo = tinGeometry(G);
 
@@ -107,8 +125,11 @@ export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, o
   const cans = letters.map((L, i) => {
     const g = new THREE.Group();
     g.name = `can-${i}-${L}`;
-    const label = new THREE.Mesh(labelGeometry(atlas.uvRect(i), i + 1), labelMat);
-    const tin = new THREE.Mesh(tinGeo, tinMat);
+    const dentAmt = [0, 0.6, 1.0, 0.3, 0.8][i % 5];
+    const label = new THREE.Mesh(labelGeometry(atlas.uvRect(i), i + 1, dentAmt), labelMat);
+    let tg = tinGeo;
+    if (dentAmt > 0) { tg = tinGeo.clone(); dent(tg.attributes.position, i + 1, dentAmt); tg.computeVertexNormals(); }
+    const tin = new THREE.Mesh(tg, tinMat);
     label.castShadow = tin.castShadow = true;
     label.receiveShadow = tin.receiveShadow = true;
     g.add(tin, label);
@@ -222,8 +243,16 @@ export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, o
     },
   };
 
+  // a stray tin for the butcher's block: number seven, badly dented
+  const lure = new THREE.Group();
+  {
+    const lg = tinGeo.clone(); dent(lg.attributes.position, 11, 1.6); lg.computeVertexNormals();
+    lure.add(new THREE.Mesh(lg, tinMat));
+    lure.add(new THREE.Mesh(labelGeometry(atlas.uvRect(letters.length), 11, 1.6), labelMat));
+    lure.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  }
   return {
-    puzzle, cans, slots, labelMat,
+    puzzle, cans, slots, labelMat, lure,
     word, readout, isSolvedNow,
     swap: (s1, s2) => swapSlots(s1, s2),
     applySolved: () => { canAt = letters.map((_, i) => i); lifted = -1; place(true); persist(); },

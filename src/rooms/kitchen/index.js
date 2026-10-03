@@ -81,7 +81,7 @@ export default {
     // soot plumes: range flue, the four gas brackets, the pantry lamp, the candle on the block
     const PLUMES = [
       [(CH.ax0 + CH.ax1) / 2, Z0 + 0.3, 1.45, 0.9, 0.45],
-      [X0 + 0.05, -0.3, 2.15, 0.55, 0.16], [X1 - 0.05, -0.05, 2.15, 0.55, 0.16], [0.12, Z0 + 0.05, 2.2, 0.55, 0.16], [2.7, Z1 - 0.05, 2.32, 0.5, 0.16],
+      [X0 + 0.05, 0.15, 2.15, 0.55, 0.16], [X1 - 0.05, -0.05, 2.15, 0.55, 0.16], [0.12, Z0 + 0.05, 2.2, 0.55, 0.16], [2.7, Z1 - 0.05, 2.32, 0.5, 0.16],
       [X0 + 0.3, DRESSER_Z + 0.7, 1.35, 0.35, 0.2],
     ];
     const grime = (m, o = {}) => applyGrime(m, { plumes: PLUMES, ...o });
@@ -106,7 +106,7 @@ export default {
       glass: M.create('glass', { dirt: 0.75, transparent: true, opacity: 0.2 }),
     };
     const ironSet = castIronTexture(forge, 1024);
-    mat.iron = matFrom(ironSet, { repeat: [3, 3], name: 'iron', envMapIntensity: 0.9 });
+    mat.iron = matFrom(ironSet, { repeat: [3, 3], name: 'iron', metalness: 0.55, color: new THREE.Color(1.25, 1.25, 1.25), envMapIntensity: 1.0 });
     mat.ironEdge = matFrom(ironSet, { repeat: [3, 3], name: 'ironEdge', color: new THREE.Color(1.9, 1.9, 1.9), roughness: 0.75, envMapIntensity: 1.2 });
     mat.ironPolished = mat.ironEdge;
     mat.ironRelief = new THREE.MeshStandardMaterial({ map: CV.relief.map, bumpMap: CV.relief.bump, bumpScale: 3.5, roughnessMap: CV.relief.rough, metalness: 0.65, roughness: 1, envMapIntensity: 1.0, name: 'ironRelief' });
@@ -123,7 +123,7 @@ export default {
     mat.cupboardPaint = matFrom(doorPaintTexture(forge, { color: [0.12, 0.2, 0.24], key: 'cupboard' }), { repeat: [1, 1], name: 'cupboardPaint' });
     mat.hatch = matFrom(doorPaintTexture(forge, { color: [0.2, 0.15, 0.1], key: 'brown' }), { repeat: [1, 1], name: 'doorBrown' });
     mat.door = matFrom(doorPaintTexture(forge, { color: [0.17, 0.12, 0.085], key: 'door' }), { repeat: [1, 1], name: 'doorPaint' });
-    mat.sack = matFrom(sackTexture(forge), { repeat: [2, 2], name: 'sack' });
+    mat.sack = matFrom(sackTexture(forge), { repeat: [8, 8], name: 'sack', normalScale: new THREE.Vector2(0.6, 0.6) });
     mat.towel = new THREE.MeshStandardMaterial({ map: CV.towel, roughness: 0.92, side: THREE.DoubleSide, name: 'towel' });
     mat.emberMap = emberTexture(forge).map;
     mat.stoneware = new THREE.MeshPhysicalMaterial({ color: 0xc8b48c, roughness: 0.4, clearcoat: 0.6, clearcoatRoughness: 0.2, name: 'stoneware' });
@@ -562,11 +562,10 @@ export default {
       const [ry0, ry1, ry2] = dresser.shelves.map((s) => s.y);
       add(mk(lathe(G, [[0, 0], [0.06, 0], [0.075, 0.05], [0.07, 0.09], [0.055, 0.09], [0.05, 0.04], [0, 0.03]], 28), mat.stoneware, L / 2 - 0.15, ry1, 0.15), dg);
       add(mk(new THREE.CylinderGeometry(0.12, 0.12, 0.018, 32), mat.counter, -L / 2 + 0.16, ry2 + 0.009, 0.15), dg);
-      add(mk(loafGeometry(G), new THREE.MeshPhysicalMaterial({ color: 0x8a5a2c, roughness: 0.75, sheen: 0.3, name: 'loafCrust' }), -L / 2 + 0.16, ry2 + 0.018, 0.15), dg);
+      add(mk(loafGeometry(G), new THREE.MeshPhysicalMaterial({ color: 0x5a3416, roughness: 0.85, sheen: 0.5, sheenColor: new THREE.Color(0.6, 0.45, 0.3), name: 'loafCrust' }), -L / 2 + 0.16, ry2 + 0.018, 0.15), dg).scale.set(0.9, 1.45, 0.9);
       add(mk(crock(G, 0.15, 0.06), mat.stonewareBrown, L / 2 - 0.13, ry2, 0.15), dg);
       add(mk(jar, jarGlass, -L / 2 + 0.13, ry1, 0.15), dg);
       add(mk(jar, jarGlass, L / 2 - 0.13, ry0, 0.15), dg);
-      add(mk(jar, jarGlass, -L / 2 + 0.13, ry0, 0.15), dg);
       // mugs hung by their handles from brass cup hooks on a turned rail under the top shelf (well above the tins)
       {
         const mug = lathe(G, [[0, 0], [0.036, 0], [0.038, 0.01], [0.037, 0.075], [0.04, 0.085], [0.034, 0.085], [0.032, 0.012], [0, 0.01]], 24);
@@ -609,11 +608,18 @@ export default {
         add(sp, dg);
       }
     }
+    // warm wash over the tin shelves from the gas bracket beyond the dresser (motivated, soft)
+    {
+      const sp = new THREE.SpotLight(0xffb468, 5.5, 4.0, 0.5, 0.9, 2);
+      sp.position.set(X0 + 0.32, 2.15, 0.15);
+      sp.target.position.set(X0 + 0.1, 1.55, DRESSER_Z - 0.1);
+      add(sp); add(sp.target);
+    }
     const camDist = 1.42;
     const shelfMidY = (dresser.shelves[0].y + dresser.shelves[2].y) / 2 + 0.05;
     const cans = await createCansPuzzle(ctx, dresser.group, dresser.shelves, {
       tinMat: mat.tinPlate,
-      camera: { position: [X0 + camDist, shelfMidY + 0.02, DRESSER_Z], target: [X0, shelfMidY, DRESSER_Z], fov: 46 },
+      camera: { position: [X0 + camDist, shelfMidY + 0.02, DRESSER_Z], target: [X0, shelfMidY, DRESSER_Z], fov: 42 },
       onSolved: async () => { revealDumbwaiter(true); await say('A pinch of salt, a splash of sherry... and a *guest*. Somewhere above you, the dumbwaiter begins to move.'); },
     });
 
@@ -648,8 +654,9 @@ export default {
       const egg = new THREE.SphereGeometry(0.022, 16, 12);
       const eggMat = new THREE.MeshStandardMaterial({ color: 0xcdb08a, roughness: 0.6, name: 'egg' });
       [[0.0, 0.05, -0.18], [0.03, 0.05, -0.22], [-0.03, 0.055, -0.21], [0.01, 0.075, -0.2]].forEach(([x, y, z]) => add(mk(egg, eggMat, x, TY + y, z), bg).scale.set(1, 1.3, 1));
-      // spare soup tin, opened, on its side
-      add(mk(new THREE.CylinderGeometry(0.039, 0.039, 0.11, 32, 1, true), mat.tinPlate, 0.2, TY + 0.039, -0.27, 0, 0.6, Math.PI / 2), bg);
+      // a single dented Stauf tin, stood in the candlelight: a lure toward the pantry
+      cans.lure.position.set(0.2, TY - 0.012, 0.1); cans.lure.rotation.set(0.04, -0.25, 0.02);
+      add(cans.lure, bg);
       // chamberstick + lit candle: the warm key light of the room (shadowed)
       add(mk(lathe(G, [[0, 0], [0.075, 0], [0.078, 0.006], [0.07, 0.012], [0.02, 0.016], [0.016, 0.05], [0.026, 0.055], [0.022, 0.06], [0, 0.06]], 32), mat.brass, 0.62, TY, -0.18), bg);
       add(mk(new THREE.TorusGeometry(0.025, 0.005, 8, 16), mat.brass, 0.7, TY + 0.03, -0.18, 0, 0, Math.PI / 2), bg);
@@ -908,7 +915,7 @@ export default {
           g2.fillStyle = '#2a1a10'; g2.fillText(n, x, 33);
         });
       }, { tile: false });
-      bb.add(mk(rbox(G, 1.25, 0.5, 0.04, 0.01), mat.mahogany, 0, 0, 0));
+      bb.add(mk(rbox(G, 1.25, 0.5, 0.04, 0.01), mat.door, 0, 0, 0));
       const tabM = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.072), new THREE.MeshStandardMaterial({ map: tabs, roughness: 0.6 }));
       tabM.position.set(0, -0.17, 0.022); bb.add(tabM);
       bb.add(mk(G.frameGeometry(1.25, 0.5, { width: 0.04, depth: 0.03, uvScale: 1 }), mat.pineDark, 0, 0, 0.01));
@@ -1169,12 +1176,77 @@ export default {
       add(scut);
     }
 
+    // ================================================================ cook's slate & salt box (back wall, left of the breast)
+    {
+      const slate = forge.canvas('kitchen:slate', 512, 640, (g2, w, h) => {
+        g2.fillStyle = '#1e2224'; g2.fillRect(0, 0, w, h);
+        for (let i = 0; i < 60; i++) { g2.fillStyle = `rgba(200,200,190,${0.02 + (i % 7) * 0.006})`; g2.beginPath(); g2.ellipse((i * 137) % w, (i * 251) % h, 40 + (i % 5) * 18, 12, (i % 3) * 0.4, 0, Math.PI * 2); g2.fill(); }
+        g2.fillStyle = 'rgba(225,222,210,0.85)'; g2.textAlign = 'center';
+        g2.font = 'italic 46px "IM Fell English", Georgia, serif'; g2.fillText('Bill of Fare', w / 2, 80);
+        g2.fillRect(120, 98, w - 240, 2);
+        g2.font = 'italic 34px "IM Fell English", Georgia, serif';
+        ['Mock Turtle', 'Jugged Hare', 'Calf’s Head', 'Brown Windsor', '— & the Guest —'].forEach((t, i) => g2.fillText(t, w / 2 + (i % 2 ? 6 : -4), 170 + i * 70));
+        g2.font = 'italic 26px "IM Fell English", Georgia, serif'; g2.fillText('serve at midnight', w / 2, 560);
+      }, { tile: false });
+      const sg = new THREE.Group();
+      sg.add(new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.5), new THREE.MeshStandardMaterial({ map: slate, roughness: 0.8, name: 'slate' })));
+      sg.add(mk(G.frameGeometry(0.4, 0.5, { width: 0.035, depth: 0.02, uvScale: 1 }), mat.pineDark));
+      sg.add(mk(new THREE.CylinderGeometry(0.002, 0.002, 0.3, 4), mat.rope, -0.08, 0.32, -0.003, 0, 0, -0.6));
+      sg.add(mk(new THREE.CylinderGeometry(0.002, 0.002, 0.3, 4), mat.rope, 0.08, 0.32, -0.003, 0, 0, 0.6));
+      sg.position.set(-2.78, 1.85, Z0 + 0.02); sg.rotation.x = -0.04;
+      add(sg);
+      // wooden salt box with a sloping lid
+      const sb = new THREE.Group();
+      sb.add(mk(rbox(G, 0.2, 0.24, 0.16, 0.006), mat.pineDark, 0, 0, 0.08));
+      sb.add(mk(rbox(G, 0.21, 0.015, 0.19, 0.004), mat.pineDark, 0, 0.13, 0.09, 0.3, 0, 0));
+      sb.add(mk(rbox(G, 0.08, 0.06, 0.012, 0.004), mat.pineDark, 0, 0.17, 0.006));
+      sb.position.set(-2.78, 1.3, Z0);
+      add(sb);
+    }
+
+    // ================================================================ high plate shelf along the right wall: platters, jugs, moulds
+    {
+      const z0 = -3.6, z1 = 1.3, y = 2.56, d = 0.2;
+      const sg = new THREE.Group();
+      sg.add(mk(rbox(G, d, 0.03, z1 - z0, 0.006), mat.dresserPaint, X1 - d / 2, y - 0.015, (z0 + z1) / 2));
+      sg.add(mk(rbox(G, 0.02, 0.06, z1 - z0, 0.006), mat.dresserPaint, X1 - d + 0.012, y + 0.015, (z0 + z1) / 2));   // plate groove lip
+      for (let z = z0 + 0.15; z < z1; z += 0.8) {
+        const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(0.17, 0); sh.quadraticCurveTo(0.04, -0.03, 0, -0.16); sh.lineTo(0, 0);
+        sg.add(mk(G.applyBoxUVs(new THREE.ExtrudeGeometry(sh, { depth: 0.022, bevelEnabled: false }), 1), mat.dresserPaint, X1, y - 0.03, z - 0.011, 0, Math.PI, 0));
+      }
+      const china = M.basic('porcelain', { color: 0xe4ddcc });
+      const blue = new THREE.MeshPhysicalMaterial({ color: 0x24386e, roughness: 0.2, clearcoat: 1, name: 'blueChina2' });
+      const platter = lathe(G, [[0, 0], [0.09, 0], [0.1, 0.005], [0.15, 0.012], [0.17, 0.022], [0.166, 0.026], [0.14, 0.016], [0.1, 0.008], [0, 0.008]], 36);
+      const R = ctx.random.fork('plateshelf');
+      let z = z0 + 0.2, k = 0;
+      while (z < z1 - 0.2) {
+        if (z > DUMB.z - 0.45 && z < DUMB.z + 0.45 && k % 2) { z += 0.1; }
+        const kind = k % 5;
+        if (kind === 0 || kind === 3) {
+          const sc = 0.8 + R.next() * 0.35;
+          const p = mk(platter, kind === 3 ? blue : china, X1 - 0.06, y + 0.16 * sc, z, 0, 0, -Math.PI / 2 + 0.22);
+          p.scale.setScalar(sc); sg.add(p); z += 0.36 * sc;
+        } else if (kind === 1) {
+          sg.add(mk(lathe(G, [[0, 0], [0.05, 0], [0.065, 0.06], [0.06, 0.13], [0.045, 0.17], [0.05, 0.19], [0, 0.18]], 24), k % 3 ? mat.saltGlaze : blue, X1 - 0.1, y, z));
+          z += 0.16;
+        } else if (kind === 2) {
+          sg.add(mk(lathe(G, [[0, 0], [0.07, 0], [0.085, 0.03], [0.07, 0.06], [0.085, 0.09], [0.055, 0.12], [0.03, 0.14], [0.0, 0.145]], 24), mat.copper, X1 - 0.1, y, z));
+          z += 0.2;
+        } else {
+          sg.add(mk(lathe(G, [[0, 0], [0.06, 0], [0.07, 0.04], [0.068, 0.1], [0.05, 0.13], [0.0, 0.135]], 24), mat.stonewareBrown, X1 - 0.1, y, z));
+          z += 0.17;
+        }
+        k++;
+      }
+      add(sg);
+    }
+
     // ================================================================ gas brackets
     const gasLights = [];
     {
       const globeMat = new THREE.MeshPhysicalMaterial({ color: 0x3a3028, emissive: new THREE.Color(1.0, 0.78, 0.52), emissiveMap: CV.mantle, emissiveIntensity: 1.25, roughness: 0.55, clearcoat: 1, clearcoatRoughness: 0.1, name: 'gasGlobe' });
       const spots = [
-        { p: V3(X0, 1.98, -0.3), ry: Math.PI / 2, i: 3.4 },          // left wall, beyond the dresser
+        { p: V3(X0, 1.98, 0.15), ry: Math.PI / 2, i: 2.6 },          // left wall, beyond the dresser
         { p: V3(X1, 1.98, -0.05), ry: -Math.PI / 2, i: 3.2 },        // right wall, by the dumbwaiter
         { p: V3(0.12, 2.02, Z0), ry: 0, i: 1.4 },                     // back wall between breast and plate rack
         { p: V3(2.7, 2.15, Z1), ry: Math.PI, i: 2.6 },                // front wall above the utensil rail
@@ -1208,16 +1280,20 @@ export default {
     alcove.position.set((CH.ax0 + CH.ax1) / 2, 0.5, Z0 + 0.75);
     add(alcove);
     // warm rim on the kettle & stockpot from the gas bracket on the breast
-    const rangeRim = new THREE.SpotLight(0xffb070, 4.5, 3.4, 0.75, 0.8, 2);
+    const rangeRim = new THREE.SpotLight(0xffb070, 8.0, 3.6, 0.75, 0.8, 2);
     rangeRim.position.set(CH.x1 + 0.25, 2.1, Z0 + 0.75);
     rangeRim.target.position.set((CH.ax0 + CH.ax1) / 2, 0.6, Z0 + 0.5);
     add(rangeRim); add(rangeRim.target);
+    // fake bounce: candle- and lamp-light thrown up off the floured block onto the beams
+    const bounce = new THREE.PointLight(0xd89a5c, 0.9, 3.2, 2);
+    bounce.position.set(BLOCK.x, 2.75, BLOCK.z + 0.2);
+    add(bounce);
     const dinPassage = new THREE.PointLight(0xffa860, 1.0, 3.5, 2);
     dinPassage.position.set(X1 + 0.9, 1.9, DOORS.dining.z + 0.2);
     add(dinPassage);
     // a dim lamp somewhere down the foyer passage
-    const passageLight = new THREE.PointLight(0xffb070, 1.2, 4, 2);
-    passageLight.position.set(DOORS.foyer.x - 0.2, 2.0, Z1 + 1.0);
+    const passageLight = new THREE.PointLight(0xffb070, 2.0, 4.5, 2);
+    passageLight.position.set(DOORS.foyer.x - 0.2, 1.9, Z1 + 0.55);
     add(passageLight);
     // moonlight through the sash window
     const moon = new THREE.SpotLight(0xa7bcff, 1050, 18, 0.3, 0.65, 2);
@@ -1229,7 +1305,7 @@ export default {
     moon.shadow.bias = -0.0004; moon.shadow.normalBias = 0.02; moon.shadow.radius = Q.shadowRadius;
     moon.shadow.camera.near = 1; moon.shadow.camera.far = 16;
     add(moon); add(moon.target);
-    const hemi = new THREE.HemisphereLight(0x4d64a8, 0x20160e, 0.95);
+    const hemi = new THREE.HemisphereLight(0x4d64a8, 0x3a2a1c, 0.95);
     add(hemi);
     add(fx.areaLight({ center: [WIN.x, WIN.sill + WIN.h / 2, Z0 + 0.04], normal: [0, -0.35, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 4.2 }));
 
