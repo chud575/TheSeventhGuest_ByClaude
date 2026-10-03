@@ -77,7 +77,7 @@ export default {
     const baizeSet = baize.withRepeat(2, 2);
     const mkBaize = (set, tint = 1) => new THREE.MeshPhysicalMaterial({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, aoMap: set.ormMap, roughness: 1, metalness: 0, sheen: 0.5, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.25, 0.62, 0.36), color: new THREE.Color(tint, tint, tint), envMapIntensity: 0.3, name: 'baize' });
     const furSet = furTexture(ctx.textures, { a: [0.06, 0.04, 0.025], b: [0.27, 0.17, 0.09], key: 'stag2' }).withRepeat(7, 7);
-    const boarSet = furTexture(ctx.textures, { a: [0.05, 0.04, 0.035], b: [0.2, 0.15, 0.11], key: 'boar' }).withRepeat(8, 8);
+    const boarSet = furTexture(ctx.textures, { a: [0.09, 0.07, 0.055], b: [0.44, 0.34, 0.25], key: 'boar3' }).withRepeat(8, 8);
     const furMat = (set) => new THREE.MeshStandardMaterial({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, aoMap: set.ormMap, roughness: 1, metalness: 0, envMapIntensity: 0.4, name: 'fur' });
     const mat = {
       wall: M.create('damask', { repeat: [1 / 0.78, 1 / 0.78], base: [0.028, 0.055, 0.12], motif: [0.13, 0.21, 0.38], sheen: 0.75, variant: 1 }),
@@ -140,17 +140,17 @@ export default {
       mat.soot = new THREE.MeshStandardMaterial({ map: soot.map, normalMap: soot.normalMap, roughness: 0.95, name: 'soot' });
       const at2 = antlerTexture(ctx.textures).withRepeat(1, 1);
       mat.antler = new THREE.MeshPhysicalMaterial({ map: at2.map, normalMap: at2.normalMap, roughnessMap: at2.ormMap, roughness: 1, vertexColors: true, clearcoat: 0.2, clearcoatRoughness: 0.5, name: 'antler' });
-      const fs2 = furTexture(ctx.textures, { a: [0.06, 0.048, 0.038], b: [0.3, 0.235, 0.165], key: 'stag3' }).withRepeat(5, 5);
+      const fs2 = furTexture(ctx.textures, { a: [0.11, 0.08, 0.055], b: [0.5, 0.37, 0.23], key: 'stag4' }).withRepeat(5, 5);
       mat.stagFur = new THREE.MeshStandardMaterial({ map: fs2.map, normalMap: fs2.normalMap, roughnessMap: fs2.ormMap, aoMap: fs2.ormMap, roughness: 1, metalness: 0, vertexColors: true, envMapIntensity: 0.4, name: 'stagFur' });
       mat.stagFurD = mat.stagFur.clone(); mat.stagFurD.side = THREE.DoubleSide; mat.stagFurD.name = 'stagFurD';
-      mat.stagRuff = new THREE.MeshStandardMaterial({ map: fs2.map, color: new THREE.Color(0.55, 0.47, 0.38), roughness: 0.9, side: THREE.DoubleSide, name: 'stagRuff' });
+      mat.stagRuff = new THREE.MeshStandardMaterial({ map: fs2.map, color: new THREE.Color(0.7, 0.6, 0.5), roughness: 0.9, side: THREE.DoubleSide, name: 'stagRuff' });
       mat.boarFur = new THREE.MeshStandardMaterial({ map: boarSet.map, normalMap: boarSet.normalMap, roughnessMap: boarSet.ormMap, aoMap: boarSet.ormMap, roughness: 1, metalness: 0, vertexColors: true, envMapIntensity: 0.4, name: 'boarFur' });
       mat.boarFurD = mat.boarFur.clone(); mat.boarFurD.side = THREE.DoubleSide; mat.boarFurD.name = 'boarFurD';
       mat.bristle = new THREE.MeshStandardMaterial({ color: 0x1a1410, roughness: 0.7, name: 'bristle' });
       mat.noseLeather = new THREE.MeshPhysicalMaterial({ color: 0x0a0807, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.3, name: 'noseLeather' });
       mat.shieldWalnut = M.create('walnut', { repeat: [3, 3], color: [0.2, 0.16, 0.135], roughness: 0.8, clearcoat: 0.25, clearcoatRoughness: 0.5 });
       const iv = ivoryTexture(ctx.textures).withRepeat(1, 1);
-      mat.queenIvory = new THREE.MeshPhysicalMaterial({ color: 0xe8dcc4, map: iv.map, normalMap: iv.normalMap, roughnessMap: iv.ormMap, roughness: 1.0, metalness: 0, sheen: 0.35, sheenRoughness: 0.4, sheenColor: new THREE.Color(1, 0.93, 0.8), clearcoat: 0.6, clearcoatRoughness: 0.15, envMapIntensity: 0.85, name: 'queenIvory' });
+      mat.queenIvory = new THREE.MeshPhysicalMaterial({ color: 0xefe6d4, map: iv.map, normalMap: iv.normalMap, roughnessMap: iv.ormMap, roughness: 1.0, metalness: 0, sheen: 0.35, sheenRoughness: 0.4, sheenColor: new THREE.Color(1, 0.93, 0.8), clearcoat: 0.6, clearcoatRoughness: 0.15, envMapIntensity: 0.85, name: 'queenIvory' });
     }
 
     // ================================================================ shell
@@ -383,7 +383,7 @@ export default {
       }
       fr.userData.keep = true; fr.name = 'cloth'; add(fr);
     }
-    const tableMats = { apron: M.create('mahogany', { repeat: [1.6, 1.6], color: [0.5, 0.31, 0.26], envMapIntensity: 0.22, clearcoat: 0.35, clearcoatRoughness: 0.3 }), wood: mat.tableWood, baize: mat.baize, cushion: mat.cushion, dark: mat.dark, hole: mat.hole, pearl: mat.pearl, brass: mat.brass, gilt: mat.gilt, leather: M.create('leather', { color: [0.13, 0.065, 0.035], wear: 0.5, repeat: [8, 8], roughness: 0.75 }) };
+    const tableMats = { apron: M.create('mahogany', { repeat: [1.6, 1.6], color: [0.5, 0.31, 0.26], clearcoat: 0.2, clearcoatRoughness: 0.35 }), wood: mat.tableWood, baize: mat.baize, cushion: mat.cushion, dark: mat.dark, hole: mat.hole, pearl: mat.pearl, brass: mat.brass, gilt: mat.gilt, leather: M.create('leather', { color: [0.13, 0.065, 0.035], wear: 0.5, repeat: [8, 8], roughness: 0.75 }) };
     const btable = buildBilliardTable(ctx, tableMats);
     btable.position.copy(T); add(btable);
     const BH = TABLE.BH, BR = TABLE.BALL_R;
@@ -678,7 +678,7 @@ export default {
     moon.shadow.bias = -0.0005; moon.shadow.normalBias = 0.02; moon.shadow.radius = Math.max(4, Q.shadowRadius || 0);
     moon.shadow.camera.near = 3; moon.shadow.camera.far = 22;
     root.add(moon, moon.target);
-    root.add(new THREE.HemisphereLight(0x2e3a52, 0x1e140c, 0.8));
+    root.add(new THREE.HemisphereLight(0x2c3344, 0x1e140c, 0.7));
     for (const wx of WIN.xs) root.add(fx.areaLight({ center: [wx, WIN.sill + WIN.h / 2, Z0 - 0.1], normal: [0, -0.3, 1], width: WIN.w - 0.1, height: WIN.h - 0.1, color: 0xa6b6d4, intensity: 1.7 }));
     {
       const pls = new THREE.SpotLight(0xffc890, 2.2, 3, 0.7, 0.6, 2);
@@ -710,17 +710,21 @@ export default {
     // fire: low in the firebox, flickering +-25% at 2-4 Hz
     const fireLight = new THREE.PointLight(0xff7c34, 5, 7, 2); fireLight.position.set(X1 - 0.48, 0.42, FIRE_Z); root.add(fireLight);
     {
-      const sl = new THREE.SpotLight(0xffb27a, 6, 4, 0.42, 0.8, 2);
+      const sl = new THREE.SpotLight(0xffb27a, 14, 4, 0.42, 0.8, 2);
       sl.position.set(X1 - 1.4, 1.35, STAG_Z + 0.9); sl.target.position.set(X1 - 0.25, 2.3, STAG_Z); root.add(sl, sl.target);
+      const bl = new THREE.SpotLight(0xffb27a, 10, 4, 0.4, 0.8, 2);
+      bl.position.set(X0 + 1.3, 1.6, 0.1); bl.target.position.set(X0 + 0.2, 2.72, 0.85); root.add(bl, bl.target);
     }
     // card table oil lamp
     const oilLight = new THREE.PointLight(0xffa04a, 1.5, 4, 2); oilLight.position.set(CARD.x - 0.05, 1.0, CARD.z - 0.3); root.add(oilLight);
     // a candle left burning on the games table: warm fill on the chessboard
-    const chessCandle = fx.candle({ height: 0.15, radius: 0.012, light: true, lightIntensity: 2.4, lightDistance: 3, seed: 61, burn: 0.45 });
+    const chessCandle = fx.candle({ height: 0.1, radius: 0.012, light: true, lightIntensity: 1.9, lightDistance: 3, seed: 61, burn: 0.55 });
     {
-      const cs = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.045, 0], [0.047, 0.008], [0.03, 0.016], [0.012, 0.03], [0.009, 0.1], [0.016, 0.115], [0.022, 0.12], [0.012, 0.125], [0, 0.125]], 20), mat.brass);
-      cs.position.set(C.x - 0.352, boardY, C.z - 0.08); add(cs);
-      chessCandle.position.set(C.x - 0.352, boardY + 0.125, C.z - 0.08); add(chessCandle);
+      // a brass chamberstick: drip pan with a ring handle and a short socket
+      const cs = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.05, 0], [0.054, 0.004], [0.052, 0.012], [0.046, 0.009], [0.016, 0.012], [0.011, 0.02], [0.011, 0.038], [0.016, 0.042], [0.013, 0.046], [0, 0.046]], 24), mat.brass);
+      cs.position.set(C.x - 0.352, boardY, C.z - 0.06); add(cs);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.016, 0.0035, 8, 18), mat.brass); ring.position.set(C.x - 0.352 + 0.06, boardY + 0.018, C.z - 0.06); add(ring);
+      chessCandle.position.set(C.x - 0.352, boardY + 0.044, C.z - 0.06); add(chessCandle);
       // felt-lined walnut tray along the near edge of the table for the queens not yet in play
       const tl = 0.5, tw = 0.074, th = 0.016;
       const ts = new THREE.Shape(); ts.moveTo(-tl / 2, -tw / 2); ts.lineTo(tl / 2, -tw / 2); ts.lineTo(tl / 2, tw / 2); ts.lineTo(-tl / 2, tw / 2); ts.lineTo(-tl / 2, -tw / 2);
@@ -769,7 +773,7 @@ export default {
       homeZ: BOARD / 2 + 0.055, homeY: 0.005, homeSpacing: 0.058,
       mats: { ivory: mat.queenIvory },
       borderOuter: (BOARD - FIELD) / 2 * 0.42,
-      camera: { position: [C.x, boardY + 0.74, C.z + 0.64], target: [C.x, boardY, C.z + 0.07], fov: 42 },
+      camera: { position: [C.x, boardY + 0.76, C.z + 0.7], target: [C.x, boardY, C.z + 0.115], fov: 42 },
       onSolved: async () => {
         ctx.state.set('gameroom.queensSolved', true);
         ctx.audio.sfx?.('chime', { freq: 880 });
@@ -922,7 +926,7 @@ export default {
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
       grade: ROOM_GRADE,
-      environment: { position: [-0.6, 1.9, 1.6], intensity: 0.6 },
+      environment: { position: [-0.9, 1.05, 2.0], intensity: 0.6 },
       onEnter() {
         if (!ctx.state.has('gameroom.greeted')) {
           ctx.state.set('gameroom.greeted', true);

@@ -31,7 +31,7 @@ void surface(vec2 uv, inout Surface s) {
  * slight tint variance), bevelled seams, boxwood/ebony stringing, a dentil band and burr-walnut crossbanding.
  * uv 0..1 over the whole top. Albedo: sRGB. */
 export function chessboardTexture(forge, { inner = 0.76 } = {}) {
-  return forge.generate('gameroom:chessboard2', {
+  return forge.generate('gameroom:chessboard3', {
     size: 2048, tile: false, normalStrength: 2.2,
     uniforms: { uInner: inner },
     glsl: /* glsl */ `
@@ -71,8 +71,8 @@ void surface(vec2 uv, inout Surface s) {
     vec3 rh = hash32(id + 3.7);
     float seed = rh.x * 40.0;
     vec2 p = rh.y > 0.5 ? f : f.yx;          // grain turned 0 or 90 per square
-    if (light) col = straightGrain(p, vec3(0.76, 0.6, 0.4), vec3(0.62, 0.46, 0.28), seed, 70.0);
-    else col = straightGrain(p, vec3(0.25, 0.1, 0.055), vec3(0.11, 0.04, 0.02), seed, 55.0);
+    if (light) col = straightGrain(p, vec3(0.78, 0.62, 0.42), vec3(0.64, 0.48, 0.3), seed, 70.0);
+    else col = straightGrain(p, vec3(0.36, 0.18, 0.085), vec3(0.19, 0.085, 0.035), seed, 55.0);
     col *= 0.93 + 0.14 * rh.z;              // per-square tint variance
     // bevelled edge (~1.5 mm) + a dark glue line
     float ge = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y));

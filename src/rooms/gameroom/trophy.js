@@ -313,22 +313,22 @@ export function buildStag(ctx, mats) {
   // -------------------------------------------------------------- antlers (a royal: brow, bez, trez and a crown of three)
   // vertex colours multiply the antler map (already bone-brown): dark at the burr, bleached toward the tips
   const LC = (r, g2, b) => new THREE.Color().setRGB(r, g2, b);
-  const C0 = LC(0.42, 0.36, 0.3), C1 = LC(1.7, 1.62, 1.45);
+  const C0 = LC(0.62, 0.54, 0.45), C1 = LC(2.0, 1.9, 1.7);
   const bone = [];
   for (const sx of [-1, 1]) {
     const base = surf(4.15, sx > 0 ? 1.05 : Math.PI - 1.05, -0.006);
     const beam = new THREE.CatmullRomCurve3([
-      base, base.clone().add(V3(sx * 0.06, 0.07, -0.05)), base.clone().add(V3(sx * 0.15, 0.19, -0.1)), base.clone().add(V3(sx * 0.23, 0.34, -0.12)),
-      base.clone().add(V3(sx * 0.26, 0.5, -0.08)), base.clone().add(V3(sx * 0.24, 0.64, -0.01)), base.clone().add(V3(sx * 0.19, 0.74, 0.05)),
+      base, base.clone().add(V3(sx * 0.07, 0.07, -0.03)), base.clone().add(V3(sx * 0.17, 0.19, -0.05)), base.clone().add(V3(sx * 0.26, 0.34, -0.05)),
+      base.clone().add(V3(sx * 0.3, 0.5, -0.01)), base.clone().add(V3(sx * 0.28, 0.64, 0.04)), base.clone().add(V3(sx * 0.22, 0.75, 0.09)),
     ], false, 'centripetal');
-    bone.push(antlerTube(beam, 64, 0.026, 0.011, 14, C0, LC(1.15, 1.05, 0.9), 1.1));
+    bone.push(antlerTube(beam, 64, 0.032, 0.013, 14, C0, LC(1.35, 1.25, 1.08), 1.1));
     const tines = [
-      [0.06, V3(sx * 0.03, 0.03, 0.2), 0.015, 0.012],
-      [0.17, V3(sx * 0.035, 0.06, 0.17), 0.013, 0.011],
-      [0.43, V3(sx * 0.02, 0.06, 0.16), 0.012, 0.01],
-      [0.78, V3(-sx * 0.05, 0.11, 0.09), 0.0105, 0.009],
-      [0.9, V3(sx * 0.08, 0.09, 0.03), 0.0095, 0.008],
-      [1.0, V3(sx * 0.0, 0.1, 0.06), 0.0095, 0.008],
+      [0.06, V3(sx * 0.03, 0.03, 0.2), 0.018, 0.012],
+      [0.17, V3(sx * 0.035, 0.06, 0.17), 0.016, 0.011],
+      [0.43, V3(sx * 0.02, 0.06, 0.16), 0.014, 0.01],
+      [0.78, V3(-sx * 0.05, 0.11, 0.09), 0.012, 0.009],
+      [0.9, V3(sx * 0.08, 0.09, 0.03), 0.011, 0.008],
+      [1.0, V3(sx * 0.0, 0.1, 0.06), 0.011, 0.008],
     ];
     for (const [t, d, r] of tines) {
       const p = beam.getPointAt(t);
@@ -379,11 +379,11 @@ export function buildBoar(ctx, mats) {
     { p: [0, -0.005, 0.11], rx: 0.13, ry: 0.14, under: 0.1 },
     { p: [0, 0.01, 0.18], rx: 0.108, ry: 0.118, under: 0.25, top: 0.2 },
     { p: [0, 0.008, 0.24], rx: 0.088, ry: 0.098, under: 0.4, top: 0.45 },
-    { p: [0, -0.006, 0.3], rx: 0.064, ry: 0.074, under: 0.45, top: 0.5 },
-    { p: [0, -0.02, 0.355], rx: 0.05, ry: 0.058, under: 0.35, top: 0.4 },
-    { p: [0, -0.03, 0.4], rx: 0.044, ry: 0.048, under: 0.2 },
-    { p: [0, -0.034, 0.425], rx: 0.045, ry: 0.047 },
-    { p: [0, -0.035, 0.432], rx: 0.02, ry: 0.02 },
+    { p: [0, -0.006, 0.31], rx: 0.064, ry: 0.074, under: 0.45, top: 0.5 },
+    { p: [0, -0.022, 0.38], rx: 0.05, ry: 0.058, under: 0.35, top: 0.4 },
+    { p: [0, -0.034, 0.44], rx: 0.044, ry: 0.048, under: 0.2 },
+    { p: [0, -0.04, 0.475], rx: 0.045, ry: 0.047 },
+    { p: [0, -0.041, 0.482], rx: 0.02, ry: 0.02 },
   ];
   const NS = st.length - 1;
   const bump = (x, c, w) => Math.exp(-(((x - c) / w) ** 2));
@@ -409,10 +409,10 @@ export function buildBoar(ctx, mats) {
   }
   g.add(new THREE.Mesh(headG, mats.fur));
   // snout disc + nostrils
-  const disc = new THREE.CylinderGeometry(0.046, 0.048, 0.016, 28).rotateX(Math.PI / 2); disc.scale(1, 0.92, 1); disc.translate(0, -0.035, 0.43);
+  const disc = new THREE.CylinderGeometry(0.046, 0.048, 0.016, 28).rotateX(Math.PI / 2); disc.scale(1, 0.92, 1); disc.translate(0, -0.041, 0.48);
   g.add(new THREE.Mesh(disc, mats.nose));
   for (const sx of [-1, 1]) {
-    const n = new THREE.SphereGeometry(0.009, 12, 8); n.scale(0.8, 1.2, 0.5); n.translate(sx * 0.016, -0.034, 0.439);
+    const n = new THREE.SphereGeometry(0.009, 12, 8); n.scale(0.8, 1.2, 0.5); n.translate(sx * 0.016, -0.04, 0.489);
     g.add(new THREE.Mesh(n, mats.eye));
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.011, 16, 12), mats.eye); eye.position.set(sx * 0.074, 0.03, 0.27); eye.scale.set(0.8, 0.9, 1.1); g.add(eye);
     // pricked ears
@@ -422,9 +422,9 @@ export function buildBoar(ctx, mats) {
   // tusks
   const bone = [];
   for (const sx of [-1, 1]) {
-    const tusk = new THREE.CatmullRomCurve3([V3(sx * 0.036, -0.058, 0.36), V3(sx * 0.058, -0.052, 0.39), V3(sx * 0.07, -0.02, 0.405), V3(sx * 0.062, 0.012, 0.392), V3(sx * 0.05, 0.026, 0.375)]);
+    const tusk = new THREE.CatmullRomCurve3([V3(sx * 0.036, -0.062, 0.4), V3(sx * 0.058, -0.056, 0.43), V3(sx * 0.072, -0.02, 0.445), V3(sx * 0.064, 0.014, 0.432), V3(sx * 0.052, 0.028, 0.415)]);
     bone.push(antlerTube(tusk, 24, 0.0095, 0.0016, 10, new THREE.Color().setRGB(1.1, 1.0, 0.8), new THREE.Color().setRGB(1.8, 1.72, 1.5), 1.0));
-    const low = new THREE.CatmullRomCurve3([V3(sx * 0.03, -0.062, 0.385), V3(sx * 0.04, -0.05, 0.405), V3(sx * 0.045, -0.035, 0.41)]);
+    const low = new THREE.CatmullRomCurve3([V3(sx * 0.03, -0.066, 0.425), V3(sx * 0.04, -0.054, 0.445), V3(sx * 0.045, -0.039, 0.45)]);
     bone.push(antlerTube(low, 10, 0.005, 0.001, 8, new THREE.Color().setRGB(1.1, 1.0, 0.8), new THREE.Color().setRGB(1.8, 1.72, 1.5), 1.0));
   }
   g.add(new THREE.Mesh(G.mergeGeometries(bone.map(toNI)), mats.antler));
