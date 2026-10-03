@@ -98,11 +98,16 @@ diffuseColor.rgb *= 1.0 + (vec3(gTh.y, 0.5, 1.0 - gTh.y) - 0.5) * gTP.y;` : ''}`
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
 roughnessFactor = clamp(roughnessFactor * (1.0 - gPathV * 0.55) + gSootV * 0.15, 0.04, 1.0);
 ${T ? 'roughnessFactor = clamp(roughnessFactor * (1.0 + (gTh.z - 0.5) * gTP.z * 2.0), 0.04, 1.0);' : ''}`)
+      .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
+${T ? `#ifdef USE_CLEARCOAT
+material.clearcoatRoughness = clamp(material.clearcoatRoughness * (0.35 + 1.9 * gTh.z) + gFloorV * 0.35 + gSootV * 0.3, 0.02, 1.0);
+material.clearcoat *= 1.0 - clamp(gFloorV * 0.8 + gSootV * 0.6, 0.0, 0.85);
+#endif` : ''}`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
 ${T ? 'normal = normalize(normal + (vec3(gTh.w, fract(gTh.w * 7.13), 0.0) - 0.5) * gTP.w);' : ''}`);
   };
   const key = material.customProgramCacheKey?.bind(material);
-  material.customProgramCacheKey = () => (key ? key() : '') + `|kgrime:${tag}:${nPath}:${T ? 1 : 0}`;
+  material.customProgramCacheKey = () => (key ? key() : '') + `|kgrime2:${tag}:${nPath}:${T ? 1 : 0}`;
   material.needsUpdate = true;
   return material;
 }

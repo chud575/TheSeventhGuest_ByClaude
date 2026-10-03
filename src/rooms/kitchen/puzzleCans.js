@@ -20,13 +20,13 @@ export const cansMeta = {
   title: 'Stauf’s Superior Soups',
   description: 'A pantry shelf of soup tins, each stamped with a single letter. The cook left a recipe here — if you can stomach reading it.',
   hints: [
-    'The pepper pots and spice bottles standing among the tins mark the spaces between words. Read the shelves from the top down, like a page.',
+    'The wider gaps along each shelf mark the spaces between words. Read the shelves from the top down, like a page.',
     'The bottom shelf is a single six-letter word: those who come to dinner at this house. The top shelf begins with THE.',
     'Arrange the tins to read: THE SOUP IS / MADE OF / GUESTS.',
   ],
 };
 
-const PITCH = 0.094, GAP = 0.056;
+const PITCH = 0.094, GAP = 0.078;
 
 // three tin formats: standard 1 lb, tall, squat; each with its own bead count and lid style
 export const FORMATS = [
@@ -35,8 +35,10 @@ export const FORMATS = [
   { r: 0.045, h: 0.084, beads: 1, lid: 'dome' },
 ];
 const formatOf = (i) => [0, 1, 0, 0, 2, 0, 1, 0, 2, 0, 0, 1, 0, 2, 0, 0, 1, 0, 0, 2, 0, 1][i % 22];
-const labelSpan = (F) => [0.013, F.h - 0.013];
-export const labelUnits = (F) => { const [a, b] = labelSpan(F); return (768 * (b - a)) / (2 * Math.PI * F.r); };
+// label layout family per tin: 0 banded roundel, 1 oval cartouche, 2 art-nouveau, 3 paper label glued on bare tin
+export const familyOf = (i) => [0, 3, 1, 2, 0, 2, 3, 1, 0, 1, 2, 3, 0, 2, 1, 3, 0, 1, 2, 0, 3, 1][i % 22];
+const labelSpan = (F, fam = 0) => (fam === 3 ? [0.021, F.h - 0.025] : [0.013, F.h - 0.013]);
+export const labelUnits = (F, fam = 0) => { const [a, b] = labelSpan(F, fam); return (768 * (b - a)) / (2 * Math.PI * F.r); };
 
 // deterministic scramble that leaves no tin in its home slot
 function scramble(n) {
@@ -84,13 +86,14 @@ function tinGeometry(G, F) {
   return g;
 }
 
-/** Label (lithographed print) skin following the beads; dented per seed. */
-function labelGeometry(rect, seed, dentAmt, F) {
-  const [y0, y1] = labelSpan(F);
-  const bead = beadFn(F);
+/** Label (lithographed print, or a glued paper label) skin following the beads; dented per seed. */
+function labelGeometry(rect, seed, dentAmt, F, fam = 0) {
+  const [y0, y1] = labelSpan(F, fam);
+  const bead = fam === 3 ? () => 0 : beadFn(F);
+  const lift = fam === 3 ? 0.0006 : 0.0002;
   const pts = [];
   const N = 64;
-  for (let j = 0; j <= N; j++) { const y = y0 + (j / N) * (y1 - y0); pts.push(new THREE.Vector2(F.r + 0.0002 - bead(y), y)); }
+  for (let j = 0; j <= N; j++) { const y = y0 + (j / N) * (y1 - y0); pts.push(new THREE.Vector2(F.r + lift - bead(y), y)); }
   const g = new THREE.LatheGeometry(pts, 80);
   g.rotateY(Math.PI);                       // u = 0.5 faces +Z
   const uv = g.attributes.uv, pos = g.attributes.position;
@@ -132,14 +135,49 @@ function dent(pos, seed, amt, H) {
 export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, onSolved } = {}) {
   const { geometry: G } = ctx;
   const letters = SOLUTION.split('');
-  const heights = [...letters.map((_, i) => labelUnits(FORMATS[formatOf(i)])), labelUnits(FORMATS[0])];
-  const atlas = await buildLabelAtlas(letters, { extras: ['7'], heights });
+  const families = [...letters.map((_, i) => familyOf(i)), 0];
+  const heights = [...letters.map((_, i) => labelUnits(FORMATS[formatOf(i)], familyOf(i))), labelUnits(FORMATS[0])];
+  const atlas = await buildLabelAtlas(letters, { extras: ['7'], heights, families });
   const labelMat = new THREE.MeshPhysicalMaterial({
     map: atlas.map, roughnessMap: atlas.orm, metalnessMap: atlas.orm, roughness: 1, metalness: 1,
-    clearcoat: 0.15, clearcoatRoughness: 0.5, envMapIntensity: 0.7, name: 'canLabel',
+    clearcoat: 0.45, clearcoatRoughness: 1, clearcoatRoughnessMap: atlas.orm, envMapIntensity: 0.7, name: 'canLabel',
   });
-  const tinMatV = tinMat.clone(); tinMatV.vertexColors = true; tinMatV.name = 'tinPlateAO'; tinMatV.envMapIntensity = 0.75;
+  // tinplate: bright silver tin on most, a gold lacquer on others (both carry AO + rust in the vertex colour)
+  const tinSilver = tinMat.clone(); tinSilver.vertexColors = true; tinSilver.name = 'tinPlateSilver'; tinSilver.envMapIntensity = 0.85; tinSilver.roughness = 0.78; tinSilver.color = new THREE.Color(1.08, 1.08, 1.1);
+  const tinGold = tinMat.clone(); tinGold.vertexColors = true; tinGold.name = 'tinPlateGold'; tinGold.envMapIntensity = 0.75; tinGold.roughness = 0.85; tinGold.color = new THREE.Color(1.0, 0.74, 0.4);
+  const tinMatV = tinGold;
+  const isGold = (i) => [1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0][i % 11] === 1;
   const tinGeos = FORMATS.map((F) => tinGeometry(G, F));
+  const tinGeosPlain = FORMATS.map((F) => tinGeometry(G, { ...F, beads: 0 }));
+  // a faint layer of pantry dust on each lid, thicker toward the edge where the cloth never reaches
+  const dustTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g2 = c.getContext('2d');
+    const gr = g2.createRadialGradient(128, 128, 30, 128, 128, 128);
+    gr.addColorStop(0, 'rgba(200,190,170,0.18)'); gr.addColorStop(0.75, 'rgba(200,190,170,0.4)'); gr.addColorStop(0.95, 'rgba(190,180,160,0.6)'); gr.addColorStop(1, 'rgba(190,180,160,0)');
+    g2.fillStyle = gr; g2.fillRect(0, 0, 256, 256);
+    let a = 3; const R = () => { a = (a * 16807) % 2147483647; return a / 2147483647; };
+    for (let k = 0; k < 900; k++) { g2.fillStyle = `rgba(210,200,180,${R() * 0.35})`; g2.fillRect(R() * 256, R() * 256, 1 + R() * 2, 1 + R() * 2); }
+    g2.globalCompositeOperation = 'destination-out';
+    for (let k = 0; k < 3; k++) { g2.lineWidth = 10 + R() * 14; g2.strokeStyle = 'rgba(0,0,0,0.6)'; g2.beginPath(); g2.moveTo(R() * 256, R() * 256); g2.lineTo(R() * 256, R() * 256); g2.stroke(); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const dustMat = new THREE.MeshStandardMaterial({ map: dustTex, transparent: true, depthWrite: false, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, name: 'lidDust' });
+  /** rust blooms and grime in the vertex colour, gathered at the seams and rims */
+  const rustify = (geo, seed, H) => {
+    const p = geo.attributes.position, c = geo.attributes.color;
+    for (let k = 0; k < p.count; k++) {
+      const x = p.getX(k), y = p.getY(k), z = p.getZ(k);
+      const a = Math.atan2(x, z);
+      const rimW = Math.exp(-(y * y) / 0.00008) + Math.exp(-((H - y) ** 2) / 0.00005);
+      const seamW = Math.exp(-((Math.abs(a) - Math.PI) ** 2) / 0.02);
+      const n = 0.5 + 0.5 * Math.sin(a * 13 + seed * 2.1) * Math.sin(y * 300 + seed) + 0.25 * Math.sin(a * 37 + y * 900 + seed * 5);
+      const rust = Math.min(1, Math.max(0, (rimW * 0.9 + seamW * 0.7) * n - 0.35) * 1.8);
+      const v = c.getX(k);
+      c.setXYZ(k, v * (1 - rust * 0.35), v * (1 - rust * 0.6), v * (1 - rust * 0.78));
+    }
+    c.needsUpdate = true;
+  };
 
   // ---- slots (local to the dresser)
   const slots = [];
@@ -169,14 +207,24 @@ export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, o
     const g = new THREE.Group();
     g.name = `can-${i}-${L}`;
     const F = FORMATS[formatOf(i)];
+    const fam = familyOf(i);
     const dentAmt = [0, 0.6, 1.0, 0.3, 0.8, 0, 0.5][i % 7];
-    const label = new THREE.Mesh(labelGeometry(atlas.uvRect(i), i + 1, dentAmt, F), labelMat);
-    let tg = tinGeos[formatOf(i)];
-    if (dentAmt > 0) { tg = tg.clone(); dent(tg.attributes.position, i + 1, dentAmt, F.h); tg.computeVertexNormals(); }
-    const tin = new THREE.Mesh(tg, tinMatV);
+    const label = new THREE.Mesh(labelGeometry(atlas.uvRect(i), i + 1, dentAmt, F, fam), labelMat);
+    const tg = (fam === 3 ? tinGeosPlain : tinGeos)[formatOf(i)].clone();
+    if (dentAmt > 0) dent(tg.attributes.position, i + 1, dentAmt, F.h);
+    rustify(tg, i + 1, F.h);
+    tg.computeVertexNormals();
+    const tin = new THREE.Mesh(tg, isGold(i) ? tinGold : tinSilver);
     label.castShadow = tin.castShadow = true;
     label.receiveShadow = tin.receiveShadow = true;
     g.add(tin, label);
+    // soldered side seam: a narrow lapped strip down the back
+    const [sy0, sy1] = labelSpan(F, fam);
+    const seam = new THREE.Mesh(new THREE.BoxGeometry(0.0032, sy1 - sy0 + (fam === 3 ? 0.012 : 0.004), 0.0009), tin.material);
+    seam.position.set(0, (sy0 + sy1) / 2, -(F.r + 0.0003)); g.add(seam);
+    const dust = new THREE.Mesh(new THREE.CircleGeometry(F.r * 0.95, 32), dustMat);
+    dust.rotation.x = -Math.PI / 2; dust.rotation.z = i; dust.position.y = F.h - (F.lid === 'cap' ? 0.0007 : 0.0011); dust.renderOrder = 2;
+    g.add(dust);
     g.userData.canIndex = i;
     g.userData.letter = L;
     g.userData.yaw = ((i * 7919) % 13 - 6) * 0.0115;            // up to +-4 degrees
@@ -294,7 +342,7 @@ export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, o
   {
     const lg = tinGeos[0].clone(); dent(lg.attributes.position, 11, 1.6, FORMATS[0].h); lg.computeVertexNormals();
     lure.add(new THREE.Mesh(lg, tinMatV));
-    lure.add(new THREE.Mesh(labelGeometry(atlas.uvRect(letters.length), 11, 1.6, FORMATS[0]), labelMat));
+    lure.add(new THREE.Mesh(labelGeometry(atlas.uvRect(letters.length), 11, 1.6, FORMATS[0], 0), labelMat));
     lure.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   }
   return {

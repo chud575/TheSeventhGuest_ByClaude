@@ -318,7 +318,7 @@ export function buildDresser(ctx, mat, { L = 1.9 } = {}) {
   // ---- upper rack
   const y0 = BH + TOP;
   // back boarding
-  g.add(mk(G.planeUV(L, SH - y0, 1), mat.boarding, 0, y0 + (SH - y0) / 2, 0.036));
+  g.add(mk(G.planeUV(L, SH - y0, 1), mat.dresserBack || mat.boarding, 0, y0 + (SH - y0) / 2, 0.036));
   // shaped side boards (cyma curve at the bottom front)
   for (const s of [-1, 1]) {
     const sh = new THREE.Shape();
@@ -469,12 +469,47 @@ export function buildButcherBlock(ctx, mat, { W = 1.5, D = 0.78 } = {}) {
 // hanging loop. origin = base centre, opening +Y, handle along +X. stock: two loop handles.
 // Returns a Group; userData.loop = local position of the handle's hanging loop.
 // =====================================================================================
-export function buildSaucepan(G, mat, r = 0.1, h = 0.08, handleLen = 0.22, { stock = false } = {}) {
+export function buildSaucepan(G, mat, r = 0.1, h = 0.08, handleLen = 0.22, { stock = false, seed = 0 } = {}) {
   const g = new THREE.Group();
-  const t = 0.0022;
-  g.add(mk(lathe(G, [[0, 0.0006], [r * 0.86, 0], [r * 0.97, h * 0.04], [r, h * 0.14], [r, h * 0.985], [r + 0.0005, h]], 48), mat.copper));
-  g.add(mk(new THREE.TorusGeometry(r + 0.0012, 0.0032, 8, 64), mat.copper, 0, h, 0, Math.PI / 2));
-  g.add(mk(lathe(G, [[r - t, h + 0.001], [r - t, h * 0.15], [r * 0.95 - t, h * 0.05 + t], [r * 0.84, t], [0, t]], 48), mat.tinLining || mat.copper));
+  const t = 0.0025;
+  const rnd = (k) => hash3(seed * 3.3 + 1, k * 1.7, r * 40);
+  // body: flat base with a rounded heel, straight walls flaring a touch, a rolled bead at the rim
+  const body = lathe(G, [[0, 0.0006], [r * 0.82, 0], [r * 0.94, h * 0.03], [r * 0.985, h * 0.1], [r, h * 0.2], [r * 1.01, h * 0.97], [r * 1.012 + 0.0005, h]], 64);
+  // tarnish & heat colour as vertex tint: dark bloom at the rim and round the handle joint, a heat band at the base
+  {
+    const p = body.attributes.position, col = new Float32Array(p.count * 3);
+    const ha = rnd(1) * 0.4 - 0.2;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const a = Math.atan2(z, x);
+      const hj = Math.exp(-((Math.atan2(Math.sin(a - ha), Math.cos(a - ha))) ** 2) / 0.12) * Math.exp(-((y - h * 0.84) ** 2) / (h * h * 0.08));
+      const rim = Math.exp(-((h - y) ** 2) / (h * h * 0.02)) * (0.6 + 0.4 * fbm3(x * 30, y * 30, z * 30 + seed, 2));
+      const base = Math.exp(-(y * y) / (h * h * 0.03));
+      const blot = Math.max(0, fbm3(x * 14 + seed, y * 14, z * 14, 3) - 0.55) * 1.6;
+      const dk = 1 - 0.38 * hj - 0.3 * rim - 0.22 * blot;
+      col[i * 3] = dk * (1 - base * 0.25); col[i * 3 + 1] = dk * (1 - base * 0.4); col[i * 3 + 2] = dk * (1 - base * 0.3);
+    }
+    body.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  }
+  g.add(mk(body, mat.copperV || mat.copper));
+  g.add(mk(new THREE.TorusGeometry(r * 1.012 + 0.0012, 0.0034, 10, 72), mat.copperV ? mat.copper : mat.copper, 0, h, 0, Math.PI / 2));
+  // tinned interior: a burn ring and scorched floor in the vertex colour
+  const lining = lathe(G, [[r * 1.012 - t, h + 0.001], [r - t, h * 0.2], [r * 0.985 - t, h * 0.1 + t * 0.5], [r * 0.93 - t, h * 0.03 + t], [r * 0.8, t], [0, t]], 64);
+  {
+    const p = lining.attributes.position, col = new Float32Array(p.count * 3);
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i), rr = Math.hypot(x, z);
+      const floor = y < t * 1.5 ? 1 : 0;
+      const ring = Math.exp(-((rr - r * 0.62) ** 2) / (r * r * 0.02)) * floor;
+      const n = fbm3(x * 25 + seed, y * 25, z * 25, 3);
+      const burn = floor * (0.25 + 0.5 * Math.max(0, n - 0.4)) + ring * 0.4;
+      const tide = Math.exp(-((y - h * (0.45 + 0.2 * rnd(4))) ** 2) / (h * h * 0.004)) * 0.25;   // a dried soup line
+      const v = 1 - burn - tide;
+      col[i * 3] = v * (1 - burn * 0.1); col[i * 3 + 1] = v * (1 - burn * 0.25); col[i * 3 + 2] = v * (1 - burn * 0.4);
+    }
+    lining.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  }
+  g.add(mk(lining, mat.tinLiningV || mat.tinLining || mat.copper));
   if (stock) {
     for (const s of [-1, 1]) {
       g.add(mk(new THREE.TorusGeometry(0.03, 0.006, 8, 18, Math.PI), mat.brass, s * (r + 0.004), h * 0.8, 0, 0, s > 0 ? -Math.PI / 2 : Math.PI / 2, 0));
@@ -482,20 +517,28 @@ export function buildSaucepan(G, mat, r = 0.1, h = 0.08, handleLen = 0.22, { sto
     }
     return g;
   }
+  // long cast-iron handle: a riveted spoon-shaped strap on the body, a ribbed tapering bar, a hanging loop
   const hg = new THREE.Group();
+  const L = handleLen;
   const bar = new THREE.Shape();
-  bar.moveTo(0, -0.014); bar.lineTo(handleLen, -0.009); bar.absarc(handleLen + 0.012, 0, 0.018, -Math.PI / 2, Math.PI / 2, false); bar.lineTo(0, 0.014); bar.lineTo(0, -0.014);
-  const hole = new THREE.Path(); hole.absarc(handleLen + 0.014, 0, 0.009, 0, Math.PI * 2, true); bar.holes.push(hole);
-  const hgeo = new THREE.ExtrudeGeometry(bar, { depth: 0.006, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 2, curveSegments: 16 });
-  hgeo.translate(0, 0, -0.003); hgeo.rotateX(Math.PI / 2);
+  bar.moveTo(0, -0.019); bar.quadraticCurveTo(0.03, -0.019, 0.05, -0.011); bar.lineTo(L, -0.0085);
+  bar.absarc(L + 0.013, 0, 0.0175, -Math.PI / 2, Math.PI / 2, false);
+  bar.lineTo(0.05, 0.011); bar.quadraticCurveTo(0.03, 0.019, 0, 0.019); bar.lineTo(0, -0.019);
+  const hole = new THREE.Path(); hole.absarc(L + 0.015, 0, 0.0085, 0, Math.PI * 2, true); bar.holes.push(hole);
+  const hgeo = new THREE.ExtrudeGeometry(bar, { depth: 0.007, bevelEnabled: true, bevelThickness: 0.0025, bevelSize: 0.0025, bevelSegments: 3, curveSegments: 20 });
+  hgeo.translate(0, 0, -0.0035); hgeo.rotateX(Math.PI / 2);
   hg.add(mk(G.applyBoxUVs(hgeo, 1), mat.ironEdge || mat.ironPolished || mat.iron));
-  // riveted strap onto the body
-  hg.add(mk(rbox(G, 0.05, 0.004, 0.034, 0.0015), mat.ironEdge || mat.iron, 0.012, 0, 0, 0, 0, 0));
-  for (const [x, z] of [[0.004, -0.009], [0.004, 0.009], [0.024, 0]]) hg.add(mk(new THREE.SphereGeometry(0.0042, 8, 6), mat.copper, x, 0.003, z));
-  hg.position.set(r * 0.99, h * 0.84, 0);
-  hg.rotation.z = 0.12;
+  // a raised rib down the bar
+  hg.add(mk(rbox(G, L - 0.06, 0.004, 0.006, 0.0018), mat.ironEdge || mat.iron, 0.03 + (L - 0.06) / 2 + 0.02, 0.0055, 0));
+  // two big copper rivets through strap and wall, their peened heads visible inside the tin
+  for (const z of [-0.0085, 0.0085]) {
+    hg.add(mk(new THREE.SphereGeometry(0.0055, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat.copper, 0.012, 0.0045, z));
+  }
+  hg.position.set(r * 1.005, h * 0.8, 0);
+  hg.rotation.z = 0.14;
   g.add(hg);
-  const lp = new THREE.Vector3(handleLen + 0.014, 0, 0).applyEuler(hg.rotation).add(hg.position);
+  for (const z of [-0.0085, 0.0085]) g.add(mk(new THREE.SphereGeometry(0.005, 10, 6), mat.tinLining || mat.copper, r - t - 0.0015, h * 0.8 + 0.0015, z, 0, 0, Math.PI / 2));
+  const lp = new THREE.Vector3(L + 0.015, 0, 0).applyEuler(hg.rotation).add(hg.position);
   g.userData.loop = lp;
   return g;
 }
@@ -553,17 +596,17 @@ export function mergeInto(list) {
 // =====================================================================================
 // Brass paraffin lamp with a glass chimney. origin = base. returns { group, flameY }
 // =====================================================================================
-export function buildOilLamp(ctx, mat) {
+export function buildOilLamp(ctx, mat, { flame: fI = 1.6 } = {}) {
   const { geometry: G, fx } = ctx;
   const g = new THREE.Group();
   g.add(mk(lathe(G, [[0, 0], [0.07, 0], [0.072, 0.008], [0.06, 0.016], [0.025, 0.03], [0.02, 0.08], [0.03, 0.09], [0.065, 0.12], [0.072, 0.15], [0.06, 0.18], [0.025, 0.195], [0.03, 0.21], [0.0, 0.215]], 32), mat.brass));
   // burner gallery
   g.add(mk(lathe(G, [[0.02, 0.21], [0.036, 0.215], [0.04, 0.24], [0.035, 0.245], [0.02, 0.24]], 24), mat.brass));
-  const chimney = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.05, transparent: true, opacity: 0.22, emissive: new THREE.Color(1.0, 0.7, 0.4), emissiveIntensity: 0.06, clearcoat: 1, name: 'lampChimney' });
+  const chimney = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.05, transparent: true, opacity: 0.18, emissive: new THREE.Color(1.0, 0.7, 0.4), emissiveIntensity: 0.03, clearcoat: 1, name: 'lampChimney' });
   const ch = mk(lathe(G, [[0.03, 0.24], [0.034, 0.26], [0.045, 0.3], [0.042, 0.33], [0.022, 0.38], [0.02, 0.47]], 28), chimney);
   ch.userData.noBake = true;
   g.add(ch);
-  const flame = fx.flame({ height: 0.032, width: 0.011, intensity: 1.6 });
+  const flame = fx.flame({ height: 0.032, width: 0.011, intensity: fI });
   flame.position.y = 0.255;
   g.add(flame);
   return { group: g, flameY: 0.3 };
@@ -726,10 +769,10 @@ export function fbm3(x, y, z, oct = 3) { let a = 0, s = 0.5, f = 1; for (let i =
  */
 export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0.11, flour = 0.6 } = {}) {
   const NU = 72, NV = 56;
-  const pos = [], col = [], uvs = [], idx = [];
+  const pos = [], col = [], uvs = [], suv = [], idx = [];
   const rnd = (k) => hash3(seed * 1.7, k * 3.1, 0.5);
   const lean = [(rnd(1) - 0.5) * 0.5 * slump * r, (rnd(2) - 0.5) * 0.35 * slump * r];
-  const creases = [0, 1, 2, 3].slice(0, 3 + (seed % 2)).map((k) => ({ a: rnd(10 + k) * Math.PI * 2, t: 0.3 + rnd(20 + k) * 0.4, tilt: (rnd(30 + k) - 0.5) * 3.0, depth: 0.08 + rnd(40 + k) * 0.07 }));
+  const creases = [0, 1, 2, 3].slice(0, 3 + (seed % 2)).map((k) => ({ a: rnd(10 + k) * Math.PI * 2, t: 0.35 + rnd(20 + k) * 0.4, tilt: (rnd(30 + k) - 0.5) * 3.0, depth: 0.11 + rnd(40 + k) * 0.08 }));
   const sagBands = [0.48 + rnd(50) * 0.1, 0.62 + rnd(51) * 0.08];
   const tNeck = 1 - neck / h * 1.0;          // where the neck starts
   for (let j = 0; j <= NV; j++) {
@@ -746,7 +789,7 @@ export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0
       } else if (t < tNeck - 0.08) { // body: widest low down (settled), narrowing to the shoulder
         const k = (t - 0.08) / (tNeck - 0.16);
         // pear-shaped: the flour settles into a fat belly low down, the top half slack
-        rr = r * (1.14 + 0.1 * slump + 0.08 * Math.sin(Math.min(1, k / 0.35) * Math.PI * 0.5) - k * 0.34 - 0.5 * Math.max(0, k - 0.7) ** 2 * 3.0);
+        rr = r * (1.08 + 0.1 * slump + 0.07 * Math.sin(Math.min(1, k / 0.3) * Math.PI * 0.5) - k * 0.1 - 4.0 * Math.max(0, k - 0.74) ** 2);
         y = h * (0.035 + k * (tNeck - 0.12));
       } else if (t < tNeck) {        // shoulder gathered into the neck
         const k = (t - (tNeck - 0.08)) / 0.08;
@@ -754,8 +797,9 @@ export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0
         y = h * ((tNeck - 0.085) + k * 0.07);
       } else {                       // twisted neck + small ruffled mouth
         const k = (t - tNeck) / (1 - tNeck);
-        rr = r * (0.17 - 0.03 * Math.sin(k * Math.PI) + (k > 0.75 ? (k - 0.75) * 0.9 : 0));
-        y = h * (tNeck - 0.015) + neck * k;
+        // the gathered mouth above the tie flares open in a ruff of hessian
+        rr = r * (0.16 - 0.03 * Math.sin(k * Math.PI) + (k > 0.55 ? ((k - 0.55) / 0.45) ** 1.5 * 0.32 : 0));
+        y = h * (tNeck - 0.015) + neck * 1.25 * k;
       }
       // the sack settles: base squashed wide, the upper half sags to one side and forward
       const sag = Math.sin(Math.min(1, t / tNeck) * Math.PI * 0.5) ** 2;
@@ -767,14 +811,24 @@ export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0
         const band = Math.exp(-((t - c.t) ** 2) / 0.05);
         fold += (-c.depth * Math.exp(-(da * da) / 0.012) + c.depth * 0.35 * Math.exp(-((Math.abs(da) - 0.2) ** 2) / 0.01)) * band;
       }
-      // lumpy fill (flour settles unevenly) + fine wrinkles near the neck
-      const lump = (fbm3(ca * 2.2 + seed, t * 3.0, sa * 2.2, 3) - 0.5) * 0.18;
-      const wr = t > tNeck - 0.12 ? 0.18 * Math.sin(a * 9 + t * 40 + seed) * Math.min(1, (t - tNeck + 0.12) / 0.12) : 0;
-      const twist = t > tNeck ? Math.sin(a * 6 + (t - tNeck) * 60 + seed) * 0.25 : 0;
+      // lumpy fill (flour settles unevenly) - kept low so the silhouette stays taut, not a beanbag
+      const lump = (fbm3(ca * 2.2 + seed, t * 3.0, sa * 2.2, 3) - 0.5) * 0.09;
+      // gathered folds radiating down from the tie: sharp V valleys between soft ridges, deepest at the neck
+      const nF = 4 + (seed % 2);
+      const gath = Math.max(0, Math.min(1, (t - (tNeck - 0.26)) / 0.26));
+      const fphase = a * nF * 0.5 + seed * 1.3 + (t - tNeck) * 4.0 * (rnd(60) - 0.5);
+      const vfold = 1 - Math.pow(Math.abs(Math.sin(fphase)), 0.35);
+      const wr = -gath * gath * (0.3 * vfold) + gath * 0.05 * Math.sin(a * 11 + t * 30 + seed);
+      const twist = t > tNeck ? Math.sin(a * 6 + (t - tNeck) * 60 + seed) * 0.22 - 0.12 * vfold + (t > tNeck + (1 - tNeck) * 0.5 ? 0.45 * Math.sin(a * 7 + seed) * ((t - tNeck) / (1 - tNeck)) : 0) : 0;
+      // the side seams: the sack was sewn from a flat tube, so two crisp ridges run up its sides
+      const seamA = Math.min(Math.abs(Math.atan2(Math.sin(a), Math.cos(a))), Math.abs(Math.atan2(Math.sin(a - Math.PI), Math.cos(a - Math.PI))));
+      const seamR = 0.035 * Math.exp(-(seamA * seamA) / 0.004) - 0.02 * Math.exp(-((seamA - 0.12) ** 2) / 0.003);
+      // belly: the full sack sags over its base, a crease where it meets the floor
+      const belly = 0.07 * Math.exp(-((t - 0.13) ** 2) / 0.0025) - 0.06 * Math.exp(-((t - 0.065) ** 2) / 0.0005);
       // horizontal sag wrinkles where the slack top folds over the full belly
       let sagW = 0;
       for (const b of sagBands) sagW -= 0.045 * Math.exp(-((t - b) ** 2) / 0.0012) * (0.6 + 0.4 * Math.sin(a * 2 + seed + b * 9));
-      const k = 1 + (t > 0.03 && t < tNeck ? fold + lump + sagW : 0) + wr + twist;
+      const k = 1 + (t > 0.03 && t < tNeck ? fold + lump + sagW + seamR * (1 - gath) + belly : 0) + wr + twist;
       x *= k; z *= k;
       x += lean[0] * sag; z += lean[1] * sag;
       y *= 1 - slump * 0.12 * sag;
@@ -784,7 +838,10 @@ export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0
       const n1 = fbm3(ca * 1.6 + seed * 3, y * 3.2, sa * 1.6, 4), n2 = fbm3(ca * 5 + 9, y * 9, sa * 5 + seed, 3);
       const dirt = Math.exp(-y / (0.07 + 0.05 * n1));
       const damp = Math.max(0, n1 - 0.62) * 2.5 * (1 - Math.min(1, y / (h * 0.6)));
-      const dust = flour * Math.max(0, n2 - 0.38) * 1.6 * (0.4 + 0.6 * Math.max(0, 1 - Math.abs(t - 0.82) * 3)) + flour * 0.5 * Math.max(0, n2 - 0.55) * Math.max(0, 0.2 - y) * 5;
+      const dust = flour * Math.max(0, n2 - 0.38) * 1.6 * (0.4 + 0.6 * Math.max(0, 1 - Math.abs(t - 0.82) * 3)) + flour * 0.5 * Math.max(0, n2 - 0.55) * Math.max(0, 0.2 - y) * 5
+        + flour * 0.9 * Math.exp(-(seamA * seamA) / 0.01) * (0.4 + 0.8 * n2)          // flour sifts out through the seams
+        + flour * 0.7 * Math.exp(-y / 0.05) * (0.3 + 0.9 * n1)                          // and cakes round the base
+        + flour * 0.6 * gath * vfold * (0.5 + n2);                                      // and lodges in the neck folds
       let cr = 1, cg = 1, cb = 1;
       const shade = 1 - dirt * 0.45 - damp * 0.35 + (n2 - 0.5) * 0.18;
       cr *= shade; cg *= shade * 0.98; cb *= shade * 0.95;
@@ -792,6 +849,7 @@ export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0
       cr = cr * (1 - fd) + 1.55 * fd; cg = cg * (1 - fd) + 1.6 * fd; cb = cb * (1 - fd) + 1.75 * fd;
       col.push(cr, cg, cb);
       uvs.push(u * 2 * Math.PI * r * 1.1, t * (h + r));
+      suv.push(u, t / tNeck);
     }
   }
   for (let j = 0; j < NV; j++) for (let i = 0; i < NU; i++) {
@@ -802,6 +860,7 @@ export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setAttribute('suv', new THREE.Float32BufferAttribute(suv, 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
   // weld the seam normals (u = 0 / 1)
@@ -844,3 +903,76 @@ export function loafGeometry(G) {
   }
   return mergeInto(parts.map((geo) => ({ geo })));
 }
+
+/** A plaited string of onions (and a few garlic bulbs) hanging from a loop. origin = loop top, hangs down -Y. */
+export function buildOnionString(G, mats, { seed = 1, len = 0.62, n = 14 } = {}) {
+  const g = new THREE.Group();
+  const R = (k) => hash3(seed * 5.1, k * 2.3, 0.7);
+  // the onion: a squat teardrop with a pointed neck and a wisp of root at the base
+  const onionProf = [[0, -0.0005], [0.008, 0.0], [0.024, 0.006], [0.036, 0.02], [0.04, 0.034], [0.036, 0.048], [0.024, 0.06], [0.012, 0.07], [0.005, 0.082], [0.002, 0.094], [0, 0.095]];
+  const onion = lathe(G, onionProf, 20);
+  // papery skin: faint longitudinal ridges
+  { const p = onion.attributes.position; for (let i = 0; i < p.count; i++) { const a = Math.atan2(p.getZ(i), p.getX(i)); const k = 1 + 0.035 * Math.sin(a * 9); p.setX(i, p.getX(i) * k); p.setZ(i, p.getZ(i) * k); } onion.computeVertexNormals(); }
+  const garlic = lathe(G, [[0, 0], [0.012, 0.002], [0.024, 0.012], [0.027, 0.024], [0.02, 0.036], [0.008, 0.044], [0.003, 0.058], [0, 0.06]], 16);
+  { const p = garlic.attributes.position; for (let i = 0; i < p.count; i++) { const a = Math.atan2(p.getZ(i), p.getX(i)); const k = 1 + 0.12 * Math.abs(Math.sin(a * 4)) - 0.06; p.setX(i, p.getX(i) * k); p.setZ(i, p.getZ(i) * k); } garlic.computeVertexNormals(); }
+  // straw plait core
+  const core = []; for (let i = 0; i <= 20; i++) { const t = i / 20; core.push([Math.sin(t * 9 + seed) * 0.006, -t * len, Math.cos(t * 7 + seed) * 0.006]); }
+  g.add(mk(tube(core, 0.009, 40, 6), mats.straw));
+  g.add(mk(new THREE.TorusGeometry(0.03, 0.005, 6, 16), mats.straw, 0, 0.02, 0));
+  for (let i = 0; i < n; i++) {
+    const t = 0.1 + (i / (n - 1)) * 0.82;
+    const a = i * 2.4 + R(i) * 0.8;
+    const isG = i % 5 === 3;
+    const sc = isG ? 0.95 + R(i + 40) * 0.2 : 0.85 + R(i + 20) * 0.35;
+    const tilt = 0.5 + R(i + 60) * 0.5;
+    const out = 0.008 + (isG ? 0.055 : 0.088) * sc * Math.sin(tilt);
+    const m = mk(isG ? garlic : onion, isG ? mats.garlic : mats.onions[i % mats.onions.length], Math.cos(a) * out, -t * len - 0.06 * Math.cos(tilt), Math.sin(a) * out);
+    // neck tucked into the plait: the bulb tilts outward and hangs below it
+    m.rotation.set(-Math.sin(a) * tilt, 0, Math.cos(a) * tilt);
+    m.scale.setScalar(sc);
+    g.add(m);
+  }
+  return g;
+}
+
+/**
+ * A poured heap of flour: a displaced, slumped cone (angle-of-repose flanks, a soft crater where the stream fell,
+ * avalanche runnels), elongated along +X by `stretch`, with an RGBA vertex colour whose alpha feathers the skirt to
+ * nothing so it melts into the floor decal. origin = centre on the ground.
+ */
+export function flourMound({ R = 0.25, h = 0.07, seed = 1, stretch = 1.3, nr = 28, ns = 72 } = {}) {
+  const pos = [], col = [], uv = [], idx = [];
+  const rr = (k) => hash3(seed * 2.1, k * 1.9, 0.3);
+  for (let j = 0; j <= nr; j++) {
+    const rho = j / nr;
+    for (let i = 0; i <= ns; i++) {
+      const th = (i / ns) * Math.PI * 2;
+      const c = Math.cos(th), s = Math.sin(th);
+      const edge = 1 + 0.16 * Math.sin(th * 3 + rr(1) * 6) + 0.08 * Math.sin(th * 7 + rr(2) * 6) + 0.12 * (fbm3(c * 2 + seed, s * 2, 0.5, 3) - 0.5);
+      const rad = rho * R * edge;
+      let x = c * rad * (c > 0 ? stretch : 1), z = s * rad;
+      // profile: rounded summit, straight-ish repose flank, long feathered toe
+      const prof = Math.pow(Math.max(0, 1 - rho), 1.7) * (1 - 0.25 * Math.exp(-rho * rho / 0.02));
+      const runnel = 0.08 * Math.sin(th * 13 + rr(3) * 6) * Math.sin(Math.PI * Math.min(1, rho * 1.3));
+      const lump = (fbm3(x * 18 + seed, z * 18, 1.3, 3) - 0.5) * 0.25;
+      const y = h * prof * (1 + runnel + lump);
+      pos.push(x, Math.max(0.0005, y), z);
+      const a = 1 - smoothstepJS(0.62, 1.0, rho);
+      const shade = 0.92 + 0.08 * fbm3(x * 9, z * 9, seed, 2);
+      col.push(shade, shade, shade * 0.98, a);
+      uv.push(x * 4, z * 4);
+    }
+  }
+  for (let j = 0; j < nr; j++) for (let i = 0; i < ns; i++) {
+    const a0 = j * (ns + 1) + i, a1 = a0 + 1, b0 = a0 + ns + 1, b1 = b0 + 1;
+    idx.push(a0, a1, b0, a1, b1, b0);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+function smoothstepJS(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
