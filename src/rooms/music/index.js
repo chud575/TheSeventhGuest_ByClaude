@@ -583,7 +583,7 @@ void surface(vec2 uv, inout Surface s) {
       add(door);
       // a low warm fill off the threshold (the sconces' bounce off the boards): the herringbone in
       // front of the doors reads instead of crushing to black
-      const sill = new THREE.PointLight(0xffa868, 1.3, 4.0, 2);
+      const sill = new THREE.PointLight(0xffa868, 2.6, 4.5, 2);
       sill.position.set(0, 0.6, Z1 - 1.5); add(sill);
     }
 

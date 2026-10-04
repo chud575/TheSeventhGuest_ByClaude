@@ -126,7 +126,7 @@ void main() {
   // albedo by region: pale skin and linen, a grey-blue ghost of the black coat, dim hair
   float val = cloth * 0.26 + hair * 0.62 + linen * 1.05 + skin * 1.0;
   float lit = 0.1 + 0.9 * key * key;
-  vec3 body = mix(uShadow, uColor * val, lit * occ) + uFillColor * fill * val * occ * 0.55;
+  vec3 body = mix(uShadow, uColor * val, lit * occ) + uFillColor * fill * val * occ * 0.55 * (1.0 - 0.8 * hair);
   // a soft specular sheen on skin and silk (wet-looking cold light on the brow, nose, cheekbones)
   vec3 hv = normalize(uKey + v);
   float spec = pow(clamp(dot(n, hv), 0.0, 1.0), mix(14.0, 30.0, skin)) * (0.06 + 0.22 * skin) * occ * (1.0 - hair);

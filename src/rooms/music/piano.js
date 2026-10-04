@@ -212,9 +212,11 @@ void surface(vec2 uv, inout Surface s) {
     gold.color.set(0xe8b450); gold.metalness = 0.6; gold.roughness = 1.0; gold.clearcoat = 0.0; gold.envMapIntensity = 0.45; gold.specularIntensity = 0.5; gold.needsUpdate = true;
     const plateOuter = clipBelow(offsetPoly(pts, 0.06), 0.06);
     const s = shapeOf(plateOuter);
+    // long 'windows' between the struts (not a grid of round holes: that read as an egg-crate tray),
+    // and a pair of round holes near the tail
     const holes = [
-      [-0.43, 0.7, 0.075, 0.15], [-0.13, 0.66, 0.068, 0.13], [0.19, 0.6, 0.06, 0.105], [0.45, 0.52, 0.04, 0.07],
-      [-0.43, 1.24, 0.08, 0.17], [-0.13, 1.12, 0.06, 0.13], [-0.45, 1.68, 0.06, 0.1],
+      [-0.43, 0.98, 0.085, 0.47], [-0.135, 0.86, 0.075, 0.36], [0.165, 0.7, 0.07, 0.25], [0.465, 0.53, 0.045, 0.13],
+      [-0.44, 1.66, 0.07, 0.09],
     ];
     const ellPts = (x, y, rx, ry, n = 40) => { const o = []; for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; o.push(new THREE.Vector2(x + Math.cos(a) * rx, y + Math.sin(a) * ry)); } return o; };
     for (const [x, y, rx, ry] of holes) {   // lightening holes: the pale spruce soundboard shows through
@@ -362,6 +364,12 @@ void surface(vec2 uv, inout Surface s) {
     const rail = add(new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.016, 0.022), ebony));
     rail.position.set(0.12, 0.944, -0.34);
   }
+
+  // the candlelight bounced off the underside of the raised lid: a soft warm lift inside the case so the
+  // gilt plate reads gold (lit only by the shadowed candelabrum it went a dull copper-brown)
+  // (an emissive lift on the gilt, not a light: a point light inside the case blew hot spots into the
+  // lacquer of the lid and the bentside)
+  gold.emissive = new THREE.Color(0.075, 0.05, 0.018); gold.emissiveMap = gold.map;
 
   // ---------------------------------------------------------------- lid (raised on the long stick)
   const lidPivot = new THREE.Group();
