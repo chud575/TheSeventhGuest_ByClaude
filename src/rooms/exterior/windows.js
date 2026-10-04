@@ -320,7 +320,7 @@ vec3 interiorRoom(vec3 ro, vec3 rd, vec2 sc, float seed, out float curtA, out ve
   vec3 rp = ro + rd * ((L.z - ro.z) / rd.z);
   vec2 lq = vec2(rp.x * sc.x - L.x, rp.y * sc.y - (L.y + 0.18));
   float shade = smoothstep(0.16, 0.12, length(lq * vec2(1.0, 1.6)));
-  lit = mix(lit, vec3(2.2, 1.4, 0.75), shade * step(L.z, ro.z));
+  lit = mix(lit, vec3(2.2, 1.4, 0.75), shade * step(L.z, ro.z) * step(0.5, sc.x));   // (no lamp in the narrow sidelights)
   // curtain layer just behind the glass
   vec3 cp = ro + rd * ((-0.07 - ro.z) / rd.z);
   vec4 cu = texture2D(emissiveMap, cp.xy + 0.5);
@@ -375,14 +375,23 @@ vec3 interiorRoom(vec3 ro, vec3 rd, vec2 sc, float seed, out float curtA, out ve
 
 /** Curtains behind the glass: velvet drapes tied back to the sides, a lace sheer, a pelmet (RGBA). */
 export function curtainTexture(ctx) {
-  return ctx.textures.canvas('ext:curtains3', 256, 512, (g, w, h) => {
+  return ctx.textures.canvas('ext:curtains4', 512, 1024, (g, w, h) => {
     g.clearRect(0, 0, w, h);
-    // lace sheer across the middle: faint, patterned
-    for (let y = 0; y < h; y += 8) for (let x = ((y / 8) % 2) * 4; x < w; x += 8) {
-      g.fillStyle = 'rgba(235,205,160,0.16)'; g.fillRect(x, y, 4, 4);
+    // lace sheer: soft vertical folds (light where the fabric bunches toward the lamp),
+    // a fine floral net that only reads up close, a scalloped hem
+    for (let x = 0; x < w; x++) {
+      const fold = 0.5 + 0.5 * Math.sin(x * 0.11 + Math.sin(x * 0.023) * 2.0);
+      g.fillStyle = `rgba(236,206,160,${(0.05 + 0.12 * fold * fold).toFixed(3)})`;
+      g.fillRect(x, h * 0.06, 1, h * 0.86);
     }
-    g.fillStyle = 'rgba(230,200,150,0.05)'; g.fillRect(0, 0, w, h);
-    // velvet drapes with folds, tied back (hourglass outline)
+    g.strokeStyle = 'rgba(240,215,170,0.07)'; g.lineWidth = 1;
+    for (let y = h * 0.08; y < h * 0.9; y += 22) for (let x = ((y / 22) % 2) * 11; x < w; x += 22) {
+      g.beginPath(); g.arc(x, y, 5, 0, Math.PI * 2); g.stroke();
+    }
+    g.fillStyle = 'rgba(236,206,160,0.12)';
+    for (let x = 0; x < w; x += 18) { g.beginPath(); g.arc(x + 9, h * 0.92, 9, 0, Math.PI); g.fill(); }
+    // velvet drapes tied back (hourglass), deep folds: crests glow with lamp-light coming
+    // through the thinner pile, troughs nearly black; brighter toward the gathered tie-back
     for (const side of [0, 1]) {
       g.save();
       if (side) { g.translate(w, 0); g.scale(-1, 1); }
@@ -392,22 +401,31 @@ export function curtainTexture(ctx) {
       g.bezierCurveTo(w * 0.14, h * 0.7, w * 0.3, h * 0.85, w * 0.34, h);
       g.lineTo(0, h); g.closePath();
       g.clip();
-      for (let x = 0; x < w * 0.4; x += 2) {
-        const f = 0.45 + 0.55 * Math.pow(Math.abs(Math.sin(x * 0.19 + side)), 0.7);
-        g.fillStyle = `rgba(${Math.floor(120 * f)},${Math.floor(30 * f)},${Math.floor(18 * f)},0.97)`;
-        g.fillRect(x, 0, 2, h);
+      for (let y = 0; y < h; y += 4) {
+        // the folds converge on the tie-back
+        const pinch = 1 - 0.55 * Math.exp(-Math.pow((y / h - 0.58) / 0.12, 2));
+        for (let x = 0; x < w * 0.4; x += 2) {
+          const ph = (x / pinch) * 0.085 + side * 1.3 + Math.sin(y * 0.004 + x * 0.01) * 0.6;
+          const crest = Math.pow(0.5 + 0.5 * Math.sin(ph), 1.6);
+          const trans = 0.18 + 0.82 * crest;
+          const glow = 1 + 0.5 * Math.exp(-Math.pow((y / h - 0.58) / 0.2, 2));
+          const r = Math.min(255, 150 * trans * glow), gg = Math.min(255, 34 * trans * glow), b = Math.min(255, 20 * trans * glow);
+          g.fillStyle = `rgba(${r | 0},${gg | 0},${b | 0},0.98)`;
+          g.fillRect(x, y, 2, 4);
+        }
       }
       const sg = g.createLinearGradient(0, 0, w * 0.4, 0);
-      sg.addColorStop(0, 'rgba(0,0,0,0.6)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+      sg.addColorStop(0, 'rgba(0,0,0,0.55)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
       g.fillStyle = sg; g.fillRect(0, 0, w * 0.4, h);
       g.restore();
-      // tasselled tie-back
-      g.fillStyle = 'rgba(150,110,40,1)';
-      g.fillRect(side ? w * 0.82 : w * 0.08, h * 0.57, w * 0.1, 6);
+      // tasselled cord tie-back
+      g.fillStyle = 'rgba(160,118,44,1)';
+      g.fillRect(side ? w * 0.8 : w * 0.08, h * 0.57, w * 0.12, 10);
+      g.beginPath(); g.ellipse(side ? w * 0.86 : w * 0.14, h * 0.6, 7, 16, 0, 0, Math.PI * 2); g.fill();
     }
-    // pelmet
-    g.fillStyle = 'rgba(50,10,8,1)'; g.fillRect(0, 0, w, h * 0.07);
-    for (let x = 0; x < w; x += 16) { g.beginPath(); g.arc(x + 8, h * 0.07, 8, 0, Math.PI); g.fill(); }
+    // pelmet with a swagged edge
+    g.fillStyle = 'rgba(46,9,7,1)'; g.fillRect(0, 0, w, h * 0.065);
+    for (let x = 0; x < w; x += 32) { g.beginPath(); g.ellipse(x + 16, h * 0.065, 16, 12, 0, 0, Math.PI); g.fill(); }
   }, { tile: false });
 }
 

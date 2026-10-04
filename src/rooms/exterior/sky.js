@@ -49,7 +49,7 @@ float boltDist(vec2 p, float seed, out float br) {
   float d = 1e3;
   br = 0.0;
   vec2 prev = vec2(0.0);
-  float drift = (fxHash12(vec2(seed, 1.3)) - 0.5) * 0.01;
+  float drift = 0.004 + fxHash12(vec2(seed, 1.3)) * 0.004;   // leans toward the house: the roofline swallows its root
   for (int i = 1; i <= 52; i++) {
     float fi = float(i);
     vec2 cur = prev + vec2(drift + (fxHash12(vec2(fi, seed)) - 0.5) * 0.045, -0.016 - fxHash12(vec2(fi, seed + 5.0)) * 0.014);
@@ -191,7 +191,7 @@ void main() {
       float bd = boltDist(bp, uBoltSeed, brn);
       float wgt = mix(1.0, 0.3, step(0.5, brn)) * (brn > 0.5 ? (1.0 - (brn - 0.7) * 2.0) : 1.0);
       float fade = smoothstep(-1.15, -0.6, bp.y);
-      float core = exp(-bd * 1500.0) * 9.0 + exp(-bd * 380.0) * 1.1 + exp(-bd * 70.0) * 0.1;
+      float core = exp(-bd * 900.0) * 5.0 + exp(-bd * 380.0) * 1.6 + exp(-bd * 110.0) * 0.25 + exp(-bd * 30.0) * 0.05;
       col += vec3(0.78, 0.84, 1.0) * core * uBolt * wgt * (0.35 + 0.65 * fade);
     }
   }

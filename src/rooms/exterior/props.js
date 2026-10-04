@@ -17,6 +17,43 @@ export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13, facing 
   const shapeShoulder = (w, h) => { const s = new THREE.Shape(); s.moveTo(-w / 2, 0); s.lineTo(w / 2, 0); s.lineTo(w / 2, h * 0.82); s.lineTo(w * 0.32, h * 0.82); s.absarc(0, h * 0.82, w * 0.32, 0, Math.PI, false); s.lineTo(-w / 2, h * 0.82); s.lineTo(-w / 2, 0); return s; };
   const shapeCross = (w, h) => { const s = new THREE.Shape(); const a = w * 0.18; s.moveTo(-a, 0); s.lineTo(a, 0); s.lineTo(a, h * 0.62); s.lineTo(w / 2, h * 0.62); s.lineTo(w / 2, h * 0.78); s.lineTo(a, h * 0.78); s.lineTo(a, h); s.lineTo(-a, h); s.lineTo(-a, h * 0.78); s.lineTo(-w / 2, h * 0.78); s.lineTo(-w / 2, h * 0.62); s.lineTo(-a, h * 0.62); s.lineTo(-a, 0); return s; };
   const shapes = [shapeRound, shapeGothic, shapeShoulder, shapeRound, null, shapeShoulder];
+  // weathering: resample the outline and erode it - softened arrises, a few bitten chips
+  // (biggest near the top corners, where frost and careless scythes get at old stones)
+  const chip = (sh, w, h, sd) => {
+    const pts = sh.getSpacedPoints(110);
+    const Rc = rng(sd * 17 + 3);
+    const chips = [];
+    for (let k = 0; k < 3; k++) chips.push({ t: Rc(), r: 0.03 + Rc() * 0.05, d: 0.015 + Rc() * 0.03 });
+    const out = new THREE.Shape();
+    const cxy = new THREE.Vector2(0, h * 0.45);
+    pts.forEach((p, k) => {
+      const t = k / pts.length;
+      if (p.y < 0.02) { k === 0 ? out.moveTo(p.x, p.y) : out.lineTo(p.x, p.y); return; }
+      const inw = cxy.clone().sub(p).normalize();
+      let e = (Math.sin(t * 90 + sd) * 0.5 + Math.sin(t * 213 + sd * 2) * 0.3 + 0.8) * 0.004;
+      for (const c of chips) { const dt = Math.min(Math.abs(t - c.t), 1 - Math.abs(t - c.t)) * 3.0; if (dt < c.r) e += c.d * Math.sqrt(1 - (dt / c.r) ** 2) * (p.y / h); }
+      const q = p.clone().addScaledVector(inw, e);
+      k === 0 ? out.moveTo(q.x, q.y) : out.lineTo(q.x, q.y);
+    });
+    out.closePath();
+    return out;
+  };
+  // dark damp contact rings where each stone meets the turf
+  const ringTex = ctx.textures.canvas('ext:contactRing1', 128, 128, (g, w2, h2) => {
+    const rg = g.createRadialGradient(w2 / 2, h2 / 2, 4, w2 / 2, h2 / 2, w2 / 2);
+    rg.addColorStop(0, 'rgba(255,255,255,0.95)'); rg.addColorStop(0.45, 'rgba(255,255,255,0.7)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = rg; g.fillRect(0, 0, w2, h2);
+  }, { tile: false, srgb: false });
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: ringTex, transparent: true, opacity: 0.8, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, name: 'contactRing' });
+  const ringGeo = [];
+  const addRing = (x, z, sx, sz, ry) => {
+    const g = new THREE.PlaneGeometry(1, 1, 4, 4);
+    g.rotateX(-Math.PI / 2); g.scale(sx, 1, sz); g.rotateY(ry);
+    const p = g.attributes.position;
+    for (let k = 0; k < p.count; k++) p.setY(k, height(x + p.getX(k), z + p.getZ(k)) + 0.03);
+    g.translate(x, 0, z);
+    ringGeo.push(g);
+  };
   const epiTex = epitaphTexture(ctx);
   const epiMat = new THREE.MeshStandardMaterial({ color: 0x141414, map: epiTex, alphaMap: epiTex, alphaTest: 0.35, transparent: false, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, name: 'epitaph' });
   epiMat.userData.groundShade = false;
@@ -27,12 +64,14 @@ export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13, facing 
     const y = height(x, z);
     const w = 0.55 + R() * 0.25, h = 0.8 + R() * 0.55, d = 0.12 + R() * 0.06;
     const ry = facing + (R() - 0.5) * 0.45;
-    const tiltX = (R() - 0.5) * 0.28 + (i % 4 === 1 ? 0.16 : 0), tiltZ = (R() - 0.5) * 0.24;
+    // every stone leans (2-8 deg, both axes), the odd one badly
+    const lean = (a) => Math.sign(a - 0.5 || 1) * (0.035 + Math.abs(a - 0.5) * 0.2);
+    const tiltX = lean(R()) + (i % 4 === 1 ? 0.12 : 0), tiltZ = lean(R()) * 0.8;
     const sink = 0.1 + R() * 0.12;
     const m = mat4(x, y - sink, z, tiltX, ry, tiltZ);
     const mat = i % 3 === 0 ? M.graveDark : M.grave;
     if (shapes[i % shapes.length]) {
-      const sh = shapes[i % shapes.length](w, h);
+      const sh = chip(shapes[i % shapes.length](w, h), w, h, i + 1);
       const g = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 3, curveSegments: 18 });
       g.translate(0, 0, -d / 2);
       B.add(g, mat, m, { uvScale: 1 });
@@ -62,6 +101,7 @@ export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13, facing 
     { const p = mound.attributes.position; for (let k = 0; k < p.count; k++) { const px = p.getX(k), py = p.getY(k), pz = p.getZ(k); const n = 1 + 0.12 * Math.sin(px * 9 + i) * Math.sin(pz * 7 + i * 2) + 0.06 * Math.sin(px * 23 + pz * 19); p.setXYZ(k, px * n, py * n, pz * n); } mound.computeVertexNormals(); }
     B.add(mound, M.mound, mat4(x - Math.sin(ry) * 0.95, y - 0.1, z - Math.cos(ry) * 0.95, 0, ry, 0, 0.45, 0.18 + R() * 0.1, 0.95), { uvScale: 0.5 });
     B.add(mound, M.mound, mat4(x, y - 0.06, z, 0, ry, 0, w * 0.75, 0.12, 0.3), { uvScale: 0.5 });
+    addRing(x, z, w * 1.9, 0.9, ry);
     stones.push(new THREE.Vector3(x, y + h / 2, z));
   });
   if (epiGeo.length) {
@@ -70,15 +110,19 @@ export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13, facing 
     em.name = 'epitaphs'; em.receiveShadow = true;
     group.add(em);
   }
-  // obelisk
+  // obelisk: two steps, a die with a cornice and a carved band, a tapering shaft with a
+  // moulded collar, pyramidion. Square lathes (4 segments, rotated 45 deg) give real mouldings.
   {
     const x = cx + 4.4, z = cz - 0.2, y = height(x, z);
-    B.add(new THREE.BoxGeometry(1.0, 0.3, 1.0), M.grave, mat4(x, y + 0.1, z), { uvScale: 1 });
-    B.add(new THREE.BoxGeometry(0.75, 0.6, 0.75), M.grave, mat4(x, y + 0.55, z), { uvScale: 1 });
-    B.add(new THREE.BoxGeometry(0.85, 0.1, 0.85), M.grave, mat4(x, y + 0.9, z), { uvScale: 1 });
-    const ob = new THREE.CylinderGeometry(0.2, 0.32, 2.8, 4, 1);
-    B.add(ob, M.grave, mat4(x, y + 2.35, z, 0, Math.PI / 4, 0), { uvScale: 1 });
-    B.add(new THREE.ConeGeometry(0.2, 0.3, 4), M.grave, mat4(x, y + 3.9, z, 0, Math.PI / 4, 0), { uvScale: 1 });
+    const sq = (prof, yy, mat = M.grave) => B.add((() => { const g = G.latheFromProfile(prof, 4).toNonIndexed(); g.computeVertexNormals(); return g; })(), mat, mat4(x, yy, z, 0, Math.PI / 4, 0, Math.SQRT2, 1, Math.SQRT2), { uv: 'box', uvScale: 1 });
+    sq([[0, 0], [0.62, 0], [0.62, 0.18], [0.6, 0.2], [0.0, 0.2]], y - 0.08, M.graveDark);                 // lower step
+    sq([[0, 0], [0.5, 0], [0.5, 0.16], [0.48, 0.18], [0.0, 0.18]], y + 0.12, M.graveDark);                // upper step
+    sq([[0, 0], [0.42, 0], [0.42, 0.05], [0.39, 0.08], [0.37, 0.08], [0.37, 0.24], [0.385, 0.25], [0.385, 0.29], [0.37, 0.3],
+      [0.37, 0.56], [0.39, 0.58], [0.42, 0.61], [0.44, 0.64], [0.44, 0.68], [0.0, 0.68]], y + 0.3);          // die: plinth moulding, carved band, cornice
+    sq([[0, 0], [0.3, 0], [0.3, 0.04], [0.27, 0.07], [0.0, 0.07]], y + 0.98);                               // shaft base
+    sq([[0, 0], [0.24, 0], [0.225, 0.8], [0.21, 1.6], [0.2, 1.62], [0.205, 1.68], [0.19, 1.7], [0.16, 2.55], [0.0, 2.55]], y + 1.05);   // shaft + collar
+    sq([[0, 0], [0.165, 0], [0.0, 0.32]], y + 3.6);                                                           // pyramidion
+    addRing(x, z, 2.0, 2.0, 0);
     stones.push(new THREE.Vector3(x, y + 1.5, z));
   }
   // broken column on a plinth
@@ -146,7 +190,9 @@ export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13, facing 
   {
     const [vx, vz] = [cx + 2.2, cz + 1.6];
     const vy = height(vx, vz);
-    votive.position.set(vx, vy - 0.01, vz);
+    votive.position.set(vx, vy + 0.07, vz);
+    votive.scale.setScalar(1.6);
+    B.add(new THREE.BoxGeometry(0.42, 0.12, 0.34), M.graveDark, mat4(vx, vy + 0.0, vz, 0.03, 0.4, -0.02), { uvScale: 1 });
     const iron = M.iron;
     const parts = new Bucket();
     for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) parts.add(new THREE.BoxGeometry(0.012, 0.2, 0.012), iron, mat4(sx * 0.055, 0.11, sz * 0.055), { uv: 'keep' });
@@ -154,7 +200,8 @@ export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13, facing 
     parts.add(new THREE.ConeGeometry(0.1, 0.08, 4), iron, mat4(0, 0.25, 0, 0, Math.PI / 4, 0), { uv: 'keep' });
     parts.add(new THREE.TorusGeometry(0.03, 0.004, 4, 12), iron, mat4(0, 0.31, 0), { uv: 'keep' });
     parts.build(votive, { name: 'votive' });
-    const glass = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.18, 0.1), M.lanternGlass);
+    const vg = M.lanternGlass.clone(); vg.emissiveIntensity = 1.6; vg.opacity = 0.75; vg.name = 'votiveGlass';
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.18, 0.1), vg);
     glass.position.y = 0.11; glass.scale.setScalar(1); votive.add(glass);
     const fl = ctx.fx.flame({ height: 0.04, width: 0.012, intensity: 8, seed: 3 });
     fl.position.y = 0.05; votive.add(fl);
@@ -177,6 +224,11 @@ export function buildGraveyard(ctx, M, { cx = -10.5, cz = 21, seed = 13, facing 
   }
   group.add(votive);
   B.build(group, { name: 'graves' });
+  if (ringGeo.length) {
+    const rm = new THREE.Mesh(ctx.geometry.mergeGeometries(ringGeo), ringMat);
+    rm.name = 'contactRings'; rm.renderOrder = 2;
+    group.add(rm);
+  }
   return { group, stones, votive };
 }
 

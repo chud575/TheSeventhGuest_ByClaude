@@ -211,6 +211,9 @@ ${tipTerm} vec3 rn = normalize(normal); vec3 rv = normalize(vViewPosition);
   vec3 rl = normalize((viewMatrix * vec4(uRimDir, 0.0)).xyz);
   float ndv = clamp(dot(rn, rv), 0.0, 1.0);
   float fr = pow(1.0 - ndv, 3.0);
+  // rim AA: where the normal swings across a pixel (thin bars, twigs, ivy, blade edges) the
+  // grazing term can only alias into white dotted lines and sparkle -> fade it out
+  fr *= 1.0 - smoothstep(0.12, 0.45, length(fwidth(rn)));
   float face = smoothstep(-0.15, 0.55, dot(rn, rl));
   float back = 0.35 + 0.65 * clamp(-dot(rv, rl) * 0.5 + 0.5, 0.0, 1.0);
   // no rim on up-facing tops (cornice caps, sills): seen edge-on they alias into white speckle
@@ -219,7 +222,7 @@ ${(m.userData.groundShade || m.userData.rimTops) ? '' : `  float rup = (vec4(rn,
 `}  gl_FragColor.rgb += uRimColor * (fr * face * back * uRimStrength * ${Number(m.userData.rim).toFixed(3)}) * ${mul};
   if (uFlashRim > 0.0) {
     vec3 fl = normalize((viewMatrix * vec4(uFlashDir, 0.0)).xyz);
-    float ff = pow(1.0 - ndv, 2.2) * smoothstep(0.0, 0.7, dot(rn, fl));
+    float ff = pow(1.0 - ndv, 2.2) * smoothstep(0.0, 0.7, dot(rn, fl)) * (1.0 - smoothstep(0.12, 0.45, length(fwidth(rn))));
     gl_FragColor.rgb += vec3(0.78, 0.84, 1.0) * ff * uFlashRim * ${Number(m.userData.flashRim ?? Math.min(1, m.userData.rim)).toFixed(3)} * ${tip ? 'diffuseColor.rgb * 1.5 * rtip' : '(0.2 + diffuseColor.rgb * 1.6)'};
   } }\n`;
 }

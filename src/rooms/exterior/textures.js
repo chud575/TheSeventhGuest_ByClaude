@@ -123,7 +123,7 @@ void surface(vec2 uv, inout Surface s) {
   // turning direction field, not a cross-hatch), damp bare soil in patches, domed
   // pebbles, fallen twigs and leaf fragments. 1 tile = 6 m.
   const ground = T.generate('ext:ground7', {
-    size: big, normalStrength: 1.8,
+    size: big, normalStrength: 1.4,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   float n1 = fbm(uv, vec2(4.0), 6) * 0.5 + 0.5;
@@ -167,7 +167,7 @@ void surface(vec2 uv, inout Surface s) {
   col = mix(col, vec3(0.05, 0.04, 0.03), twig * 0.85);
   col *= 0.86 + 0.2 * n3;
   s.albedo = col;
-  s.height = 0.4 + strands * 0.05 * (1.0 - bare) + dome * 0.18 + twig * 0.04 + n2 * 0.1 + n3 * 0.03;
+  s.height = 0.4 + strands * 0.025 * (1.0 - bare) + dome * 0.18 + twig * 0.04 + n2 * 0.1 + n3 * 0.03;
   s.rough = 0.95 - dome * 0.15;
   s.metal = 0.0;
   s.ao = 0.75 + 0.25 * s.height;
@@ -286,8 +286,8 @@ void surface(vec2 uv, inout Surface s) {
 
   // Varnished front-door wood: dark mahogany, straight quartersawn grain with ray fleck,
   // a little crazing in the old varnish, worn paler near the edges. Glossy (0.35-0.5).
-  const doorWood = T.generate('ext:doorWood2', {
-    size: 1024, normalStrength: 1.2,
+  const doorWood = T.generate('ext:doorWood3', {
+    size: 1024, normalStrength: 2.6,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   // grain runs along v (door leaves are tall); warped growth lines, not stripes
@@ -302,9 +302,15 @@ void surface(vec2 uv, inout Surface s) {
   col *= 0.85 + 0.3 * n;
   float craze = 1.0 - smoothstep(0.0, 0.015, voronoiEdge(uv * 12.0, vec2(12.0), 0.9));
   col *= 1.0 - craze * 0.15;
+  // wear: dings and scuffs in the varnish (paler, matte), worn patches where hands push
+  vec4 dv = voronoi(uv * 26.0, vec2(26.0), 1.0);
+  float ding = smoothstep(0.16, 0.04, dv.x) * step(0.86, hash12(dv.zw));
+  float worn = smoothstep(0.6, 0.85, fbm(uv + 3.3, vec2(5.0), 5) * 0.5 + 0.5);
+  col = mix(col, col * 1.45 + vec3(0.03, 0.015, 0.0), worn * 0.45);
+  col = mix(col, vec3(0.06, 0.03, 0.015), ding * 0.6);
   s.albedo = col;
-  s.height = lines * 0.03 + fine * 0.02 - craze * 0.02;
-  s.rough = 0.34 + 0.16 * n + craze * 0.15;
+  s.height = lines * 0.05 + fine * 0.03 - craze * 0.02 - ding * 0.06;
+  s.rough = 0.34 + 0.16 * n + craze * 0.15 + worn * 0.25 + ding * 0.2;
   s.metal = 0.0;
   s.ao = 1.0;
 }` });

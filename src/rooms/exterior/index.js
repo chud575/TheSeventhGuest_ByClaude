@@ -102,9 +102,9 @@ export default {
     // ------------------------------------------------------------ materials
     const TX = makeTextures(ctx);
     const M = {
-      siding: pbr(TX.siding, { name: 'siding', color: 0xb4bcae }),
+      siding: pbr(TX.siding, { name: 'siding', color: 0xb4bcae, normalScale: 1.6 }),
       trim: pbr(TX.trim, { name: 'trim', color: 0xb8b0a0 }),
-      stepStone: pbr(TX.stepStone, { name: 'stepStone', color: 0x9a9894 }),
+      stepStone: pbr(TX.stepStone, { name: 'stepStone', color: 0xaeaca6 }),
       stepRiser: pbr(TX.stepStone, { name: 'stepRiser', color: 0x8a8884 }),
       sash: new THREE.MeshStandardMaterial({ color: 0x0b0c0e, roughness: 0.55, name: 'sash' }),
       slate: pbr(TX.slate, { name: 'slate', envMapIntensity: 1.2, roughness: 1.0, normalScale: 1.2 }),
@@ -115,7 +115,7 @@ export default {
       iron: pbr(TX.iron, { name: 'iron', repeat: [4, 4], envMapIntensity: 1.2 }),
       porchFloor: ctx.materials.create('floorboards', { color: 0x66605a, repeat: [1, 1] }),
       doorWood: pbr(TX.doorWood, { name: 'doorWood', color: 0xffffff, envMapIntensity: 0.9 }),   // varnished mahogany
-      brass: ctx.materials.create('brass', { tarnish: 0.5, polish: 0.6 }),
+      brass: ctx.materials.create('brass', { tarnish: 0.8, polish: 0.4 }),
       terracotta: new THREE.MeshStandardMaterial({ color: 0x3a1e14, roughness: 0.85, name: 'terracotta' }),
       mound: pbr(TX.ground, { name: 'mound', color: 0x5a554c, normalScale: 2 }),
       rock: pbr(TX.rock, { name: 'rock', color: 0xb0b0b4 }),
@@ -145,16 +145,18 @@ export default {
     M.rock.userData.groundShade = true;
     M.pierStone.userData.rim = 0.35;
     M.grave.userData.grime = M.graveDark.userData.grime = { y0: -3.4, h: 0.6, moss: 0.4 };
+    M.grave.userData.moss = M.graveDark.userData.moss = 0.55;   // moss + lichen on the tops and the shaded faces
     M.pierStone.userData.grime = { y0: -3.4, h: 1.3, moss: 0.85 };
     for (const k of ['siding', 'slate', 'ashlar', 'stoneDark']) applyMacroVariation(M[k], { amount: 0.3, scale: 0.18 });
     // backlit silhouettes: grazing moon rim on everything that should catch a silver edge
-    for (const [k, r] of [['siding', 0.4], ['trim', 0.3], ['stepStone', 0.2], ['doorWood', 0.4], ['slate', 0.45], ['slateDark', 0.5], ['iron', 0.35], ['gateIron', 0.5], ['brick', 0.9], ['ashlar', 0.7], ['stoneDark', 0.6], ['grave', 0.8], ['graveDark', 0.8], ['terracotta', 0.8]]) M[k].userData.rim = r;
+    for (const [k, r] of [['siding', 0.4], ['trim', 0.3], ['stepStone', 0.2], ['doorWood', 0.4], ['slate', 0.45], ['slateDark', 0.5], ['iron', 0.35], ['gateIron', 0.5], ['brick', 0.9], ['ashlar', 0.7], ['stoneDark', 0.6], ['grave', 0.45], ['graveDark', 0.45], ['terracotta', 0.8]]) M[k].userData.rim = r;
 
     // ------------------------------------------------------------ sky
     const sky = createSky({ timeUniform: ctx.time, moonDir: MOON_DIR });
     // the strike: far behind the mansion, a little left of centre, so the roofline swallows its root
-    sky.uniforms.uBoltDir.value.set(-0.2, 0.06, -0.978).normalize();
-    sky.uniforms.uBoltTop.value = 0.5;
+    sky.uniforms.uBoltDir.value.set(-0.31, 0.06, -0.949).normalize();
+    sky.uniforms.uBoltTop.value = 0.55;
+    sky.uniforms.uFlashGain.value = 0.6;
     root.add(sky.mesh);
     if (P.get('skyoff')) sky.mesh.visible = false;
 
@@ -168,7 +170,7 @@ export default {
     // (no moon rim on the ground: at grazing angles it frosted the whole hillside blue-white)
     const terrain = buildTerrain({ material: groundMat });
     root.add(terrain);
-    const pathMat = pbr(TX.path, { name: 'path', alphaTest: 0.5, color: 0x2e2a26, envMapIntensity: 1.0 });
+    const pathMat = pbr(TX.path, { name: 'path', alphaTest: 0.5, color: 0x8c877c, envMapIntensity: 1.0 });
     pathMat.userData.groundShade = true;
     pathMat.envMapIntensity = 0.9;
     pathMat.roughness = 1.0;   // roughness from the map: gravel matte, puddles mirror-wet (broken glossy reflections)
@@ -183,7 +185,7 @@ export default {
     const grassMat = new THREE.MeshStandardMaterial({ map: grassTexture(ctx), alphaTest: 0.4, side: THREE.FrontSide, roughness: 0.9, color: 0x8a7656, name: 'grass' });
     grassMat.userData.groundShade = true;
     grassMat.envMapIntensity = 0.3;
-    grassMat.userData.rim = 0.9;
+    grassMat.userData.rim = 0.45;
     grassMat.userData.flashRim = 0;
     grassMat.userData.specScale = 0.25;
     grassMat.userData.rimTip = true;
@@ -203,7 +205,7 @@ export default {
     const bladeMat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.82, color: 0xffffff, name: 'bladeGrass' });
     bladeMat.userData.groundShade = true;
     bladeMat.envMapIntensity = 0.3;
-    bladeMat.userData.rim = 0.5;
+    bladeMat.userData.rim = 0.22;
     bladeMat.userData.flashRim = 0;
     bladeMat.userData.specScale = 0.25;
     bladeMat.userData.rimTip = true;
@@ -260,9 +262,10 @@ export default {
     const medWorld = new THREE.Vector3();
     med.group.getWorldPosition(medWorld);
     // warm spill from the pier lanterns gathered on the lock medallion (keeps the puzzle legible)
-    const medLight = new THREE.PointLight(0xffb070, 0.7, 3.2, 2);
+    // warm key on the lock from the left pier lantern side (the gate close-up's main light)
+    const medLight = new THREE.PointLight(0xffa860, 5.5, 4.8, 2);
     M.pierStone.userData.grime = { y0: gate.y0 - 0.45, h: 0.75, moss: 0.9 };
-    medLight.position.copy(medWorld).add(new THREE.Vector3(0.3, 0.9, 1.3));
+    medLight.position.copy(medWorld).add(new THREE.Vector3(-1.1, 1.3, 1.1));
     root.add(medLight);
 
     // ------------------------------------------------------------ trees
@@ -546,11 +549,11 @@ export default {
     const at = (x, z, dy = eye) => [x, height(x, z) + dy, z];
     const nodes = {
       main: { position: at(5.0, 47.0, 3.8), target: [-2.4, 5.4, 8], fov: 48, label: 'The foot of the hill', look: { yaw: [-45, 45], pitch: [-20, 30] } },
-      gate: { position: at(0.35, GATE_Z + 3.4), target: [0.0, gate.y0 + 4.3, 12], fov: 54, label: 'The gate', grade: { exposure: 2.5 }, look: { yaw: [-55, 55], pitch: [-30, 35] } },
+      gate: { position: at(0.35, GATE_Z + 3.4), target: [0.0, gate.y0 + 4.3, 12], fov: 54, label: 'The gate', grade: { exposure: 3.1, contrast: 1.15 }, look: { yaw: [-55, 55], pitch: [-30, 35] } },
       drive: { position: at(5.6, 27.6, 1.3), target: [-0.6, 9.0, 5], fov: 56, label: 'The drive', grade: { godRayWeight: 0.0, exposure: 2.3 }, look: { yaw: [-60, 60], pitch: [-25, 35] } },
-      graves: { position: at(-13.3, 26.0, 1.5), target: [-7.4, 1.4, 14.5], fov: 52, label: 'The family plot', look: { yaw: [-50, 50], pitch: [-30, 30] } },
-      porch: { position: [0.25, height(0.2, 15.4) + eye, 15.4], target: [0, F + 2.0, TOWER.z1], fov: 54, label: 'The front steps', grade: { godRayWeight: 0.0 }, look: { yaw: [-60, 60], pitch: [-25, 40] } },
-      porch_back: { position: [0.25, height(0.2, 15.4) + eye, 15.4], target: [1.5, height(1, 32) + 1.2, 40], fov: 54, label: 'The way you came' },
+      graves: { position: at(-13.3, 26.0, 1.5), target: [-7.4, 1.4, 14.5], fov: 52, label: 'The family plot', grade: { exposure: 2.3, contrast: 1.15 }, look: { yaw: [-50, 50], pitch: [-30, 30] } },
+      porch: { position: [0.25, height(0.2, 15.4) + eye, 15.4], target: [0, F + 2.0, TOWER.z1], fov: 54, label: 'The front steps', grade: { godRayWeight: 0.0, exposure: 2.5, contrast: 1.12 }, look: { yaw: [-60, 60], pitch: [-25, 40] } },
+      porch_back: { position: [0.25, height(0.2, 15.4) + eye, 15.4], target: [1.5, height(1, 32) + 1.2, 40], fov: 54, label: 'The way you came', grade: { exposure: 2.2 } },
     };
     const edges = [
       ['main', 'gate', [at(2.6, 42), at(0.8, 37.5)], { duration: 5.0 }],
@@ -655,6 +658,7 @@ export default {
 
     // ------------------------------------------------------------ per-frame
     let lastThunder = -10;
+    let boltShadowDone = false;
     let strikeAt = -100;
     const strike = () => { strikeAt = ctx.time.value; };
     if (P.get('strike')) strikeAt = ctx.time.value - Number(P.get('strike'));
@@ -680,7 +684,7 @@ export default {
       // fog and mist light up, the camera-side fill sinks; afterwards the eye adapts (dip)
       const dip = forceFlash != null ? 0 : dipAt(t, strikeAt);
       bolt.intensity = f * 9.0;
-      if (bolt.castShadow && f > 0.02) bolt.shadow.needsUpdate = true;
+      if (bolt.castShadow && f > 0.02 && !(ctx.shot && boltShadowDone)) { bolt.shadow.needsUpdate = true; boltShadowDone = live; }
       U.uFlashRim.value = f * 1.4;
       U.uHFogFlash.value = f * 0.01;
       mist.uniforms.uFlash.value = f * 0.04;
