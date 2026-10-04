@@ -320,7 +320,7 @@ export function makePlaque(ctx, mat, text, w = 0.3, h = 0.07) {
     draw(g, cw, ch, (t, x, y) => g.fillText(t, x, y));
   }, { tile: false, srgb: false });
   rough.colorSpace = THREE.NoColorSpace;
-  const m = new THREE.Mesh(new ctx.geometry.RoundedBoxGeometry(w, h, 0.006, 2, 0.002), new THREE.MeshPhysicalMaterial({ map: tex, normalMap: nrm, normalScale: new THREE.Vector2(0.8, 0.8), roughnessMap: rough, metalness: 0.65, roughness: 0.5, envMapIntensity: 1.4, emissiveMap: tex, emissive: new THREE.Color(0.06, 0.05, 0.035), name: 'plaque' }));
+  const m = new THREE.Mesh(new ctx.geometry.RoundedBoxGeometry(w, h, 0.006, 2, 0.002), new THREE.MeshPhysicalMaterial({ map: tex, normalMap: nrm, normalScale: new THREE.Vector2(0.8, 0.8), roughnessMap: rough, metalness: 0.65, roughness: 0.5, envMapIntensity: 1.4, emissiveMap: tex, emissive: new THREE.Color(0.16, 0.13, 0.09), name: 'plaque' }));
   return m;
 }
 

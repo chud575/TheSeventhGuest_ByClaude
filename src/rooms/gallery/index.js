@@ -601,7 +601,7 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
       const target = solvedFx >= 1 ? 0.35 : solvedFx > 0 ? 1.0 : 0;
       puzzleBoost += (target - puzzleBoost) * (1 - Math.exp(-dt * 2.5));
       if (ctx.shot) puzzleBoost = target;
-      puzzleLight.intensity = (24 + 16 * puzzleBoost) * (0.9 + 0.1 * flicker(t, 9.1));
+      puzzleLight.intensity = (38 + 16 * puzzleBoost) * (0.9 + 0.1 * flicker(t, 9.1));
     });
     // each girandole candle throws its own small flickering pool on the paper
     for (const s of [-1, 1]) {
