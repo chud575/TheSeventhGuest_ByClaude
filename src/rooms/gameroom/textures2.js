@@ -27,31 +27,29 @@ float leafD(vec2 p, vec2 c, float ang, float len, float wid, float bend) {
  * Albedo deep bottle green, motif ~18% lighter in luminance; the ORM roughness is velvet (0.9) on the flock and
  * satin (0.5) on the ground. Use the albedo also as the sheenColorMap so the flock picks up grazing light.
  */
-export function flockDamaskTexture(forge, { ground = [0.075, 0.15, 0.11], motif = [0.115, 0.225, 0.165], key = 'gameroom:flock3' } = {}) {
+export function flockDamaskTexture(forge, { ground = [0.075, 0.15, 0.11], motif = [0.115, 0.225, 0.165], key = 'gameroom:flock4' } = {}) {
   return forge.generate(key, {
     size: 1024, normalStrength: 0.35,
     uniforms: { uG: ground, uM: motif },
     glsl: LEAF + /* glsl */ `
 float mainMotif(vec2 p) {
   vec2 m = vec2(abs(p.x), p.y);
-  // onion-dome (ogee) medallion: a rounded body under a pointed crown
-  float body = sdEllipse(m - vec2(0.0, -0.05), vec2(0.165, 0.19));
-  float dome = leafD(m, vec2(0.0, 0.02), 0.0, 0.3, 0.2, 0.0);
-  float og = smin(body, dome, 0.04);
-  float band = abs(og + 0.016) - 0.011;                       // flocked outline band
-  // pomegranate inside: fruit, a three-lobed crown, seeds cut out of it
-  float fruit = sdEllipse(m - vec2(0.0, -0.06), vec2(0.075, 0.092));
-  fruit = min(fruit, sdCircle(m - vec2(0.0, 0.055), 0.026));
-  fruit = min(fruit, sdCircle(m - vec2(0.042, 0.04), 0.022));
-  vec2 sd = m - vec2(0.0, -0.07);
-  vec2 cell = sd - 0.034 * floor(sd / 0.034 + 0.5);
-  float seeds = sdCircle(cell, 0.0085);
-  seeds = max(seeds, sdEllipse(m - vec2(0.0, -0.07), vec2(0.05, 0.065)));
-  fruit = max(fruit, -seeds);
-  // little leaves filling the medallion around the fruit
-  float inner = leafD(m, vec2(0.06, -0.14), 0.9, 0.08, 0.04, 0.3);
-  inner = min(inner, leafD(m, vec2(0.07, 0.0), 0.5, 0.075, 0.036, 0.35));
-  inner = max(inner, og + 0.03);
+  // tall ogee medallion: a narrow rounded body under a long pointed crown
+  float body = sdEllipse(m - vec2(0.0, -0.08), vec2(0.13, 0.19));
+  float dome = leafD(m, vec2(0.0, -0.02), 0.0, 0.36, 0.2, 0.0);
+  float og = smin(body, dome, 0.05);
+  float band = abs(og + 0.014) - 0.008;                       // flocked outline band
+  // inside: a palmette fanning from a small cup, a lily bud above it
+  float fruit = sdEllipse(m - vec2(0.0, -0.19), vec2(0.05, 0.022));
+  fruit = min(fruit, leafD(m, vec2(0.0, -0.18), 0.0, 0.2, 0.05, 0.0));
+  fruit = min(fruit, leafD(m, vec2(0.01, -0.18), 0.38, 0.17, 0.045, 0.25));
+  fruit = min(fruit, leafD(m, vec2(0.015, -0.185), 0.85, 0.12, 0.04, 0.35));
+  float vein = abs(m.x) - 0.003;
+  fruit = max(fruit, -max(vein, abs(m.y + 0.08) - 0.08));
+  fruit = min(fruit, leafD(m, vec2(0.0, 0.05), 0.0, 0.1, 0.045, 0.0));
+  fruit = min(fruit, sdCircle(m - vec2(0.0, 0.2), 0.012));
+  float inner = leafD(m, vec2(0.02, 0.07), 0.6, 0.07, 0.03, 0.3);
+  inner = max(inner, og + 0.026);
   // outside: thick C-scrolls ending in curls, rounded acanthus leaves curling outward, a trefoil finial
   vec2 s1 = m - vec2(0.245, 0.11);
   float scr = abs(length(s1) - 0.058) - 0.014;

@@ -276,8 +276,40 @@ export default {
     // ================================================================ windows, drapes, sky
     const sky = nightSkyTexture(ctx.textures);
     const skyMat = new THREE.MeshBasicMaterial({ map: sky.map, color: new THREE.Color(0.9, 0.94, 1.02).multiplyScalar(1.45), toneMapped: false, name: 'sky' });
-    const treeT = treeSilhouetteTexture(ctx.textures, { aspect: 0.75 });
-    const treeMat = new THREE.MeshBasicMaterial({ map: treeT.map, transparent: true, depthWrite: false, color: new THREE.Color(0.55, 0.62, 0.8), toneMapped: false, name: 'treeSil' });
+    // bare winter trees beyond the glass: recursively branched silhouettes (canvas, alpha), the far one blurred and paler
+    const treeTex = ctx.textures.canvas('gameroom:trees2', 768, 1024, (c) => {
+      const rnd = ctx.random.fork('trees');
+      c.clearRect(0, 0, 768, 1024);
+      const limb = (x, y, ang, len, w, depth) => {
+        const x2 = x + Math.sin(ang) * len, y2 = y - Math.cos(ang) * len;
+        const mx = (x + x2) / 2 + (rnd.next() - 0.5) * len * 0.25, my = (y + y2) / 2 + (rnd.next() - 0.5) * len * 0.15;
+        c.lineWidth = w; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(mx, my, x2, y2); c.stroke();
+        if (depth <= 0 || len < 6) return;
+        const n = depth > 4 ? 2 + Math.floor(rnd.next() * 2) : 2;
+        for (let i = 0; i < n; i++) {
+          const t = 0.55 + rnd.next() * 0.45;
+          const bx = x + (x2 - x) * t, by = y + (y2 - y) * t;
+          const a = ang + (i % 2 ? 1 : -1) * (0.25 + rnd.next() * 0.55) + (rnd.next() - 0.5) * 0.2;
+          limb(bx, by, a, len * (0.62 + rnd.next() * 0.18), Math.max(0.6, w * 0.62), depth - 1);
+        }
+      };
+      c.lineCap = 'round';
+      // far tree drawn small and pale, then the near elm; one cheap blur pass for the far one via a scratch canvas
+      const off = document.createElement('canvas'); off.width = 768; off.height = 1024;
+      const oc = off.getContext('2d'); oc.lineCap = 'round'; oc.strokeStyle = 'rgba(14,18,30,0.6)';
+      const keep = c; const cc = oc;
+      const limb2 = (x, y, ang, len, w, depth) => {
+        const x2 = x + Math.sin(ang) * len, y2 = y - Math.cos(ang) * len;
+        cc.lineWidth = w; cc.beginPath(); cc.moveTo(x, y); cc.lineTo(x2, y2); cc.stroke();
+        if (depth <= 0 || len < 8) return;
+        for (let i = 0; i < 2; i++) { const t = 0.6 + rnd.next() * 0.4; limb2(x + (x2 - x) * t, y + (y2 - y) * t, ang + (i ? 1 : -1) * (0.3 + rnd.next() * 0.5), len * 0.68, Math.max(0.6, w * 0.6), depth - 1); }
+      };
+      limb2(120, 1080, 0.15, 240, 14, 7);
+      keep.filter = 'blur(2px)'; keep.drawImage(off, 0, 0); keep.filter = 'none';
+      c.strokeStyle = 'rgba(6,7,12,1)';
+      limb(560, 1100, -0.12, 330, 30, 7);
+    }, { tile: false });
+    const treeMat = new THREE.MeshBasicMaterial({ map: treeTex, transparent: true, depthWrite: false, color: new THREE.Color(1, 1, 1), name: 'treeSil' });
     const frostTex = ctx.textures.canvas('gameroom:frost', 256, 256, (c) => {
       const rnd = ctx.random.fork('frost');
       c.clearRect(0, 0, 256, 256);
@@ -285,7 +317,7 @@ export default {
       gr.addColorStop(0, 'rgba(220,232,255,0)'); gr.addColorStop(1, 'rgba(220,232,255,0.55)');
       c.fillStyle = gr; c.fillRect(0, 0, 256, 256);
       // condensation beads and grime toward the corners (no scribbled strokes)
-      for (let i = 0; i < 900; i++) {
+      for (let i = 0; i < 420; i++) {
         const x = rnd.next() * 256, y = rnd.next() * 256;
         const e = Math.max(Math.abs(x - 128), Math.abs(y - 128)) / 128;
         if (rnd.next() > e * e) continue;
@@ -325,7 +357,7 @@ export default {
       }
       sash.position.set(wx, WIN.sill, -WIN.depth * 0.55); s.grp.add(sash);
       const trees = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 4.0), treeMat);
-      trees.position.set(wx + (k ? 0.5 : -0.3), WIN.sill + 1.0, -2.0); trees.userData.noShadow = true; trees.renderOrder = 1; s.grp.add(trees);
+      trees.position.set(wx + (k ? 0.5 : -0.3), WIN.sill + 1.0, -2.0); trees.userData.noShadow = true; trees.renderOrder = -1; s.grp.add(trees);
       const card = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 5.6), skyMat);
       card.position.set(wx + (k ? 0.9 : -0.6), WIN.sill + 1.1, -3.2); card.userData.noShadow = true; s.grp.add(card);
       // drapes: pinch-pleated velvet panels gathered by silk tiebacks, pooling on the boards
@@ -374,7 +406,7 @@ export default {
       const s = S.front;
       // mahogany (~#4a1e12, low saturation), raised-and-fielded panels, a deep moulded architrave on plinth blocks,
       // a frieze and cornice head, brass knob on a rose and a keyhole escutcheon
-      const doorWood = M.create('mahogany', { repeat: [1.2, 1.2], color: [0.36, 0.22, 0.17], clearcoat: 0.25, clearcoatRoughness: 0.45, roughness: 1.15, envMapIntensity: 0.35 });
+      const doorWood = M.create('mahogany', { repeat: [1.2, 1.2], color: [0.2, 0.135, 0.115], clearcoat: 0.2, clearcoatRoughness: 0.5, roughness: 1.2, envMapIntensity: 0.3 });
       const g = new THREE.Group(); g.position.set(lx.front(DOOR.x), 0, -0.04);
       const w = DOOR.w - 0.02, h = DOOR.h - 0.01;
       g.add(at(new THREE.Mesh(G.boxUV(w, h, 0.05, 1), doorWood), 0, h / 2, 0));
@@ -510,7 +542,7 @@ export default {
       add(k);
     }
     // chair carving in the same dark mahogany as the table legs (fine grain, not blown-out birch)
-    mat.carve = M.create('mahogany', { repeat: [1, 1], color: [0.3, 0.17, 0.13], clearcoat: 0.35, clearcoatRoughness: 0.35, envMapIntensity: 0.4 });
+    mat.carve = M.create('mahogany', { repeat: [1, 1], color: [0.22, 0.12, 0.09], clearcoat: 0.35, clearcoatRoughness: 0.35, envMapIntensity: 0.4 });
     const chairMats = { wood: mat.tableWood, carve: mat.carve, seat: mat.seat, brass: mat.brass };
     {
       const ch = buildSideChair(ctx, chairMats); ch.position.set(C.x + 0.15, 0, C.z + 0.72); ch.rotation.y = Math.PI + 0.25; add(ch);
@@ -795,7 +827,7 @@ export default {
     // card table oil lamp
     const oilLight = new THREE.PointLight(0xffa04a, 1.5, 4, 2); oilLight.position.set(CARD.x - 0.05, 1.0, CARD.z - 0.3); root.add(oilLight);
     // a candle left burning on the games table: warm fill on the chessboard
-    const chessCandle = fx.candle({ height: 0.1, radius: 0.012, light: true, lightIntensity: 1.5, lightDistance: 3, seed: 61, burn: 0.55 });
+    const chessCandle = fx.candle({ height: 0.065, radius: 0.012, light: true, lightIntensity: 1.0, lightDistance: 3, seed: 61, burn: 0.75 });
     {
       // a brass chamberstick: drip pan with a ring handle and a short socket
       const cs = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.05, 0], [0.054, 0.004], [0.052, 0.012], [0.046, 0.009], [0.016, 0.012], [0.011, 0.02], [0.011, 0.038], [0.016, 0.042], [0.013, 0.046], [0, 0.046]], 24), mat.brass);
@@ -810,7 +842,7 @@ export default {
       {
         const haloTex = ctx.textures.canvas('gameroom:halo', 64, 64, (c) => { const g2 = c.createRadialGradient(32, 32, 0, 32, 32, 32); g2.addColorStop(0, 'rgba(255,200,130,0.9)'); g2.addColorStop(0.25, 'rgba(255,160,80,0.35)'); g2.addColorStop(1, 'rgba(255,140,60,0)'); c.clearRect(0, 0, 64, 64); c.fillStyle = g2; c.fillRect(0, 0, 64, 64); }, { tile: false });
         const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: new THREE.Color(0.5, 0.4, 0.3), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false }));
-        halo.scale.set(0.09, 0.11, 1); halo.position.set(CX, boardY + 0.044 + 0.1 + 0.02, CZ); halo.userData.noBake = true; halo.userData.keep = true; halo.renderOrder = 11; add(halo);
+        halo.scale.set(0.09, 0.11, 1); halo.position.set(CX, boardY + 0.044 + 0.065 + 0.02, CZ); halo.userData.noBake = true; halo.userData.keep = true; halo.renderOrder = 11; add(halo);
       }
       // felt-lined walnut tray along the near edge of the table for the queens not yet in play: recessed, baize-lined, brass-edged
       const tl = 0.5, tw = 0.074, th = 0.016;
