@@ -200,7 +200,7 @@ export function buildShell(ctx, root, mat) {
       ros.push(b);
     }
     cofferMould.push(merge(ros));
-    ceiling.add(mesh(merge(cofferMould), mat.beamMould || mat.beam, 'coffer-mouldings', { cast: false }));
+    { const cm = mesh(merge(cofferMould), mat.beamMould || mat.beam, 'coffer-mouldings', { cast: false }); cm.userData.noShadow = true; ceiling.add(cm); }
     const beams = mesh(merge(geos), mat.beam, 'beams');
     ceiling.add(beams);
     // glass panels (one merged mesh, emissive moonlit) + a lead/iron grid behind

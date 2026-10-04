@@ -249,7 +249,7 @@ export function createQueensPuzzle(ctx, { parent, center, size, homeZ, homeY = 0
       // the rim light sweeps slowly from one side of the board to the other and back, low and warm
       const u = Math.sin(t * 0.45);
       sweep.position.set(u * size * 0.6, 0.16, -size * 0.75);
-      sweep.intensity = 0.22 * amt;
+      sweep.intensity = 0;
       syncDiscs();
       return;
     }

@@ -156,7 +156,7 @@ export function buildBookcase(ctx, root, mat) {
     capGeos.push(at(lathe([[0.001, 0], [0.072, 0], [0.078, 0.006], [0.078, 0.014], [0.071, 0.02], [0.071, 0.026], [0.084, 0.05], [0.092, 0.07], [0.09, 0.08], [0.001, 0.08]], 48), x, cy, z));
     for (let k = 0; k < 16; k++) {        // eggs round the echinus
       const a = (k / 16) * Math.PI * 2;
-      const egg = new THREE.SphereGeometry(0.012, 10, 8);
+      const egg = new THREE.SphereGeometry(0.012, 7, 5);
       egg.scale(0.75, 1.15, 0.55);
       egg.rotateY(-a + Math.PI / 2);
       egg.translate(x + Math.cos(a) * 0.084, cy + 0.052, z + Math.sin(a) * 0.084);
@@ -167,20 +167,20 @@ export function buildBookcase(ctx, root, mat) {
       for (const fz of [-1, 1]) {
         const pts = [];
         const turns = 2.6 * Math.PI;
-        for (let k = 0; k <= 64; k++) {
-          const t = (k / 64) * turns;
+        for (let k = 0; k <= 40; k++) {
+          const t = (k / 40) * turns;
           const r = 0.036 * Math.exp(-0.17 * t);
           const ang = Math.PI / 2 - sx * t;          // start at the top, roll outward then down and in
           pts.push(V3(x + sx * vx + Math.cos(ang) * r, vy + Math.sin(ang) * r, z + fz * 0.08));
         }
         const curve = new THREE.CatmullRomCurve3(pts);
-        const tube = new THREE.TubeGeometry(curve, 96, 1, 8, false);
+        const tube = new THREE.TubeGeometry(curve, 48, 1, 6, false);
         // taper the tube radius along the spiral
-        const pos = tube.attributes.position, cpts = curve.getSpacedPoints(96);
+        const pos = tube.attributes.position, cpts = curve.getSpacedPoints(48);
         for (let i = 0; i < pos.count; i++) {
-          const seg = Math.min(96, Math.floor(i / 9));
+          const seg = Math.min(48, Math.floor(i / 7));
           const c = cpts[seg];
-          const rr = 0.0062 * (1 - 0.55 * (seg / 96));
+          const rr = 0.0062 * (1 - 0.55 * (seg / 48));
           const dx = pos.getX(i) - c.x, dy = pos.getY(i) - c.y, dz = pos.getZ(i) - c.z;
           const len = Math.hypot(dx, dy, dz) || 1;
           pos.setXYZ(i, c.x + dx / len * rr, c.y + dy / len * rr, c.z + dz / len * rr);
@@ -188,10 +188,10 @@ export function buildBookcase(ctx, root, mat) {
         tube.computeVertexNormals();
         capGeos.push(tube);
         // the volute face (a shallow disc behind the spiral) and its eye
-        const disc = new THREE.CylinderGeometry(0.036, 0.036, 0.008, 32).rotateX(Math.PI / 2);
+        const disc = new THREE.CylinderGeometry(0.036, 0.036, 0.008, 20).rotateX(Math.PI / 2);
         disc.translate(x + sx * vx, vy, z + fz * 0.076);
         capGeos.push(disc);
-        const eye = new THREE.SphereGeometry(0.0075, 12, 8);
+        const eye = new THREE.SphereGeometry(0.0075, 8, 6);
         eye.translate(x + sx * vx, vy, z + fz * 0.083);
         capGeos.push(eye);
       }
@@ -248,7 +248,7 @@ export function buildBookcase(ctx, root, mat) {
   group.add(mesh(merge(darkGeos), mat.caseDark, 'case-back'));
   group.add(mesh(merge(giltGeos), mat.gilt, 'case-gilt'));
   group.add(mesh(merge(colGeos), mat.column, 'columns'));
-  group.add(mesh(merge(capGeos), mat.giltCap, 'capitals'));
+  { const caps = mesh(merge(capGeos), mat.giltCap, 'capitals', { cast: false }); caps.userData.noShadow = true; group.add(caps); }
 
   // ---------------------------------------------------------- books (instanced)
   const books = [];

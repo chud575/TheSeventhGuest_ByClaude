@@ -310,18 +310,23 @@ export default {
         c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
       }
     }, { tile: false });
-    const frostMat = new THREE.MeshStandardMaterial({ map: frostTex, transparent: true, depthWrite: false, roughness: 0.6, color: 0xdfe8ff, emissive: 0x2a3a60, emissiveIntensity: 0.6, name: 'frost' });
+    const frostMat = new THREE.MeshStandardMaterial({ map: frostTex, transparent: true, depthWrite: false, roughness: 0.6, color: 0xdfe8ff, emissive: 0x2a3a60, emissiveIntensity: 0.4, opacity: 0.45, name: 'frost' });
     // the view out, in three parallax layers: sky and cloud 30 m off, the elms 8 m off, a near branch 2 m off
     const paneGlass = (() => {
       const rg = rainGlassTexture(ctx.textures).withRepeat(1, 1);
-      return new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.12, roughness: 0.05, metalness: 0, normalMap: rg.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), envMapIntensity: 1.4, clearcoat: 1, clearcoatRoughness: 0.03, depthWrite: false, name: 'paneGlass' });
+      return new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.12, roughness: 0.05, metalness: 0, normalMap: rg.normalMap, normalScale: new THREE.Vector2(0.25, 0.25), envMapIntensity: 1.4, clearcoat: 1, clearcoatRoughness: 0.03, depthWrite: false, name: 'paneGlass' });
     })();
     {
-      const skyFar = new THREE.Mesh(new THREE.PlaneGeometry(12, 16), skyMat);
-      skyFar.position.set(-0.3, 3.7, Z0 - 30); skyFar.userData.noShadow = true; skyFar.userData.noBake = true; skyFar.renderOrder = -3; root.add(skyFar);
+      // three abutting panels (the outer two mirrored so the edges meet seamlessly) so every node sees sky
+      for (const k of [-1, 0, 1]) {
+        const sg = new THREE.PlaneGeometry(14, 18.7);
+        if (k) { const uv = sg.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i)); }
+        const skyFar = new THREE.Mesh(sg, skyMat);
+        skyFar.position.set(2.5 + k * 14, 1.0, Z0 - 14); skyFar.userData.noShadow = true; skyFar.userData.noBake = true; skyFar.renderOrder = -3; root.add(skyFar);
+      }
       const tt = treeSilhouetteTexture(ctx.textures, { aspect: 0.75, key: 'gameroom:trees8m' });
-      const elms = new THREE.Mesh(new THREE.PlaneGeometry(7.5, 10), new THREE.MeshBasicMaterial({ map: tt.map, transparent: true, depthWrite: false, color: new THREE.Color(9, 10.5, 13.5), toneMapped: false, name: 'elms8m' }));
-      elms.position.set(-1.2, 3.0, Z0 - 8); elms.userData.noShadow = true; elms.userData.noBake = true; elms.renderOrder = -2; root.add(elms);
+      const elms = new THREE.Mesh(new THREE.PlaneGeometry(9.6, 12.8), new THREE.MeshBasicMaterial({ map: tt.map, transparent: true, depthWrite: false, color: new THREE.Color(9, 10.5, 13.5), toneMapped: false, name: 'elms8m' }));
+      elms.position.set(1.6, 3.6, Z0 - 8); elms.userData.noShadow = true; elms.userData.noBake = true; elms.renderOrder = -2; root.add(elms);
     }
     const branchTex = ctx.textures.canvas('gameroom:branch', 1024, 768, (c) => {
       const rnd = ctx.random.fork('branch');
@@ -334,7 +339,7 @@ export default {
         const n = 2 + (rnd.next() < 0.4 ? 1 : 0);
         for (let i = 0; i < n; i++) { const t = 0.45 + rnd.next() * 0.55; limb(x + (x2 - x) * t, y + (y2 - y) * t, ang + (rnd.next() - 0.5) * 1.3, len * (0.55 + rnd.next() * 0.2), Math.max(0.8, w * 0.6), depth - 1); }
       };
-      limb(1030, 300, Math.PI + 0.15, 420, 26, 7);
+      limb(1030, 300, Math.PI + 0.15, 420, 15, 7);
     }, { tile: false });
     const branchMat = new THREE.MeshBasicMaterial({ map: branchTex, transparent: true, depthWrite: false, color: new THREE.Color(1, 1, 1), name: 'nearBranch' });
     for (const [k, wxW] of WIN.xs.entries()) {
@@ -522,7 +527,7 @@ export default {
     const boardY = gtable.userData.topY + 0.001;
     {
       const bset = chessboardTexture(ctx.textures, { inner: FIELD / BOARD });
-      const bm = new THREE.MeshPhysicalMaterial({ map: bset.map, normalMap: bset.normalMap, roughnessMap: bset.ormMap, roughness: 1, metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.14, envMapIntensity: 0.35, color: new THREE.Color(1.04, 0.98, 0.92), name: 'chessboard' });
+      const bm = new THREE.MeshPhysicalMaterial({ map: bset.map, normalMap: bset.normalMap, roughnessMap: bset.ormMap, roughness: 1, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.34, envMapIntensity: 0.3, color: new THREE.Color(1.04, 0.98, 0.92), name: 'chessboard' });
       const top = new THREE.Mesh(new THREE.PlaneGeometry(BOARD, BOARD).rotateX(-Math.PI / 2), bm);
       top.position.set(C.x, boardY - 0.001, C.z); top.name = 'chessboard'; top.userData.keep = true; top.receiveShadow = true;
       add(top);
@@ -824,11 +829,11 @@ export default {
     {
       // dedicated narrow picture-light spots on the trophies: warm, from above and in front, so the antlers
       // rim-light and throw their shadow on the damask
-      const sl = new THREE.SpotLight(0xffcf98, 11, 4.5, 0.28, 0.55, 2);
+      const sl = new THREE.SpotLight(0xffcf98, 15, 4.5, 0.3, 0.55, 2);
       sl.position.set(X1 - 1.05, 3.32, STAG_Z + 0.42); sl.target.position.set(X1 - 0.3, 2.3, STAG_Z - 0.02);
       sl.castShadow = Q.shadows; sl.shadow.mapSize.set(1024, 1024); sl.shadow.bias = -0.0008; sl.shadow.normalBias = 0.01; sl.shadow.radius = 3; sl.shadow.camera.near = 0.3; sl.shadow.camera.far = 3;
       root.add(sl, sl.target);
-      const bl = new THREE.SpotLight(0xffcf98, 8, 4, 0.36, 0.55, 2);
+      const bl = new THREE.SpotLight(0xffcf98, 12, 4, 0.36, 0.55, 2);
       bl.position.set(X0 + 1.0, 3.25, 1.6); bl.target.position.set(X0 + 0.25, BOAR_Y - 0.06, 0.85);
       bl.castShadow = Q.shadows; bl.shadow.mapSize.set(512, 512); bl.shadow.bias = -0.0008; bl.shadow.normalBias = 0.01; bl.shadow.radius = 3; bl.shadow.camera.near = 0.3; bl.shadow.camera.far = 3;
       root.add(bl, bl.target);
