@@ -95,12 +95,14 @@ export function nightSky(ctx) {
 export function tornDrape(ctx, { seed = 1, color = [0.3, 0.085, 0.09], valance = false, strip = false, dim = null } = {}) {
   const D = dim || (valance ? [2.3, 0.52] : strip ? [0.16, 1.4] : [0.7, 2.4]);
   const asp = D[0] / D[1];
-  return ctx.textures.generate(`bedroom:rotVelvet${seed}${valance ? 'v' : ''}${strip ? 's' : ''}${D.join('x')}`, {
+  return ctx.textures.generate(`bedroom:rotVelvet2${seed}${valance ? 'v' : ''}${strip ? 's' : ''}${D.join('x')}`, {
     size: 2048, aspect: Math.max(0.12, Math.min(4, asp)), tile: false, normalStrength: 1.0, seed,
     uniforms: { uCol: color, uS: seed * 7.13, uVal: valance ? 1 : 0, uStrip: strip ? 1 : 0, uDim: D },
     glsl: /* glsl */ `
     float n01(vec2 p, float per, int o) { return fbm(p, vec2(per), o) * 0.5 + 0.5; }
-    float nz(vec2 p) { return fbm(p, vec2(4096.0), 3); }       // ~[-1,1], aperiodic enough at these scales
+    // ~[-1,1] noise at unit frequency in p (fbm scales its input by the period, so feed it p / period:
+    // passing raw metre-scaled coordinates times a huge period lost all float precision -> stripes)
+    float nz(vec2 p) { return fbm(p / 64.0, vec2(64.0), 3); }
     void surface(vec2 uv, inout Surface s) {
       vec2 M = uv * uDim;                                      // metres
       float W = uDim.x, Hh = uDim.y;
@@ -113,7 +115,7 @@ export function tornDrape(ctx, { seed = 1, color = [0.3, 0.085, 0.09], valance =
       float eHem = M.y - (hs + rag);
       // rips running up from between the tatters: ragged, wandering, chewed lips (not clean slits)
       float tl = min(sf, 1.0 - sf) * 0.13;
-      float ripLen = step(0.55, hash11(sid + 3.3 + uS)) * (0.1 + 0.35 * hash11(sid + 5.1 + uS)) * (uVal > 0.5 ? 0.6 : 1.0);
+      float ripLen = step(0.78, hash11(sid + 3.3 + uS)) * (0.1 + 0.35 * hash11(sid + 5.1 + uS)) * (uVal > 0.5 ? 0.6 : 1.0);
       float rt = clamp(eHem / max(ripLen, 1e-3), 0.0, 1.0);
       float ripW = (0.03 * (1.0 - rt) * (0.6 + 0.8 * (nz(vec2(M.y * 9.0, sid + uS)) * 0.5 + 0.5)) + 0.002) * step(eHem, ripLen);
       float eRip = (ripLen > 0.0 && eHem < ripLen) ? tl + 0.012 * nz(vec2(M.y * 7.0, sid * 3.1 + uS)) + 0.005 * nz(M * vec2(60.0, 40.0) + uS) - ripW : 1.0;
@@ -205,7 +207,7 @@ export function tornDrape(ctx, { seed = 1, color = [0.3, 0.085, 0.09], valance =
       c = mix(c, vec3(0.38, 0.3, 0.26), isThread * 0.7);
       s.albedo = c;
       s.alpha = alpha;
-      s.height = 0.5 + 0.16 * crush + 0.04 * nap - wear * 0.14;
+      s.height = 0.5 + 0.16 * crush + 0.01 * nap - wear * 0.14;
       s.rough = 0.9;
       s.metal = 0.0;
       s.ao = 1.0 - wear * 0.2;
@@ -477,8 +479,10 @@ export function crackedMirror(ctx, { aspect = 0.7, impact = [0.62, 0.58], seeds 
         vec2 ci = floor(cell); vec2 cf = fract(cell) - 0.5;
         vec2 o = (hash22(ci + fk * 17.0) - 0.5) * 0.6;
         float rr = 0.08 + 0.22 * hash12(ci * 1.3 + fk);
-        float present = step(0.86 - 0.36 * smoothstep(0.2, 0.0, edge), hash12(ci + 3.1 + fk * 5.0));
-        fox = max(fox, present * smoothstep(rr, rr * 0.4, length(cf - o) + 0.06 * fbm(uv * 90.0 + fk, vec2(256.0), 2)));
+        float present = step(0.93 - 0.4 * smoothstep(0.22, 0.0, edge), hash12(ci + 3.1 + fk * 5.0));
+        // irregular blotches with a darker core and a feathered, ragged halo (not round bubbles)
+        float bd = length((cf - o) * vec2(1.0, 0.8 + 0.4 * hash12(ci + fk))) + 0.16 * fbm(uv * 60.0 + fk * 3.0, vec2(256.0), 3);
+        fox = max(fox, present * (smoothstep(rr, rr * 0.2, bd) * 0.6 + smoothstep(rr * 0.45, rr * 0.1, bd) * 0.4));
       }
       float cloud = smoothstep(0.55, 0.85, fbm(uv * 3.0 + 11.0, vec2(64.0), 5) * 0.5 + 0.5) * smoothstep(0.32, 0.06, edge);
       float bad = clamp(max(max(desil, blot), flake), 0.0, 1.0);
@@ -1257,7 +1261,7 @@ export function cutVelvet(ctx) {
  * 1024 x 1360 canvas.
  */
 export function ladyPortrait(ctx) {
-  return ctx.textures.canvas('bedroom:lady1', 1024, 1360, (g, w, h) => {
+  return ctx.textures.canvas('bedroom:lady2', 1024, 1360, (g, w, h) => {
     const rnd = (i) => { const x = Math.sin(i * 37.71 + 3.3) * 43758.5453; return x - Math.floor(x); };
     const blob = (x, y, rx, ry, col, rot = 0) => { g.fillStyle = col; g.beginPath(); g.ellipse(x, y, rx, ry, rot, 0, 7); g.fill(); };
     const glow = (x, y, r, c0, c1 = 'rgba(0,0,0,0)', sx = 1, sy = 1) => {
@@ -1267,11 +1271,14 @@ export function ladyPortrait(ctx) {
     };
     // ground: dark stormy umber with a cool break of sky low on the left (romantic landscape backdrop)
     const bg = g.createRadialGradient(w * 0.38, h * 0.3, 30, w * 0.5, h * 0.45, h * 0.8);
-    bg.addColorStop(0, '#4a4034'); bg.addColorStop(0.45, '#221c16'); bg.addColorStop(1, '#090706');
+    bg.addColorStop(0, '#5e5240'); bg.addColorStop(0.45, '#2e261c'); bg.addColorStop(1, '#0c0a08');
     g.fillStyle = bg; g.fillRect(0, 0, w, h);
     glow(w * 0.12, h * 0.62, 260, 'rgba(70,82,92,0.45)', 'rgba(0,0,0,0)', 1.3, 0.6);
     for (let i = 0; i < 500; i++) glow(rnd(i + 2) * w, rnd(i + 3) * h, 20 + rnd(i + 4) * 90, `rgba(${46 + rnd(i) * 40},${38 + rnd(i + 1) * 26},${26 + rnd(i + 5) * 20},0.06)`);
     const cx = w * 0.52, hy = h * 0.3;
+    // a closer, half-length crop: the sitter is drawn 1.4x about her chin
+    const SC = 1.4;
+    g.save(); g.translate(cx, hy + 120); g.scale(SC, SC); g.translate(-cx, -(hy + 120));
     // gown: deep blue silk, off the shoulder, highlights running along the folds
     g.fillStyle = '#0f1630';
     g.beginPath(); g.moveTo(cx - 470, h); g.bezierCurveTo(cx - 430, h * 0.72, cx - 300, h * 0.6, cx - 200, h * 0.585); g.lineTo(cx + 210, h * 0.585);
@@ -1339,17 +1346,20 @@ export function ladyPortrait(ctx) {
     for (const sd of [-1, 1]) for (let k = 0; k < 3; k++) { const pts = []; for (let i = 0; i <= 20; i++) { const t = i / 20; pts.push([cx + sd * (128 + k * 10) + Math.sin(t * 18 + k) * 7, hy + 20 + t * 110]); } g.strokeStyle = 'rgba(30,20,14,0.9)'; g.lineWidth = 7; g.beginPath(); g.moveTo(...pts[0]); for (const p of pts) g.lineTo(...p); g.stroke(); g.strokeStyle = 'rgba(110,80,56,0.35)'; g.lineWidth = 2; g.stroke(); }
     // pearl drop earring on the lit side
     blob(cx - 124, hy + 72, 6, 8, '#e8e0d0'); glow(cx - 126, hy + 69, 3, 'rgba(255,255,255,0.9)');
+    g.restore();
     // ---- re-lay in directional brush strokes sampled from itself
     {
       const src = g.getImageData(0, 0, w, h).data;
       const at = (x, y) => { const i = ((Math.min(h - 1, Math.max(0, y | 0)) * w) + Math.min(w - 1, Math.max(0, x | 0))) * 4; return [src[i], src[i + 1], src[i + 2]]; };
       for (let i = 0; i < 40000; i++) {
         const x = rnd(i * 2 + 211) * w, y = rnd(i * 2 + 212) * h;
-        const inFace = Math.hypot((x - cx) / 125, (y - hy) / 165) < 1;
-        const nearEye = Math.abs(y - (hy - 8)) < 20 && Math.abs(Math.abs(x - cx + 4) - 45) < 30;
-        if (nearEye || (Math.abs(y - (hy + 100)) < 14 && Math.abs(x - cx) < 34)) continue;   // keep the features crisp
+        // (face geometry in canvas space after the 1.4x crop about the chin)
+        const fy = hy + 120 - 120 * SC;
+        const inFace = Math.hypot((x - cx) / (125 * SC), (y - fy) / (165 * SC)) < 1;
+        const nearEye = Math.abs(y - (fy - 8 * SC)) < 20 * SC && Math.abs(Math.abs(x - cx + 4 * SC) - 45 * SC) < 30 * SC;
+        if (nearEye || (Math.abs(y - (fy + 100 * SC)) < 14 * SC && Math.abs(x - cx) < 34 * SC)) continue;   // keep the features crisp
         const [r, gg, b] = at(x, y);
-        const ang = inFace ? Math.atan2(y - hy, x - cx) + Math.PI / 2 + (rnd(i + 7) - 0.5) * 0.4 : 0.9 + Math.sin(x * 0.012 + y * 0.01) * 0.6 + (rnd(i + 7) - 0.5) * 0.4;
+        const ang = inFace ? Math.atan2(y - fy, x - cx) + Math.PI / 2 + (rnd(i + 7) - 0.5) * 0.4 : 0.9 + Math.sin(x * 0.012 + y * 0.01) * 0.6 + (rnd(i + 7) - 0.5) * 0.4;
         const len = inFace ? 4 + rnd(i + 3) * 6 : 10 + rnd(i + 3) * 24, wd = inFace ? 1.4 + rnd(i + 4) * 1.6 : 2.5 + rnd(i + 4) * 4;
         const j = (rnd(i + 5) - 0.5) * 12;
         g.fillStyle = `rgba(${r + j},${gg + j * 0.9},${b + j * 0.8},${inFace ? 0.5 : 0.4})`;
@@ -1375,14 +1385,14 @@ export function ladyPortrait(ctx) {
  * lumps of plaster key squeezed between them). Tiles; 1 tile = 1 m.
  */
 export function lathPlaster(ctx) {
-  return ctx.textures.generate('bedroom:lathPlaster', {
+  return ctx.textures.generate('bedroom:lathPlaster2', {
     size: 1024, tile: true, normalStrength: 2.2,
     glsl: /* glsl */ `
     void surface(vec2 uv, inout Surface s) {
       float n = fbm(uv * 2.0 + 3.0, vec2(2.0), 6) * 0.5 + 0.5;
       float n2 = fbm(uv * 9.0 + 1.0, vec2(9.0), 4) * 0.5 + 0.5;
-      float hole = smoothstep(0.64, 0.66, n + (n2 - 0.5) * 0.12);                  // plaster fallen away
-      float rim = smoothstep(0.6, 0.64, n + (n2 - 0.5) * 0.12) * (1.0 - hole);     // the broken plaster edge
+      float hole = smoothstep(0.555, 0.575, n + (n2 - 0.5) * 0.1);                  // plaster fallen away
+      float rim = smoothstep(0.52, 0.555, n + (n2 - 0.5) * 0.1) * (1.0 - hole);     // the broken plaster edge
       // laths: 36 mm strips with 9 mm gaps, butt joints staggered, riven (wavy, uneven)
       float ly = uv.y * 22.0 + 0.08 * fbm(vec2(uv.x * 3.0, uv.y * 22.0), vec2(3.0, 22.0), 3);
       float row = floor(ly), f = fract(ly);

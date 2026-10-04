@@ -36,7 +36,7 @@ export function curtain(G, opts) {
  * (tiebackV = fraction of the drop), then flares out and pools on the floor.
  * Returns geometry; geometry.userData.waist = { x, y, w } (for the tie-back cord).
  */
-export function velvetCurtain({ width = 1.0, height = 3.0, folds = 9, depth = 0.09, tieback = 0.7, tiebackV = 0.62, waist = 0.22, flare = 0.85, pool = 0.15, seed = 1, segX = 160, segY = 120, uv01 = false, jitter = 0.95, noise = 0 } = {}) {
+export function velvetCurtain({ width = 1.0, height = 3.0, folds = 9, depth = 0.09, tieback = 0.7, tiebackV = 0.62, waist = 0.22, flare = 0.85, pool = 0.15, seed = 1, segX = 160, segY = 120, uv01 = false, jitter = 0.95, noise = 0, ripple = 1 } = {}) {
   const rnd = (i) => { const x = Math.sin(i * 127.1 + seed * 311.7) * 43758.5453; return x - Math.floor(x); };
   // jittered fold boundaries in strand space u (0..1): 2 half-folds per fold
   const nh = folds * 2;
@@ -88,7 +88,7 @@ export function velvetCurtain({ width = 1.0, height = 3.0, folds = 9, depth = 0.
       // and folds that merge and split down the drop
       const lf = Math.sin(u * 5.1 + v * 2.3 + seed) * Math.sin(v * 3.7 - u * 2.0 + seed * 2.1) + 0.5 * Math.sin(u * 11.3 - v * 4.1 + seed * 3.3);
       z += noise * depth * 0.55 * lf;
-      z += noise * depth * 0.18 * Math.sin(u * folds * 2.0 * Math.PI * 2.0 + v * 6.0 + seed) * (0.3 + 0.7 * headK) * Math.abs(prof);
+      z += ripple * noise * depth * 0.18 * Math.sin(u * folds * 2.0 * Math.PI * 2.0 + v * 6.0 + seed) * (0.3 + 0.7 * headK) * Math.abs(prof);
       xx += noise * 0.012 * Math.sin(v * 7.0 + u * 13.0 + seed) * (1 - headK * 0.5);
     }
     // pool: fabric past the drop folds forward onto the floor
@@ -371,7 +371,7 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
       const near = sx < 0 && sz > 0;                // the one nearest the room: dragged right back to its post, so the bed shows
       const lenK = specs[`${sx},${sz}`];
       const cg = velvetCurtain({
-        width: foot ? 0.62 : 0.7, height: (ty - 0.02) * lenK, folds: foot ? 8 : 7, depth: 0.14, noise: 0.35,
+        width: foot ? 0.62 : 0.7, height: (ty - 0.02) * lenK, folds: foot ? 8 : 7, depth: 0.14, noise: 0.8, ripple: 0,
         tieback: foot ? (near ? 0.85 : 0.72) : 0.12, tiebackV: foot ? 0.5 : 0.6, waist: foot ? (near ? 0.16 : 0.28) : 0.85, flare: foot ? (near ? 0.4 : 0.62) : 0.95,
         pool: 0, seed: 30 + sx * 3 + sz, segX: 150, segY: 110, uv01: true, jitter: 1.1,
       });
@@ -1508,7 +1508,8 @@ export function buildTrunk(ctx, mats, { w = 0.74, d = 0.44, h = 0.38, dome = 0.0
   // leather straps + buckles
   for (const x of [-w / 4, w / 4]) {
     const arc = [V3(0, 0.0, d / 2 + 0.007), V3(0, h, d / 2 + 0.007)];
-    for (let i = 0; i <= 16; i++) { const t = i / 16; arc.push(V3(0, h + Math.sin(t * Math.PI) * (dome + 0.01) + 0.012 * Math.sin(t * Math.PI), d / 2 + 0.007 - t * (d + 0.014))); }
+    for (let i = 1; i < 16; i++) { const t = i / 16; arc.push(V3(0, h + Math.sin(t * Math.PI) * (dome + 0.01) + 0.012 * Math.sin(t * Math.PI), d / 2 + 0.007 - t * (d + 0.014))); }
+    arc.push(V3(0, h, -d / 2 - 0.007));
     arc.push(V3(0, 0.0, -d / 2 - 0.007));
     mesh(G.sweepProfile([V2(-0.025, 0), V2(0.025, 0), V2(0.025, 0.004), V2(-0.025, 0.004), V2(-0.025, 0)], arc, { up: V3(1, 0, 0) }), mats.trunkStrap || mats.black, x, 0, 0, g);
     const bk = new THREE.TorusGeometry(0.022, 0.004, 6, 4); bk.rotateZ(Math.PI / 4); bk.scale(1.2, 1, 1);

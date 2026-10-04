@@ -69,16 +69,19 @@ function hairSDF(v) {
 // its lip edged with a goffered ruffle. Not a flat ring: seen from the side it projects past the face.
 function bonnetSDF(back) {
   // the face opening plane: n·p = c  (tilted back when the bonnet has slipped off the crown)
-  let ny = back ? 0.62 : 0.32, nz = back ? 0.78 : 0.95;
+  // the opening runs from above the hairline (over the brow) down past the ears to under the jaw, so the
+  // crown of the head is covered and the brim projects forward and a little down over the face
+  let ny = back ? 0.2 : -0.21, nz = back ? 0.98 : 0.98;
   const nl = Math.hypot(ny, nz); ny /= nl; nz /= nl;
-  const c = back ? 0.18 : 0.34;
+  const c = back ? 0.18 : 0.33;
   const t0 = c - (ny * 0.12 + nz * -0.08);
   const cy = 0.12 + ny * t0, cz = -0.08 + nz * t0;          // centre of the opening
-  const L = back ? 0.3 : 0.42;
+  const L = back ? 0.26 : 0.32;
   return (x, y, z) => {
     const pv = y * ny + z * nz - c;
     const e = sdEllipsoid(x, y - 0.12, z + 0.08, 1.12, 1.16, 1.12);
-    let d = Math.abs(e) - 0.035;
+    // gathered silk: soft pleats radiating from the crown seam
+    let d = Math.abs(e + 0.012 * Math.sin(18 * Math.atan2(x, y - 0.2)) * clamp(-z - 0.2, 0, 1)) - 0.035;
     d = smax(d, pv, 0.02);
     // brim, in the opening's frame: w forward along n, (rx, ru) across it
     const w = pv;
@@ -89,7 +92,7 @@ function bonnetSDF(back) {
     const sa = Math.sin(a);
     const len = L * (0.45 + 0.55 * clamp((sa + 0.3) / 1.0, 0, 1));        // deepest over the brow
     const lipK = clamp((w - (len - 0.14)) / 0.14, 0, 1);
-    const R = 1.08 + 0.42 * w + 0.05 * lipK * Math.sin(a * 22) + 0.03 * lipK * lipK;
+    const R = 1.1 + 0.22 * w + 0.045 * lipK * Math.sin(a * 22) + 0.03 * lipK * lipK;
     let brim = Math.abs(rad - R) - (0.028 + 0.012 * lipK);
     brim = smax(brim, Math.max(-w - 0.02, w - len), 0.02);
     brim = smax(brim, -(sa + 0.42) * 0.35, 0.03);              // open under the chin
@@ -225,7 +228,7 @@ export function buildDoll(ctx, mats, { size = 0.3, seed = 0, dress = 0xb08080, h
     r.scale.setScalar(hr * (0.7 + ((i * 7) % 3) * 0.08)); r.rotation.set(Math.sin(a) * 0.2, i * 1.3, Math.cos(a) * 0.25);
   }
   if (bonnet) {
-    const bg = cached(`bonnet${bonnetBack ? 'b' : ''}`, () => sdfGeometry(bonnetSDF(bonnetBack), { min: [-1.7, -1.0, -1.6], max: [1.7, 1.85, 1.75], step: 0.03, project: 3, ao: 0.2, aoStrength: 0.8, uv: 'planar', uvScale: 0.25 }));
+    const bg = cached('bonnet', () => sdfGeometry(bonnetSDF(false), { min: [-1.7, -1.0, -1.6], max: [1.7, 1.85, 1.75], step: 0.03, project: 3, ao: 0.2, aoStrength: 0.8, uv: 'planar', uvScale: 0.25 }));
     add(bg, mats.dollBonnet ? mats.dollBonnet(dress) : dressM, 0, 0, 0, head).scale.setScalar(hr);
     // ribbon ties hanging under the chin
     for (const sx of [-1, 1]) {
