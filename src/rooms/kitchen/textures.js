@@ -757,7 +757,7 @@ const FOOT_GLSL = /* glsl */ `
  */
 export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 7.2], block = [0.2, -0.6], blockHalf = [0.7, 0.34], kerb = [-1.97, -0.63, -3.1], sack = [-1.1, -1.45], sacks = [], tile = [-3.2, 3.4, 0.3], trail = [[0.05, -0.62], [2.95, -1.2]] } = {}) {
   const S = sacks.slice(0, 4); while (S.length < 4) S.push([99, 99, 0.01]);
-  return forge.generate('kitchen:flour18', {
+  return forge.generate('kitchen:flour19', {
     size, aspect: rect[2] / rect[3], tile: false, normalStrength: 0.7,
     uniforms: { uRect: rect, uBlock: [...block, ...blockHalf], uKerb: kerb, uSack: sack, uS0: S[0], uS1: S[1], uS2: S[2], uS3: S[3], uTile: tile, uP0: trail[0], uP1: trail[1] },
     glsl: /* glsl */ `
@@ -811,8 +811,8 @@ export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 
       vec2 rA = vec2(0.2, -0.3), rB = vec2(0.55, 3.3), rC = vec2(3.2, 2.25);
       vec2 pa = w - rA, ba = rB - rA; float hA = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
       vec2 pc = w - rA, bc2 = rC - rA; float hC = clamp(dot(pc, bc2) / dot(bc2, bc2), 0.0, 1.0);
-      float route = max(exp(-pow(length(pa - ba * hA) / 0.3, 2.0)) * (1.0 - hA * 0.95), exp(-pow(length(pc - bc2 * hC) / 0.26, 2.0)) * (1.0 - hC * 0.9));
-      a = max(a, route * 0.3 * (0.4 + 0.8 * n3) * smoothstep(0.3, 0.7, n2 + 0.2));
+      float route = max(exp(-pow(length(pa - ba * hA) / 0.26, 2.0)) * max(0.0, 1.0 - hA * 1.15), exp(-pow(length(pc - bc2 * hC) / 0.24, 2.0)) * max(0.0, 1.0 - hC * 1.05));
+      a = max(a, route * 0.26 * (0.4 + 0.8 * n3) * smoothstep(0.3, 0.7, n2 + 0.2));
       // broom: soft arcs that thin the spill, a drag mark from the sack to the pantry
       vec2 bc = w - vec2(-0.6, 0.3);
       float br = length(bc);

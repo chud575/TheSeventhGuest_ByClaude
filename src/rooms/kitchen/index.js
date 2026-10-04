@@ -2256,7 +2256,7 @@ export default {
     const gasLights = [];
     {
       // thin acid-etched glass: mostly transparent, a faint warm glow where the flame lights it from inside
-      const globeMat = new THREE.MeshPhysicalMaterial({ color: 0xf4ece0, emissive: new THREE.Color(1.0, 0.74, 0.46), emissiveMap: CV.mantle, emissiveIntensity: 0.14, roughness: 0.35, transparent: true, opacity: 0.38, depthWrite: false, side: THREE.DoubleSide, clearcoat: 1, clearcoatRoughness: 0.1, name: 'gasGlobe' });
+      const globeMat = new THREE.MeshPhysicalMaterial({ color: 0xf4ece0, emissive: new THREE.Color(1.0, 0.74, 0.46), emissiveMap: CV.mantle, emissiveIntensity: 0.09, roughness: 0.35, transparent: true, opacity: 0.36, depthWrite: false, side: THREE.DoubleSide, clearcoat: 1, clearcoatRoughness: 0.1, name: 'gasGlobe' });
       const spots = [
         { p: V3(X0, 1.98, 0.15), ry: Math.PI / 2, i: 2.4 },          // left wall, beyond the dresser
         { p: V3(X1, 1.98, -0.42), ry: -Math.PI / 2, i: 1.7 },        // right wall, by the dumbwaiter
