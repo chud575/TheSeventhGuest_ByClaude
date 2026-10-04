@@ -15,11 +15,16 @@ import * as THREE from 'three';
  */
 
 const WEB_VERT = /* glsl */ `
+uniform float uTime;
+attribute float aSway;
 varying vec2 vUv;
 varying vec3 vW;
 void main() {
   vUv = uv;
   vec4 wp = modelMatrix * vec4(position, 1.0);
+  // free silk breathes in the draught from the broken pane
+  float sw = aSway * (sin(uTime * 0.9 + wp.x * 3.1 + wp.z * 2.3) * 0.7 + sin(uTime * 2.3 + wp.y * 5.0) * 0.3);
+  wp.xyz += vec3(0.012, 0.0, 0.008) * sw;
   vW = wp.xyz;
   gl_Position = projectionMatrix * viewMatrix * wp;
 }`;
@@ -33,6 +38,8 @@ uniform vec3 uBase;
 uniform float uOpacity;
 uniform vec4 uWarm;   // xyz = warm light position, w = radius
 uniform vec3 uWarmCol;
+uniform vec4 uLamp;   // the oil lamp: silk near it glows amber
+uniform vec3 uLampCol;
 varying vec2 vUv;
 varying vec3 vW;
 void main() {
@@ -45,11 +52,12 @@ void main() {
   // forward scatter: silk lights up when you look up the beam toward its source
   float fwd = 0.35 + 0.65 * pow(max(0.0, dot(V, -uBD)), 3.0);
   float warm = 1.0 - smoothstep(0.0, uWarm.w, length(vW - uWarm.xyz));
-  vec3 col = uBase + uBeamCol * inBeam * fwd * uBeamK + uWarmCol * warm * warm;
+  float lamp = 1.0 - smoothstep(0.0, uLamp.w, length(vW - uLamp.xyz));
+  vec3 col = uBase + uBeamCol * inBeam * fwd * uBeamK + uWarmCol * warm * warm + uLampCol * lamp * lamp;
   gl_FragColor = vec4(col * a * uOpacity, 1.0);
 }`;
 
-export function webMaterial({ map = null, beam, base = 0x1a1d24, beamColor = new THREE.Color(0.75, 0.85, 1.25), opacity = 0.35, beamK = { value: 1 }, warm = null }) {
+export function webMaterial({ map = null, beam, base = 0x2a2e38, beamColor = new THREE.Color(0.75, 0.85, 1.25), opacity = 0.35, beamK = { value: 1 }, warm = null, lamp = null, time = { value: 0 } }) {
   return new THREE.ShaderMaterial({
     vertexShader: WEB_VERT, fragmentShader: WEB_FRAG,
     uniforms: {
@@ -59,6 +67,9 @@ export function webMaterial({ map = null, beam, base = 0x1a1d24, beamColor = new
       uBase: { value: new THREE.Color(base) }, uOpacity: { value: opacity },
       uWarm: { value: warm ? new THREE.Vector4(warm.pos.x, warm.pos.y, warm.pos.z, warm.radius) : new THREE.Vector4(0, -100, 0, 0.001) },
       uWarmCol: { value: warm ? new THREE.Color(warm.color) : new THREE.Color(0) },
+      uLamp: { value: lamp ? new THREE.Vector4(lamp.pos.x, lamp.pos.y, lamp.pos.z, lamp.radius) : new THREE.Vector4(0, -100, 0, 0.001) },
+      uLampCol: { value: lamp ? new THREE.Color(lamp.color) : new THREE.Color(0) },
+      uTime: time,
     },
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, name: 'cobweb',
   });
@@ -154,6 +165,57 @@ export function cornerWeb(corner, a, b, mat) {
   return m;
 }
 
+/**
+ * An old sheet web strung in the crotch of two timbers and sagging under its own dust: a subdivided
+ * sheared quad (corner = the joint, a/b = along the two timbers) whose free edges droop by `sag` (m)
+ * along `down`, the far corner most. The texture's top-left corner maps onto the joint.
+ */
+export function sheetWeb(corner, a, b, sag, mat, { down = new THREE.Vector3(0, -1, 0), seg = 14, belly = 0.6 } = {}) {
+  const pos = [], uv = [], sway = [], idx = [];
+  for (let j = 0; j <= seg; j++) for (let i = 0; i <= seg; i++) {
+    const u = i / seg, v = j / seg;
+    const p = corner.clone().addScaledVector(a, u).addScaledVector(b, v);
+    // attached along both timbers (u = 0 or v = 0); sags in a catenary belly toward the free corner
+    const d = Math.pow(u * v, 0.75) * sag + Math.sin(u * Math.PI) * Math.sin(v * Math.PI) * sag * belly * 0.35;
+    p.addScaledVector(down, d);
+    pos.push(p.x, p.y, p.z); uv.push(u, 1 - v); sway.push(Math.min(1, u * v * 2.5));
+  }
+  for (let j = 0; j < seg; j++) for (let i = 0; i < seg; i++) { const k = j * (seg + 1) + i; idx.push(k, k + 1, k + seg + 2, k, k + seg + 2, k + seg + 1); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('aSway', new THREE.Float32BufferAttribute(sway, 1));
+  g.setIndex(idx);
+  const m = new THREE.Mesh(g, mat);
+  m.renderOrder = 4; m.userData.noShadow = true; m.userData.noBake = true; m.frustumCulled = false;
+  return m;
+}
+
+/**
+ * A hammock of tangled silk slung between two parallel timbers: edge p0->p1 on one, the opposite edge
+ * offset by `across`; the middle sags by `sag` along `down`. UVs span the whole tangle texture.
+ */
+export function hammockWeb(p0, p1, across, sag, mat, { down = new THREE.Vector3(0, -1, 0), seg = 16 } = {}) {
+  const pos = [], uv = [], sway = [], idx = [];
+  const along = p1.clone().sub(p0);
+  for (let j = 0; j <= seg; j++) for (let i = 0; i <= seg; i++) {
+    const u = i / seg, v = j / seg;
+    const p = p0.clone().addScaledVector(along, u).addScaledVector(across, v);
+    const k = Math.sin(v * Math.PI) * (0.65 + 0.35 * Math.sin(u * Math.PI));
+    p.addScaledVector(down, sag * k);
+    pos.push(p.x, p.y, p.z); uv.push(u, v); sway.push(k);
+  }
+  for (let j = 0; j < seg; j++) for (let i = 0; i < seg; i++) { const k = j * (seg + 1) + i; idx.push(k, k + 1, k + seg + 2, k, k + seg + 2, k + seg + 1); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('aSway', new THREE.Float32BufferAttribute(sway, 1));
+  g.setIndex(idx);
+  const m = new THREE.Mesh(g, mat);
+  m.renderOrder = 4; m.userData.noShadow = true; m.userData.noBake = true; m.frustumCulled = false;
+  return m;
+}
+
 /** single silk strand hanging between two points with a catenary sag (sag in metres at mid-span) */
 export function strand(p0, p1, sag, mat, radius = 0.0005) {
   const pts = [];
@@ -171,7 +233,11 @@ export function strand(p0, p1, sag, mat, radius = 0.0005) {
 /** hanging strand: a loose end drooping from a point */
 export function dangle(p0, len, mat, sway = 0.02, radius = 0.0005) {
   const pts = [p0.clone(), p0.clone().add(new THREE.Vector3(sway * 0.6, -len * 0.4, sway * 0.3)), p0.clone().add(new THREE.Vector3(-sway * 0.3, -len * 0.75, sway * 0.5)), p0.clone().add(new THREE.Vector3(sway * 0.4, -len, 0))];
-  const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, radius, 3), mat);
+  const tg = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, radius, 3);
+  const tp = tg.attributes.position, sw = new Float32Array(tp.count);
+  for (let i = 0; i < tp.count; i++) sw[i] = Math.min(1, Math.max(0, (p0.y - tp.getY(i)) / len)) * 2.5;
+  tg.setAttribute('aSway', new THREE.BufferAttribute(sw, 1));
+  const m = new THREE.Mesh(tg, mat);
   m.renderOrder = 4; m.userData.noShadow = true; m.userData.noBake = true;
   return m;
 }
@@ -246,4 +312,44 @@ export function buildMotes({ box, count = 2400, seed = 3, time, beam, lights = [
   const pts = new THREE.Points(g, mat);
   pts.name = 'DustMotes'; pts.frustumCulled = false; pts.renderOrder = 8; pts.userData.noBake = true; pts.userData.noShadow = true;
   return pts;
+}
+
+/** Silk slung between two timbers (anchored along the top AND bottom edges): long sagging threads across, a dusty gossamer film, torn holes, clumps. Alpha only. */
+export function hammockWebTexture(forge, seed = 3) {
+  return forge.canvas(`attic:hammock${seed}`, 1024, 1024, (g, w, h) => {
+    let s = seed * 7919 + 17;
+    const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+    g.clearRect(0, 0, w, h);
+    g.lineCap = 'round';
+    // gossamer film: blotchy, thickest near the anchors where dust collects, a torn hole or two
+    for (let i = 0; i < 900; i++) {
+      const x = rnd() * w, y = rnd() < 0.5 ? Math.pow(rnd(), 1.8) * h * 0.5 : h - Math.pow(rnd(), 1.8) * h * 0.5;
+      const r = 8 + rnd() * 40;
+      const rg = g.createRadialGradient(x, y, 0, x, y, r);
+      rg.addColorStop(0, `rgba(255,255,255,${0.012 + rnd() * 0.03})`); rg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = rg; g.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    // main threads: from the top timber to the bottom one, bellied sideways
+    for (let k = 0; k < 120; k++) {
+      const x0 = rnd() * w, x1 = x0 + (rnd() - 0.5) * w * 0.6;
+      const bow = (rnd() - 0.5) * 140;
+      g.strokeStyle = `rgba(255,255,255,${0.2 + rnd() * 0.45})`; g.lineWidth = 0.8 + rnd() * 1.3;
+      g.beginPath(); g.moveTo(x0, 0); g.bezierCurveTo(x0 + bow, h * 0.35, x1 + bow, h * 0.65, x1, h); g.stroke();
+    }
+    // cross threads strung between neighbours, sagging
+    for (let k = 0; k < 420; k++) {
+      const x = rnd() * w, y = rnd() * h, l = 20 + rnd() * 120, a = (rnd() - 0.5) * 0.9;
+      g.strokeStyle = `rgba(255,255,255,${0.1 + rnd() * 0.3})`; g.lineWidth = 0.5 + rnd() * 0.8;
+      g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a) * l * 0.5, y + Math.sin(a) * l * 0.5 + 10 + rnd() * 10, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+    }
+    // dust clumps and husks of flies
+    for (let i = 0; i < 160; i++) {
+      g.fillStyle = `rgba(255,255,255,${0.25 + rnd() * 0.5})`;
+      g.beginPath(); g.ellipse(rnd() * w, rnd() * h, 1 + rnd() * 4, 1 + rnd() * 2.5, rnd() * 3, 0, Math.PI * 2); g.fill();
+    }
+    // torn holes: erase
+    g.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < 3; i++) { const x = w * (0.2 + rnd() * 0.6), y = h * (0.3 + rnd() * 0.4), r = 40 + rnd() * 90; const rg = g.createRadialGradient(x, y, r * 0.5, x, y, r); rg.addColorStop(0, 'rgba(0,0,0,1)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = rg; g.fillRect(x - r, y - r, r * 2, r * 2); }
+    g.globalCompositeOperation = 'source-over';
+  }, { tile: false });
 }

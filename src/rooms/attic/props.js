@@ -277,8 +277,21 @@ export function buildHangingLamp(ctx, m, { drop = 0.7 } = {}) {
   for (let i = 0; i < n; i++) { const l = mesh(link, m.iron); l.position.y = -i * 0.02; l.rotation.y = (i % 2) * Math.PI / 2; l.scale.y = 1.25; g.add(l); }
   const y0 = -drop;
   // smoke bell / reflector
-  g.add(at(mesh(lathe(G, [[0.0, 0.04], [0.02, 0.04], [0.03, 0.03], [0.08, 0.0], [0.14, -0.045], [0.145, -0.05], [0.0, -0.05]].map(([r, y]) => [r, y]), 32), m.tin), 0, y0 + 0.02, 0));
-  g.add(at(mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.001, 32, 1, true), m.tin), 0, y0 - 0.03, 0));
+  // a coolie shade of pressed tin: a shallow cone with a rolled rim, knocked about (dents, a bent edge)
+  {
+    const sg = lathe(G, [[0.012, 0.05], [0.022, 0.048], [0.03, 0.04], [0.09, 0.0], [0.15, -0.04], [0.165, -0.05], [0.17, -0.056], [0.166, -0.062], [0.158, -0.058]], 64);
+    const pp = sg.attributes.position;
+    for (let i = 0; i < pp.count; i++) {
+      const x = pp.getX(i), y = pp.getY(i), z = pp.getZ(i); const a = Math.atan2(z, x); const r = Math.hypot(x, z);
+      const k = THREE.MathUtils.smoothstep(r, 0.05, 0.17);
+      const dent = -0.012 * Math.exp(-((a - 0.9) ** 2) / 0.05) * k - 0.008 * Math.exp(-((a + 2.1) ** 2) / 0.03) * k + 0.006 * Math.sin(a * 7) * k * k;
+      pp.setY(i, y + dent);
+    }
+    sg.computeVertexNormals();
+    const shade = mesh(sg, m.tin); shade.position.y = y0 + 0.02; g.add(shade);
+    // enamelled underside, a dull cream that throws the light down
+    const under = mesh(sg, new THREE.MeshStandardMaterial({ color: 0x8a8070, roughness: 0.5, side: THREE.BackSide, name: 'shadeEnamel' })); under.position.y = y0 + 0.018; under.scale.setScalar(0.995); g.add(under);
+  }
   // three hanging rods
   for (let k = 0; k < 3; k++) { const a = (k / 3) * Math.PI * 2; const r = mesh(new THREE.CylinderGeometry(0.0025, 0.0025, 0.3, 5), m.brass); at(r, Math.cos(a) * 0.06, y0 - 0.17, Math.sin(a) * 0.06); g.add(r); }
   // font
@@ -288,7 +301,10 @@ export function buildHangingLamp(ctx, m, { drop = 0.7 } = {}) {
   g.add(at(mesh(lathe(G, [[0.024, 0.085], [0.036, 0.09], [0.036, 0.11], [0.028, 0.12], [0.024, 0.12]], 24), m.brass), 0, fy, 0));
   // gallery ring at the rods' ends
   g.add(at(mesh(new THREE.TorusGeometry(0.062, 0.004, 6, 32).rotateX(Math.PI / 2), m.brass), 0, fy + 0.04, 0));
-  const chim = mesh(lathe(G, [[0.022, 0], [0.03, 0.02], [0.038, 0.05], [0.032, 0.08], [0.02, 0.12], [0.019, 0.2]], 24), m.chimney);
+  const chimMat = new THREE.MeshPhysicalMaterial({ color: 0xfff2dc, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.16, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.4, depthWrite: false, side: THREE.DoubleSide, name: 'lampGlass' });
+  const chim = mesh(lathe(G, [[0.022, 0], [0.03, 0.02], [0.038, 0.05], [0.032, 0.08], [0.02, 0.12], [0.019, 0.2], [0.021, 0.204]], 32), chimMat);
+  // soot staining the top of the chimney
+  g.add(at(mesh(new THREE.CylinderGeometry(0.0195, 0.0195, 0.05, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45, depthWrite: false, name: 'chimSoot' })), 0, fy + 0.12 + 0.17, 0));
   chim.position.set(0, fy + 0.12, 0); chim.userData.noShadow = true; chim.renderOrder = 3; g.add(chim);
   g.userData.flameY = fy + 0.135;
   return g;
@@ -385,7 +401,7 @@ export function buildBirdCage(ctx, m) {
  * the skirt falling to the floor with folds and a little pooling.
  * topH(x, z) gives the top surface over the footprint [-hw,hw]x[-hd,hd].
  */
-export function dustSheetGeometry({ hw, hd, topH, seg = 72, seed = 1, flare = 0.06, hem: hemY = 0 }) {
+export function dustSheetGeometry({ hw, hd, topH, seg = 72, seed = 1, flare = 0.06, hem: hemY = 0, foldAmp = 1 }) {
   const maxH = 2.2;
   const L = Math.max(hw, hd) + maxH;
   const g = new THREE.PlaneGeometry(2 * L, 2 * L, seg, seg).rotateX(-Math.PI / 2);
@@ -407,7 +423,14 @@ export function dustSheetGeometry({ hw, hd, topH, seg = 72, seed = 1, flare = 0.
     let y = top - e;
     const dirx = e > 0 ? ex / Math.hypot(ex, ez) : 0, dirz = e > 0 ? ez / Math.hypot(ex, ez) : 0;
     const per = Math.atan2(cz + dirz, cx + dirx);
-    const fold = Math.sin(per * 13 + seed) * 0.5 + Math.sin(per * 29 + seed * 2.1) * 0.3 + Math.sin(per * 5 + seed * 0.7) * 0.35;
+    let fold = Math.sin(per * 13 + seed) * 0.5 + Math.sin(per * 29 + seed * 2.1) * 0.3 + Math.sin(per * 5 + seed * 0.7) * 0.35;
+    // gravity folds hanging from the top corners: deep cones of cloth where the sheet breaks over each corner
+    if (foldAmp > 1) {
+      const ccx = Math.sign(cx || 1) * hw, ccz = Math.sign(cz || 1) * hd;
+      const dc = Math.hypot(cx - ccx, cz - ccz) / Math.max(hw, hd);
+      fold += (foldAmp - 1) * Math.exp(-dc * 3.0) * Math.sin(Math.atan2(cz - ccz, cx - ccx) * 6 + seed) * 1.2;
+      fold *= 1 + (foldAmp - 1) * 0.35;
+    }
     const hemK = Math.min(1, e / Math.max(top, 0.01));
     let out = Math.min(e, 0.25) * 0.08 + flare * hemK * (1 + 1.1 * fold) + hemK * hemK * 0.03 * (1 + fold) + 0.03 * fold * THREE.MathUtils.smoothstep(e, 0.0, 0.45);
     if (y < 0.004) { out += (0.004 - y) * 0.9; y = 0.004 + Math.abs(fold) * 0.014 * Math.min(1, (0.004 - y) * 6); }
@@ -601,5 +624,258 @@ export function buildStool(ctx, m) {
   void splay;
   g.add(at(mesh(new THREE.TorusGeometry(0.152, 0.009, 8, 40).rotateX(Math.PI / 2), m.labFrame), 0, 0.22, 0));
   g.add(at(mesh(new THREE.TorusGeometry(0.152, 0.004, 6, 40).rotateX(Math.PI / 2), m.brass), 0, 0.22 + 0.008, 0));
+  return g;
+}
+
+/** a milled (knurled) knob: a cylinder along local Y whose rim carries `teeth` fine ridges, with chamfered faces */
+export function knurledKnob(r, w, teeth = 40) {
+  const seg = teeth * 2;
+  const prof = [V2(0, -w / 2), V2(r * 0.86, -w / 2), V2(r, -w / 2 + w * 0.14), V2(r, w / 2 - w * 0.14), V2(r * 0.86, w / 2), V2(0, w / 2)];
+  const g = new THREE.LatheGeometry(prof, seg);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), z = p.getZ(i), y = p.getY(i);
+    const rr = Math.hypot(x, z);
+    if (rr < r * 0.9 || Math.abs(y) > w / 2 - w * 0.13) continue;
+    const a = Math.atan2(z, x);
+    const k = Math.round((a / (Math.PI * 2)) * seg);
+    const s = 1 - 0.06 * (k % 2 === 0 ? 1 : 0);
+    p.setX(i, x * s); p.setZ(i, z * s);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * A great Victorian monocular microscope, built to reach out over Stauf's specimen plate:
+ * a black-lacquered cast-iron horseshoe foot, a turned brass pillar, a trunnion with a pivot
+ * and clamp head, a cast swan-neck limb carrying the rack housing, coarse focus by a pair of
+ * big milled heads, fine focus on the limb, a 40 mm body tube inclined toward the viewer
+ * with draw tube and a flared eyepiece, and a triple-objective revolving nosepiece aimed
+ * down at the plate. A gimballed concave mirror below the plate edge.
+ * Origin = foot centre on the table; +z = toward the plate; the active objective's tip sits at
+ * local (0, objY, reach). userData.objective = that point.
+ */
+export function buildMicroscopeGreat(ctx, m, { reach = 0.36, objY = 0.2, tilt = 0.42 } = {}) {
+  const { geometry: G } = ctx;
+  const g = new THREE.Group(); g.name = 'microscope';
+  const brass = m.scopeBrass || m.brass, japan = m.blackEnamel, steel = m.steel;
+  // ------------------------------------------------ horseshoe foot (cast iron, black lacquer), opening toward the plate
+  {
+    const R0 = 0.125, R1 = 0.05, gap = 0.62;
+    const sh = new THREE.Shape();
+    sh.absarc(0, 0, R0, Math.PI / 2 + gap, Math.PI * 2.5 - gap, false);
+    // rounded toes
+    const a1 = Math.PI * 2.5 - gap, a0 = Math.PI / 2 + gap;
+    const mid = (R0 + R1) / 2, tr = (R0 - R1) / 2;
+    sh.absarc(Math.cos(a1) * mid, Math.sin(a1) * mid, tr, a1, a1 + Math.PI, false);
+    sh.absarc(0, 0, R1, a1, a0, true);
+    sh.absarc(Math.cos(a0) * mid, Math.sin(a0) * mid, tr, a0 + Math.PI, a0 + Math.PI * 2, false);
+    const fg = new THREE.ExtrudeGeometry(sh, { depth: 0.016, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 4, curveSegments: 56 });
+    const foot = mesh(G.applyBoxUVs(fg, 4), japan);
+    foot.rotation.x = -Math.PI / 2; foot.rotation.z = Math.PI; foot.position.y = 0.006; g.add(foot);
+    // a raised boss under the pillar and three felt pads (hinted by a dark ring)
+    g.add(at(mesh(lathe(G, [[0, 0], [0.05, 0], [0.052, 0.006], [0.045, 0.014], [0.034, 0.018], [0, 0.018]], 40), japan), 0, 0.026, -0.03));
+  }
+  // ------------------------------------------------ turned pillar with mouldings
+  const PY = 0.044, PH = 0.2;
+  g.add(at(mesh(lathe(G, [[0, 0], [0.032, 0], [0.032, 0.008], [0.026, 0.012], [0.026, 0.016], [0.02, 0.024], [0.016, 0.03], [0.015, 0.05], [0.017, 0.054], [0.015, 0.058], [0.0145, PH - 0.035], [0.018, PH - 0.03], [0.022, PH - 0.022], [0.022, PH - 0.012], [0.018, PH - 0.006], [0, PH - 0.006]], 40), brass), 0, PY, -0.03));
+  // ------------------------------------------------ trunnion: two cheeks, pivot, clamp head
+  const PIV = V3(0, PY + PH + 0.03, -0.03);
+  for (const sx of [-1, 1]) {
+    const ch = new THREE.Shape(); ch.moveTo(-0.022, -0.045); ch.lineTo(0.022, -0.045); ch.lineTo(0.02, 0.0); ch.absarc(0, 0.0, 0.02, 0, Math.PI, false); ch.lineTo(-0.022, -0.045);
+    const cg = new THREE.ExtrudeGeometry(ch, { depth: 0.008, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 2, curveSegments: 20 });
+    cg.translate(0, 0, -0.004); cg.rotateY(Math.PI / 2);
+    g.add(at(mesh(cg, brass), PIV.x + sx * 0.024, PIV.y, PIV.z));
+  }
+  g.add(at(mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.07, 20).rotateZ(Math.PI / 2), brass), PIV.x, PIV.y, PIV.z));
+  { const kn = mesh(knurledKnob(0.017, 0.012, 32), brass); kn.rotation.z = Math.PI / 2; at(kn, PIV.x + 0.042, PIV.y, PIV.z); g.add(kn); }
+  { const kn = mesh(lathe(G, [[0, 0], [0.012, 0], [0.012, 0.004], [0.008, 0.008], [0, 0.009]], 20), brass); kn.rotation.z = Math.PI / 2; at(kn, PIV.x - 0.03, PIV.y, PIV.z); g.add(kn); }
+  // ------------------------------------------------ the optical axis
+  const O = V3(0, objY, reach);
+  const D = V3(0, Math.cos(tilt), -Math.sin(tilt));            // up the tube, leaning back toward the pillar
+  const N = V3(0, Math.sin(tilt), Math.cos(tilt));             // the tube's front
+  // the active objective sits a little off the tube axis (the turret leans): shift the whole optical train so its tip lands on O
+  const O0 = O.clone().addScaledVector(D, 0.0166 + 0.05 - 0.05).addScaledVector(N, -0.0137);
+  const along = (t, off = 0) => O0.clone().addScaledVector(D, t).addScaledVector(N, off);
+  const tubeQ = new THREE.Quaternion().setFromUnitVectors(V3(0, 1, 0), D);
+  const onAxis = (o, t, off = 0) => { o.position.copy(along(t, off)); o.quaternion.copy(tubeQ); g.add(o); return o; };
+  // ------------------------------------------------ the cast swan-neck limb (extruded section, chamfered)
+  {
+    const rackC = along(0.2, -0.042);
+    const c = [V2(PIV.z, PIV.y), V2(PIV.z - 0.03, PIV.y + 0.07), V2(PIV.z + 0.01, PIV.y + 0.15), V2(PIV.z + 0.1, PIV.y + 0.175), V2(rackC.z - 0.03, rackC.y + 0.03)];
+    const curve = new THREE.SplineCurve(c);
+    const n = 30, L = [], Rr = [];
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, p = curve.getPoint(t), tg = curve.getTangent(t);
+      const w = THREE.MathUtils.lerp(0.026, 0.018, t) + 0.006 * Math.sin(t * Math.PI);
+      const nx = -tg.y, ny = tg.x;
+      L.push(V2(p.x + nx * w, p.y + ny * w)); Rr.push(V2(p.x - nx * w, p.y - ny * w));
+    }
+    const sh = new THREE.Shape([...L, ...Rr.reverse()]);
+    const lg = new THREE.ExtrudeGeometry(sh, { depth: 0.022, bevelEnabled: true, bevelThickness: 0.005, bevelSize: 0.005, bevelSegments: 3, curveSegments: 8 });
+    lg.translate(0, 0, -0.011);
+    lg.rotateY(-Math.PI / 2);                // shape x -> world z, shape y -> world y
+    g.add(mesh(G.applyBoxUVs(lg, 6), brass));
+    // rack housing: a block on the back of the tube
+    const rh = mesh(new G.RoundedBoxGeometry(0.036, 0.15, 0.034, 3, 0.006), brass);
+    onAxis(rh, 0.2, -0.036);
+    // pinion and the two big milled coarse-focus heads
+    const pin = mesh(new THREE.CylinderGeometry(0.0055, 0.0055, 0.1, 12).rotateZ(Math.PI / 2), steel); onAxis(pin, 0.17, -0.04);
+    for (const sx of [-1, 1]) {
+      const kn = mesh(knurledKnob(0.026, 0.016, 44), brass); kn.rotation.z = Math.PI / 2;
+      const kg = new THREE.Group(); kg.add(kn); kn.position.x = sx * 0.05; onAxis(kg, 0.17, -0.04);
+      const cap = mesh(lathe(G, [[0, 0], [0.016, 0], [0.012, 0.006], [0, 0.007]], 24), brass); cap.rotation.z = -sx * Math.PI / 2; cap.position.x = sx * 0.058; kg.add(cap);
+    }
+    // fine-focus head on the shoulder of the limb
+    const fpos = curve.getPoint(0.58);
+    g.add(at(mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.02, 12), brass), 0, fpos.y + 0.03, fpos.x));
+    { const kn = mesh(knurledKnob(0.015, 0.012, 30), brass); at(kn, 0, fpos.y + 0.045, fpos.x); g.add(kn); }
+  }
+  // ------------------------------------------------ body tube, collar rings, draw tube, flared eyepiece
+  {
+    const prof = [
+      [0, 0.055], [0.024, 0.055], [0.026, 0.06], [0.026, 0.07], [0.021, 0.074],                 // nosepiece collar
+      [0.02, 0.08], [0.02, 0.33], [0.024, 0.334], [0.024, 0.348], [0.0205, 0.352],              // body tube with milled collar
+      [0.016, 0.356], [0.016, 0.43], [0.0175, 0.434], [0.0175, 0.44],                           // draw tube with engraved scale ring
+      [0.015, 0.444], [0.016, 0.455], [0.024, 0.475], [0.0265, 0.49], [0.0265, 0.505], [0.022, 0.51], [0.012, 0.512], [0, 0.512], // eyepiece flare + cup
+    ];
+    onAxis(mesh(lathe(G, prof, 48), brass), 0);
+    const lens = mesh(new THREE.CircleGeometry(0.011, 24).rotateX(-Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: 0x0a1018, roughness: 0.02, metalness: 0.2, clearcoat: 1, name: 'eyeLens' }));
+    onAxis(lens, 0.5125);
+    // the rack teeth visible along the back of the tube
+    const rack = mesh(new THREE.BoxGeometry(0.008, 0.2, 0.006), steel); onAxis(rack, 0.2, -0.022);
+  }
+  // ------------------------------------------------ the revolving triple nosepiece: a domed turret on its own axis
+  {
+    const tq = new THREE.Group(); onAxis(tq, 0.05);
+    const turAxis = new THREE.Group(); turAxis.rotation.x = 0.5; tq.add(turAxis);   // the turret's axis leans off the optical axis
+    turAxis.add(mesh(lathe(G, [[0, 0.012], [0.034, 0.012], [0.036, 0.004], [0.032, -0.006], [0.02, -0.012], [0, -0.013]], 40), brass));
+    turAxis.add(at(mesh(knurledKnob(0.037, 0.006, 48), brass), 0, 0.009, 0));
+    // three objectives round the turret; the first lines up with the optical axis (pointing down the tube)
+    const obj = (len, rTop) => lathe(G, [[0, 0], [rTop * 0.4, 0], [rTop * 0.55, len * 0.12], [rTop * 0.72, len * 0.45], [rTop * 0.8, len * 0.5], [rTop * 0.8, len * 0.7], [rTop, len * 0.74], [rTop, len], [0, len]], 28);
+    const objs = [[0, 0.05, 0.012], [Math.PI * 2 / 3, 0.042, 0.011], [Math.PI * 4 / 3, 0.034, 0.0105]];
+    for (const [a, len, r] of objs) {
+      const og = new THREE.Group(); og.rotation.y = a; turAxis.add(og);
+      const tilted = new THREE.Group(); tilted.position.set(0, -0.008, 0.02); tilted.rotation.x = -0.5; og.add(tilted);
+      const o = mesh(obj(len, r), brass); o.rotation.x = Math.PI; tilted.add(o);
+      const glass = mesh(new THREE.CircleGeometry(r * 0.35, 16).rotateX(Math.PI / 2), m.mirror); glass.position.y = -len - 0.0005; tilted.add(glass);
+    }
+    // re-aim: make the active objective's tip land on O
+    tq.updateMatrixWorld(true);
+  }
+  // ------------------------------------------------ the gimballed concave mirror, below the plate rim on a swinging arm
+  {
+    const armY = PY + 0.06;
+    const arm = mesh(new G.RoundedBoxGeometry(0.012, 0.012, 0.11, 2, 0.004), brass); at(arm, 0, armY, 0.035); g.add(arm);
+    const yoke = mesh(new THREE.TorusGeometry(0.034, 0.004, 8, 32, Math.PI), brass); yoke.rotation.set(0, 0, Math.PI); at(yoke, 0, armY + 0.0, 0.1); g.add(yoke);
+    const mg = new THREE.Group(); mg.position.set(0, armY - 0.0, 0.1); mg.rotation.x = -0.9; g.add(mg);
+    mg.add(mesh(lathe(G, [[0, -0.006], [0.031, -0.006], [0.032, 0.002], [0.029, 0.004], [0, 0.0]], 36), brass));
+    mg.add(at(mesh(new THREE.CircleGeometry(0.028, 36).rotateX(-Math.PI / 2), m.mirror), 0, 0.0035, 0));
+  }
+  g.userData.objective = O.clone();
+  return g;
+}
+
+// ====================================================================== eaves storage (round 3 dressing)
+/** a leather suitcase: rounded body, contrasting corner caps, two straps with buckles, handle, brass catches */
+export function buildSuitcase(ctx, m, { w = 0.62, h = 0.2, d = 0.4, body = null, seed = 1 } = {}) {
+  const { geometry: G } = ctx;
+  const g = new THREE.Group(); g.name = 'suitcase';
+  const B = body || m.trunk;
+  g.add(at(mesh(new G.RoundedBoxGeometry(w, h, d, 3, 0.022), B), 0, h / 2, 0));
+  // lid seam: a dark welt round the middle
+  g.add(at(mesh(new G.RoundedBoxGeometry(w + 0.004, 0.008, d + 0.004, 2, 0.004), m.leatherStrap), 0, h * 0.62, 0));
+  // corner caps
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(at(mesh(new G.RoundedBoxGeometry(0.06, h + 0.006, 0.06, 2, 0.012), m.leatherStrap), sx * (w / 2 - 0.026), h / 2, sz * (d / 2 - 0.026)));
+  // straps + buckles
+  for (const sx of [-0.28, 0.28]) {
+    g.add(at(mesh(bevelBox(G, 0.035, h + 0.008, d + 0.008, 0.002), m.leatherStrap), sx * w, h / 2, 0));
+    g.add(at(mesh(new THREE.TorusGeometry(0.014, 0.0025, 4, 4), m.brass), sx * w, h * 0.7, d / 2 + 0.006));
+  }
+  // handle + catches
+  const hd = mesh(new THREE.TorusGeometry(0.05, 0.009, 8, 16, Math.PI), m.leatherStrap); hd.position.set(0, h * 0.62, d / 2 + 0.012); hd.rotation.x = Math.PI / 2; hd.scale.z = 0.6; g.add(hd);
+  for (const sx of [-0.14, 0.14]) g.add(at(mesh(bevelBox(G, 0.03, 0.03, 0.008, 0.002), m.brass), sx * w, h * 0.62, d / 2 + 0.004));
+  void seed;
+  return g;
+}
+
+/** a round hat box with a lid and a cord, in a papered finish */
+export function buildHatBox(ctx, m, paper, { r = 0.2, h = 0.22, lidOpen = 0 } = {}) {
+  const g = new THREE.Group(); g.name = 'hatBox';
+  g.add(at(mesh(new THREE.CylinderGeometry(r, r, h, 40, 1, true), paper), 0, h / 2, 0));
+  g.add(at(mesh(new THREE.CircleGeometry(r, 40).rotateX(-Math.PI / 2), m.canvasBack), 0, 0.002, 0));
+  const lid = new THREE.Group(); lid.position.set(0, h - 0.03, 0); g.add(lid);
+  lid.add(at(mesh(new THREE.CylinderGeometry(r + 0.006, r + 0.006, 0.05, 40, 1, true), paper), 0, 0.025, 0));
+  lid.add(at(mesh(new THREE.CircleGeometry(r + 0.006, 40).rotateX(-Math.PI / 2), paper), 0, 0.05, 0));
+  lid.add(at(mesh(new THREE.TorusGeometry(r + 0.007, 0.003, 4, 40).rotateX(Math.PI / 2), m.leatherStrap), 0, 0.002, 0));
+  if (lidOpen) { lid.rotation.z = lidOpen; lid.position.x = r * 0.5; lid.position.y += 0.03; }
+  // cord handle looped over the top
+  const pts = [V3(-r * 0.7, h, 0), V3(-r * 0.5, h + 0.08, 0), V3(0, h + 0.11, 0.01), V3(r * 0.5, h + 0.08, 0), V3(r * 0.7, h, 0)];
+  if (!lidOpen) g.add(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 20, 0.004, 5), m.rope));
+  return g;
+}
+
+/** a carpet rolled up and tied with cord; the rug texture shows on the spiral end and the outer face */
+export function buildRolledRug(ctx, m, rugMat, { len = 1.8, r = 0.11, turns = 6 } = {}) {
+  const g = new THREE.Group(); g.name = 'rolledRug';
+  const body = mesh(new THREE.CylinderGeometry(r, r, len, 28, 1, true), rugMat); body.rotation.z = Math.PI / 2; g.add(body);
+  // spiral ends: a flat ring + a dark spiral line of the backing
+  for (const sx of [-1, 1]) {
+    const pts = [];
+    for (let i = 0; i <= turns * 40; i++) { const t = i / (turns * 40); const a = t * turns * Math.PI * 2; const rr = 0.012 + t * (r - 0.014); pts.push(V2(Math.cos(a) * rr, Math.sin(a) * rr)); }
+    const sp = new THREE.Shape(); sp.absarc(0, 0, r, 0, Math.PI * 2);
+    const end = mesh(new THREE.ShapeGeometry(sp, 32), rugMat); end.rotation.y = sx * Math.PI / 2; end.position.x = sx * len / 2; g.add(end);
+    const line = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map((p) => V3(0, p.x, p.y))), turns * 40, 0.0022, 3), m.rugEdge || m.leatherStrap);
+    line.position.x = sx * (len / 2 + 0.001); g.add(line);
+    g.add(at(mesh(new THREE.CircleGeometry(0.011, 12).rotateY(sx * Math.PI / 2), m.black), sx * (len / 2 + 0.002), 0, 0));
+  }
+  // cords
+  for (const x of [-len * 0.3, len * 0.3]) { const c = mesh(new THREE.TorusGeometry(r + 0.003, 0.004, 5, 28), m.rope); c.rotation.y = Math.PI / 2; c.position.x = x; g.add(c); }
+  return g;
+}
+
+/** a bundle of books tied with string, the top one askew */
+export function buildBookBundle(ctx, m, { n = 5, seed = 1 } = {}) {
+  const { geometry: G } = ctx;
+  const g = new THREE.Group(); g.name = 'books';
+  let s = seed * 9973 + 7; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  let y = 0;
+  const cols = [m.bookLeather, m.trunk, m.saddleCloth || m.trunk, m.leatherStrap];
+  for (let i = 0; i < n; i++) {
+    const w = 0.2 + rnd() * 0.08, d = 0.14 + rnd() * 0.06, t = 0.025 + rnd() * 0.03;
+    const bk = new THREE.Group(); bk.position.y = y; bk.rotation.y = (rnd() - 0.5) * (i === n - 1 ? 0.6 : 0.15); g.add(bk);
+    bk.add(at(mesh(new G.RoundedBoxGeometry(w, t, d, 2, 0.004), cols[i % cols.length]), 0, t / 2, 0));
+    bk.add(at(mesh(new THREE.BoxGeometry(w - 0.012, t - 0.008, d - 0.004), m.pageEdge), 0.008, t / 2, 0));
+    y += t;
+  }
+  // string crossing both ways
+  for (const [sx, sz] of [[1, 0], [0, 1]]) {
+    const hw = sx ? 0.11 : 0.0025, hd = sz ? 0.08 : 0.0025;
+    const sg = new THREE.BoxGeometry(sx ? 0.004 : 0.005, y + 0.006, sz ? 0.004 : 0.005);
+    for (const k of [-1, 1]) g.add(at(mesh(sg, m.string), k * hw * sx, y / 2, k * hd * sz));
+  }
+  return g;
+}
+
+/** a gramophone: square oak case, turntable, tone arm and a great petalled brass horn */
+export function buildGramophone(ctx, m) {
+  const { geometry: G } = ctx;
+  const g = new THREE.Group(); g.name = 'gramophone';
+  g.add(at(mesh(bevelBox(G, 0.32, 0.15, 0.32, 0.01), m.labTop), 0, 0.075, 0));
+  g.add(at(mesh(bevelBox(G, 0.34, 0.018, 0.34, 0.006), m.labTop), 0, 0.159, 0));
+  g.add(at(mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.01, 40), m.velvetRed || m.saddle), 0, 0.173, 0));
+  g.add(at(mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.003, 40), m.blackEnamel), 0, 0.18, 0));
+  // crank
+  const cr = mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.1, 8).rotateZ(Math.PI / 2), m.steel); cr.position.set(0.21, 0.08, 0); g.add(cr);
+  g.add(at(mesh(lathe(G, [[0, 0], [0.009, 0], [0.008, 0.04], [0, 0.042]], 10).rotateZ(Math.PI / 2), m.handle), 0.26, 0.04, 0));
+  // tone arm and horn: elbow up and back, then the flaring horn facing forward
+  const elbow = [V3(0.12, 0.18, -0.12), V3(0.12, 0.3, -0.13), V3(0.08, 0.42, -0.08)];
+  g.add(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(elbow), 16, 0.015, 10), m.brass));
+  const prof = []; for (let i = 0; i <= 24; i++) { const t = i / 24; prof.push([0.016 + 0.24 * Math.pow(t, 3.2), t * 0.48]); }
+  const hornG = lathe(G, prof, 12 * 4);
+  { const p = hornG.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i); const a = Math.atan2(z, x); const k = Math.pow(y / 0.48, 3); const f = 1 + 0.08 * k * Math.cos(a * 12); p.setX(i, x * f); p.setZ(i, z * f); } hornG.computeVertexNormals(); }
+  const horn = mesh(hornG, m.brass); horn.material = m.brass; horn.position.set(0.08, 0.42, -0.08); horn.rotation.set(1.15, 0, 0); g.add(horn);
+  const inside = mesh(hornG, m.toyRed); inside.material = new THREE.MeshStandardMaterial({ color: 0x3a0c08, roughness: 0.6, side: THREE.BackSide, name: 'hornInside' }); inside.position.copy(horn.position); inside.rotation.copy(horn.rotation); inside.scale.setScalar(0.995); g.add(inside);
   return g;
 }

@@ -5,10 +5,10 @@ import { timberTexture, sarkingTexture, floorTexture, lathPlasterTexture, linenT
 import {
   bevelBox, beam, buildWorkbench, buildTrain, buildToolRack, buildSoldiers, buildTop, buildDrum,
   buildBlocks, buildPuzzleBox, buildLabTable, buildMicroscope, buildGlassware, buildBellJar,
-  buildHangingLamp, buildToyChest, buildChair, buildTrunk, buildCrate, buildDressForm, buildBirdCage, dustSheetGeometry, buildFrameStack, hangingCoatGeometry, buildMicroscopeVictorian, buildStool,
+  buildHangingLamp, buildToyChest, buildChair, buildTrunk, buildCrate, buildDressForm, buildBirdCage, dustSheetGeometry, buildFrameStack, hangingCoatGeometry, buildMicroscopeVictorian, buildStool, buildMicroscopeGreat, buildSuitcase, buildHatBox, buildRolledRug, buildBookBundle, buildGramophone,
 } from './props.js';
-import { moonDiscTexture, oculusGrimeTexture, addDust, decalAtlasTexture, sootPlumeTexture } from './textures.js';
-import { webMaterial, cornerWebTexture, cornerWeb, strand, dangle, buildMotes } from './webs.js';
+import { moonDiscTexture, oculusGrimeTexture, addDust, decalAtlasTexture, sootPlumeTexture, peelingPaintTexture, treadWearTexture } from './textures.js';
+import { webMaterial, cornerWebTexture, cornerWeb, strand, dangle, buildMotes, sheetWeb, hammockWeb, hammockWebTexture } from './webs.js';
 import { createInfectionPuzzle, infectionMeta, INFECTION_ID } from './puzzleInfection.js';
 import { apparitionMaterial, buildApparition } from './apparition.js';
 import { buildDoll, buildRockingHorse, buildModelHouse, buildMarionette, buildJackInBox, buildMusicBox, buildBurr, buildPaintPots, buildScrews, buildNotebook, taperTube } from './toys.js';
@@ -98,12 +98,14 @@ export default {
     const root = new THREE.Group();
     root.name = 'attic';
     const add = (o, parent = root) => { parent.add(o); return o; };
-    const ghostMat = apparitionMaterial(ctx.time, { core: 0x040202, rim: 0xff5a1e, fill: 0x07090f, opacity: 1.0, rimGain: 1.9 });
+    const ghostMat = apparitionMaterial(ctx.time, { core: 0x040202, rim: 0xff5a1e, fill: 0x0c1020, opacity: 1.0, rimGain: 1.5 });
     const FIG = { rest: new THREE.Vector3(), fore: new THREE.Vector3(), obj: null };
     const SCOPE = { obj: null };
     const beamK = { value: 1 };
     let moonK = 1;   // climax: the moon dims as the furnace takes the room
     const dyn = (o) => { o.userData.dynamic = true; return o; };
+    const wireMat = new THREE.MeshStandardMaterial({ color: 0x2a2622, roughness: 0.6, metalness: 0.6, name: 'wire' });
+    const strandLine = (a, b) => { const len = a.distanceTo(b); const o = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, len, 5), wireMat); o.position.copy(a).add(b).multiplyScalar(0.5); o.quaternion.setFromUnitVectors(V3(0, 1, 0), b.clone().sub(a).normalize()); return o; };
 
     // ================================================================ materials
     const pbr = (set, opts = {}, Phys = false) => new (Phys ? THREE.MeshPhysicalMaterial : THREE.MeshStandardMaterial)({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, metalnessMap: set.ormMap, aoMap: set.ormMap, roughness: 1, metalness: 1, ...opts });
@@ -128,19 +130,23 @@ export default {
       }),
       brickDark: addGrime(pbr(brickDarkTex.withRepeat(1 / 1.8, 1 / 1.8), { name: 'brickDark', envMapIntensity: 0.2 }), { floor: 0.5, macro: 0.6, floorDark: 0.6 }),
       stone: M.create('stone', { rows: 2, cols: 3, moss: 0.15, damp: 0.1, repeat: [2.4, 2.4], color: [0.42, 0.4, 0.38], roughness: 2.2, envMapIntensity: 0.15 }),
-      benchTop: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 0, polish: 0.15, wear: 0.9, repeat: [1.6, 1.6], macro: 0.6, color: [0.72, 0.6, 0.48] }),
-      benchFrame: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 0, polish: 0.1, wear: 0.8, repeat: [1.5, 1.5], color: [0.45, 0.35, 0.27] }),
-      labTop: M.create('walnut', { repeat: [1.8, 1.8], macro: 0.6, color: [0.62, 0.5, 0.43], clearcoat: 0.0, roughness: 1.5 }),
+      benchTop: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 3, polish: 0.15, wear: 0.9, repeat: [2.6, 2.6], macro: 0.6, color: [0.66, 0.54, 0.43] }),
+      benchFrame: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 0, polish: 0.12, wear: 0.95, repeat: [3.6, 3.6], color: [0.36, 0.26, 0.19] }),
+      labTop: M.create('walnut', { boards: 5, wear: 0.85, repeat: [3.2, 1.22], macro: 0.6, color: [0.55, 0.44, 0.38], clearcoat: 0.3, clearcoatRoughness: 0.42, roughness: 1.3 }),
       labFrame: M.create('walnut', { repeat: [2, 2], color: [0.5, 0.4, 0.34] }),
       door: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 5, boardLength: 3, polish: 0.05, wear: 1.0, repeat: [1.1, 1.1], color: [0.32, 0.24, 0.18] }),
       slat: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 0, polish: 0.2, wear: 0.8, repeat: [3, 3], color: [0.42, 0.3, 0.2] }),
       crate: M.create('wood', { clearcoat: 0.0, species: 'pine', boards: 0, polish: 0.0, wear: 1.0, repeat: [2, 2], color: [0.72, 0.6, 0.45] }),
       brass: M.create('brass', { tarnish: 0.45, polish: 0.6, repeat: [3, 3] }),
+      scopeBrass: M.create('brass', { tarnish: 0.32, polish: 0.62, scratches: 0.3, repeat: [5, 5] }),
       trunk: M.create('leather', { color: [0.16, 0.08, 0.045], wear: 0.8, repeat: [2.5, 2.5] }),
       leatherStrap: M.create('leather', { color: [0.1, 0.05, 0.03], wear: 0.5, repeat: [6, 6] }),
       painting: M.create('painting', { subject: 1, seed: 7, aspect: 0.65 / 0.85, varnish: 0.8, cracks: 0.8, size: 512 }),
       linen: pbr(linen.withRepeat(2, 2), { name: 'linen', side: THREE.DoubleSide, envMapIntensity: 0.25 }),
       iron: M.basic('iron'),
+      castIron: new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.55, metalness: 0.7, name: 'castIron' }),
+      strapIron: new THREE.MeshStandardMaterial({ color: 0x1c1a19, roughness: 0.7, metalness: 0.75, name: 'strapIron' }),
+      peg: new THREE.MeshStandardMaterial({ color: 0x5a4430, roughness: 0.85, name: 'peg' }),
       black: M.basic('black'),
       bone: M.basic('bone'),
       porcelain: M.basic('porcelain'),
@@ -301,38 +307,55 @@ export default {
           const len = SLOPE_LEN + 0.05;
           const mid = V3(s * HALF / 2, KNEE + RISE / 2, z).addScaledVector(n, RAFTER.d / 2);
           const k = Math.round(z * 10);
-          add(new THREE.Mesh(orient(beam(G, RAFTER.w, RAFTER.d, len, 0.01), mid, u, n.clone().negate()), k % 3 === 0 ? mat.timberDark : mat.timber));
+          add(new THREE.Mesh(orient(beam(G, RAFTER.w, RAFTER.d, len, 0.016), mid, u, n.clone().negate()), k % 3 === 0 ? mat.timberDark : mat.timber));
         }
         // purlin under the rafters at mid-slope
         const pm = V3(s * HALF * 0.52, KNEE + RISE * 0.48, (Z0 + Z1) / 2).addScaledVector(n, RAFTER.d + 0.1);
-        add(new THREE.Mesh(orient(beam(G, 0.16, 0.2, Z1 - Z0, 0.015), pm, V3(0, 0, 1), n.clone().negate()), mat.timberDark));
+        add(new THREE.Mesh(orient(beam(G, 0.16, 0.2, Z1 - Z0, 0.024), pm, V3(0, 0, 1), n.clone().negate()), mat.timberDark));
         // wall plate on the knee wall
         add(new THREE.Mesh(orient(beam(G, 0.16, 0.12, Z1 - Z0, 0.012), V3(s * (HALF - 0.08), KNEE - 0.06, (Z0 + Z1) / 2), V3(0, 0, 1), V3(0, 1, 0)), mat.timberDark));
       }
       // ridge beam
-      add(new THREE.Mesh(orient(beam(G, 0.12, 0.26, Z1 - Z0, 0.015), V3(0, RIDGE - 0.15, (Z0 + Z1) / 2), V3(0, 0, 1), V3(0, 1, 0)), mat.timberDark));
+      add(new THREE.Mesh(orient(beam(G, 0.12, 0.26, Z1 - Z0, 0.022), V3(0, RIDGE - 0.15, (Z0 + Z1) / 2), V3(0, 0, 1), V3(0, 1, 0)), mat.timberDark));
       // king-post trusses: principal rafters, collar, king post, struts
       for (const z of TRUSS_Z) {
         for (const s of [-1, 1]) {
           const u = sideU(s), n = sideN(s);
           const mid = V3(s * HALF / 2, KNEE + RISE / 2, z + 0.11).addScaledVector(n, RAFTER.d + 0.1);
-          add(new THREE.Mesh(orient(beam(G, 0.14, 0.2, SLOPE_LEN - 0.3, 0.018), mid, u, n.clone().negate()), mat.timberDark));
+          add(new THREE.Mesh(orient(beam(G, 0.14, 0.2, SLOPE_LEN - 0.3, 0.026), mid, u, n.clone().negate()), mat.timberDark));
           // strut from king post foot to principal
           const a = V3(0, COLLAR_Y + 0.1, z + 0.11), b = V3(s * 1.15, roofY(1.15) - 0.55, z + 0.11);
-          add(new THREE.Mesh(orient(beam(G, 0.1, 0.1, a.distanceTo(b), 0.012), a.clone().add(b).multiplyScalar(0.5), b.clone().sub(a), V3(0, 0, 1).cross(b.clone().sub(a)).normalize()), mat.timber));
+          add(new THREE.Mesh(orient(beam(G, 0.1, 0.1, a.distanceTo(b), 0.02), a.clone().add(b).multiplyScalar(0.5), b.clone().sub(a), V3(0, 0, 1).cross(b.clone().sub(a)).normalize()), mat.timber));
         }
         const cw = 2 * (HALF * (1 - (COLLAR_Y - KNEE) / RISE)) - 0.35;
-        add(new THREE.Mesh(orient(beam(G, 0.14, 0.22, cw, 0.018), V3(0, COLLAR_Y, z + 0.11), V3(1, 0, 0), V3(0, 1, 0)), mat.timberDark));
-        add(new THREE.Mesh(orient(beam(G, 0.14, 0.14, RIDGE - COLLAR_Y - 0.25, 0.015), V3(0, (RIDGE + COLLAR_Y) / 2 - 0.12, z + 0.11), V3(0, 1, 0), V3(0, 0, 1)), mat.timber));
-        // iron strap at the king-post joint
-        add(at(new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.05, 0.15), mat.iron), 0, COLLAR_Y + 0.08, z + 0.11));
+        add(new THREE.Mesh(orient(beam(G, 0.14, 0.22, cw, 0.026), V3(0, COLLAR_Y, z + 0.11), V3(1, 0, 0), V3(0, 1, 0)), mat.timberDark));
+        add(new THREE.Mesh(orient(beam(G, 0.14, 0.14, RIDGE - COLLAR_Y - 0.25, 0.024), V3(0, (RIDGE + COLLAR_Y) / 2 - 0.12, z + 0.11), V3(0, 1, 0), V3(0, 0, 1)), mat.timber));
+        // wrought-iron stirrup strap round the king-post foot, bolted through, and oak pegs through every mortice
+        {
+          const zc = z + 0.11;
+          const strapMat = mat.strapIron;
+          // U-strap: down one face of the post, under the collar, up the other face
+          for (const sz of [-1, 1]) add(at(new THREE.Mesh(bevelBox(G, 0.05, 0.42, 0.007, 0.002), strapMat), 0, COLLAR_Y + 0.08, zc + sz * 0.074));
+          add(at(new THREE.Mesh(bevelBox(G, 0.05, 0.007, 0.155, 0.002), strapMat), 0, COLLAR_Y - 0.114, zc));
+          for (const y of [COLLAR_Y + 0.0, COLLAR_Y + 0.2]) for (const sz of [-1, 1]) {
+            const bolt = add(new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.008, 6).rotateX(Math.PI / 2), strapMat)); bolt.position.set(0, y, zc + sz * 0.08);
+          }
+          // pegs: collar to principals, struts to post
+          for (const s2 of [-1, 1]) {
+            const px = s2 * (cw / 2 - 0.06);
+            for (const dy of [-0.04, 0.05]) { const pg = add(new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.012, 0.16, 10).rotateX(Math.PI / 2), mat.peg)); pg.position.set(px, COLLAR_Y + dy, zc); }
+            const pg2 = add(new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.011, 0.16, 10).rotateX(Math.PI / 2), mat.peg)); pg2.position.set(s2 * 0.0, COLLAR_Y + 0.32, zc); pg2.position.x = s2 * 0.035;
+          }
+          // ridge joint: a bolted fish-plate where the post meets the ridge beam
+          for (const sz of [-1, 1]) add(at(new THREE.Mesh(bevelBox(G, 0.1, 0.24, 0.008, 0.002), strapMat), 0, RIDGE - 0.32, zc + sz * 0.074));
+        }
       }
       // lighter collar ties between the trusses
       for (const z of zs) {
         if (TRUSS_Z.some((t) => Math.abs(t - z) < 0.5) || Math.round((z - Z0) / RAFTER.step) % 2 || z < Z0 + 0.6 || z > Z1 - 0.6) continue;
         const y = 3.05;
         const w = 2 * (HALF * (1 - (y - KNEE) / RISE)) - 0.25;
-        add(new THREE.Mesh(orient(beam(G, 0.06, 0.14, w, 0.01), V3(0, y, z + RAFTER.w / 2 + 0.03), V3(1, 0, 0), V3(0, 1, 0)), mat.timber));
+        add(new THREE.Mesh(orient(beam(G, 0.06, 0.14, w, 0.014), V3(0, y, z + RAFTER.w / 2 + 0.03), V3(1, 0, 0), V3(0, 1, 0)), mat.timber));
       }
       // knee walls: vertical boards
       for (const s of [-1, 1]) {
@@ -353,7 +376,7 @@ export default {
       pts.push(V2(X1, 0), V2(X1, KNEE), V2(0, RIDGE), V2(X0, KNEE));
       s.setFromPoints(pts);
       for (const h of holes) s.holes.push(h);
-      const g = new THREE.ShapeGeometry(s, 48);
+      const g = new THREE.ShapeGeometry(s, 128);
       if (front) g.rotateY(Math.PI);
       g.translate(0, 0, z);
       return add(new THREE.Mesh(g, matl));
@@ -367,17 +390,31 @@ export default {
       // black mask ring behind the walls: hides hairline triangulation cracks against the bright sky card
       const mask = add(new THREE.Mesh(new THREE.RingGeometry(OCULUS.r - 0.01, 1.85, 96, 1), new THREE.MeshBasicMaterial({ color: 0x000000, name: 'skyMask' })));
       mask.position.set(OCULUS.x, OCULUS.y, Z0 - WALL_T - 0.02); mask.userData.noShadow = true;
-      // stone surround of the oculus: moulded ring + keystones
-      const ringProf = [V2(OCULUS.r - 0.0, 0), V2(OCULUS.r + 0.02, 0.0), V2(OCULUS.r + 0.03, 0.04), V2(OCULUS.r + 0.09, 0.05), V2(OCULUS.r + 0.12, 0.03), V2(OCULUS.r + 0.16, 0.03), V2(OCULUS.r + 0.17, 0.0)];
-      const ring = new THREE.Mesh(new THREE.LatheGeometry(ringProf.map((p) => V2(p.x, p.y)), 72), mat.stone);
-      ring.rotation.x = Math.PI / 2; ring.position.set(OCULUS.x, OCULUS.y, Z0 + 0.0); add(ring);
-      // a continuous moulded stone ring proud of the brick (bolection roll + flat fillet), weathered
-      const roll = add(new THREE.Mesh(new THREE.TorusGeometry(OCULUS.r + 0.115, 0.045, 14, 120), mat.stone));
-      roll.position.set(OCULUS.x, OCULUS.y, Z0 + 0.035); roll.scale.z = 0.8;
-      const fillet = add(new THREE.Mesh(new THREE.TorusGeometry(OCULUS.r + 0.02, 0.022, 10, 120), mat.stone));
-      fillet.position.set(OCULUS.x, OCULUS.y, Z0 + 0.012);
+      // a bullseye arch of rubbed-brick voussoirs round the opening, each a tapered, chamfered wedge with its own tint,
+      // set proud of the wall face on a bed of lime mortar; a dressed stone keystone at the crown
+      {
+        const NV = 30, r0 = OCULUS.r + 0.004, r1 = OCULUS.r + 0.235, gapA = 0.0045;
+        const vMats = [[0.95, 0.6, 0.46], [0.82, 0.5, 0.4], [1.0, 0.7, 0.55]].map((c, i) => { const m2 = mat.stone.clone(); m2.color = new THREE.Color(...c); m2.name = `voussoir${i}`; return m2; });
+        for (let k = 0; k < NV; k++) {
+          const a0 = (k / NV) * Math.PI * 2 + gapA, a1 = ((k + 1) / NV) * Math.PI * 2 - gapA;
+          if (k === Math.round(NV / 4) - 1 || k === Math.round(NV / 4)) continue;   // crown: keystone goes here
+          const rr1 = r1 + (k % 3 === 0 ? 0.03 : 0) - (k % 2) * 0.012;
+          const sh = new THREE.Shape(); sh.moveTo(Math.cos(a0) * r0, Math.sin(a0) * r0); sh.lineTo(Math.cos(a0) * rr1, Math.sin(a0) * rr1); sh.lineTo(Math.cos(a1) * rr1, Math.sin(a1) * rr1); sh.lineTo(Math.cos(a1) * r0, Math.sin(a1) * r0); sh.lineTo(Math.cos(a0) * r0, Math.sin(a0) * r0);
+          const vg = new THREE.ExtrudeGeometry(sh, { depth: 0.07, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.005, bevelSegments: 2 });
+          const vm = add(new THREE.Mesh(G.applyBoxUVs(vg, 1 / 0.6), vMats[(k * 7) % 3]));
+          vm.position.set(OCULUS.x, OCULUS.y, Z0 - 0.06 + (k % 4) * 0.002);
+        }
+        // keystone: a dressed stone block projecting past the voussoirs
+        const ks = new THREE.Shape(); const ka = Math.PI / 2, kw0 = 0.09, kw1 = 0.075;
+        ks.moveTo(-kw1, r0); ks.lineTo(-kw0, r1 + 0.06); ks.lineTo(kw0, r1 + 0.06); ks.lineTo(kw1, r0); ks.lineTo(-kw1, r0);
+        const kg = new THREE.ExtrudeGeometry(ks, { depth: 0.09, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.008, bevelSegments: 3 });
+        const km = add(new THREE.Mesh(G.applyBoxUVs(kg, 1 / 0.8), mat.stone)); km.position.set(OCULUS.x, OCULUS.y, Z0 - 0.06); void ka;
+        // the mortar bed behind the arch
+        const mortarMat = new THREE.MeshStandardMaterial({ color: 0x5a544a, roughness: 0.95, name: 'archMortar' });
+        const mb = add(new THREE.Mesh(new THREE.RingGeometry(OCULUS.r - 0.005, r1 + 0.02, 120, 1), mortarMat)); mb.position.set(OCULUS.x, OCULUS.y, Z0 + 0.003);
+      }
       // projecting sill with a throated drip edge under the ring
-      const sy = OCULUS.y - OCULUS.r - 0.16;
+      const sy = OCULUS.y - OCULUS.r - 0.29;
       add(at(new THREE.Mesh(bevelBox(G, 0.82, 0.065, 0.2, 0.012), mat.stone), OCULUS.x, sy, Z0 + 0.08));
       add(at(new THREE.Mesh(bevelBox(G, 0.86, 0.025, 0.21, 0.006), mat.stone), OCULUS.x, sy + 0.045, Z0 + 0.085));
       add(at(new THREE.Mesh(bevelBox(G, 0.78, 0.02, 0.025, 0.004), mat.stone), OCULUS.x, sy - 0.04, Z0 + 0.165));
@@ -385,16 +422,26 @@ export default {
       const revMat = pbr(brickTex.withRepeat((Math.PI * 2 * OCULUS.r) / 1.8, WALL_T / 1.8), { name: 'brickReveal', side: THREE.BackSide, envMapIntensity: 0.2, color: 0x8a8080 });
       const rev = new THREE.Mesh(new THREE.CylinderGeometry(OCULUS.r, OCULUS.r, WALL_T, 64, 1, true), revMat);
       rev.rotation.x = Math.PI / 2; rev.position.set(OCULUS.x, OCULUS.y, Z0 - WALL_T / 2); add(rev);
-      // window frame: outer ring, inner ring, 8 spokes (iron), set back in the reveal
-      const wz = Z0 - WALL_T * 0.55;
-      const frameRing = (r, t) => { const m = new THREE.Mesh(new THREE.TorusGeometry(r, t, 8, 72), mat.blackEnamel); m.position.set(OCULUS.x, OCULUS.y, wz); m.castShadow = true; return add(m); };
-      frameRing(OCULUS.r - 0.02, 0.028); frameRing(0.2, 0.018); frameRing(0.42, 0.01);
+      // one cast-iron window, set a third of the way into the reveal: a flat-banded outer frame with a fillet,
+      // an inner ring and eight glazing bars of the same section (chamfered, so they catch a line of moon)
+      const wz = Z0 - WALL_T * 0.4;
+      const band = (rIn, rOut, d, ch) => {
+        const pr = [V2(rIn + ch, -d / 2), V2(rOut - ch, -d / 2), V2(rOut, -d / 2 + ch), V2(rOut, d / 2 - ch), V2(rOut - ch, d / 2), V2(rIn + ch, d / 2), V2(rIn, d / 2 - ch), V2(rIn, -d / 2 + ch), V2(rIn + ch, -d / 2)];
+        const m2 = new THREE.Mesh(new THREE.LatheGeometry(pr, 128), mat.castIron); m2.rotation.x = Math.PI / 2; m2.position.set(OCULUS.x, OCULUS.y, wz); m2.castShadow = true; return add(m2);
+      };
+      band(OCULUS.r - 0.055, OCULUS.r + 0.002, 0.05, 0.006);
+      band(OCULUS.r - 0.075, OCULUS.r - 0.05, 0.03, 0.004);   // glazing rebate fillet
+      band(0.185, 0.215, 0.034, 0.005);
       for (let k = 0; k < 8; k++) {
         const a = (k / 8) * Math.PI * 2 + Math.PI / 8;
-        const sp = add(new THREE.Mesh(new THREE.BoxGeometry(OCULUS.r - 0.22, 0.03, 0.035), mat.blackEnamel));
-        sp.position.set(OCULUS.x + Math.cos(a) * (0.2 + (OCULUS.r - 0.22) / 2), OCULUS.y + Math.sin(a) * (0.2 + (OCULUS.r - 0.22) / 2), wz);
+        const L = OCULUS.r - 0.07 - 0.2;
+        const sp = add(new THREE.Mesh(bevelBox(G, L, 0.024, 0.032, 0.005), mat.castIron));
+        sp.position.set(OCULUS.x + Math.cos(a) * (0.2 + L / 2), OCULUS.y + Math.sin(a) * (0.2 + L / 2), wz);
         sp.rotation.z = a;
       }
+      // a small iron catch and its hinge pin at the frame's foot (the window opens on a pivot)
+      add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.06, 12).rotateX(Math.PI / 2), mat.blackEnamel), OCULUS.x, OCULUS.y - OCULUS.r + 0.02, wz + 0.01));
+      add(at(new THREE.Mesh(bevelBox(G, 0.05, 0.016, 0.012, 0.003), mat.iron), OCULUS.x + 0.03, OCULUS.y - OCULUS.r + 0.07, wz + 0.03));
       // grimy glass with one broken pane, dirt banked against the frame, a cracked pane, rain runs
       const glassMat = M.create('glass', { dirt: 0.75, transparent: true, opacity: 0.14 });
       const shape = new THREE.Shape(); shape.absarc(0, 0, OCULUS.r - 0.02, 0, Math.PI * 2);
@@ -421,18 +468,35 @@ export default {
     moonDisc.position.set(-0.46, 2.99, Z0 - WALL_T * 0.55 - 0.5); moonDisc.lookAt(-0.5, 1.55, 0.0); moonDisc.userData.noShadow = true; moonDisc.renderOrder = -2;
     // a cold halo round it
     const haloTex = ctx.textures.canvas('attic:moonhalo', 256, 256, (g2, w, h) => { const rg = g2.createRadialGradient(w / 2, h / 2, w * 0.17, w / 2, h / 2, w / 2); rg.addColorStop(0, 'rgba(255,255,255,0.55)'); rg.addColorStop(0.3, 'rgba(255,255,255,0.14)'); rg.addColorStop(1, 'rgba(255,255,255,0)'); g2.fillStyle = rg; g2.fillRect(0, 0, w, h); }, { tile: false });
-    const halo = add(new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.0), new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: new THREE.Color(0.25, 0.3, 0.45), toneMapped: false, name: 'moonHalo' })));
+    const halo = add(new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: new THREE.Color(0.4, 0.46, 0.66), toneMapped: false, name: 'moonHalo' })));
     halo.position.copy(moonDisc.position).add(V3(0, 0, -0.02)); halo.quaternion.copy(moonDisc.quaternion); halo.userData.noShadow = true; halo.renderOrder = -3;
 
     // ---------------------------------------------------------------- the door, ajar on a glowing stair
     const doorPivot = dyn(new THREE.Group());
     {
       const W = DOOR.x1 - DOOR.x0;
-      // jambs + lintel (heavy oak), reveal sides
-      add(at(new THREE.Mesh(beam(G, 0.12, DOOR.h + 0.12, WALL_T + 0.04, 0.012), mat.timberDark), DOOR.x0 - 0.06, (DOOR.h + 0.12) / 2, Z0 - WALL_T / 2 + 0.02));
-      add(at(new THREE.Mesh(beam(G, 0.12, DOOR.h + 0.12, WALL_T + 0.04, 0.012), mat.timberDark), DOOR.x1 + 0.06, (DOOR.h + 0.12) / 2, Z0 - WALL_T / 2 + 0.02));
-      add(at(new THREE.Mesh(beam(G, W + 0.36, 0.16, WALL_T + 0.06, 0.014), mat.timberDark), (DOOR.x0 + DOOR.x1) / 2, DOOR.h + 0.08, Z0 - WALL_T / 2 + 0.03));
+      // linings + head (painted oak, flaking), filling the reveal; a moulded architrave on plinth blocks round the opening
+      const peel = peelingPaintTexture(ctx.textures);
+      mat.peel = pbr(peel.withRepeat(1 / 0.6, 1 / 0.6), { name: 'peelPaint', envMapIntensity: 0.3, metalness: 0 });
+      mat.peel.metalnessMap = null;
+      add(at(new THREE.Mesh(beam(G, 0.12, DOOR.h + 0.12, WALL_T + 0.005, 0.004), mat.peel), DOOR.x0 - 0.06, (DOOR.h + 0.12) / 2, Z0 - WALL_T / 2 + 0.0));
+      add(at(new THREE.Mesh(beam(G, 0.12, DOOR.h + 0.12, WALL_T + 0.005, 0.004), mat.peel), DOOR.x1 + 0.06, (DOOR.h + 0.12) / 2, Z0 - WALL_T / 2 + 0.0));
+      add(at(new THREE.Mesh(beam(G, W + 0.36, 0.16, WALL_T + 0.005, 0.004), mat.peel), (DOOR.x0 + DOOR.x1) / 2, DOOR.h + 0.08, Z0 - WALL_T / 2 + 0.0));
       add(at(new THREE.Mesh(bevelBox(G, W + 0.2, 0.04, WALL_T + 0.08, 0.008), mat.timberDark), (DOOR.x0 + DOOR.x1) / 2, 0.02, Z0 - WALL_T / 2 + 0.04));
+      {
+        // ogee-and-bead architrave profile: x = toward the opening, y = proud of the wall
+        const pr = [[-0.125, 0.0], [-0.125, 0.012], [-0.118, 0.016], [-0.11, 0.017], [-0.1, 0.022], [-0.088, 0.03], [-0.074, 0.034], [-0.062, 0.031], [-0.054, 0.025], [-0.046, 0.024], [-0.04, 0.028], [-0.034, 0.03], [-0.028, 0.027], [-0.022, 0.022], [-0.012, 0.02], [-0.004, 0.017], [0.0, 0.012], [0.0, 0.0]].map(([x, y]) => V2(x, y));
+        const PB = 0.24;   // plinth block height
+        const path = [V3(DOOR.x0, PB, Z0), V3(DOOR.x0, DOOR.h, Z0), V3(DOOR.x1, DOOR.h, Z0), V3(DOOR.x1, PB, Z0)];
+        const arch = add(new THREE.Mesh(G.sweepProfile(pr, path, { closed: false, up: V3(0, 0, 1), uvScale: 1 / 0.6 }), mat.peel)); arch.name = 'architrave';
+        for (const x of [DOOR.x0 - 0.0625, DOOR.x1 + 0.0625]) add(at(new THREE.Mesh(bevelBox(G, 0.14, PB, 0.04, 0.006), mat.peel), x, PB / 2, Z0 + 0.02));
+        // a carved head block over the opening: corner rosettes
+        for (const x of [DOOR.x0 - 0.0625, DOOR.x1 + 0.0625]) {
+          add(at(new THREE.Mesh(bevelBox(G, 0.135, 0.135, 0.036, 0.006), mat.peel), x, DOOR.h + 0.0625, Z0 + 0.018));
+          const ros = add(new THREE.Mesh(G.latheFromProfile([[0, 0.012], [0.02, 0.011], [0.03, 0.006], [0.042, 0.008], [0.046, 0.0]], 24), mat.peel));
+          ros.rotation.x = Math.PI / 2; ros.position.set(x, DOOR.h + 0.0625, Z0 + 0.036 + 0.012);
+        }
+      }
       // leaf: ledged and braced planks, strap hinges, ring handle
       const leaf = new THREE.Group();
       const lw = W - 0.02, lh = DOOR.h - 0.03;
@@ -455,12 +519,40 @@ export default {
       add(new THREE.Mesh(quad(V3(cx - pw / 2, 0, PZ), V3(cx - pw / 2, 0, PZ - PL), V3(cx - pw / 2, 3, PZ - PL), V3(cx - pw / 2, 3, PZ)), mat.brickDark));
       add(new THREE.Mesh(quad(V3(cx + pw / 2, 0, PZ - PL), V3(cx + pw / 2, 0, PZ), V3(cx + pw / 2, 3, PZ), V3(cx + pw / 2, 3, PZ - PL)), mat.brickDark));
       add(new THREE.Mesh(quad(V3(cx - pw / 2, 3.0, PZ), V3(cx - pw / 2, 3.0, PZ - PL), V3(cx + pw / 2, 3.0, PZ - PL), V3(cx + pw / 2, 3.0, PZ)), mat.brickDark));
-      // a short landing inside the door, then the stair climbing away into the glow
+      // a short landing inside the door, then the stair climbing away into the glow: treads with bullnose nosings,
+      // a polished, darkened path worn up the middle, grit and plaster crumbs in the corners
       const LAND = 0.42;
-      add(at(new THREE.Mesh(bevelBox(G, pw, 0.03, LAND + 0.02, 0.005), mat.benchFrame), cx, -0.012, PZ - LAND / 2 + 0.01));
+      const treadMat = M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 0, polish: 0.2, wear: 1.0, repeat: [1.4, 1.4], color: [0.42, 0.31, 0.22] });
+      const wearMat = new THREE.MeshStandardMaterial({ color: 0x1a0f08, alphaMap: treadWearTexture(ctx.textures), transparent: true, opacity: 0.55, roughness: 0.38, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4, name: 'treadWear' });
+      const tread = (y, zc, depth) => {
+        add(at(new THREE.Mesh(bevelBox(G, pw, 0.028, depth, 0.004), treadMat), cx, y - 0.014, zc));
+        const nose = add(new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, pw, 16).rotateZ(Math.PI / 2), treadMat)); nose.position.set(cx, y - 0.014, zc + depth / 2);
+        const wr = add(new THREE.Mesh(new THREE.PlaneGeometry(pw * 0.85, depth * 0.9).rotateX(-Math.PI / 2), wearMat)); wr.position.set(cx, y + 0.0008, zc + 0.01); wr.userData.noShadow = true;
+      };
+      tread(0.0, PZ - LAND / 2 + 0.01, LAND + 0.02);
       for (let i = 0; i < 8; i++) {
-        add(at(new THREE.Mesh(bevelBox(G, pw, 0.03, 0.3, 0.005), mat.benchFrame), cx, 0.18 * (i + 1), PZ - LAND - 0.15 - i * 0.26));
-        add(at(new THREE.Mesh(new THREE.BoxGeometry(pw, 0.18, 0.02), mat.timberDark), cx, 0.18 * i + 0.09, PZ - LAND - i * 0.26));
+        tread(0.18 * (i + 1), PZ - LAND - 0.15 - i * 0.26, 0.3);
+        add(at(new THREE.Mesh(new THREE.BoxGeometry(pw, 0.18, 0.02), mat.timberDark), cx, 0.18 * i + 0.09, PZ - LAND - i * 0.26 - 0.004));
+      }
+      // grit and crumbs of fallen plaster gathered against the risers, a dropped candle stub on the third step
+      {
+        let sd = 31; const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+        const crumbG = new THREE.IcosahedronGeometry(0.008, 0);
+        const crumbMat = new THREE.MeshStandardMaterial({ color: 0x6a6258, roughness: 0.95, name: 'crumbs' });
+        const crumbs = new THREE.InstancedMesh(crumbG, crumbMat, 90);
+        const mm = new THREE.Matrix4(), qq = new THREE.Quaternion(), e = new THREE.Euler();
+        for (let i = 0; i < 90; i++) {
+          const step = Math.floor(rnd() * 5);
+          const y = step === 0 ? 0.004 : 0.18 * step + 0.004;
+          const zEdge = step === 0 ? PZ - LAND + 0.02 : PZ - LAND - 0.15 - (step - 1) * 0.26 - 0.13;
+          const side = rnd() < 0.5 ? -1 : 1;
+          e.set(rnd() * 3, rnd() * 3, rnd() * 3); qq.setFromEuler(e);
+          const sc = 0.4 + rnd() * 1.3;
+          mm.compose(V3(cx + side * (pw / 2 - 0.02 - rnd() * rnd() * 0.25), y, zEdge + rnd() * 0.08), qq, V3(sc, sc * 0.6, sc));
+          crumbs.setMatrixAt(i, mm);
+        }
+        add(crumbs);
+        const stubC = add(new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.012, 0.05, 14).rotateZ(Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: 0xd8ccb0, roughness: 0.6, sheen: 0.3, name: 'waxStub' }))); stubC.position.set(cx + 0.16, 0.18 * 2 + 0.012, PZ - LAND - 0.15 - 0.26 + 0.05); stubC.rotation.y = 0.5;
       }
       const hell = new THREE.MeshBasicMaterial({ map: hellGlowTexture(ctx.textures).map, color: new THREE.Color(1, 1, 1).multiplyScalar(3.4), toneMapped: false, name: 'hellglow' });
       const hg = add(new THREE.Mesh(new THREE.PlaneGeometry(pw, 3.2), hell)); hg.position.set(cx, 1.5, PZ - PL + 0.02); hg.userData.noShadow = true;
@@ -616,8 +708,11 @@ export default {
     table.position.copy(TABLE); add(table);
     {
       // the microscope stands behind the specimen dish and leans its objective out over it
-      const scope = buildMicroscopeVictorian(ctx, mat, { reach: 0.25, objY: 0.215 });
-      scope.position.set(PLATE.x + 0.06, TABLE_H, PLATE.z - 0.34); scope.rotation.y = -0.18; add(dyn(scope));
+      // the great microscope stands just behind the dish and leans its objective out over the centre of the plate
+      const scope = buildMicroscopeGreat(ctx, mat, { reach: 0.3, objY: 0.155, tilt: 0.42 });
+      const sa = -0.85;
+      scope.position.set(PLATE.x - Math.sin(sa) * 0.3, TABLE_H, PLATE.z - Math.cos(sa) * 0.3); scope.rotation.y = sa; add(dyn(scope));
+      void buildMicroscopeVictorian;
       SCOPE.obj = scope;
       const gw = buildGlassware(ctx, mat); gw.position.set(TABLE.x - 0.52, TABLE_H, TABLE.z - 0.24); gw.rotation.y = 0.3; add(gw);
       const bj = buildBellJar(ctx, mat); bj.position.set(TABLE.x + 0.55, TABLE_H, TABLE.z + 0.22); add(bj);
@@ -683,7 +778,7 @@ export default {
       const horse = dyn(buildRockingHorse(ctx, mat)); horse.position.set(-2.55, 0, -2.25); horse.rotation.y = -0.65; add(horse);
       horse.userData.keep = true;
       root.userData.horse = horse;
-      const dummy = buildDressForm(ctx, mat); dummy.position.set(2.95, 0, -0.35); dummy.rotation.y = -0.9; add(dummy);
+      const dummy = buildDressForm(ctx, mat); dummy.position.set(2.45, 0, 0.15); dummy.rotation.y = -0.9; add(dummy);
       const cage = buildBirdCage(ctx, mat); cage.position.set(-3.05, 0.44 + 0.12, -0.5); add(cage);
       // dust-sheeted furniture: an armchair and a tall mirror/wardrobe
       const chairTop = (x, z) => { const back = THREE.MathUtils.smoothstep(-z, 0.05, 0.3); const arms = THREE.MathUtils.smoothstep(Math.abs(x), 0.25, 0.36); return 0.45 + back * 0.5 + arms * 0.18 * (1 - back) + Math.sin(x * 9) * 0.01; };
@@ -696,12 +791,12 @@ export default {
         for (const sx of [-1, 1]) for (const sz of [-1, 1]) grp.add(at(new THREE.Mesh(legGeo, mat.labFrame), sx * (opts.hw - legInset), 0, sz * (opts.hd - legInset)));
         grp.position.set(...pos); grp.rotation.y = rotY; return add(grp);
       };
-      sheeted({ hw: 0.42, hd: 0.42, topH: chairTop, seed: 2, seg: 90, hem: 0.17 }, turnedLeg, 0.06, [2.85, 0, 2.8], -Math.PI / 2 - 0.4);
+      sheeted({ hw: 0.42, hd: 0.42, topH: chairTop, seed: 2, seg: 110, hem: 0.17, foldAmp: 1.8 }, turnedLeg, 0.06, [2.85, 0, 2.8], -Math.PI / 2 - 0.4);
       // a wardrobe with a cornice: crisp top edge, the sheet hanging straight, bun feet
       const wardTop = (x, z) => 1.86 + 0.04 * THREE.MathUtils.smoothstep(Math.max(Math.abs(x) / 0.42, Math.abs(z) / 0.24), 0.85, 1.0) + Math.sin(x * 9 + z * 5) * 0.006;
-      sheeted({ hw: 0.42, hd: 0.24, topH: wardTop, seed: 5, seg: 96, flare: 0.03, hem: 0.08 }, bunFoot, 0.05, [2.75, 0, -3.45], -Math.PI / 2 + 0.2);
+      sheeted({ hw: 0.42, hd: 0.24, topH: wardTop, seed: 5, seg: 120, flare: 0.07, hem: 0.08, foldAmp: 2.4 }, bunFoot, 0.05, [2.75, 0, -3.45], -Math.PI / 2 + 0.2);
       const sofaTop = (x, z) => 0.42 + THREE.MathUtils.smoothstep(-z, 0.1, 0.35) * 0.35 + THREE.MathUtils.smoothstep(Math.abs(x), 0.75, 0.9) * 0.15;
-      sheeted({ hw: 0.95, hd: 0.4, topH: sofaTop, seed: 9, seg: 110, hem: 0.15 }, turnedLeg, 0.07, [-3.0, 0, 1.9], Math.PI / 2);
+      sheeted({ hw: 0.95, hd: 0.4, topH: sofaTop, seed: 9, seg: 130, hem: 0.15, foldAmp: 1.8 }, turnedLeg, 0.07, [-3.0, 0, 1.9], Math.PI / 2);
       // crates
       const c1 = buildCrate(ctx, mat, { w: 0.6, h: 0.45, d: 0.5, seed: 0 }); c1.position.set(-3.1, 0, -3.6); c1.rotation.y = 0.2; add(c1);
       const c2 = buildCrate(ctx, mat, { w: 0.5, h: 0.38, d: 0.42, seed: 1 }); c2.position.set(-3.05, 0.465, -3.55); c2.rotation.y = -0.15; add(c2);
@@ -717,8 +812,64 @@ export default {
       // coil of rope and a hat box
       add(at(new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.035, 8, 28).rotateX(Math.PI / 2), mat.rope), 2.6, 0.035, 0.75));
       add(at(new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.034, 8, 28).rotateX(Math.PI / 2), mat.rope), 2.62, 0.1, 0.74));
-      const hb = add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.22, 32), mat.toyGreen), 3.15, 0.11, 0.6)); void hb;
-      add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.05, 32), mat.toyGreen), 3.15, 0.235, 0.6));
+      // ---- round 3: the eaves are packed. Hat boxes, cases, rolled carpets, bundled books, a gramophone,
+      // a crate of soldiers, a broken chair, more frames and more dust sheets, filling the low triangles both sides
+      const paper = (key, a, b, stripe) => new THREE.MeshStandardMaterial({ roughness: 0.85, name: key, map: ctx.textures.canvas(`attic:${key}`, 512, 128, (g2, w, h) => {
+        g2.fillStyle = a; g2.fillRect(0, 0, w, h);
+        g2.fillStyle = b; for (let x = 0; x < w; x += stripe * 2) g2.fillRect(x, 0, stripe, h);
+        let sd = key.length * 7; const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+        for (let i = 0; i < 300; i++) { g2.fillStyle = `rgba(30,22,14,${rnd() * 0.12})`; g2.fillRect(rnd() * w, rnd() * h, 2 + rnd() * 30, 1 + rnd() * 6); }
+        const gr = g2.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(60,50,40,0.35)'); gr.addColorStop(0.3, 'rgba(0,0,0,0)'); gr.addColorStop(0.8, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(40,30,20,0.4)'); g2.fillStyle = gr; g2.fillRect(0, 0, w, h);
+      }) });
+      const papers = [paper('hbStripe', '#6a5a46', '#3e2e22', 18), paper('hbRose', '#5a2e2a', '#7a4a3a', 6), paper('hbGreen', '#2e3a2a', '#4a5638', 24), paper('hbCream', '#9a8a6a', '#8a7454', 10)];
+      const hatBox = (x, y, z, r, h, k, ry = 0, open = 0) => { const o = buildHatBox(ctx, mat, papers[k % 4], { r, h, lidOpen: open }); o.position.set(x, y, z); o.rotation.y = ry; return add(o); };
+      hatBox(3.15, 0, 0.6, 0.2, 0.22, 2);
+      hatBox(3.13, 0.25, 0.62, 0.16, 0.18, 1, 0.6);
+      hatBox(-3.1, 0, -1.5, 0.22, 0.24, 0, 0.3); hatBox(-3.08, 0.27, -1.45, 0.17, 0.17, 3, 1.1, 0.4);
+      hatBox(3.3, 0, -4.75, 0.18, 0.2, 1);
+      hatBox(-1.3, 0, 4.2, 0.19, 0.22, 3, 0.4);
+      // suitcases stacked against the knee walls
+      const cases = [[-3.25, 0, -2.95, 0.66, 0.2, 0.42, 1.5], [-3.25, 0.2, -2.98, 0.58, 0.18, 0.38, 1.62], [-3.24, 0.38, -2.95, 0.5, 0.16, 0.34, 1.45],
+        [3.25, 0, -1.65, 0.6, 0.22, 0.4, -1.5], [3.28, 0.22, -1.62, 0.52, 0.17, 0.36, -1.62],
+        [3.2, 0, 1.55, 0.7, 0.24, 0.44, -1.4], [3.22, 0.24, 1.5, 0.6, 0.2, 0.4, -1.65], [-3.25, 0, 4.15, 0.62, 0.2, 0.4, 1.55], [-3.27, 0.2, 4.12, 0.5, 0.17, 0.34, 1.7]];
+      const caseMats = [mat.trunk, mat.bookLeather, mat.leatherStrap];
+      cases.forEach(([x, y, z, w, h, d, ry], i) => { const c = buildSuitcase(ctx, mat, { w, h, d, body: caseMats[i % 3] }); c.position.set(x, y, z); c.rotation.y = ry; add(c); });
+      // rolled carpets: two lying under the left eave, one propped up against the right knee wall
+      const rugRoll = M.create('rug', { palette: 'faded', aspect: 3, knots: 200, wear: 0.9, fringe: 0, seed: 12, size: 512, color: [0.5, 0.45, 0.45] });
+      const rr1 = buildRolledRug(ctx, mat, rugRoll, { len: 1.7, r: 0.1 }); rr1.position.set(-3.52, 0.1, -0.95); rr1.rotation.y = Math.PI / 2 + 0.05; add(rr1);
+      const rr2 = buildRolledRug(ctx, mat, rugRoll, { len: 1.4, r: 0.085 }); rr2.position.set(-3.53, 0.285, -1.0); rr2.rotation.y = Math.PI / 2 - 0.04; add(rr2);
+      const rr3 = buildRolledRug(ctx, mat, rugRoll, { len: 1.5, r: 0.12 }); rr3.position.set(3.45, 0.72, 0.15); rr3.rotation.set(0, 0, 1.25); add(rr3);
+      // book bundles
+      [[-2.6, 0, -0.1, 1, 0.3], [2.75, 0, -0.95, 2, 1.2], [1.25, 0, 1.75, 3, 0.4], [-2.6, 0, -3.3, 4, 0.1], [3.0, 0.44, -4.12, 5, 0.6], [-1.1, 0, 2.3, 6, -0.4]].forEach(([x, y, z, sd, ry]) => { const b = buildBookBundle(ctx, mat, { n: 4 + (sd % 3), seed: sd }); b.position.set(x, y, z); b.rotation.y = ry; add(b); });
+      // gramophone on the crate by the right knee wall
+      const gram = buildGramophone(ctx, mat); gram.position.set(3.0, 0.5 + 0.018, 3.4); gram.rotation.y = -2.2; add(gram);
+      // an open crate of tin soldiers in the foreground, straw spilling
+      { const oc = buildCrate(ctx, mat, { w: 0.5, h: 0.3, d: 0.38, seed: 4 }); oc.position.set(1.75, 0, 1.1); oc.rotation.y = 0.35; oc.children.filter((c) => c.position.y > 0.29).forEach((c, i) => { if (i < 4) { c.visible = false; } }); add(oc);
+        const sol = buildSoldiers(ctx, mat, 9, 5); sol.position.set(1.66, 0.2, 1.02); sol.rotation.y = 0.35; add(sol);
+        for (let i = 0; i < 26; i++) { const st = add(new THREE.Mesh(new THREE.CylinderGeometry(0.0015, 0.0015, 0.1 + (i % 4) * 0.03, 3), mat.straw)); st.position.set(1.75 + Math.sin(i * 2.3) * 0.3, 0.004 + (i % 3) * 0.003, 1.1 + Math.cos(i * 1.7) * 0.28); st.rotation.set(Math.PI / 2, 0, i * 0.9); }
+        // a lid propped against it
+        const lid = add(new THREE.Mesh(bevelBox(G, 0.5, 0.38, 0.018, 0.003), mat.crate)); lid.position.set(1.95, 0.19, 1.36); lid.rotation.set(-0.25, 0.35, 0.05); }
+      // foreground, inside the hero frame: a rolled carpet left lying across the boards, a crate of puzzle boxes, a fallen frame
+      { const rr4 = buildRolledRug(ctx, mat, rugRoll, { len: 1.3, r: 0.09 }); rr4.position.set(1.95, 0.09, -0.35); rr4.rotation.y = 0.5; add(rr4);
+        const pc = buildCrate(ctx, mat, { w: 0.46, h: 0.32, d: 0.36, seed: 8 }); pc.position.set(-1.45, 0, -0.25); pc.rotation.y = -0.3; add(pc);
+        for (let i = 0; i < 4; i++) { const pbx = buildPuzzleBox(ctx, mat, 0.08 + (i % 2) * 0.02); pbx.position.set(-1.52 + (i % 2) * 0.12, 0.338 + Math.floor(i / 2) * 0.06, -0.28 + (i % 3) * 0.05); pbx.rotation.y = i * 0.7; add(pbx); }
+        const bb = buildBookBundle(ctx, mat, { n: 6, seed: 9 }); bb.position.set(-1.0, 0, -0.05); bb.rotation.y = 0.9; add(bb); }
+      // a broken chair tipped on its back under the left eave, one leg snapped off beside it
+      { const bc = buildChair(ctx, mat); bc.position.set(-3.0, 0.22, 3.35); bc.rotation.set(-1.45, 0.6, 0.0); add(bc);
+        const leg = add(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.016, 0], [0.02, 0.1], [0.016, 0.2], [0.012, 0.25], [0, 0.25]], 10), mat.benchFrame)); leg.position.set(-2.85, 0.018, 3.85); leg.rotation.set(0, 0, Math.PI / 2 - 0.05); }
+      // more frames: a gilt one leaning by itself, a stack under the left eave
+      { const fs2 = buildFrameStack(ctx, mat); fs2.position.set(-3.45, 0, -2.2); fs2.rotation.y = Math.PI / 2; add(fs2); }
+      // stacked crates in the front-left corner under the eave
+      { const c6 = buildCrate(ctx, mat, { w: 0.45, h: 0.34, d: 0.4, seed: 6 }); c6.position.set(3.15, 0, 4.15); c6.rotation.y = -0.2; add(c6);
+      }
+      // a second bird cage hanging from a purlin hook on the right, an empty one
+      { const cg2 = buildBirdCage(ctx, mat); cg2.position.set(2.15, 1.65, -2.9); cg2.rotation.y = 0.4; add(cg2);
+        add(strandLine(V3(2.15, 1.65 + 0.48, -2.9), V3(1.95, roofY(1.95) - 0.25, -2.9))); }
+      // two more dust-sheeted pieces with heavy corner folds: a chest of drawers (right) and a pile of chairs (left)
+      const chestTop = (x, z) => 0.95 + 0.012 * THREE.MathUtils.smoothstep(Math.max(Math.abs(x) / 0.5, Math.abs(z) / 0.26), 0.9, 1.0) + Math.sin(x * 11 + z * 7) * 0.005;
+      sheeted({ hw: 0.5, hd: 0.26, topH: chestTop, seed: 13, seg: 110, flare: 0.07, hem: 0.1, foldAmp: 2.2 }, bunFoot, 0.06, [3.15, 0, -0.2], -Math.PI / 2 + 0.1);
+      const pileTop = (x, z) => 0.5 + 0.55 * Math.exp(-((x + 0.1) ** 2) / 0.05 - ((z - 0.05) ** 2) / 0.06) + 0.3 * Math.exp(-((x - 0.2) ** 2) / 0.04 - ((z + 0.1) ** 2) / 0.03) + 0.04 * Math.sin(x * 13 + z * 9);
+      sheeted({ hw: 0.4, hd: 0.35, topH: pileTop, seed: 21, seg: 110, flare: 0.08, hem: 0.12, foldAmp: 2.6 }, turnedLeg, 0.06, [-3.15, 0, -4.6], 0.3);
     }
 
     // ================================================================ cobwebs
@@ -729,13 +880,28 @@ export default {
       // corner webs clustered where timbers meet, single catenary strands, loose ends in the beam
       const beamSpec = { origin: ocC, dir: moonDir, radius: OCULUS.r * 0.95 };
       const webTex = [1, 2, 3, 4].map((k) => cornerWebTexture(ctx.textures, k));
-      const wm = webTex.map((t) => webMaterial({ map: t, beam: beamSpec, beamK, opacity: 0.35 }));
-      const doorWeb = webMaterial({ map: webTex[2], beam: beamSpec, beamK, opacity: 0.4, warm: { pos: V3((DOOR.x0 + DOOR.x1) / 2, 1.3, Z0 - WALL_T - 0.8), radius: 1.6, color: new THREE.Color(1.0, 0.35, 0.12).multiplyScalar(0.55) } });
-      const strandMat = webMaterial({ beam: beamSpec, beamK, opacity: 0.22 });
+      const lampW = { pos: V3(LAMP_X, LAMP_Y, LAMP_Z), radius: 1.5, color: new THREE.Color(1.0, 0.62, 0.3).multiplyScalar(0.5) };
+      const wm = webTex.map((t) => webMaterial({ map: t, beam: beamSpec, beamK, opacity: 0.55, lamp: lampW, time: ctx.time, base: 0x464c5a }));
+      const doorWeb = webMaterial({ map: webTex[2], beam: beamSpec, beamK, opacity: 0.45, time: ctx.time, warm: { pos: V3((DOOR.x0 + DOOR.x1) / 2, 1.3, Z0 - WALL_T - 0.8), radius: 1.6, color: new THREE.Color(1.0, 0.35, 0.12).multiplyScalar(0.55) } });
+      const strandMat = webMaterial({ beam: beamSpec, beamK, opacity: 0.26, lamp: lampW, time: ctx.time });
+      const hamTex = [3, 7].map((k) => hammockWebTexture(ctx.textures, k));
+      const hm = hamTex.map((t) => webMaterial({ map: t, beam: beamSpec, beamK, opacity: 0.6, lamp: lampW, time: ctx.time, base: 0x4a505e }));
       const cs = Math.cos(SLOPE), sn = Math.sin(SLOPE);
-      // under the collar of each truss, in the angle with the principal rafter
+      // old sheet webs sagging in the angle under the collar of each truss and its principal rafter
       for (const z of TRUSS_Z) for (const s2 of [-1, 1]) {
-        add(cornerWeb(V3(s2 * 1.58, COLLAR_Y - 0.11, z + 0.11), V3(-s2 * 0.62, 0, 0), V3(s2 * cs * 0.55, -sn * 0.55, 0), wm[(z > 0 ? 1 : 0) + (s2 > 0 ? 2 : 0)]));
+        add(sheetWeb(V3(s2 * 1.6, COLLAR_Y - 0.11, z + 0.11), V3(-s2 * 0.7, 0, 0), V3(s2 * cs * 0.62, -sn * 0.62, 0), 0.16, wm[(z > 0 ? 1 : 0) + (s2 > 0 ? 2 : 0)], { down: V3(0, -0.6, z > 0 ? -0.8 : 0.8).normalize() }));
+      }
+      // hammocks of silk slung between neighbouring common rafters on both slopes, drooping into the room
+      const rafterUnder = (s2, x, z) => V3(x, roofY(x), z).addScaledVector(sideN(s2), RAFTER.d + 0.005);
+      const hams = [[-1, -2.75, -1.9, -0.88, 0.24], [-1, -1.6, -0.95, -3.28, 0.18], [1, 1.9, 2.75, -2.68, 0.22], [1, 1.05, 1.7, 0.32, 0.2], [-1, -2.9, -2.2, 1.52, 0.16], [1, 2.3, 3.0, -4.48, 0.2], [-1, -1.3, -0.7, -4.48, 0.12]];
+      hams.forEach(([s2, xa, xb, z, sag], i) => {
+        const za = z + RAFTER.w / 2, zb = z + RAFTER.step - RAFTER.w / 2;
+        add(hammockWeb(rafterUnder(s2, xa, za), rafterUnder(s2, xb, za), V3(0, 0, zb - za), sag, hm[i % 2]));
+      });
+      // a great sheet under the gable collar tie, strung back to the brickwork: right in the moonbeam
+      {
+        const cy2 = 3.08 - 0.07, cz2 = Z0 + 0.72;
+        add(hammockWeb(V3(-1.1, cy2, cz2 - 0.03), V3(-0.3, cy2, cz2 - 0.03), V3(0, 0.02, Z0 + 0.015 - (cz2 - 0.03)), 0.26, hm[0]));
       }
       // above the rear collar, in the angle with the king post
       add(cornerWeb(V3(0.075, COLLAR_Y + 0.11, TRUSS_Z[0] + 0.11), V3(0.6, 0, 0), V3(0, 0.55, 0), wm[1]));
@@ -786,16 +952,16 @@ export default {
     root.add(new THREE.HemisphereLight(0x34446e, 0x3e3c4c, 0.85));
     // moon bounce washing up the near (west) slope by the stairs, so the rafters there are not a black void
     const westFill = new THREE.PointLight(0x5a6aa8, 1.2, 4.2, 2); westFill.position.set(-1.5, 2.2, 0.2); root.add(westFill);
-    root.add(fx.areaLight({ center: [OCULUS.x, OCULUS.y, Z0 - 0.05], normal: [0, -0.25, 1], width: 1.0, height: 1.0, color: 0x8ea6ff, intensity: 10 }));
+    root.add(fx.areaLight({ center: [OCULUS.x, OCULUS.y, Z0 - 0.05], normal: [0, -0.25, 1], width: 1.0, height: 1.0, color: 0x8ea6ff, intensity: 4 }));
     // the oil lamp over the microscope table: a shadowed downlight + soft omni
-    const lampSpot = new THREE.SpotLight(0xffae5a, 20, 7, 1.15, 0.75, 2);
+    const lampSpot = new THREE.SpotLight(0xffae5a, 20, 7, 1.15, 0.92, 2);
     lampSpot.position.set(LAMP_X, LAMP_Y, LAMP_Z); lampSpot.target.position.set(LAMP_X, 0, LAMP_Z + 0.05);
     lampSpot.castShadow = Q.shadows;
     lampSpot.shadow.mapSize.set(1024, 1024); lampSpot.shadow.bias = -0.0012; lampSpot.shadow.normalBias = 0.02; lampSpot.shadow.radius = 5;
     lampSpot.shadow.camera.near = 0.1; lampSpot.shadow.camera.far = 5;
     root.add(lampSpot, lampSpot.target);
     // the lamp's omni carves the back of the attic out of the dark (shadowed: the chain, collar and rafters print on the roof)
-    const lampGlow = new THREE.PointLight(0xffa050, 4.2, 5.5, 2); lampGlow.position.set(LAMP_X, LAMP_Y + 0.05, LAMP_Z);
+    const lampGlow = new THREE.PointLight(0xffa050, 2.6, 5.5, 2); lampGlow.position.set(LAMP_X, LAMP_Y + 0.05, LAMP_Z);
     lampGlow.castShadow = Q.shadows; lampGlow.shadow.mapSize.set(512, 512); lampGlow.shadow.bias = -0.002; lampGlow.shadow.normalBias = 0.03; lampGlow.shadow.radius = 4; lampGlow.shadow.camera.near = 0.12; lampGlow.shadow.camera.far = 6;
     root.add(lampGlow);
     // workbench candles
@@ -803,14 +969,26 @@ export default {
     // the furnace light from the stair beyond the door: a shadowed spot through the gap + red fill
     const doorCX = (DOOR.x0 + DOOR.x1) / 2;
     // set back up the stair so the figure on the landing throws his shadow out across the attic floor
-    const hellSpot = new THREE.SpotLight(0xff5a24, 95, 14, 0.34, 0.6, 2);
-    hellSpot.position.set(doorCX + 0.08, 1.7, Z0 - WALL_T - 1.45); hellSpot.target.position.set(doorCX - 0.4, 0.0, Z0 + 1.7);
+    const hellSpot = new THREE.SpotLight(0xff5a24, 55, 9, 0.3, 0.92, 2);
+    hellSpot.position.set(doorCX + 0.08, 1.75, Z0 - WALL_T - 1.45); hellSpot.target.position.set(doorCX - 0.3, 0.0, Z0 + 1.25);
+    // a soft cookie: the pool on the boards is a feathered doorway trapezoid that dies out before the rug
+    hellSpot.map = ctx.textures.canvas('attic:hellcookie', 256, 256, (g2, w, h) => {
+      g2.fillStyle = '#000'; g2.fillRect(0, 0, w, h);
+      const rg = g2.createRadialGradient(w * 0.5, h * 0.55, w * 0.05, w * 0.5, h * 0.5, w * 0.5);
+      rg.addColorStop(0, 'rgba(255,240,230,1)'); rg.addColorStop(0.55, 'rgba(200,180,170,0.75)'); rg.addColorStop(1, 'rgba(0,0,0,1)');
+      g2.fillStyle = rg; g2.filter = 'blur(6px)'; g2.fillRect(0, 0, w, h);
+    }, { tile: false });
     ghostMat.uniforms.uLightPos.value.set(doorCX, 1.35, Z0 - WALL_T - 2.0);
     hellSpot.castShadow = Q.shadows;
     hellSpot.shadow.mapSize.set(1024, 1024); hellSpot.shadow.bias = -0.002; hellSpot.shadow.normalBias = 0.06; hellSpot.shadow.radius = 4;
     hellSpot.shadow.camera.near = 0.3; hellSpot.shadow.camera.far = 12;
     root.add(hellSpot, hellSpot.target);
+    // the climax keeps a cold rim on the specimen plate so the blue/green fight still reads under the furnace light
+    const plateRim = new THREE.SpotLight(0x9ab0ff, 0, 4, 0.32, 0.8, 2);
+    plateRim.position.set(PLATE.x - 0.9, PLATE.y + 1.6, PLATE.z - 0.6); plateRim.target.position.copy(PLATE);
+    root.add(plateRim, plateRim.target);
     const passage = new THREE.PointLight(0xff4a18, 14, 3.0, 2); passage.position.set(doorCX, 1.5, Z0 - WALL_T - 1.9); root.add(passage);
+    const leafFill = new THREE.PointLight(0xff6a30, 1.4, 2.2, 2); leafFill.position.set(DOOR.x1 + 0.15, 1.1, Z0 + 0.55); root.add(leafFill);
     const doorSpill = fx.areaLight({ center: [doorCX - 0.2, 0.95, Z0 + 0.02], normal: [0, 0, 1], width: 0.4, height: 1.8, color: 0xff5020, intensity: 0.9 }); root.add(doorSpill);
     // flicker
     const base = { lampSpot: lampSpot.intensity, lampGlow: lampGlow.intensity, candle: candleLight.intensity, hell: hellSpot.intensity, passage: passage.intensity };
@@ -827,7 +1005,8 @@ export default {
     let hellBoost = 1, climaxK = 0;
 
     // ================================================================ broken slates: slivers of moon through the roof
-    const holes = [{ s: -1, x: -1.9, z: -2.0, w: 0.42, h: 0.6 }, { s: 1, x: 1.35, z: -3.45, w: 0.38, h: 0.52 }];
+    // two slipped slates: their slivers of moon land on the rocking horse (left) and the open trunk of letters (right)
+    const holes = [{ s: -1, x: -2.75, z: -4.5, w: 0.36, h: 0.5 }, { s: 1, x: 2.35, z: -4.7, w: 0.34, h: 0.46 }];
     const holeTex = ctx.textures.canvas('attic:roofhole', 256, 256, (g2, w, h) => {
       g2.clearRect(0, 0, w, h);
       g2.fillStyle = '#fff';
@@ -862,8 +1041,15 @@ export default {
       for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; ln.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.2, 0.008), mat.tin), Math.cos(a) * 0.058, 0.12, Math.sin(a) * 0.058)); }
       const lg = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.058, 0.19, 6, 1, true), mat.chimney); lg.position.y = 0.12; lg.userData.noShadow = true; ln.add(lg);
       const cnd = fx.candle({ height: 0.07, radius: 0.016, light: false, seed: 31 }); cnd.position.y = 0.025; ln.add(cnd);
-      ln.position.set(-3.08, 0.36 + 0.13, 0.45); add(ln);
-      const ll = new THREE.PointLight(0xff9448, 4.5, 4, 2); ll.position.set(-3.0, 0.62, 0.45); root.add(ll);
+      ln.position.set(-3.0, 0.36 + 0.13, 0.45); add(ln);
+      const ll = new THREE.PointLight(0xff9448, 4.5, 4, 2); ll.position.set(-2.92, 0.62, 0.45); root.add(ll);
+      // a second lantern set down on the hat boxes in the left eave, and a third on the floor in the right eave,
+      // so the stored junk under the low rafters is picked out of the dark in pools of warm light
+      const ln2 = ln.clone(); ln2.position.set(-2.92, 0.0, -1.98); add(ln2);
+      const ll2 = new THREE.PointLight(0xff9448, 2.6, 2.6, 2); ll2.position.set(-2.85, 0.32, -1.95); root.add(ll2);
+      const ln3 = ln.clone(); ln3.position.set(2.62, 0.0, -1.25); add(ln3);
+      const ll3 = new THREE.PointLight(0xff9a50, 2.2, 2.6, 2); ll3.position.set(2.58, 0.2, -1.2); root.add(ll3);
+      ctx.onUpdate((dt, t) => { ll2.intensity = 2.6 * (0.9 + 0.1 * Math.sin(t * 7.3 + 1) * Math.sin(t * 3.1)); ll3.intensity = 2.2 * (0.9 + 0.1 * Math.sin(t * 6.7 + 2) * Math.sin(t * 2.3)); });
       ctx.onUpdate((dt, t) => { ll.intensity = 4.5 * (0.9 + 0.1 * Math.sin(t * 8.1) * Math.sin(t * 2.7)); });
     }
 
@@ -888,7 +1074,7 @@ export default {
       add(sh); shafts.push(sh);
       // the furnace wedge through the door gap
       const dw = 0.24;
-      const dsh = fx.shaft({ center: V3(DOOR.x0 + dw + 0.01, 0.98, Z0 + 0.05), right: V3(dw, 0, 0), up: V3(0, 0.93, 0), direction: V3(-0.35, -0.22, 1).normalize(), length: 3.6, color: 0xff6a30, intensity: 0.5, softness: 0.4, falloff: 1.3, panes: [0, 0], noise: 0.8 });
+      const dsh = fx.shaft({ center: V3(DOOR.x0 + dw + 0.01, 0.98, Z0 + 0.05), right: V3(dw, 0, 0), up: V3(0, 0.93, 0), direction: V3(-0.35, -0.22, 1).normalize(), length: 2.1, color: 0xff6a30, intensity: 0.55, softness: 0.8, falloff: 1.6, panes: [0, 0], noise: 0.8 });
       add(dsh); shafts.push(dsh);
       for (const hs of holeShafts) { const sh2 = fx.shaft({ ...hs, direction: moonDir, length: 5.5, color: 0x9fb6ff, intensity: 0.3, softness: 0.75, falloff: 0.7, panes: [0, 0], noise: 0.8 }); add(sh2); shafts.push(sh2); }
       // soft-saturate the in-scattering so a beam seen end-on does not white out the frame
@@ -964,10 +1150,10 @@ export default {
     // the finale: the door swings wide, the furnace roars redder, and the figure comes down the stair to the threshold
     const hellCol0 = hellSpot.color.clone(), hellCol1 = new THREE.Color(0xff2a0c), passCol0 = passage.color.clone();
     const doorOpen = (k) => {
-      doorPivot.rotation.y = DOOR.open + k * 0.65; hellBoost = 1 + k * 3.0; climaxK = k; doorSpill.intensity = 0.9 * (1 + 3.5 * k); hellSpot.angle = 0.34 + 0.12 * k;
-      moonK = 1 - 0.7 * k; moon.intensity = moonBase * moonK; moonMat.color.setRGB(0.82, 0.86, 0.95).multiplyScalar(0.45 + 0.55 * moonK); skyMat.color.setScalar(0.4 + 0.6 * moonK);
+      doorPivot.rotation.y = DOOR.open + k * 0.65; hellBoost = 1 + k * 1.1; climaxK = k; doorSpill.intensity = 0.9 * (1 + 3.0 * k); hellSpot.angle = 0.3 + 0.04 * k; plateRim.intensity = 9 * k;
+      moonK = 1 - 0.45 * k; moon.intensity = moonBase * moonK; moonMat.color.setRGB(0.82, 0.86, 0.95).multiplyScalar(0.45 + 0.55 * moonK); skyMat.color.setScalar(0.4 + 0.6 * moonK);
       hellSpot.color.copy(hellCol0).lerp(hellCol1, k); passage.color.copy(passCol0).lerp(hellCol1, k);
-      if (FIG.obj) { FIG.obj.position.lerpVectors(FIG.rest, FIG.fore, k); FIG.obj.rotation.y = 0.12 - 0.25 * k; FIG.obj.scale.setScalar(0.94 + 0.02 * k); ghostMat.uniforms.uRimGain.value = 1.9 + 0.7 * k; }
+      if (FIG.obj) { FIG.obj.position.lerpVectors(FIG.rest, FIG.fore, k); FIG.obj.rotation.y = 0.12 - 0.25 * k; FIG.obj.scale.setScalar(0.94 + 0.02 * k); ghostMat.uniforms.uRimGain.value = 1.5 + 0.5 * k; }
     };
     // lightning behind the oculus: the moon flares, threads in the beam blaze
     let flashT = -1;
@@ -979,6 +1165,7 @@ export default {
       flashAt(f);
       if (flashT > 1.4) { flashT = -1; flashAt(0); }
     });
+    { const gf = ctx.params.get('gfade'); if (gf) ghostMat.uniforms.uFade.value = Number(gf); }
     const climaxP = ctx.params.get('climax');
     if (climaxP) { doorOpen(1); if (climaxP === 'flash') flashAt(0.8); }
     if (ctx.state.isSolved(INFECTION_ID)) doorOpen(1);
@@ -1027,7 +1214,7 @@ export default {
     const S = (text) => ctx.say({ text, speaker: 'stauf', speakerName: 'Stauf' });
     const hotspots = [
       { id: 'infection', nodes: ['table', 'main', 'stairs', 'window', 'door'], box: { min: [PLATE.x - PLATE_R - 0.03, PLATE.y - 0.03, PLATE.z - PLATE_R - 0.03], max: [PLATE.x + PLATE_R + 0.03, PLATE.y + 0.06, PLATE.z + PLATE_R + 0.03] }, cursor: 'puzzle', label: 'The specimen plate', puzzle: inf.puzzle, priority: 3 },
-      { id: 'microscope', nodes: ['table'], box: { min: [PLATE.x - 0.08, TABLE_H + 0.15, PLATE.z - 0.45], max: [PLATE.x + 0.2, TABLE_H + 0.56, PLATE.z - 0.05] }, cursor: 'examine', label: 'The microscope', onActivate: cap('The Microscope', 'Brass, cold, and leaning over the dish like a heron over a pond. Through the eyepiece something on the plate is moving — dividing — and it is looking back.') },
+      { id: 'microscope', nodes: ['table'], box: { min: [PLATE.x - 0.12, TABLE_H + 0.15, PLATE.z - 0.42], max: [PLATE.x + 0.24, TABLE_H + 0.72, PLATE.z + 0.02] }, cursor: 'examine', label: 'The microscope', onActivate: cap('The Microscope', 'Brass, cold, and leaning over the dish like a heron over a pond. Through the eyepiece something on the plate is moving — dividing — and it is looking back.') },
       { id: 'belljar', nodes: ['table'], box: { min: [TABLE.x + 0.42, TABLE_H, TABLE.z + 0.1], max: [TABLE.x + 0.68, TABLE_H + 0.3, TABLE.z + 0.35] }, cursor: 'examine', label: 'A bell jar', onActivate: cap('The Bell Jar', 'A tiny skull, no bigger than a child\'s fist, on a brass pin. The label has been scratched away, all but the word "Guest".') },
       {
         id: 'jack', nodes: ['bench', 'window'], box: { min: [-2.4, BT, BENCH.z - 0.12], max: [-2.08, BT + 0.32, BENCH.z + 0.2] }, cursor: 'talk', label: 'A jack-in-the-box',
@@ -1046,7 +1233,7 @@ export default {
         id: 'door-locked', nodes: ['door', 'main', 'window', 'table'], box: doorBox, cursor: 'examine', label: 'The glowing door', enabled: () => !ctx.state.isSolved(INFECTION_ID),
         onActivate: async () => { ctx.audio.sfx?.('thud'); await S('Not yet, not yet! Nobody goes up those stairs until they have played my *last* game.'); },
       },
-      { id: 'dummy', nodes: ['door', 'table', 'main'], box: { min: [2.7, 0.8, -0.6], max: [3.2, 1.5, -0.1] }, cursor: 'ghost', label: 'A dressmaker\'s dummy', onActivate: cap('The Dummy', 'It is wearing a tape measure like a noose. For a moment its shoulders seem to rise and fall.') },
+      { id: 'dummy', nodes: ['door', 'table', 'main'], box: { min: [2.2, 0.8, -0.1], max: [2.7, 1.5, 0.4] }, cursor: 'ghost', label: 'A dressmaker\'s dummy', onActivate: cap('The Dummy', 'It is wearing a tape measure like a noose. For a moment its shoulders seem to rise and fall.') },
       { id: 'trunk', nodes: ['door', 'table'], box: { min: [2.75, 0.0, -2.9], max: [3.35, 0.7, -1.9] }, cursor: 'examine', label: 'An open trunk', onActivate: cap('The Trunk', 'Letters, hundreds of them, all addressed to the same man: "Mr. H. Stauf, Toymaker". Every one is an order for a doll.') },
       { id: 'sheets', nodes: ['main', 'stairs'], box: { min: [2.3, 0, 2.3], max: [3.4, 1.1, 3.3] }, cursor: 'ghost', label: 'A sheeted chair', onActivate: cap('Under the Sheet', 'The shape beneath the dust sheet is a chair. You are almost sure it is a chair. It was not facing that way a moment ago.') },
       { id: 'chimney', nodes: ['main', 'stairs', 'back'], box: { min: [CHIM.x0, 0, CHIM.z0], max: [CHIM.x1, 2.5, CHIM.z1] }, cursor: 'examine', label: 'The chimney stack', onActivate: cap('The Chimney', 'Warm to the touch, though every fire in the house below is cold. From somewhere inside it comes a child\'s laughter, rising.') },

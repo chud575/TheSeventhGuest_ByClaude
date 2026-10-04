@@ -394,7 +394,7 @@ void surface(vec2 uv, inout Surface s) {
  * chipped arrises, ragged mortar of varying width with dirt packed into it, the odd
  * missing or broken brick and fine surface pitting for close-ups.
  */
-export function brickTexture(forge, { key = 'brick', base = [0.42, 0.235, 0.175], mortar = [0.43, 0.4, 0.36], bloom = 0.7, missing = 0.012, size = 2048 } = {}) {
+export function brickTexture(forge, { key = 'brick', base = [0.42, 0.235, 0.175], mortar = [0.55, 0.5, 0.43], bloom = 0.7, missing = 0.012, size = 2048 } = {}) {
   return forge.generate(`attic:${key}`, {
     size, normalStrength: 3.2,
     uniforms: { uBase: base, uMortar: mortar, uBloom: bloom, uMissing: missing },
@@ -404,7 +404,9 @@ void surface(vec2 uv, inout Surface s) {
   float ry = uv.y * ROWS;
   float r = floor(ry);
   float off = mod(r, 2.0) * 0.5 + (hash11(r * 1.37 + 2.0) - 0.5) * 0.18;
+  // hand-made bricks: lengths wander by a few percent along each course (periodic over the tile)
   float gx = uv.x * COLS + off;
+  gx += 0.09 * sin(uv.x * 6.2831853 * 3.0 + hash11(r + 9.0) * 6.28) + 0.05 * sin(uv.x * 6.2831853 * 5.0 + hash11(r + 3.0) * 6.28);
   float c = floor(gx);
   vec2 id = vec2(mod(c, COLS), mod(r, ROWS));
   vec2 f = vec2(fract(gx), fract(ry));
@@ -412,7 +414,7 @@ void surface(vec2 uv, inout Surface s) {
   vec2 bs = vec2(TILE / COLS, TILE / ROWS);           // brick size in metres
   // ragged mortar: per-brick inset + noisy edge
   float rag = fbm(uv, vec2(96.0), 3) * 0.003;
-  vec2 inset = vec2(0.0035 + 0.003 * h2, 0.004 + 0.003 * h3);
+  vec2 inset = vec2(0.004 + 0.004 * h2, 0.0045 + 0.0035 * h3);
   vec2 dm = min(f, 1.0 - f) * bs - inset;
   float e = min(dm.x, dm.y) + rag;
   // chipped arrises / corners
@@ -434,11 +436,11 @@ void surface(vec2 uv, inout Surface s) {
   float mott = fbmv(uv, vec2(48.0), 4);
   float speck = vnoise(uv * 900.0, vec2(900.0));
   bc *= 0.82 + 0.3 * mott;
-  bc = mix(bc, bc * vec3(0.55, 0.5, 0.48), smoothstep(0.78, 0.95, speck) * 0.6);
+  bc = mix(bc, bc * vec3(0.7, 0.66, 0.62), smoothstep(0.82, 0.97, speck) * 0.4);
   // pitting
-  vec4 vp = voronoi(uv * vec2(260.0), vec2(260.0), 1.0);
-  float pit = smoothstep(0.12, 0.0, vp.x) * step(0.7, hash12(vp.zw));
-  bc *= 1.0 - pit * 0.35;
+  vec4 vp = voronoi(uv * vec2(180.0), vec2(180.0), 1.0);
+  float pit = smoothstep(0.07, 0.0, vp.x) * step(0.85, hash12(vp.zw));
+  bc *= 1.0 - pit * 0.18;
   // salt bloom (efflorescence), patchy, collects at brick bottoms
   float bloom = smoothstep(0.55, 0.85, fbmv(uv + 0.37, vec2(3.0), 5) + 0.25 * (1.0 - f.y) * h1) * uBloom;
   bloom *= 0.5 + 0.5 * vnoise(uv * 220.0, vec2(220.0));
@@ -447,8 +449,9 @@ void surface(vec2 uv, inout Surface s) {
   float gone = step(1.0 - uMissing, h4 * (1.0 - clinker) + clinker * 0.0);
   // mortar: varying tone, dirt packed into it
   float md = fbmv(uv, vec2(24.0), 4);
-  vec3 mc = uMortar * (0.7 + 0.35 * vnoise(uv * 420.0, vec2(420.0)));
-  mc = mix(mc, vec3(0.12, 0.1, 0.09), smoothstep(0.35, 0.75, md) * 0.7);
+  // lime mortar: pale grey-tan, sandy, recessed; grime packs into it only in patches
+  vec3 mc = uMortar * (0.8 + 0.25 * vnoise(uv * 420.0, vec2(420.0)));
+  mc = mix(mc, uMortar * vec3(0.55, 0.52, 0.5), smoothstep(0.5, 0.85, md) * 0.55);
   vec3 col = mix(bc, mc, mortarM);
   col = mix(col, vec3(0.035, 0.03, 0.03), gone * (1.0 - mortarM));
   // large soot clouds
@@ -459,10 +462,11 @@ void surface(vec2 uv, inout Surface s) {
   col *= 1.0 - runs * 0.35;
   s.albedo = col;
   float proud = (h1 - 0.5) * 0.08;
-  s.height = mix(0.7 + proud + mott * 0.08 - pit * 0.12 - (1.0 - arris) * 0.18, 0.18 + md * 0.06, mortarM) - gone * 0.55 * (1.0 - mortarM);
+  float mdepth = 0.22 + 0.12 * hash12(id + 41.0);          // mortar raked to different depths
+  s.height = mix(0.7 + proud + mott * 0.08 - pit * 0.06 - (1.0 - arris) * 0.12, mdepth + md * 0.05, mortarM) - gone * 0.55 * (1.0 - mortarM);
   s.rough = mix(mix(0.78 + 0.14 * h2, 0.66, clinker) + bloom * 0.1, 0.96, mortarM);
   s.metal = 0.0;
-  s.ao = mix(mix(1.0, 0.75, 1.0 - arris), 0.42, mortarM) * (1.0 - gone * 0.6);
+  s.ao = mix(mix(1.0, 0.85, 1.0 - arris), 0.62, mortarM) * (1.0 - gone * 0.6);
 }`,
   });
 }
@@ -528,8 +532,38 @@ float grimeMask(out float wet) {
 }
 
 /** Painted porcelain doll face for a sphere head (face centred at u = 0.25), craquelure, rosy cheeks. */
+/** the crack path shared by the face albedo and its bump map (face canvas space, 1024 x 512) */
+function dollCrackPath(seed, w, h) {
+  let s = seed * 104729 + 7;
+  const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const cx = w * 0.25, cy = h * 0.56;
+  const main = []; let x = cx + w * 0.07, y = cy - h * 0.3;
+  main.push([x, y]);
+  for (let k = 0; k < 14; k++) { x -= (4 + rnd() * 9) * (w / 512); y += (6 + rnd() * 6) * (h / 256); main.push([x, y]); }
+  const branches = [];
+  for (let b = 0; b < 4; b++) {
+    const i0 = 2 + Math.floor(rnd() * 10), [bx0, by0] = main[i0]; let bx = bx0, by = by0; const br = [[bx, by]];
+    const dir = rnd() < 0.5 ? -1 : 1;
+    for (let k = 0; k < 4; k++) { bx += dir * (6 + rnd() * 10) * (w / 512); by += (rnd() - 0.3) * 10 * (h / 256); br.push([bx, by]); }
+    branches.push(br);
+  }
+  return { main, branches };
+}
+
+/** bump map for the doll's porcelain: smooth, with the crack and hairlines cut in */
+export function dollCrackBump(forge, { key = 'doll', seed = 1 } = {}) {
+  return forge.canvas(`attic:facebump:${key}`, 1024, 512, (g, w, h) => {
+    g.fillStyle = '#808080'; g.fillRect(0, 0, w, h);
+    const path = dollCrackPath(seed, w, h);
+    const strokeP = (pts, lw, col, blur = 0) => { g.save(); g.filter = blur ? `blur(${blur}px)` : 'none'; g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); pts.forEach(([px, py], i) => (i ? g.lineTo(px, py) : g.moveTo(px, py))); g.stroke(); g.restore(); };
+    strokeP(path.main, 6, '#5a5a5a', 2); strokeP(path.main, 2.2, '#101010');
+    for (const b of path.branches) strokeP(b, 1.2, '#404040');
+  }, { tile: false, srgb: false });
+}
+
 export function dollFaceTexture(forge, { key = 'doll', eye = '#2a3a5a', lip = '#9a2a2a', seed = 1 } = {}) {
-  return forge.canvas(`attic:face:${key}`, 512, 256, (g, w, h) => {
+  return forge.canvas(`attic:face:${key}`, 1024, 512, (g, w, h) => {
+    g.save(); g.scale(2, 2); w /= 2; h /= 2;
     let s = seed * 7919 + 13;
     const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
     g.fillStyle = '#e8ddd0'; g.fillRect(0, 0, w, h);
@@ -564,6 +598,7 @@ export function dollFaceTexture(forge, { key = 'doll', eye = '#2a3a5a', lip = '#
     g.beginPath(); g.moveTo(cx - 7, cy + 24); g.quadraticCurveTo(cx - 3.5, cy + 20, cx, cy + 22.5); g.quadraticCurveTo(cx + 3.5, cy + 20, cx + 7, cy + 24); g.quadraticCurveTo(cx, cy + 29, cx - 7, cy + 24); g.fill();
     g.strokeStyle = 'rgba(60,10,10,0.7)'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(cx - 6, cy + 24); g.lineTo(cx + 6, cy + 24); g.stroke();
     g.restore();
+    g.restore(); w *= 2; h *= 2;
     // craquelure: hairline cracks, one bad crack across the cheek
     g.strokeStyle = 'rgba(70,55,45,0.35)'; g.lineWidth = 0.6;
     for (let i = 0; i < 40; i++) {
@@ -571,10 +606,13 @@ export function dollFaceTexture(forge, { key = 'doll', eye = '#2a3a5a', lip = '#
       for (let k = 0; k < 6; k++) { x += (rnd() - 0.5) * 18; y += (rnd() - 0.5) * 18; g.lineTo(x, y); }
       g.stroke();
     }
-    g.strokeStyle = 'rgba(40,25,20,0.8)'; g.lineWidth = 1.1;
-    g.beginPath(); let x = cx + 30, y = cy - 30; g.moveTo(x, y);
-    for (let k = 0; k < 9; k++) { x -= 4 + rnd() * 4; y += 5 + rnd() * 3; g.lineTo(x, y); }
-    g.stroke();
+    // the bad crack across the cheek: a grimy halo, the dark fissure, branching hairlines
+    const path = dollCrackPath(seed, w, h);
+    const strokeP = (pts, lw, col, blur = 0) => { g.save(); g.filter = blur ? `blur(${blur}px)` : 'none'; g.strokeStyle = col; g.lineWidth = lw; g.lineJoin = 'round'; g.beginPath(); pts.forEach(([px, py], i) => (i ? g.lineTo(px, py) : g.moveTo(px, py))); g.stroke(); g.restore(); };
+    strokeP(path.main, 9, 'rgba(90,65,40,0.28)', 3);
+    strokeP(path.main, 2.4, 'rgba(30,18,12,0.9)');
+    strokeP(path.main, 0.8, 'rgba(10,5,3,1)');
+    for (const b of path.branches) { strokeP(b, 4, 'rgba(90,65,40,0.18)', 2); strokeP(b, 1.0, 'rgba(35,22,15,0.75)'); }
     // grime in the hairline
     const hg = g.createLinearGradient(0, 0, 0, h * 0.3);
     hg.addColorStop(0, 'rgba(60,45,30,0.4)'); hg.addColorStop(1, 'rgba(60,45,30,0)');
@@ -769,7 +807,9 @@ float gDust = 0.0;`)
     float wipe = 1.0;
     for (int i = 0; i < 4; i++) { if (uDuClean[i].z > 0.0) wipe *= smoothstep(uDuClean[i].z * 0.5, uDuClean[i].z, length(vDuW.xz - uDuClean[i].xy)); }
     gDust = up * patchy * wipe * ${amount.toFixed(3)} * (0.75 + 0.25 * fine);
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${color.map((c) => c.toFixed(3)).join(', ')}) * (0.9 + 0.2 * fine), gDust);
+    // a film, not paint: the grain and seams below still show through the dust
+    vec3 duC = vec3(${color.map((c) => c.toFixed(3)).join(', ')}) * (0.9 + 0.2 * fine);
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.45 + duC * 0.7, gDust);
   }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
   roughnessFactor = mix(roughnessFactor, 1.0, gDust);`);
@@ -845,5 +885,59 @@ export function sootPlumeTexture(forge) {
     const lb = g.createLinearGradient(0, h, 0, h * 0.82);
     lb.addColorStop(0, 'rgba(6,4,3,0.85)'); lb.addColorStop(1, 'rgba(6,4,3,0)');
     g.fillStyle = lb; g.fillRect(w * 0.12, h * 0.82, w * 0.76, h * 0.18);
+  }, { tile: false });
+}
+
+/**
+ * Old painted joinery: several coats of dull grey-green lead paint over oak, crazed into a
+ * craquelure, flaking away in islands (lifted, pale edges) to show dark grain beneath, grime
+ * packed into the cracks. 1 tile = 0.6 m; grain along V.
+ */
+export function peelingPaintTexture(forge, { key = 'peelPaint', paint = [0.34, 0.36, 0.31], wood = [0.16, 0.1, 0.06] } = {}) {
+  return forge.generate(`attic:${key}`, {
+    size: 1024, normalStrength: 3.0,
+    uniforms: { uPaint: paint, uWood: wood },
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  // wood beneath: grain along v
+  float warp = fbm(uv * vec2(3.0, 1.0), vec2(3.0, 1.0), 3);
+  float grain = 0.5 + 0.5 * sin((uv.x * 60.0 + warp * 6.0) * 3.14159);
+  float fib = vnoise(uv * vec2(400.0, 20.0), vec2(400.0, 20.0));
+  vec3 wood = uWood * (0.75 + 0.35 * grain) * (0.85 + 0.25 * fib);
+  // craquelure: cells elongated along the grain
+  float cr = voronoiEdge(uv * vec2(26.0, 9.0), vec2(26.0, 9.0), 0.9);
+  float crack = smoothstep(0.06, 0.0, cr);
+  // flaking: islands where the paint has let go
+  float fl = fbm(uv * 1.0 + 3.7, vec2(5.0), 5) * 0.5 + 0.5;
+  fl += (vnoise(uv * vec2(60.0, 22.0), vec2(60.0, 22.0)) - 0.5) * 0.16;
+  float bare = smoothstep(0.66, 0.69, fl);
+  float lift = smoothstep(0.6, 0.66, fl) * (1.0 - bare);                    // curling edge just before it goes
+  // paint: two coats (green over cream) and chalky weathering
+  float coat2 = smoothstep(0.58, 0.61, fl) * (1.0 - bare);
+  vec3 p = uPaint * (0.85 + 0.2 * fbm(uv * 4.0, vec2(4.0), 3));
+  p = mix(p, vec3(0.62, 0.58, 0.48), coat2 * 0.8);
+  p = mix(p, p * 1.25 + 0.04, lift * 0.6);
+  float grime = smoothstep(0.4, 0.85, fbmv(uv * 2.0 + 1.3, vec2(2.0), 4));
+  p *= 1.0 - grime * 0.35;
+  vec3 col = mix(p, wood, bare);
+  col = mix(col, vec3(0.05, 0.04, 0.035), crack * (1.0 - bare) * 0.8);
+  s.albedo = col;
+  s.height = 0.5 + (1.0 - bare) * 0.25 + lift * 0.15 - crack * (1.0 - bare) * 0.12 + bare * grain * 0.05;
+  s.rough = mix(mix(0.62, 0.85, grime), 0.88, bare);
+  s.metal = 0.0;
+  s.ao = 1.0 - crack * 0.4 - bare * 0.15;
+}`,
+  });
+}
+
+/** soft worn-path mask for a stair tread (alpha = wear): dark polished centre fading out to the dusty ends */
+export function treadWearTexture(forge) {
+  return forge.canvas('attic:treadwear', 256, 128, (g, w, h) => {
+    g.clearRect(0, 0, w, h);
+    const rg = g.createRadialGradient(w * 0.5, h * 0.62, 4, w * 0.5, h * 0.6, w * 0.42);
+    rg.addColorStop(0, 'rgba(255,255,255,0.95)'); rg.addColorStop(0.5, 'rgba(255,255,255,0.55)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = rg; g.save(); g.scale(1, 0.75); g.fillRect(0, 0, w, h / 0.75); g.restore();
+    let sd = 11; const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+    for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(255,255,255,${0.1 + rnd() * 0.2})`; g.fillRect(w * (0.25 + rnd() * 0.5), h * (0.25 + rnd() * 0.6), 1 + rnd() * 18, 1); }
   }, { tile: false });
 }

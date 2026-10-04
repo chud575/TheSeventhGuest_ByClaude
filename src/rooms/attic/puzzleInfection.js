@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { knurledKnob } from './props.js';
 import * as H from './hexx.js';
 import { plateTexture } from './textures.js';
 
@@ -27,22 +28,30 @@ export const infectionMeta = {
 
 const BLUE_COL = new THREE.Color(0x2a5fd0), GREEN_COL = new THREE.Color(0x8fb81c);
 
-/** organic cell blob: a flattened, slightly lumpy dome with a nucleus dimple */
-function blobGeometry(r) {
-  const g = new THREE.SphereGeometry(r, 28, 16);
+/** organic cell blob: a flattened, lumpy dome with a nucleus dimple; `variant` picks the silhouette and nucleus offset */
+function blobGeometry(r, variant = 0) {
+  const V = [[3, 5, 0.5, 1.3, 0.06, 0.04, 0.0, 1.0], [2, 4, 1.9, 0.2, 0.08, 0.035, 0.32, 1.12], [4, 7, 0.1, 2.4, 0.045, 0.03, -0.28, 0.94], [3, 6, 2.6, 0.9, 0.07, 0.045, 0.42, 1.06]][variant % 4];
+  const [f1, f2, p1, p2, a1, a2, tilt, elong] = V;
+  const g = new THREE.SphereGeometry(r, 30, 18);
+  // tip the sphere so the nucleus (the crown of the UVs) sits off-centre on the dome
+  g.rotateX(tilt * 0.6); g.rotateY(variant * 1.7);
   const p = g.attributes.position;
   const v = new THREE.Vector3();
+  const nuc = new THREE.Vector3(0, 1, 0).applyAxisAngle(new THREE.Vector3(1, 0, 0), tilt * 0.6).applyAxisAngle(new THREE.Vector3(0, 1, 0), variant * 1.7);
   for (let i = 0; i < p.count; i++) {
     v.fromBufferAttribute(p, i);
     const a = Math.atan2(v.z, v.x);
-    const lump = 1 + 0.06 * Math.sin(a * 3 + 0.5) + 0.04 * Math.sin(a * 5 + 1.3);
+    const lump = 1 + a1 * Math.sin(a * f1 + p1) + a2 * Math.sin(a * f2 + p2);
     const y = v.y > 0 ? v.y * 0.62 : v.y * 0.12;
-    const dimple = v.y > 0 ? 1 - 0.18 * Math.exp(-((v.x * v.x + v.z * v.z) / (r * r)) * 9) : 1;
-    p.setXYZ(i, v.x * lump, y * dimple, v.z * lump);
+    const dx = v.x / r - nuc.x * 0.55, dz = v.z / r - nuc.z * 0.55;
+    const dimple = v.y > 0 ? 1 - 0.18 * Math.exp(-(dx * dx + dz * dz) * 9) : 1;
+    p.setXYZ(i, v.x * lump * elong, y * dimple, v.z * lump / elong);
   }
   g.computeVertexNormals();
   return g;
 }
+const cellVariant = (i) => (i * 7 + ((i * 13) >> 2)) % 4;
+const cellJitter = (i) => 0.9 + 0.18 * (((Math.sin(i * 91.7) * 43758.5) % 1 + 1) % 1);
 
 export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25, mats, camera, onSolved, onLose, level = 1 }) {
   const { geometry: G } = ctx;
@@ -67,12 +76,19 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
   bez.castShadow = true; bez.receiveShadow = true; group.add(bez);
   // stage clips
   for (const s of [-1, 1]) {
-    const clip = new THREE.Mesh(new G.RoundedBoxGeometry(0.11, 0.006, 0.024, 2, 0.002), mats.brass);
-    clip.position.set(s * (plateRadius + 0.03), 0.012, -plateRadius * 0.45); clip.rotation.y = s * 0.5; clip.castShadow = true; group.add(clip);
+    // spring stage clip: a bevelled, tapering arm with a turned-up toe, on a knurled screw post
+    const cg = new THREE.Group(); cg.position.set(s * (plateRadius + 0.03), 0.0, -plateRadius * 0.45); cg.rotation.y = s * 0.5 + (s < 0 ? Math.PI : 0); group.add(cg);
+    const sh = new THREE.Shape(); sh.moveTo(0, -0.013); sh.lineTo(0.085, -0.008); sh.quadraticCurveTo(0.1, 0, 0.085, 0.008); sh.lineTo(0, 0.013); sh.quadraticCurveTo(-0.016, 0, 0, -0.013);
+    const ag = new THREE.ExtrudeGeometry(sh, { depth: 0.004, bevelEnabled: true, bevelThickness: 0.0015, bevelSize: 0.0015, bevelSegments: 2, curveSegments: 12 });
+    ag.rotateX(-Math.PI / 2);
+    { const pp = ag.attributes.position; for (let i = 0; i < pp.count; i++) { const x = pp.getX(i); pp.setY(i, pp.getY(i) + 0.012 + 0.012 * Math.max(0, x - 0.06) / 0.04 * Math.max(0, x - 0.06) / 0.04 - 0.004 * Math.sin(Math.min(1, x / 0.07) * Math.PI)); } ag.computeVertexNormals(); }
+    const arm = new THREE.Mesh(ag, mats.brass); arm.position.x = -0.07; arm.castShadow = true; cg.add(arm);
+    const post = new THREE.Mesh(knurledKnob(0.009, 0.014, 24), mats.brass); post.position.set(-0.07, 0.022, 0); cg.add(post);
+    const cap = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.0075, 0], [0.006, 0.004], [0, 0.005]], 16), mats.brass); cap.position.set(-0.07, 0.029, 0); cg.add(cap);
   }
 
   // ---------------------------------------------------------------- cells (two instanced cultures)
-  const blob = blobGeometry(c * 0.8);
+  const blobs = [0, 1, 2, 3].map((k) => blobGeometry(c * 0.8, k));
   // cell skin: a dark nucleus on the crown (top pole of the sphere UVs), granular cytoplasm, a pale membrane at the rim
   const cellTex = ctx.textures.canvas('attic:cell', 256, 256, (g, w, h) => {
     // smooth granular cytoplasm (value noise, no periodic terms), a dark nucleus at the crown, organelles
@@ -109,9 +125,11 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
   staufRing.position.y = 0.01; staufRing.userData.noBake = true; staufRing.renderOrder = 6; group.add(staufRing);
   const staufLight = new THREE.PointLight(0x7aff3a, 0, 1.2, 2); staufLight.position.set(0, 0.45, -0.1); group.add(staufLight);
   let presence = 0;
-  const blues = new THREE.InstancedMesh(blob, blueMat, H.N + 1);
-  const greens = new THREE.InstancedMesh(blob, greenMat, H.N + 1);
-  for (const im of [blues, greens]) { im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; group.add(im); }
+  // four cell shapes per culture, so neighbouring cells never repeat the same silhouette
+  const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+  const mkSet = (mt) => blobs.map((bg) => { const im = new THREE.InstancedMesh(bg, mt, H.N + 1); for (let i = 0; i <= H.N; i++) im.setMatrixAt(i, zero); im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; group.add(im); return im; });
+  const bluesV = mkSet(blueMat), greensV = mkSet(greenMat);
+  const blues = bluesV[0], greens = greensV[0];
   // the last instance of each is the "flyer" used for leaps
   const FLY = H.N;
 
@@ -141,17 +159,20 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
   function writeInstances(t) {
     for (let i = 0; i < H.N; i++) {
       const breath = 1 + 0.035 * Math.sin(t * 1.7 + i * 1.3);
-      q4.setFromAxisAngle(yAxis, i * 0.9 + t * 0.05);
-      for (const [im, s] of [[blues, sB[i]], [greens, sG[i]]]) {
+      const jit = cellJitter(i), vi = cellVariant(i);
+      q4.setFromAxisAngle(yAxis, i * 2.399 + Math.sin(t * 0.4 + i) * 0.06);
+      for (const [im, s] of [[bluesV[vi], sB[i]], [greensV[vi], sG[i]]]) {
         const s0 = Math.max(0, s);
         const sq = Math.sin(Math.PI * Math.min(1, s0)) * (s0 < 0.999 ? 1 : 0);   // squash wide, then spring up
-        const k = s0 * breath * (1 + 0.32 * sq);
-        sv.set(k, s0 * (0.9 + 0.12 * Math.sin(t * 2.3 + i)) * (1 - 0.4 * sq), k);
+        const k = s0 * breath * jit * (1 + 0.32 * sq);
+        // an idle wobble: the membrane slowly sways out of round
+        sv.set(k * (1 + 0.035 * Math.sin(t * 1.1 + i * 2.1)), s0 * jit * (0.9 + 0.12 * Math.sin(t * 2.3 + i)) * (1 - 0.4 * sq), k * (1 + 0.035 * Math.cos(t * 0.9 + i * 1.7)));
         pv.copy(POS[i]); pv.y = 0.002;
         m4.compose(pv, q4, k > 0.001 ? sv : sv.set(0, 0, 0));
         im.setMatrixAt(i, m4);
       }
     }
+    for (const im of [...bluesV, ...greensV]) im.instanceMatrix.needsUpdate = true;
     for (const im of [blues, greens]) {
       if (fly && ((im === blues) === (fly.color === H.BLUE))) {
         const u = Math.min(1, fly.t / fly.d), e = u * u * (3 - 2 * u);

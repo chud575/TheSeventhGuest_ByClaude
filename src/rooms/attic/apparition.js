@@ -42,7 +42,9 @@ uniform float uRimGain;
 uniform float uFray;
 uniform float uBaseY;
 uniform vec3 uLightPos;
+uniform vec3 uFillDir;
 uniform float uSolid;
+uniform float uFade;
 varying vec3 vN;
 varying vec3 vW;
 float h3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
@@ -57,30 +59,41 @@ void main() {
   float ndv = clamp(dot(n, V), 0.0, 1.0);
   float edge = 1.0 - ndv;
   vec3 L = normalize(uLightPos - vW);
-  // the rim lives on the side of the outline that faces the light (projected into the view plane)
+  // the glow lives on the side of the outline that faces the light (projected into the view plane)
   vec3 Lp = L - V * dot(L, V);
   float lpl = length(Lp);
-  float side = mix(1.0, clamp(0.35 + 0.9 * dot(n, Lp / max(lpl, 1e-4)), 0.0, 1.0), clamp(lpl * 1.4, 0.0, 1.0));
+  float side = mix(1.0, clamp(0.3 + 0.9 * dot(n, Lp / max(lpl, 1e-4)), 0.0, 1.0), clamp(lpl * 1.4, 0.0, 1.0));
   float back = 0.55 + 0.45 * clamp(-dot(L, V), 0.0, 1.0);
   float hy = vW.y - uBaseY;
   vec3 q = vW * vec3(6.0, 3.0, 6.0) + vec3(0.0, -uTime * 0.45, uTime * 0.12);
   float smoke = fb(q);
   float s2 = fb(vW * vec3(15.0, 7.0, 15.0) + vec3(0.0, -uTime * 0.8, 0.0));
-  float rim = pow(edge, 4.5) * side * back * uRimGain * 1.6 * (0.7 + 0.6 * smoke) * mix(0.3, 1.0, smoothstep(0.08, 0.2, hy));
+  // soft view-dependent backlight: a broad falloff modulated by a drifting thickness mask, so the
+  // edge glows like light scattering through smoke rather than drawing a line along every seam
+  float thick = 0.25 + 0.95 * smoothstep(0.3, 0.72, fb(vW * vec3(9.0, 4.5, 9.0) + vec3(0.0, -uTime * 0.3, 0.0)));
+  float rim = pow(edge, 4.2) * side * back * uRimGain * thick * 1.5;
+  rim = rim / (1.0 + rim * 0.5);
+  // translucency: thin smoke lets the furnace through where the light is right behind
+  float trans = pow(clamp(-dot(L, V), 0.0, 1.0), 6.0) * 0.05 * smoothstep(0.55, 0.95, smoke) * edge * edge;
   // a whisper of volume inside the black: warm wrap from the furnace, cold fill from the room
   float wrap = clamp((dot(n, L) + 0.35) / 1.35, 0.0, 1.0);
-  vec3 col = uCore * (0.65 + 0.7 * smoke) + uRim * (rim + 0.012 * wrap * wrap) + uFill * ndv * ndv;
-  // outline frays into smoke; holes drift through the coat skirts. Feet (hy < 0.16) stay solid.
-  float keep = max(uSolid, 1.0 - smoothstep(0.12, 0.3, hy));
-  float fray = smoothstep(0.62, 0.98, edge + (s2 - 0.5) * 0.55) * uFray;
-  float holes = smoothstep(0.64, 0.8, s2) * smoothstep(0.3, 0.55, hy) * smoothstep(1.2, 0.7, hy) * 0.75 * uFray;
-  float a = 1.0 - max(fray, holes) * (1.0 - keep);
-  a = max(a, clamp(rim, 0.0, 1.0) * 0.6);
+  float cold = clamp(dot(n, normalize(uFillDir)) * 0.6 + 0.4, 0.0, 1.0);
+  vec3 col = uCore * (0.65 + 0.7 * smoke) + uRim * (rim + trans + 0.02 * wrap * wrap) + uFill * cold * cold;
+  // he is a ghost: below the knee the cloth breaks into wisps of smoke (noise-thresholded, so it tears rather than
+  // turning uniformly see-through) and is gone before the floor
+  float wisp = fb(vW * vec3(26.0, 7.0, 26.0) + vec3(0.0, -uTime * 0.6, 0.0)) * 0.65 + fb(vW * vec3(7.0, 2.0, 7.0) + vec3(0.0, -uTime * 0.3, 0.0)) * 0.45;
+  float fadeT = (1.0 - smoothstep(0.08, 0.62, hy)) * uFade * 1.05;
+  float fade = smoothstep(fadeT - 0.035, fadeT + 0.035, wisp);
+  // the silhouette itself frays only right at the outline; a few moth-holes drift through the skirts
+  float fray = smoothstep(0.86, 1.02, edge + (s2 - 0.5) * 0.35) * uFray;
+  float holes = smoothstep(0.74, 0.86, s2) * smoothstep(0.3, 0.55, hy) * smoothstep(0.95, 0.65, hy) * 0.6 * uFray;
+  float a = (1.0 - max(fray, holes)) * fade;
+  if (a * uOpacity < 0.04) discard;   // no depth for the smoke that has gone: the furnace haze behind must show through
   gl_FragColor = vec4(col, clamp(a * uOpacity, 0.0, 1.0));
   #include <colorspace_fragment>
 }`;
 
-export function apparitionMaterial(timeUniform, { core = 0x0a0403, rim = 0xff6a2a, fill = 0x0a0d16, opacity = 1.0, rimGain = 1.8, fray = 1.0, solid = 0 } = {}) {
+export function apparitionMaterial(timeUniform, { core = 0x0a0403, rim = 0xff6a2a, fill = 0x0a0d16, opacity = 1.0, rimGain = 1.8, fray = 1.0, solid = 0, fade = 1 } = {}) {
   return new THREE.ShaderMaterial({
     vertexShader: VERT, fragmentShader: FRAG,
     uniforms: {
@@ -92,6 +105,8 @@ export function apparitionMaterial(timeUniform, { core = 0x0a0403, rim = 0xff6a2
       uRimGain: { value: rimGain },
       uFray: { value: fray },
       uSolid: { value: solid },
+      uFade: { value: fade },
+      uFillDir: { value: new THREE.Vector3(0.2, 0.5, 1.0) },
       uBaseY: { value: 0 },
       uLightPos: { value: new THREE.Vector3(0, 1.5, -8) },
     },
@@ -159,45 +174,61 @@ function limb(points, radii, seg = 12, tubular = 28) {
   return g;
 }
 
-/** sphere deformed into a gaunt head (local: +z = face, +y = up), ~0.24 m tall */
+/** sphere deformed into a gaunt head (local: +z = face, +y = up), ~0.25 m chin to crown */
 function headGeometry() {
   const R = 0.1;
-  const g = new THREE.SphereGeometry(R, 56, 44);
+  const g = new THREE.SphereGeometry(R, 72, 56);
   const p = g.attributes.position;
+  const sm = THREE.MathUtils.smoothstep;
   for (let i = 0; i < p.count; i++) {
     let x = p.getX(i) / R, y = p.getY(i) / R, z = p.getZ(i) / R;   // unit sphere
     const front = Math.max(0, z);
-    // long skull, narrow temples, high crown
-    y *= 1.2;
-    x *= 0.74 * (1 - 0.08 * Math.max(0, y - 0.3));
-    z *= 0.92;
-    // jaw: narrows toward a long, jutting chin
+    const ax = Math.abs(x), sx = Math.sign(x) || 1;
+    // long skull, narrow temples, high domed crown
+    y *= 1.22;
+    x *= 0.72 * (1 - 0.1 * Math.max(0, y - 0.3));
+    z *= 0.94;
+    // jaw: a long, lantern jaw narrowing to a jutting chin
     if (y < 0) {
-      const k = -y / 1.2;
-      x *= 1 - 0.42 * k * k;
-      z *= 1 - 0.12 * k;
-      z += front * 0.32 * k * k * gauss(x, 0.35);
-      y -= 0.18 * k * k * gauss(x, 0.4) * (front > 0.2 ? 1 : 0.5);
+      const k = -y / 1.22;
+      x *= 1 - 0.38 * k * k;
+      z *= 1 - 0.1 * k;
+      z += front * 0.36 * k * k * gauss(x, 0.34);
+      y -= 0.26 * k * k * gauss(x, 0.42) * (front > 0.15 ? 1 : 0.45);
     }
+    // jaw angle: a hard corner under the ear
+    x += sx * 0.05 * gauss(y + 0.55, 0.18) * gauss(z + 0.05, 0.35);
     // occiput bulge
-    z -= 0.12 * Math.max(0, -z) * gauss(y - 0.25, 0.5);
-    // brow ridge
-    z += 0.13 * front * gauss(y - 0.32, 0.12) * gauss(x, 0.55);
-    // eye sockets
-    z -= 0.16 * front * gauss(y - 0.16, 0.12) * gauss(Math.abs(x) - 0.3, 0.16);
-    // hollow cheeks under the cheekbones
-    x -= Math.sign(x) * 0.08 * gauss(y + 0.32, 0.22) * gauss(z - 0.45, 0.4);
-    x += Math.sign(x) * 0.05 * gauss(y - 0.05, 0.12) * gauss(z - 0.55, 0.3);
-    // hooked nose: bridge from the brow, a beak, a drop to the lip
-    const ny = y - 0.0;
-    const nose = gauss(x, 0.11 + 0.05 * Math.max(0, 0.2 - ny)) * front;
-    const prof = ny > 0.25 ? 0.12 * gauss(ny - 0.25, 0.08) : ny > -0.25 ? 0.12 + 0.5 * (0.25 - ny) * (ny > -0.17 ? 1 : (ny + 0.25) / 0.08) : 0;
-    z += nose * Math.min(prof, 0.5);
-    // thin lips, a sunken mouth line
-    z -= 0.05 * front * gauss(y + 0.42, 0.04) * gauss(x, 0.3);
-    // ears
-    const ear = gauss(y - 0.05, 0.16) * gauss(z + 0.05, 0.18);
-    x += Math.sign(x) * 0.12 * ear;
+    z -= 0.14 * Math.max(0, -z) * gauss(y - 0.25, 0.5);
+    // heavy brow ridge, overhanging the sockets
+    z += 0.2 * front * gauss(y - 0.33, 0.1) * gauss(x, 0.6);
+    y += 0.03 * front * gauss(y - 0.33, 0.1) * gauss(x, 0.6);
+    // deep eye sockets
+    z -= 0.24 * front * gauss(y - 0.15, 0.11) * gauss(ax - 0.3, 0.15);
+    // temples pinched
+    x -= sx * 0.07 * gauss(y - 0.3, 0.2) * gauss(z - 0.25, 0.3);
+    // high cheekbones and the hollow beneath them
+    x += sx * 0.08 * gauss(y + 0.02, 0.1) * gauss(z - 0.5, 0.28);
+    z += 0.05 * front * gauss(y + 0.02, 0.1) * gauss(ax - 0.42, 0.14);
+    x -= sx * 0.12 * gauss(y + 0.3, 0.17) * gauss(z - 0.45, 0.35);
+    // hooked nose: bridge from the brow, a bony hump, a beak that droops over the lip
+    const ny = y;
+    const nw = 0.1 + 0.05 * sm(-ny, -0.1, 0.25);
+    const nose = gauss(x, nw) * sm(front, 0.5, 0.85);
+    let prof = 0;
+    if (ny > 0.24) prof = 0.12 * gauss(ny - 0.24, 0.07);
+    else if (ny > -0.2) prof = 0.12 + 0.75 * (0.24 - ny) + 0.14 * gauss(ny - 0.08, 0.07);       // hump
+    else if (ny > -0.32) prof = (0.12 + 0.75 * 0.44) * (1 - (-0.2 - ny) / 0.12) * 1.0;           // beak tip drops back
+    z += nose * Math.min(prof, 0.52);
+    y -= nose * 0.06 * sm(-ny, 0.05, 0.25);                                                      // the hook droops
+    // nostril wings
+    x += sx * 0.03 * gauss(ny + 0.22, 0.05) * gauss(ax - 0.1, 0.06) * front;
+    // thin lips, a sunken mouth line and a downturned corner
+    z -= 0.07 * front * gauss(y + 0.44, 0.035) * gauss(x, 0.28);
+    z -= 0.05 * front * gauss(y + 0.36, 0.06) * gauss(ax - 0.22, 0.08);
+    // ears, set high and back
+    const ear = gauss(y - 0.08, 0.17) * gauss(z + 0.08, 0.15);
+    x += sx * 0.16 * ear;
     p.setXYZ(i, x * R, y * R, z * R);
   }
   g.computeVertexNormals();
@@ -220,31 +251,42 @@ function hatGeometry() {
   return g;
 }
 
-/** a long-fingered hand. local: fingers along +z, palm faces +y. curl = [base, mid, tip] per finger. */
+/** a long-fingered hand. local: fingers along +z, palm faces +y. curl = [base, mid, tip] per finger (index..little). */
 function handGroup(mat, { curl = [[0.35, 0.6, 0.6], [0.3, 0.55, 0.55], [0.35, 0.65, 0.6], [0.45, 0.75, 0.7]], spread = 0.12, thumb = 0.6, scale = 1 } = {}) {
   const h = new THREE.Group();
-  // palm: a flattened, slightly cupped block
-  const palm = new THREE.SphereGeometry(0.045, 20, 14);
-  palm.scale(0.9, 0.36, 1.05).translate(0, 0, 0.035);
+  // palm: a lofted slab, broad at the knuckles, narrowing to the wrist, the heel padded
+  const palm = loft([
+    { y: -0.004, a: 0.02, b: 0.013 },
+    { y: 0.012, a: 0.027, b: 0.0125 },
+    { y: 0.035, a: 0.034, b: 0.0115 },
+    { y: 0.062, a: 0.038, b: 0.0105 },
+    { y: 0.078, a: 0.036, b: 0.0095 },
+  ], { seg: 28, capTop: true, capBottom: true });
+  palm.rotateX(Math.PI / 2);          // loft axis y -> +z (fingers), ellipse b -> y (thickness)
   h.add(new THREE.Mesh(palm, mat));
-  const lens = [[0.05, 0.034, 0.026], [0.056, 0.038, 0.028], [0.053, 0.036, 0.027], [0.042, 0.03, 0.022]];
+  // fingers: three bones each, knuckle bulges at the joints, nails tapering to a point
+  const lens = [[0.046, 0.032, 0.025], [0.052, 0.035, 0.027], [0.049, 0.033, 0.026], [0.038, 0.027, 0.021]];
+  const rad = [0.0082, 0.0086, 0.0084, 0.0072];
   for (let f = 0; f < 4; f++) {
-    const x0 = -0.027 + f * 0.018;
-    let p = V3(x0, 0, 0.075 - Math.abs(f - 1.5) * 0.006);
-    let dir = V3(Math.sin((f - 1.5) * spread), 0, Math.cos((f - 1.5) * spread));
-    const pts = [p.clone()];
+    const x0 = -0.026 + f * 0.0172;
+    let p = V3(x0, 0.0005, 0.074 - Math.abs(f - 1.3) * 0.004);
+    const dir = V3(Math.sin((f - 1.5) * spread), 0, Math.cos((f - 1.5) * spread));
+    const pts = [p.clone()], radii = [rad[f] * 1.12];
     let pitch = 0;
     for (let s = 0; s < 3; s++) {
       pitch += curl[f][s];
       const d = V3(dir.x * Math.cos(pitch), Math.sin(pitch), dir.z * Math.cos(pitch));
+      const mid = p.clone().addScaledVector(d, lens[f][s] * 0.5);
       p = p.clone().addScaledVector(d, lens[f][s]);
-      pts.push(p.clone());
+      pts.push(mid, p.clone());
+      const r0 = rad[f] * (1 - 0.17 * s);
+      radii.push(r0 * 0.82, s < 2 ? r0 * 0.98 : r0 * 0.5);          // shaft thins, the joint bulges
     }
-    h.add(new THREE.Mesh(limb(pts, [0.0085, 0.0075, 0.0062, 0.0045], 8, 16), mat));
+    h.add(new THREE.Mesh(limb(pts, radii, 9, 30), mat));
   }
-  // thumb
-  const tp = [V3(-0.032, -0.004, 0.02), V3(-0.05, 0.004, 0.05), V3(-0.055, 0.012 + thumb * 0.02, 0.078), V3(-0.05, 0.02 + thumb * 0.03, 0.098)];
-  h.add(new THREE.Mesh(limb(tp, [0.011, 0.009, 0.0075, 0.005], 8, 16), mat));
+  // thumb: from the heel of the palm, two bones and a fat base
+  const tp = [V3(-0.03, -0.004, 0.012), V3(-0.045, 0.0, 0.032), V3(-0.054, 0.006 + thumb * 0.012, 0.052), V3(-0.058, 0.012 + thumb * 0.022, 0.07), V3(-0.057, 0.018 + thumb * 0.03, 0.088)];
+  h.add(new THREE.Mesh(limb(tp, [0.0135, 0.011, 0.0092, 0.0088, 0.005], 9, 24), mat));
   h.scale.setScalar(scale);
   return h;
 }
@@ -262,7 +304,14 @@ function aim(o, pos, dir, up) {
 export function buildApparition(mat, { shadowTex } = {}) {
   const g = new THREE.Group(); g.name = 'staufSilhouette';
   const parts = [];
-  const add = (geo, parent = g) => { const m = new THREE.Mesh(geo, mat); parent.add(m); parts.push(m); return m; };
+  const add = (geo, parent = g, m2 = mat) => { const m = new THREE.Mesh(geo, m2); parent.add(m); parts.push(m); return m; };
+  // interior detail (lapels, lining, collar, cravat) sits inside the silhouette: it takes only a trace of the
+  // backlight, otherwise every lapel edge and seam would draw a bright line across the black
+  const inner = mat.clone(); inner.name = 'apparitionInner';
+  for (const k of ['uTime', 'uLightPos', 'uOpacity', 'uFray', 'uFade', 'uFillDir', 'uCore', 'uFill', 'uRim', 'uBaseY', 'uSolid']) inner.uniforms[k] = mat.uniforms[k];
+  inner.uniforms.uRimGain = { value: 0.22 };
+  g.userData.innerMat = inner;
+  const addIn = (geo, parent = g) => add(geo, parent, inner);
 
   // ---------------------------------------------------------------- frock coat: torso (closed) + skirts (open front)
   const WAIST = 1.02;
@@ -313,7 +362,7 @@ export function buildApparition(mat, { shadowTex } = {}) {
   });
   add(skirt);
   // a thin inner lining so the skirt reads with thickness at the open front edges
-  { const lin = skirt.clone(); lin.scale(0.965, 1, 0.955); add(lin); }
+  { const lin = skirt.clone(); lin.scale(0.965, 1, 0.955); addIn(lin); }
 
   // peaked lapels standing proud of the chest, rolling out at the edge
   for (const s of [-1, 1]) {
@@ -331,16 +380,16 @@ export function buildApparition(mat, { shadowTex } = {}) {
       p.setZ(i, p.getZ(i) + zf + roll);
     }
     lg.computeVertexNormals();
-    add(lg);
+    addIn(lg);
   }
   // high standing collar behind the neck, open at the throat
-  add(loft([
+  addIn(loft([
     { y: 1.47, a: 0.078, b: 0.07, z: -0.01, open: 0.55 },
     { y: 1.53, a: 0.07, b: 0.064, z: -0.012, open: 0.6 },
     { y: 1.575, a: 0.066, b: 0.06, z: -0.016, open: 0.75 },
   ], { seg: 40 }));
   // cravat knot at the throat
-  add(new THREE.SphereGeometry(0.026, 14, 10).scale(1.2, 0.9, 0.7).translate(0, 1.49, 0.055));
+  addIn(new THREE.SphereGeometry(0.026, 14, 10).scale(1.2, 0.9, 0.7).translate(0, 1.49, 0.055));
 
   // ---------------------------------------------------------------- neck + head + hat
   add(limb([V3(0, 1.48, -0.012), V3(0, 1.56, 0.0), V3(0.004, 1.63, 0.018)], [0.046, 0.04, 0.038], 16, 12));
@@ -354,11 +403,24 @@ export function buildApparition(mat, { shadowTex } = {}) {
   hat.rotation.set(-0.1, 0.0, 0.07);          // seated on the skull, tipped back and to one side
   head.add(hat);
   add(hatGeometry(), hat);
+  // a pointed goatee jutting from the chin, and a thin moustache drooping past the mouth corners
+  add(limb([V3(0, -0.1, 0.05), V3(0, -0.125, 0.06), V3(0, -0.15, 0.068), V3(0, -0.178, 0.07)], [0.017, 0.013, 0.008, 0.0015], 10, 16), head);
+  for (const sx of [-1, 1]) add(limb([V3(0, -0.036, 0.09), V3(sx * 0.018, -0.043, 0.085), V3(sx * 0.03, -0.06, 0.075), V3(sx * 0.034, -0.08, 0.066)], [0.005, 0.0045, 0.003, 0.001], 6, 12), head);
+  // lank hair hanging from under the hat brim to the collar, a few strands lifting in the draught
+  for (let k = 0; k < 26; k++) {
+    const a = Math.PI * (0.6 + (k / 25) * 0.8) + Math.sin(k * 7.3) * 0.05;          // round the back of the head
+    const r0 = 0.07 + 0.004 * Math.sin(k * 3.1);
+    const top = V3(Math.sin(a) * r0 * 0.74, 0.055 - 0.01 * Math.abs(Math.cos(a)), Math.cos(a) * r0 * 0.95);
+    const len = 0.12 + 0.05 * Math.abs(Math.sin(k * 5.7));
+    const o = V3(Math.sin(a), 0, Math.cos(a));
+    const pts = [top, top.clone().add(V3(o.x * 0.012, -len * 0.35, o.z * 0.01)), top.clone().add(V3(o.x * 0.014, -len * 0.7, o.z * 0.006 + 0.004)), top.clone().add(V3(o.x * 0.012 + Math.sin(k) * 0.006, -len, o.z * 0.002 + 0.01))];
+    add(limb(pts, [0.0055, 0.0045, 0.003, 0.0008], 5, 12), head);
+  }
   // faint embers where the eyes should be
-  const eyeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.32, 0.08).multiplyScalar(2.2), toneMapped: false, name: 'staufEyes' });
+  const eyeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.36, 0.1).multiplyScalar(3.2), toneMapped: false, name: 'staufEyes' });
   for (const s of [-1, 1]) {
     const e = new THREE.Mesh(new THREE.SphereGeometry(0.0045, 8, 6).scale(1.4, 0.7, 0.5), eyeMat);
-    e.position.set(s * 0.029, 0.017, 0.074); head.add(e); parts.push(e);
+    e.position.set(s * 0.029, 0.02, 0.068); head.add(e); parts.push(e);
   }
 
   // ---------------------------------------------------------------- legs and shoes (opaque; the coat parts over them)
@@ -414,13 +476,14 @@ export function buildApparition(mat, { shadowTex } = {}) {
   aim(handR, wrR.clone().add(V3(0.004, 0.012, 0.012)), V3(0.08, 0.35, 0.95), V3(-0.15, 1, -0.2));
   g.add(handR); handR.traverse((o) => o.isMesh && parts.push(o));
 
-  // ---------------------------------------------------------------- contact shadow under the feet + cane
+  // ---------------------------------------------------------------- where the legs dissolve: a low pool of smoke, no hard contact
   if (shadowTex) {
-    const cs = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.7).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: shadowTex, color: 0x000000, transparent: true, opacity: 0.85, depthWrite: false, name: 'staufContact' }));
-    cs.position.set(-0.03, 0.004, 0.08); cs.renderOrder = 3; cs.userData.noShadow = true; cs.userData.noBake = true;
-    // alpha from the texture's luminance
-    cs.material.alphaMap = shadowTex; cs.material.map = null;
-    g.add(cs);
+    const smokeMat = new THREE.MeshBasicMaterial({ color: 0x050202, alphaMap: shadowTex, transparent: true, opacity: 0.55, depthWrite: false, name: 'staufSmoke' });
+    for (let k = 0; k < 3; k++) {
+      const cs = new THREE.Mesh(new THREE.PlaneGeometry(0.9 - k * 0.2, 0.7 - k * 0.15).rotateX(-Math.PI / 2), smokeMat);
+      cs.position.set(-0.03 + k * 0.03, 0.006 + k * 0.05, 0.06 - k * 0.02); cs.rotation.y = k * 0.9; cs.renderOrder = 3; cs.userData.noShadow = true; cs.userData.noBake = true;
+      g.add(cs);
+    }
   }
 
   for (const o of parts) { o.userData.noBake = true; o.userData.noShadow = true; o.renderOrder = 7; o.frustumCulled = false; }
