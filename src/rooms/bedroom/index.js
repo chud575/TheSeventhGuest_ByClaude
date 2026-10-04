@@ -647,9 +647,9 @@ export default {
       parent: chest, center: V3(0, chest.userData.boardTop, 0), size: boardField,
       mats: {
         // old bone: warm ivory, satin with a thin wax, faint yellowed grain
-        bone: knightAO(new THREE.MeshPhysicalMaterial({ color: 0xe8dcc4, map: boneSet.map, roughness: 0.45, normalMap: boneSet.normalMap, normalScale: new THREE.Vector2(0.3, 0.3), clearcoat: 0.3, clearcoatRoughness: 0.35, sheen: 0.3, sheenRoughness: 0.6, sheenColor: new THREE.Color(1.0, 0.92, 0.78), specularIntensity: 0.45, envMapIntensity: 0.5, name: 'bone' }), [0.55, 0.42, 0.26]),
+        bone: knightAO(new THREE.MeshPhysicalMaterial({ color: 0xd9c9aa, map: boneSet.map, roughness: 0.45, normalMap: boneSet.normalMap, normalScale: new THREE.Vector2(0.3, 0.3), clearcoat: 0.3, clearcoatRoughness: 0.35, sheen: 0.15, sheenRoughness: 0.6, sheenColor: new THREE.Color(1.0, 0.92, 0.78), specularIntensity: 0.4, envMapIntensity: 0.35, name: 'bone' }), [0.55, 0.42, 0.26]),
         // ebony: near-black, a deep polish, the grain only showing in the highlights
-        ebony: knightAO(new THREE.MeshPhysicalMaterial({ color: 0x15100c, map: ebonySet.map, roughness: 0.28, normalMap: ebonySet.normalMap, normalScale: new THREE.Vector2(0.45, 0.45), clearcoat: 0.8, clearcoatRoughness: 0.12, specularColor: new THREE.Color(1.0, 0.9, 0.78), specularIntensity: 0.7, envMapIntensity: 0.6, name: 'ebonyPiece' }), [0.45, 0.4, 0.38]),
+        ebony: knightAO(new THREE.MeshPhysicalMaterial({ color: 0x15100c, map: ebonySet.map, roughness: 0.28, normalMap: ebonySet.normalMap, normalScale: new THREE.Vector2(0.45, 0.45), clearcoat: 0.7, clearcoatRoughness: 0.14, specularColor: new THREE.Color(1.0, 0.88, 0.74), specularIntensity: 0.5, envMapIntensity: 0.22, name: 'ebonyPiece' }), [0.45, 0.4, 0.38]),
       },
       camera: puzzleCam,
       onSolved: async () => { openWardrobe(false); },
@@ -658,8 +658,8 @@ export default {
     // ================================================================ fireplace (right wall)
     const fire = buildFireplace(ctx, mats, { H });
     fire.position.set(X1, 0, FIRE.z); fire.rotation.y = -Math.PI / 2; add(fire);
-    const fireLight = new THREE.PointLight(0xff7a32, 5.2, 10, 2);
-    fireLight.position.set(X1 - 0.52, 0.55, FIRE.z);     // inside the opening, behind the pilaster faces (no hot spot on the marble)
+    const fireLight = new THREE.PointLight(0xff7a32, 6.4, 10, 2);
+    fireLight.position.set(X1 - 0.36, 0.5, FIRE.z);      // inside the firebox, behind the insert and pilaster faces (no hot spots on the iron or marble)
     fireLight.castShadow = ctx.quality.shadows;
     fireLight.shadow.mapSize.set(512, 512); fireLight.shadow.bias = -0.004; fireLight.shadow.normalBias = 0.03; fireLight.shadow.radius = 5; fireLight.shadow.camera.near = 0.1;
     add(fireLight);
@@ -957,13 +957,13 @@ export default {
     root.add(moon, moon.target);
     root.add(new THREE.HemisphereLight(0x34405e, 0x1a120c, 0.5));
     // moonlight bounced off the floorboards up onto the ceiling, so the plaster separates from black
-    root.add(fx.areaLight({ center: [WIN.x - 0.4, 0.05, -1.4], normal: [0, 1, 0], width: 2.6, height: 2.6, color: 0x7f92c8, intensity: 4.2 }));
+    const ceilBounce = fx.areaLight({ center: [WIN.x - 0.4, 0.05, -1.4], normal: [0, 1, 0], width: 2.6, height: 2.6, color: 0x7f92c8, intensity: 4.2 }); root.add(ceilBounce);
     // moonlight bounced off the floor and the bed: a soft cold fill on the front (door / wardrobe) wall
     const frontFill = new THREE.PointLight(0x8094d0, 2.4, 5.5, 2); frontFill.position.set(-0.3, 2.6, 1.6); root.add(frontFill);
     // low cold bounce off the boards in front of the wardrobe, so it stands in the room, not in black
     const floorFill = new THREE.PointLight(0x7a8cc4, 1.8, 3.6, 2); floorFill.position.set(WARD.x + 0.6, 0.45, Z1 - 1.4); root.add(floorFill);
     // moonlight thrown back off the boards onto the bed hangings (so the velvet's sheen reads, not a black mass)
-    root.add(fx.areaLight({ center: [-0.5, 1.1, 0.2], normal: [-1, 0.1, -0.25], width: 1.6, height: 2.0, color: 0x6a7ab4, intensity: 2.5 }));
+    const bedBounce = fx.areaLight({ center: [-0.5, 1.1, 0.2], normal: [-1, 0.1, -0.25], width: 1.6, height: 2.0, color: 0x6a7ab4, intensity: 2.5 }); root.add(bedBounce);
     // a low warm kicker from the oil-lamp side, grazing the foot hangings so their folds separate from black
     { const kick = new THREE.PointLight(0xff9a50, 1.3, 3.2, 2); kick.position.set(X0 + 1.0, 0.75, BED.z + BED.W / 2 + 0.75); root.add(kick); }
     root.add(fx.areaLight({ center: [WIN.x, WIN.sill + 1.2, Z0 + 0.04], normal: [0, -0.35, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 2.2 }));
@@ -980,8 +980,8 @@ export default {
     const vlBase = vanity.userData.light.intensity;
     ctx.onUpdate((dt, t) => {
       const ff = 0.82 + 0.1 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1) + 0.08 * Math.sin(t * 17.0 + Math.sin(t * 5.0));
-      fireLight.intensity = 5.2 * ff;
-      fireLight.position.y = 0.55 + 0.03 * Math.sin(t * 9.0);
+      fireLight.intensity = 6.4 * ff;
+      fireLight.position.y = 0.5 + 0.03 * Math.sin(t * 9.0);
       mats.coals.emissiveIntensity = 1.6 * (0.85 + 0.15 * ff);
       mats.log.emissiveIntensity = 2.2 * (0.7 + 0.3 * ff);
       mats.logEnd.emissiveIntensity = 1.2 * (0.75 + 0.25 * ff);
@@ -1129,8 +1129,10 @@ export default {
     // bone pieces keep their detail (and nothing blooms), and restore the room grade afterwards
     {
       const pz = knights.puzzle, su = pz.setup, td = pz.teardown;
-      pz.setup = (p) => { ctx.post.set({ exposure: PUZZLE_EXPOSURE, bloomThreshold: 1.6, aoRadius: 0.1, aoIntensity: 1.1 }, ctx.shot ? 0 : 0.8); su(p); };
-      pz.teardown = (p) => { ctx.post.set({ exposure: ROOM_GRADE.exposure, bloomThreshold: ROOM_GRADE.bloomThreshold, aoRadius: ROOM_GRADE.aoRadius, aoIntensity: ROOM_GRADE.aoIntensity }, ctx.shot ? 0 : 0.8); td(p); };
+      // the broad cold bounce lights that model the room's fill would flood the close-up board from below: damp them while it is open
+      const dim = (k) => { ceilBounce.intensity = 4.2 * k; bedBounce.intensity = 2.5 * k; };
+      pz.setup = (p) => { dim(0.3); ctx.post.set({ exposure: PUZZLE_EXPOSURE, bloomThreshold: 3.0, aoRadius: 0.1, aoIntensity: 1.1 }, ctx.shot ? 0 : 0.8); su(p); };
+      pz.teardown = (p) => { dim(1); ctx.post.set({ exposure: ROOM_GRADE.exposure, bloomThreshold: ROOM_GRADE.bloomThreshold, aoRadius: ROOM_GRADE.aoRadius, aoIntensity: ROOM_GRADE.aoIntensity }, ctx.shot ? 0 : 0.8); td(p); };
     }
     const godRays = [{ position: V3(WIN.x - 0.3, WIN.sill + 1.4, Z0 - 2.0), color: new THREE.Color(0.72, 0.8, 1.0), strength: 0.8, radius: 0.2 }];
 
