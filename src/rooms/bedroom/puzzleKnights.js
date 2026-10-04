@@ -62,7 +62,7 @@ export function createKnightsPuzzle(ctx, { parent, center, size, mats, camera, o
   const posOf = (i) => new THREE.Vector3((i % N - 2) * sq, 0, (Math.floor(i / N) - 2) * sq);
 
   // ---------------------------------------------------------------- pieces
-  const geo = knightGeometry(sq * 1.08);
+  const geo = knightGeometry(sq * 1.16);
   const pieces = [];      // { mesh, color: 'W'|'B', sq }
   let grid = startGrid();
   const boardIdx = new Array(N * N).fill(-1); // square -> piece index
@@ -90,18 +90,20 @@ export function createKnightsPuzzle(ctx, { parent, center, size, mats, camera, o
   pick.position.y = 0.001; pick.userData.noBake = true; pick.userData.noShadow = true;
   group.add(pick);
   const ovG = new THREE.PlaneGeometry(sq * 0.96, sq * 0.96).rotateX(-Math.PI / 2);
-  // thin inlaid ring (additive, tone-mapped so it never blooms)
-  const ringTex = ctx.textures.canvas('bedroom:knightRing', 128, 128, (g2, w) => {
+  // an engraved groove ring cut into the square: a dark cut with a thin warm gilt line catching the
+  // light along its lip (normal blending, tone-mapped so it never blooms); pulses gently when live
+  const ringTex = ctx.textures.canvas('bedroom:knightRing2', 256, 256, (g2, w) => {
     g2.clearRect(0, 0, w, w);
-    const c = w / 2;
-    const gr = g2.createRadialGradient(c, c, w * 0.3, c, c, w * 0.48);
-    gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.55, 'rgba(255,255,255,0.12)');
-    gr.addColorStop(0.8, 'rgba(255,255,255,1)'); gr.addColorStop(0.9, 'rgba(255,255,255,0.5)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-    g2.fillStyle = gr; g2.beginPath(); g2.arc(c, c, w * 0.48, 0, 7); g2.fill();
+    const c = w / 2, R = w * 0.41;
+    g2.lineCap = 'round';
+    g2.strokeStyle = 'rgba(10,6,3,0.85)'; g2.lineWidth = w * 0.03; g2.beginPath(); g2.arc(c, c + w * 0.004, R, 0, 7); g2.stroke();
+    g2.strokeStyle = 'rgba(255,236,200,1)'; g2.lineWidth = w * 0.012; g2.beginPath(); g2.arc(c, c - w * 0.006, R - w * 0.004, 0, 7); g2.stroke();
+    // four small carved notches on the diagonals
+    for (let k = 0; k < 4; k++) { const a = Math.PI / 4 + k * Math.PI / 2; g2.fillStyle = 'rgba(255,236,200,0.9)'; g2.beginPath(); g2.arc(c + Math.cos(a) * (R + w * 0.035), c + Math.sin(a) * (R + w * 0.035), w * 0.012, 0, 7); g2.fill(); }
   }, { tile: false });
   const overlays = [];
   for (let i = 0; i < N * N; i++) {
-    const o = new THREE.Mesh(ovG, new THREE.MeshBasicMaterial({ map: ringTex, color: 0xffd9a0, transparent: true, opacity: 0, depthWrite: false, toneMapped: true, blending: THREE.AdditiveBlending }));
+    const o = new THREE.Mesh(ovG, new THREE.MeshBasicMaterial({ map: ringTex, color: 0xffd9a0, transparent: true, opacity: 0, depthWrite: false, toneMapped: true, polygonOffset: true, polygonOffsetFactor: -2 }));
     o.position.copy(posOf(i)); o.position.y = 0.0015; o.visible = false; o.renderOrder = 5;
     o.userData.noBake = true; o.userData.noShadow = true;
     group.add(o); overlays.push(o);
@@ -152,7 +154,7 @@ export function createKnightsPuzzle(ctx, { parent, center, size, mats, camera, o
 
   function refresh(t = 0) {
     for (const o of overlays) { o.visible = false; o.material.opacity = 0; }
-    const show = (i, r, g2, b, op) => { const o = overlays[i]; o.visible = true; o.material.color.setRGB(r, g2, b); o.material.opacity = op; };
+    const show = (i, r, g2, b, op) => { const o = overlays[i]; o.visible = true; o.material.color.setRGB(r * 1.25, g2 * 1.2, b * 1.1); o.material.opacity = Math.min(1, op * 1.7); };
     if (solvedFlag) {
       if (active) for (let i = 0; i < N * N; i++) if (grid[i] !== '.') show(i, 1, 0.85, 0.55, 0.12 + 0.06 * Math.sin(t * 2 + i));
       return;

@@ -15,12 +15,12 @@ import * as THREE from 'three';
  */
 
 export function nightSky(ctx) {
-  return ctx.textures.generate('bedroom:sky2', {
+  return ctx.textures.generate('bedroom:sky3', {
     size: 1024, aspect: 0.8, tile: false,
     glsl: /* glsl */ `
     void surface(vec2 uv, inout Surface s) {
       vec2 p = uv;
-      vec2 moon = vec2(0.58, 0.78);
+      vec2 moon = vec2(0.565, 0.705);
       float md = length((p - moon) * vec2(0.8, 1.0));
       float cl = fbm(p * vec2(2.2, 3.2) + vec2(0.35, 0.1), vec2(64.0), 6);
       float cl2 = fbm(p * vec2(5.0, 7.0) + 3.1, vec2(64.0), 5);
@@ -33,7 +33,10 @@ export function nightSky(ctx) {
       float disk = smoothstep(0.046, 0.042, md);
       float maria = fbm((p - moon) * 60.0, vec2(64.0), 4) * 0.5 + 0.5;
       vec3 moonC = vec3(0.95, 0.94, 0.88) * (0.78 + 0.22 * sqrt(max(0.0, 1.0 - md / 0.046))) * (0.82 + 0.18 * smoothstep(0.35, 0.7, maria));
-      sky = mix(sky, moonC, disk * (1.0 - c * 0.6));
+      // a thin, slow wisp of cloud drawn across the lower half of the disc
+      float wisp = smoothstep(0.03, 0.0, abs(p.y - moon.y + 0.012 + 0.012 * sin(p.x * 40.0)) ) * (0.55 + 0.45 * cl2);
+      sky = mix(sky, moonC, disk * (1.0 - c * 0.6) * (1.0 - wisp * 0.55));
+      sky += vec3(0.5, 0.55, 0.7) * wisp * exp(-md * 18.0) * 0.25;
       // stars in the clear patches
       vec2 sg = floor(p * 260.0);
       float st = step(0.996, hash12(sg)) * (1.0 - c) * smoothstep(0.3, 0.8, p.y);
@@ -341,17 +344,18 @@ export function knightsBoard(ctx, { aspect = 2.0, board = 0.82 } = {}) {
 
 /**
  * Silvered glass for the broken dressing-table mirror. uv 0..1 over the glass (aspect w/h).
- * The big radial fractures are real geometry (separate tilted shards, see buildVanity); this map
- * adds what lies inside them: a crushed impact star, short branching cracks, two broken concentric
- * rings, and desilvering (dark foxing blotches creeping in from the edges).
- * glint = true returns a mask of the thin bright crack edges (use it as an emissiveMap / sparkle).
- * angles: up to 6 radial crack angles (radians) so the grooves line up with the shard edges.
+ * The fractures are real geometry (separate tilted Voronoi shards, see buildVanity, sites =
+ * `seeds`); this map only adds what a fracture does to the glass around it: a bevelled, slightly
+ * rough lip along every seam, short branching cracks off the impact, a crushed star where the
+ * blow landed, and chipped silver loss — dark desilvered patches eating in from the frame and
+ * flaking along the cracks near the impact. No speckle: the silver itself stays clean.
  */
-export function crackedMirror(ctx, { aspect = 0.7, impact = [0.62, 0.58], angles = [0, 1, 2, 3, 4, 5], glint = false } = {}) {
-  const a = angles.concat([9, 9, 9, 9, 9, 9]).slice(0, 6);
-  return ctx.textures.generate(`bedroom:mirror2${glint ? 'G' : ''}`, {
-    size: 1024, aspect, tile: false, normalStrength: 2.0,
-    uniforms: { uImp: impact, uAsp: aspect, uA0: a.slice(0, 3), uA1: a.slice(3, 6), uGlint: glint ? 1 : 0 },
+export function crackedMirror(ctx, { aspect = 0.7, impact = [0.62, 0.58], seeds = [] } = {}) {
+  const S = seeds.concat(Array(10).fill([9, 9])).slice(0, 10);
+  const pack = (i) => [S[i][0], S[i][1], S[i + 1][0], S[i + 1][1]];
+  return ctx.textures.generate('bedroom:mirror3', {
+    size: 1024, aspect, tile: false, normalStrength: 1.6,
+    uniforms: { uImp: impact, uAsp: aspect, uS0: pack(0), uS1: pack(2), uS2: pack(4), uS3: pack(6), uS4: pack(8) },
     glsl: /* glsl */ `
     float lineD(vec2 p, float ang, float wob, float seed) {
       vec2 d = vec2(cos(ang), sin(ang));
@@ -361,60 +365,57 @@ export function crackedMirror(ctx, { aspect = 0.7, impact = [0.62, 0.58], angles
       return along < 0.0 ? 1.0 : abs(across);
     }
     void surface(vec2 uv, inout Surface s) {
+      vec2 st[10];
+      st[0] = uS0.xy; st[1] = uS0.zw; st[2] = uS1.xy; st[3] = uS1.zw; st[4] = uS2.xy; st[5] = uS2.zw; st[6] = uS3.xy; st[7] = uS3.zw; st[8] = uS4.xy; st[9] = uS4.zw;
+      vec2 q = uv * vec2(uAsp, 1.0);
+      // distance to the nearest Voronoi seam (exact bisector distance)
+      int n1 = 0; float d1 = 1e9;
+      for (int i = 0; i < 10; i++) { float d = length(q - st[i] * vec2(uAsp, 1.0)); if (d < d1) { d1 = d; n1 = i; } }
+      float seam = 1e9;
+      vec2 a = st[n1] * vec2(uAsp, 1.0);
+      for (int i = 0; i < 10; i++) {
+        if (i == n1) continue;
+        vec2 b = st[i] * vec2(uAsp, 1.0);
+        seam = min(seam, dot(q - 0.5 * (a + b), normalize(b - a)) * -1.0);
+      }
+      seam = abs(seam);
       vec2 p = (uv - uImp) * vec2(uAsp, 1.0);
       float r = length(p);
       float ang = atan(p.y, p.x);
-      float A[6]; A[0] = uA0.x; A[1] = uA0.y; A[2] = uA0.z; A[3] = uA1.x; A[4] = uA1.y; A[5] = uA1.z;
+      // short secondary cracks branching off near the impact
       float crack = 1.0;
-      // main radials (straight, they coincide with the shard seams)
-      for (int i = 0; i < 6; i++) { if (A[i] > 8.0) continue; crack = min(crack, lineD(p, A[i], 0.0, float(i))); }
-      // secondary cracks: branch off the radials and wander, dying out with distance
-      for (int i = 0; i < 9; i++) {
+      for (int i = 0; i < 7; i++) {
         float fi = float(i);
-        float a0 = A[int(mod(fi, 6.0))] + (hash11(fi * 3.1) - 0.5) * 0.9;
-        vec2 o = vec2(cos(a0), sin(a0)) * (0.03 + 0.12 * hash11(fi * 7.3));
-        float len = 0.05 + 0.18 * hash11(fi * 1.9);
-        float dd = lineD(p - o, a0 + (hash11(fi * 5.7) - 0.5) * 1.2, 0.03, fi + 10.0);
-        float along = length(p - o);
-        crack = min(crack, dd + step(len, along) * 1.0 + along * 0.004);
+        float a0 = fi * 0.9 + (hash11(fi * 3.1) - 0.5) * 0.7;
+        vec2 o = vec2(cos(a0), sin(a0)) * (0.02 + 0.07 * hash11(fi * 7.3));
+        float len = 0.04 + 0.12 * hash11(fi * 1.9);
+        float dd = lineD(p - o, a0 + (hash11(fi * 5.7) - 0.5) * 1.0, 0.025, fi + 10.0);
+        crack = min(crack, dd + step(len, length(p - o)));
       }
-      // two broken concentric rings
-      float ring = 1.0;
-      for (int k = 0; k < 2; k++) {
-        float rr = k == 0 ? 0.075 : 0.16;
-        float wob = 0.012 * fbm(vec2(ang * 3.0, float(k) * 7.0), vec2(64.0), 3);
-        float rd = abs(r - rr - wob);
-        // rings are broken into arcs
-        float on = step(0.35, fbm(vec2(ang * 2.0 + float(k) * 4.0, 1.0), vec2(64.0), 2) * 0.5 + 0.5);
-        ring = min(ring, rd + (1.0 - on));
-      }
-      crack = min(crack, ring);
-      // impact star: dense short spokes + crushed glass at the centre
-      float starA = fract(ang / 6.2832 * 23.0 + 0.3 * fbm(vec2(r * 30.0, 0.0), vec2(64.0), 2));
-      float star = min(starA, 1.0 - starA) * r * 6.2832 / 23.0 + step(0.045 + 0.02 * hash11(floor(ang / 6.2832 * 23.0)), r);
+      float starA = fract(ang / 6.2832 * 19.0 + 0.3 * fbm(vec2(r * 30.0, 0.0), vec2(64.0), 2));
+      float star = min(starA, 1.0 - starA) * r * 6.2832 / 19.0 + step(0.03 + 0.015 * hash11(floor(ang / 6.2832 * 19.0)), r);
       crack = min(crack, star);
-      float crushed = smoothstep(0.022, 0.0, r + 0.006 * fbm(p * 200.0, vec2(256.0), 3));
-      float line = smoothstep(0.0022, 0.0004, crack);
-      float halo = smoothstep(0.008, 0.0, crack);
-      // desilvering: dark blotches eating in from the frame, a few freckles of foxing
+      float crushed = smoothstep(0.016, 0.0, r + 0.005 * fbm(p * 200.0, vec2(256.0), 3));
+      float line = smoothstep(0.0018, 0.0004, crack);
+      float lip = smoothstep(0.006, 0.0, seam);          // bevelled, ground edge along each seam
+      // desilvering: from the frame inward, and flaking along the seams near the blow
       vec2 e = min(uv, 1.0 - uv) * vec2(uAsp, 1.0);
       float edge = min(e.x, e.y);
       float fn = fbm(uv * 5.0, vec2(64.0), 5);
-      float desil = smoothstep(0.1, 0.0, edge + fn * 0.06 - 0.01);
-      float blot = smoothstep(0.62, 0.72, fbm(uv * 7.0 + 3.0, vec2(64.0), 5) * 0.5 + 0.5) * smoothstep(0.25, 0.05, edge);
-      float fox = smoothstep(0.86, 0.9, fbm(uv * 30.0 + 5.0, vec2(256.0), 3) * 0.5 + 0.5);
-      float bad = clamp(max(max(desil, blot), fox * 0.7), 0.0, 1.0);
-      vec3 silver = vec3(0.78, 0.78, 0.76);
-      vec3 col = mix(silver, vec3(0.03, 0.026, 0.022), bad);
-      col *= 1.0 - halo * 0.25;
-      col = mix(col, vec3(0.6, 0.6, 0.58), line * 0.4);
-      col = mix(col, vec3(0.35), crushed);
-      if (uGlint > 0.5) { col = vec3(line * (1.0 - bad) * (0.6 + 0.4 * hash12(floor(p * 300.0)))) + vec3(crushed * 0.25); }
+      float desil = smoothstep(0.075, 0.0, edge + fn * 0.05 - 0.008);
+      float blot = smoothstep(0.6, 0.7, fbm(uv * 6.0 + 3.0, vec2(64.0), 5) * 0.5 + 0.5) * smoothstep(0.2, 0.04, edge);
+      float flake = smoothstep(0.55, 0.62, fbm(uv * 26.0 + 7.0, vec2(256.0), 4) * 0.5 + 0.5) * smoothstep(0.02, 0.0, min(seam, crack)) * smoothstep(0.35, 0.05, r);
+      float bad = clamp(max(max(desil, blot), flake), 0.0, 1.0);
+      vec3 silver = vec3(0.8, 0.8, 0.78);
+      vec3 col = mix(silver, vec3(0.025, 0.022, 0.02), bad);
+      col *= 1.0 - lip * 0.35;
+      col = mix(col, vec3(0.55), line * 0.35);
+      col = mix(col, vec3(0.3), crushed);
       s.albedo = col;
       s.metal = 1.0 - bad;
-      s.rough = 0.035 + halo * 0.12 + crushed * 0.5 + bad * 0.85;
-      s.height = 0.5 - line * 0.25 - halo * 0.08 - crushed * 0.2;
-      s.ao = 1.0 - halo * 0.3;
+      s.rough = 0.04 + lip * 0.18 + line * 0.15 + crushed * 0.5 + bad * 0.8;
+      s.height = 0.5 - line * 0.25 - lip * 0.15 - crushed * 0.2;
+      s.ao = 1.0 - lip * 0.3;
     }`,
   });
 }
@@ -484,7 +485,7 @@ export function wallpaper(ctx) {
 
 /** Painted bisque doll face (canvas, 1024x512). Face centred at u = 0.25 (SphereGeometry +Z). */
 export function dollFace(ctx, { seed = 0, cracked = false, eyes = '#3a5a8a', hair = '#4a2a14' } = {}) {
-  return ctx.textures.canvas(`bedroom:doll3_${seed}${cracked ? 'c' : ''}`, 1024, 512, (g, w, h) => {
+  return ctx.textures.canvas(`bedroom:doll4_${seed}${cracked ? 'c' : ''}`, 1024, 512, (g, w, h) => {
     const rnd = (i) => { const x = Math.sin(i * 91.7 + seed * 47.3) * 43758.5453; return x - Math.floor(x); };
     // bisque ground: warm ivory with a cooler, slightly grey shading toward the back
     const base = g.createLinearGradient(0, 0, w, 0);
@@ -516,16 +517,9 @@ export function dollFace(ctx, { seed = 0, cracked = false, eyes = '#3a5a8a', hai
       const sh = g.createRadialGradient(ex, ey - 6 * S, 2, ex, ey - 4 * S, 22 * S);
       sh.addColorStop(0, 'rgba(120,70,70,0.45)'); sh.addColorStop(1, 'rgba(120,70,70,0)');
       g.fillStyle = sh; g.beginPath(); g.arc(ex, ey - 4 * S, 22 * S, 0, 7); g.fill();
-      // small, deep-set painted eye under a heavy lid (the glass eyeball sits in the socket)
-      g.fillStyle = '#d8d0c2'; g.beginPath(); g.ellipse(ex, ey + 1 * S, 10 * S, 5.5 * S, 0, 0, 7); g.fill();
-      g.fillStyle = eyes; g.beginPath(); g.arc(ex, ey + 1.6 * S, 5 * S, 0, 7); g.fill();
-      g.fillStyle = '#050403'; g.beginPath(); g.arc(ex, ey + 1.6 * S, 2.4 * S, 0, 7); g.fill();
-      // heavy upper lid: a painted crease and a dark lash line that cuts the top of the iris
-      g.fillStyle = 'rgba(150,110,96,0.55)'; g.beginPath(); g.ellipse(ex, ey - 2.5 * S, 12 * S, 6 * S, 0, Math.PI, 0); g.fill();
-      g.strokeStyle = '#1a0f08'; g.lineWidth = 2.6 * S; g.beginPath(); g.ellipse(ex, ey + 1 * S, 10.5 * S, 5.5 * S, 0, Math.PI * 1.02, Math.PI * 1.98); g.stroke();
-      g.strokeStyle = 'rgba(90,60,45,0.6)'; g.lineWidth = 1.0 * S; g.beginPath(); g.ellipse(ex, ey - 3.5 * S, 12 * S, 6 * S, 0, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
-      g.lineWidth = 0.9 * S; g.strokeStyle = '#1a0f08';
-      for (let k = 0; k < 8; k++) { const a = Math.PI * (1.12 + k * 0.11); g.beginPath(); g.moveTo(ex + Math.cos(a) * 10 * S, ey + 1 * S + Math.sin(a) * 5.5 * S); g.lineTo(ex + Math.cos(a) * 13 * S, ey + 1 * S + Math.sin(a) * 9 * S); g.stroke(); }
+      // (the eyes themselves are glass, set into sculpted sockets: paint only a fine lower lash line)
+      g.lineWidth = 0.7 * S; g.strokeStyle = 'rgba(40,24,16,0.7)';
+      for (let k = 0; k < 7; k++) { const a = Math.PI * (0.18 + k * 0.105); const lx = ex + sd * 8 * S; g.beginPath(); g.moveTo(lx + Math.cos(a) * 13 * S, ey + 6 * S + Math.sin(a) * 4 * S); g.lineTo(lx + Math.cos(a) * 15 * S, ey + 6 * S + Math.sin(a) * 8 * S); g.stroke(); }
       // feathered brows, high and thin (surprised)
       g.strokeStyle = 'rgba(90,60,36,0.45)'; g.lineWidth = 0.7 * S;
       for (let k = 0; k < 10; k++) { const t = k / 9; const bx = ex - 15 * S + t * 30 * S; const by = ey - 22 * S - Math.sin(t * Math.PI) * 6 * S; g.beginPath(); g.moveTo(bx, by + 2 * S); g.lineTo(bx + 4 * S, by - 1 * S); g.stroke(); }
@@ -1082,6 +1076,46 @@ export function bisqueCraze(ctx) {
       s.albedo = vec3(1.0 - craze * 0.35) * (0.95 + 0.05 * pores);
       s.height = 0.5 - craze * 0.25 + pores * 0.05;
       s.rough = 0.45 + craze * 0.2; s.metal = 0.0; s.ao = 1.0 - craze * 0.4;
+    }`,
+  });
+}
+
+/**
+ * Firebrick for the firebox: running bond (courses offset by half a brick), recessed sandy mortar,
+ * each brick a slightly different burnt red / ochre, chipped arrises, heat-glazed dark faces, soot.
+ * Tiles: 1 tile = 2 bricks x 4 courses = 0.48 x 0.34 m (use repeat 1/0.48, 1/0.34 on metric uvs).
+ */
+export function fireBrick(ctx) {
+  return ctx.textures.generate('bedroom:firebrick', {
+    size: 512, tile: true, normalStrength: 3.0,
+    glsl: /* glsl */ `
+    void surface(vec2 uv, inout Surface s) {
+      vec2 g = uv * vec2(2.0, 4.0);
+      float row = floor(g.y);
+      g.x += mod(row, 2.0) * 0.5;
+      vec2 id = vec2(mod(floor(g.x), 2.0), mod(row, 4.0));
+      vec2 f = fract(g);
+      // mortar joint: 1 cm on a 24 x 8.5 cm brick, edges eaten away unevenly
+      vec2 jw = vec2(0.012 / 0.24, 0.012 / 0.085);
+      float chip = fbm(uv * 24.0, vec2(24.0), 3) * 0.5 + 0.5;
+      vec2 e = min(f, 1.0 - f) / jw;
+      float edge = min(e.x, e.y) - chip * 0.7;
+      float brick = smoothstep(0.5, 1.4, edge);
+      float h1 = hash12(id + 3.7), h2 = hash12(id + 9.1);
+      vec3 col = mix(vec3(0.42, 0.17, 0.1), vec3(0.55, 0.32, 0.17), h1);
+      col = mix(col, vec3(0.2, 0.09, 0.06), h2 * 0.6);
+      float spot = fbm(uv * vec2(9.0, 9.0) + id, vec2(9.0), 4);
+      col *= 0.78 + 0.35 * spot;
+      // heat glaze: some faces gone dark and glassy
+      float glaze = smoothstep(0.55, 0.85, h2) * (0.6 + 0.4 * spot);
+      col = mix(col, vec3(0.08, 0.05, 0.04), glaze * 0.7);
+      vec3 mortar = vec3(0.32, 0.29, 0.25) * (0.7 + 0.3 * chip);
+      s.albedo = mix(mortar, col, brick);
+      float face = fbm(uv * 40.0, vec2(40.0), 3) * 0.5 + 0.5;
+      s.height = brick * (0.75 + 0.15 * face) + (1.0 - brick) * 0.15 * chip;
+      s.rough = mix(0.95, mix(0.82, 0.35, glaze), brick);
+      s.metal = 0.0;
+      s.ao = mix(0.55, 1.0, brick);
     }`,
   });
 }

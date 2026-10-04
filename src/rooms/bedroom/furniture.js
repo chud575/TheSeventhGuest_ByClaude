@@ -36,7 +36,7 @@ export function curtain(G, opts) {
  * (tiebackV = fraction of the drop), then flares out and pools on the floor.
  * Returns geometry; geometry.userData.waist = { x, y, w } (for the tie-back cord).
  */
-export function velvetCurtain({ width = 1.0, height = 3.0, folds = 9, depth = 0.09, tieback = 0.7, tiebackV = 0.62, waist = 0.22, flare = 0.85, pool = 0.15, seed = 1, segX = 160, segY = 120, uv01 = false, jitter = 0.95 } = {}) {
+export function velvetCurtain({ width = 1.0, height = 3.0, folds = 9, depth = 0.09, tieback = 0.7, tiebackV = 0.62, waist = 0.22, flare = 0.85, pool = 0.15, seed = 1, segX = 160, segY = 120, uv01 = false, jitter = 0.95, noise = 0 } = {}) {
   const rnd = (i) => { const x = Math.sin(i * 127.1 + seed * 311.7) * 43758.5453; return x - Math.floor(x); };
   // jittered fold boundaries in strand space u (0..1): 2 half-folds per fold
   const nh = folds * 2;
@@ -80,9 +80,17 @@ export function velvetCurtain({ width = 1.0, height = 3.0, folds = 9, depth = 0.
     const comp = Math.sqrt(1 / Math.max(0.2, gatherW));
     let amp = depth * (0.45 + 0.55 * headK) * comp * vary;
     let z = amps[k] * prof * amp;
+    let y = -yLen, xx = x;
     // the whole curtain bellies a little toward the room below the tie-back
     z += depth * 0.6 * sm(tiebackV, 1, v) * Math.sin(Math.PI * u);
-    let y = -yLen, xx = x;
+    if (noise > 0) {
+      // cloth, not hoses: broad slow billows, a few small secondary folds riding on the big ones,
+      // and folds that merge and split down the drop
+      const lf = Math.sin(u * 5.1 + v * 2.3 + seed) * Math.sin(v * 3.7 - u * 2.0 + seed * 2.1) + 0.5 * Math.sin(u * 11.3 - v * 4.1 + seed * 3.3);
+      z += noise * depth * 0.55 * lf;
+      z += noise * depth * 0.18 * Math.sin(u * folds * 2.0 * Math.PI * 2.0 + v * 6.0 + seed) * (0.3 + 0.7 * headK) * Math.abs(prof);
+      xx += noise * 0.012 * Math.sin(v * 7.0 + u * 13.0 + seed) * (1 - headK * 0.5);
+    }
     // pool: fabric past the drop folds forward onto the floor
     if (yLen > height) {
       const p = yLen - height;
@@ -237,7 +245,7 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
       }
       // soft wrinkles and the body's dent on top (low frequency, cloth not upholstery)
       const top = as < cw / 2 ? 1 : 0.35;
-      y += (Math.sin(s * 7.0 + zz * 2.3) * Math.sin(zz * 4.1 + 1.3) * 0.008 + Math.sin(s * 17 + zz * 5) * Math.sin(zz * 13 - s * 3) * 0.003) * top;
+      y += (Math.sin(s * 7.0 + zz * 2.3) * Math.sin(zz * 4.1 + 1.3) * 0.014 + Math.sin(s * 17 + zz * 5) * Math.sin(zz * 13 - s * 3) * 0.005 + Math.sin(s * 3.1 - zz * 1.7 + 2.0) * 0.008) * top;
       y -= 0.012 * Math.exp(-((s + 0.15) ** 2) / 0.08 - ((zz + 0.2) ** 2) / 0.35) * top;
       // crumpled where it was dragged toward the near foot corner
       const cm = Math.max(0, Math.min(1, (zz - (cl / 2 - 0.6)) / 0.4)) * Math.max(0, Math.min(1, (-s - 0.1) / 0.3));
@@ -248,24 +256,72 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
     geo.computeVertexNormals();
     const cover = mesh(geo, mats.quilt, 0, mTop + 0.03, 0.16 - 0.0, g);
     cover.name = 'cloth';
-    // turned-down sheet at the head
-    const sheet = mesh(rbox(G, cw + 0.02, 0.03, 0.26, 0.012), mats.linen, 0, mTop + 0.02, -hl + 0.06 + 0.42, g);
-    sheet.name = 'cloth';
+    // turned-down sheet at the head: the top sheet folded back over the counterpane in a soft roll,
+    // its band rumpled, hanging down over both sides with the cover
+    {
+      const bandD = 0.3, r = 0.016, segX = 90;
+      const prof = [];
+      prof.push([0.0, 2 * r + 0.004]);
+      for (let i = 0; i <= 10; i++) { const a = Math.PI / 2 - (i / 10) * Math.PI; prof.push([bandD + Math.cos(a) * r, r + Math.sin(a) * r]); }
+      prof.push([0.0, 0.0]);
+      const shape = new THREE.Shape(prof.map(([z, y]) => V2(z, y)));
+      const sw = cw + 2 * 0.06;
+      const sgm = new THREE.ExtrudeGeometry(shape, { depth: sw, bevelEnabled: false, steps: segX, curveSegments: 12 });
+      sgm.translate(0, 0, -sw / 2); sgm.rotateY(-Math.PI / 2);       // profile z -> +z (toward the foot), extrude -> x
+      const p = sgm.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+        const ax = Math.abs(x);
+        // drape down over the mattress edges like the counterpane does
+        let yy = y, xx = x;
+        if (ax > cw / 2 - 0.06) { const d = ax - (cw / 2 - 0.06); const a = Math.min(d / 0.06, 1) * Math.PI / 2; xx = Math.sign(x) * (cw / 2 - 0.06 + Math.sin(a) * 0.06 + Math.max(0, d - 0.094) * 0.1); yy = y - (1 - Math.cos(a)) * 0.06 - Math.max(0, d - 0.094) * 1.0; }
+        // rumples along the band
+        yy += 0.006 * Math.sin(x * 23.0 + z * 9.0) * Math.sin(x * 7.0 + 1.3) + 0.004 * Math.sin(x * 51.0 - z * 30.0);
+        const zz = z + 0.012 * Math.sin(x * 5.3 + 0.7) + 0.008 * Math.sin(x * 17.0);
+        p.setXYZ(i, xx, yy, zz);
+      }
+      sgm.computeVertexNormals();
+      const sheet = mesh(G.applyBoxUVs(sgm, 1), mats.linen, 0, mTop + 0.03, -hl + 0.48, g);
+      sheet.name = 'cloth';
+    }
   }
-  // ---- pillows (squashed rounded boxes)
+  // ---- pillows: soft stuffed cases with corded piping round the seam, a head-dent in the middle
   {
-    const pg = new G.RoundedBoxGeometry(0.66, 0.2, 0.42, 5, 0.09);
+    const PW = 0.66, PH = 0.2, PD = 0.42;
+    const pg = new G.RoundedBoxGeometry(PW, PH, PD, 6, 0.09);
     const p = pg.attributes.position;
+    const prof = (x, z) => { const k = (1 - Math.min(1, (x / (PW / 2)) ** 2)) * (1 - Math.min(1, (z / (PD / 2)) ** 2)); return Math.sqrt(Math.max(0, k)); };
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-      const k = (1 - Math.min(1, (x / 0.33) ** 2)) * (1 - Math.min(1, (z / 0.21) ** 2));
-      p.setY(i, y * (0.35 + 0.65 * Math.sqrt(Math.max(0, k))) + (y > 0 ? -0.012 * Math.sin(x * 20) * k : 0));
+      const k = prof(x, z);
+      let yy = y * (0.3 + 0.7 * k);
+      // the dent where a head has lain, and wrinkles radiating from it
+      if (y > 0) {
+        const dent = Math.exp(-((x + 0.04) ** 2) / 0.02 - ((z - 0.02) ** 2) / 0.012);
+        yy -= 0.045 * dent * k;
+        yy += 0.006 * Math.sin(Math.atan2(z, x) * 9.0) * (1 - dent) * k;
+      }
+      // the corners pulled into ears
+      const cx = Math.abs(x) / (PW / 2), cz = Math.abs(z) / (PD / 2);
+      const ear = Math.max(0, cx + cz - 1.6) * 0.06;
+      p.setXYZ(i, x * (1 + ear), yy, z * (1 + ear));
     }
     pg.computeVertexNormals();
     const pgu = G.applyBoxUVs(pg, 1);
+    // piping: a cord round the seam (mid-height outline of the case)
+    const pipePts = [];
+    for (let i = 0; i < 96; i++) {
+      const a = (i / 96) * Math.PI * 2;
+      const c = Math.cos(a), sn = Math.sin(a);
+      const sx = Math.sign(c) * Math.pow(Math.abs(c), 0.35) * (PW / 2 - 0.004), sz = Math.sign(sn) * Math.pow(Math.abs(sn), 0.35) * (PD / 2 - 0.004);
+      pipePts.push(V3(sx, 0.002 * Math.sin(a * 7), sz));
+    }
+    const pipe = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pipePts, true), 192, 0.006, 6, true);
     for (const [x, rz, ry] of [[-0.42, 0.06, 0.05], [0.42, -0.05, -0.08]]) {
       const pm = mesh(pgu, mats.linen, x, mTop + 0.075, -hl + 0.3, g);
       pm.rotation.set(-0.45, ry, rz); pm.name = 'cloth';
+      const pp = mesh(pipe, mats.linen, x, mTop + 0.075, -hl + 0.3, g);
+      pp.rotation.copy(pm.rotation); pp.name = 'cloth';
     }
   }
   // ---- tester (canopy frame) with cornice
@@ -302,14 +358,14 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
     bc.name = 'cloth';
     // corner curtains hang from each post along the bed's sides: the foot pair is caught back to its
     // post with a cord, the head pair hangs loose. Lengths differ (rotted off at different heights).
-    const specs = { '-1,-1': 1.0, '1,-1': 0.86, '1,1': 0.93 };
+    const specs = { '-1,-1': 1.0, '1,-1': 0.86, '1,1': 0.93, '-1,1': 0.8 };
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
       const foot = sz > 0;
-      if (sx < 0 && sz > 0) continue;               // this one has come off its rail (below)
+      const near = sx < 0 && sz > 0;                // the one nearest the room: dragged right back to its post, so the bed shows
       const lenK = specs[`${sx},${sz}`];
       const cg = velvetCurtain({
         width: foot ? 0.62 : 0.7, height: (ty - 0.02) * lenK, folds: foot ? 6 : 5, depth: 0.07,
-        tieback: foot ? 0.72 : 0.12, tiebackV: foot ? 0.5 : 0.6, waist: foot ? 0.28 : 0.85, flare: foot ? 0.62 : 0.95,
+        tieback: foot ? (near ? 0.85 : 0.72) : 0.12, tiebackV: foot ? 0.5 : 0.6, waist: foot ? (near ? 0.16 : 0.28) : 0.85, flare: foot ? (near ? 0.4 : 0.62) : 0.95,
         pool: 0, seed: 30 + sx * 3 + sz, segX: 96, segY: 72, uv01: true, jitter: 1.1,
       });
       const m = mesh(cg, sz > 0 ? drape : drape2, sx * (hw + 0.045), ty + 0.04, sz * (hl - 0.02), g);
@@ -323,25 +379,6 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
         const cord = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 48, 0.007, 6, true), mats.gilt);
         cord.position.y = wi.y; m.add(cord);
       }
-    }
-    // half-fallen curtain at the near foot corner: still hooked at the post end, the rest of the
-    // heading torn off the rail so it hangs in a long diagonal and slumps onto the floor
-    {
-      const cw = 0.66, ch = ty - 0.15;
-      const fg = curtain(G, { width: cw, height: ch, folds: 7, depth: 0.075, seed: 37, segX: 90, segY: 70 });
-      const p = fg.attributes.position;
-      for (let i = 0; i < p.count; i++) {
-        let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-        const u = x / cw + 0.5, v = -y / ch;          // u 0 = post end (still hooked)
-        const drop = u * u * 0.85;
-        y -= drop * (1 - v * 0.6);
-        z += u * 0.25 * (1 - v) + Math.sin(v * Math.PI) * 0.06;
-        if (y < -ty + 0.02) { const over = -ty + 0.02 - y; y = -ty + 0.02 + over * 0.05; z += over * 0.6; }
-        p.setXYZ(i, x, y, z);
-      }
-      fg.computeVertexNormals();
-      const m = mesh(fg, drape, -hw - 0.05, ty + 0.04, hl - 0.05 - cw / 2, g);
-      m.rotation.y = -Math.PI / 2; m.scale.x = -1; m.name = 'cloth';
     }
   }
   g.userData = { mattressTop: mTop, L, W, postH };
@@ -421,7 +458,7 @@ export function buildChest(ctx, mats, { w = 1.18, d = 0.58, h = 0.56, fieldSize 
     const ring = new THREE.Shape(); ring.moveTo(-outer, -outer); ring.lineTo(outer, -outer); ring.lineTo(outer, outer); ring.lineTo(-outer, outer); ring.lineTo(-outer, -outer);
     const hole = new THREE.Path(); hole.moveTo(-half, -half); hole.lineTo(-half, half); hole.lineTo(half, half); hole.lineTo(half, -half); hole.lineTo(-half, -half);
     ring.holes.push(hole);
-    const fg = new THREE.ExtrudeGeometry(ring, { depth: 0.0018, bevelEnabled: true, bevelThickness: 0.0016, bevelSize: 0.0028, bevelSegments: 3, curveSegments: 4 });
+    const fg = new THREE.ExtrudeGeometry(ring, { depth: 0.003, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.0055, bevelSegments: 2, curveSegments: 4 });     // chamfered lip: the field reads as sunk into the lid
     fg.rotateX(-Math.PI / 2);
     // lid uv (same mapping as the top plane) so the carved border texture lands on the frame
     const fp = fg.attributes.position, fu = fg.attributes.uv;
@@ -583,18 +620,30 @@ export function buildFireplace(ctx, mats, { H = 3.6, breastW = 2.1, depth = 0.42
     mesh(rbox(G, 0.2, oh + 0.1, 0.16, 0.012), mats.marble, x, 0.1 + (oh + 0.1) / 2, z0 + 0.07, g);
     // fluting
     for (let k = -1; k <= 1; k++) { const f = mesh(new THREE.CylinderGeometry(0.012, 0.012, oh - 0.06, 10), mats.marbleDark, x + k * 0.05, 0.1 + (oh + 0.1) / 2, z0 + 0.148, g); f.scale.z = 0.4; }
-    // console bracket capital
-    const cap = new THREE.Shape([V2(0, 0), V2(0.16, 0), V2(0.2, 0.06), V2(0.2, 0.16), V2(0.0, 0.16)].map((v) => v));
-    const cg = new THREE.ExtrudeGeometry(cap, { depth: 0.2, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 2 });
-    cg.translate(0, 0, -0.1); cg.rotateY(-Math.PI / 2);
-    mesh(G.applyBoxUVs(cg, 1), mats.marble, x, oy + oh + 0.05, z0, g);
+    // scrolled console corbel: a big volute under the shelf, tightening into a small one at the foot
+    const cap = new THREE.Shape();
+    cap.moveTo(0, 0.2); cap.lineTo(0.215, 0.2); cap.lineTo(0.215, 0.17);
+    cap.bezierCurveTo(0.215, 0.13, 0.19, 0.115, 0.165, 0.12);                          // upper volute
+    cap.bezierCurveTo(0.13, 0.125, 0.12, 0.09, 0.12, 0.06);                            // concave neck
+    cap.bezierCurveTo(0.12, 0.03, 0.105, 0.0, 0.07, 0.0);                              // lower curl
+    cap.lineTo(0, 0); cap.lineTo(0, 0.2);
+    const cg = new THREE.ExtrudeGeometry(cap, { depth: 0.17, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.006, bevelSegments: 3, curveSegments: 16 });
+    cg.translate(0, 0, -0.085); cg.rotateY(-Math.PI / 2);
+    mesh(G.applyBoxUVs(cg, 1), mats.marble, x, oy + oh + 0.04, z0, g);
+    // the volute eyes: carved discs on both faces of the corbel
+    for (const sx2 of [-1, 1]) { const vd = mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.012, 24).rotateZ(Math.PI / 2), mats.marbleDark, x + sx2 * 0.09, oy + oh + 0.04 + 0.155, z0 + 0.175, g); void vd; }
+    // a pendant drop with an acanthus-like bead under the corbel
+    mesh(G.latheFromProfile([[0, 0], [0.025, -0.01], [0.03, -0.03], [0.02, -0.05], [0.008, -0.07], [0, -0.075]], 20), mats.marble, x, oy + oh + 0.04, z0 + 0.06, g);
   }
   mesh(rbox(G, ow + 0.24, 0.22, 0.14, 0.01), mats.marble, 0, oy + oh + 0.13, z0 + 0.06, g);
   // carved central tablet
   mesh(rbox(G, 0.32, 0.13, 0.03, 0.008), mats.marbleDark, 0, oy + oh + 0.13, z0 + 0.14, g);
   const shelfY = oy + oh + 0.26;
   {
-    const prof = [[0, 0], [0.3, 0], [0.33, 0.012], [0.34, 0.03], [0.33, 0.05], [0.3, 0.06], [0, 0.06]];
+    // shelf with a proper moulded edge: fillet, cyma-recta ogee, a square nosing on top
+    const prof = [[0, 0], [0.255, 0], [0.262, 0.004], [0.262, 0.01]];
+    for (let i = 1; i <= 12; i++) { const t = i / 12; prof.push([0.262 + 0.068 * (t + 0.12 * Math.sin(2 * Math.PI * t)), 0.01 + 0.045 * (0.5 - 0.5 * Math.cos(Math.PI * t))]); }
+    prof.push([0.342, 0.06], [0.342, 0.078], [0.335, 0.082], [0, 0.082]);
     const sg = extrudeProfileX(G, prof, ow + 0.78);
     mesh(sg, mats.marble, 0, shelfY, depth - 0.02, g);
     const prof2 = [[0, 0], [0.24, 0], [0.24, 0.02], [0.2, 0.045], [0.0, 0.045]];
@@ -648,7 +697,7 @@ export function buildFireplace(ctx, mats, { H = 3.6, breastW = 2.1, depth = 0.42
   const flames = [];
   const fireMat = fireMaterial(ctx.time);
   const cardG = new THREE.PlaneGeometry(1, 1, 1, 1); cardG.translate(0, 0.5, 0);
-  const cards = [[0, 0.62, 0.5, 0.0, 0.0], [0.6, 0.5, 0.42, 0.04, 2.3], [-0.55, 0.52, 0.38, -0.05, 4.1], [1.57, 0.36, 0.34, 0.0, 6.0], [0.25, 0.34, 0.28, -0.12, 7.7], [-0.3, 0.3, 0.24, 0.13, 9.1]];
+  const cards = [[0, 0.62, 0.5, 0.0, 0.0], [0.6, 0.5, 0.42, 0.04, 2.3], [-0.55, 0.52, 0.38, -0.05, 4.1], [0.25, 0.34, 0.28, -0.12, 7.7], [-0.3, 0.3, 0.24, 0.13, 9.1], [0.05, 0.44, 0.3, 0.02, 11.3]];
   for (const [ry, w, h, dx, sd] of cards) {
     const m = new THREE.Mesh(cardG, fireMat.clone());
     m.material.uniforms.uTime = ctx.time;
@@ -707,7 +756,7 @@ export function fireMaterial(timeUniform) {
         col = mix(col, vec3(0.35, 0.03, 0.005), smoothstep(0.12, 0.0, e) * a);
         // blue-ish roots right at the coals
         col = mix(col, vec3(0.35, 0.3, 0.6), smoothstep(0.08, 0.0, p.y) * 0.5 * a);
-        float alpha = a * smoothstep(0.0, 0.05, p.y) * smoothstep(0.2, 0.65, vFace);
+        float alpha = a * smoothstep(0.0, 0.05, p.y) * smoothstep(0.3, 0.8, vFace);
         gl_FragColor = vec4(col * uIntensity * alpha, alpha);
       }`,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide,
@@ -734,12 +783,16 @@ export function emberPoints(ctx, { count = 60, box = [0.4, 0.7, 0.2] } = {}) {
         vA = (1.0 - life) * smoothstep(0.0, 0.1, life);
         vec4 mv = modelViewMatrix * vec4(p, 1.0);
         gl_Position = projectionMatrix * mv;
-        gl_PointSize = (2.0 + aSeed.w * 2.5) * (300.0 / -mv.z) * 0.02;
+        gl_PointSize = (5.0 + aSeed.w * 6.0) * (300.0 / -mv.z) * 0.02;
       }`,
     fragmentShader: /* glsl */ `
       varying float vA;
-      void main() { vec2 d = gl_PointCoord - 0.5; float r = dot(d, d); if (r > 0.25) discard;
-        gl_FragColor = vec4(vec3(1.0, 0.45, 0.1) * 4.0 * vA * (1.0 - r * 4.0), 1.0); }`,
+      // motion-stretched spark: a thin vertical streak, hot head at the top, cooling tail below
+      void main() { vec2 d = gl_PointCoord - 0.5;
+        float w = smoothstep(0.07, 0.0, abs(d.x)) ;
+        float along = smoothstep(0.5, 0.15, abs(d.y)) * (0.35 + 0.65 * smoothstep(0.4, -0.3, d.y));
+        float a = w * along; if (a < 0.01) discard;
+        gl_FragColor = vec4(mix(vec3(1.0, 0.3, 0.05), vec3(1.0, 0.75, 0.35), smoothstep(0.2, -0.3, d.y)) * 3.0 * vA * a, 1.0); }`,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
   });
   const pts = new THREE.Points(geo, mat);
@@ -751,6 +804,19 @@ export function emberPoints(ctx, { count = 60, box = [0.4, 0.7, 0.2] } = {}) {
 /** Impact point (uv over the glass) and the radial crack angles of the broken vanity mirror. */
 export const MIRROR_IMPACT = [0.62, 0.6];
 export const MIRROR_ANGLES = [0.42, 1.38, 2.3, 3.05, 4.1, 5.15];
+/** Voronoi sites (uv over the glass) of the mirror's shards: crowded round the impact, larger toward the frame. */
+export const MIRROR_SEEDS = [[0.61, 0.61], [0.71, 0.53], [0.53, 0.5], [0.76, 0.76], [0.46, 0.8], [0.88, 0.36], [0.24, 0.6], [0.3, 0.2], [0.66, 0.14], [0.9, 0.92]];
+/** Clip a convex polygon (array of Vector2) by the half-plane dot(p - o, n) <= 0. */
+function clipPoly(poly, o, n) {
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const da = (a.x - o.x) * n.x + (a.y - o.y) * n.y, db = (b.x - o.x) * n.x + (b.y - o.y) * n.y;
+    if (da <= 0) out.push(a);
+    if ((da <= 0) !== (db <= 0)) { const t = da / (da - db); out.push(new THREE.Vector2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)); }
+  }
+  return out;
+}
 /** Dressing table with a cracked swing mirror. Local: back to wall at z = 0, faces +Z. userData: { candles, mirror } */
 export function buildVanity(ctx, mats, { w = 1.15, d = 0.5 } = {}) {
   const G = ctx.geometry;
@@ -777,37 +843,35 @@ export function buildVanity(ctx, mats, { w = 1.15, d = 0.5 } = {}) {
   }
   const mg = new THREE.Group(); mg.position.set(0, my, 0.12); mg.rotation.x = -0.06; g.add(mg);
   mesh(G.frameGeometry(mw, mh, { width: 0.07, depth: 0.04, uvScale: 1 }), mats.giltFrame, 0, 0, 0, mg);
-  // the glass is broken into tilted shards radiating from the impact, so each reflects the room
-  // at a slightly different angle and the seams between them show as dark steps
+  // the glass is broken into irregular Voronoi shards (crowded round the impact), each knocked
+  // 0.5-2 degrees out of true so it throws its own piece of the room back; the seams between them
+  // are hairline gaps onto the dark backing board
   const mirror = new THREE.Group(); mirror.name = 'mirror'; mg.add(mirror);
   {
     const W2 = (mw + 0.01) / 2, H2 = (mh + 0.01) / 2;
-    const I = V2((MIRROR_IMPACT[0] - 0.5) * W2 * 2, (MIRROR_IMPACT[1] - 0.5) * H2 * 2);
-    const A = MIRROR_ANGLES.slice().sort((a, b) => a - b);
-    const hit = (a) => {
-      const c = Math.cos(a), s2 = Math.sin(a); let t = 1e9;
-      if (Math.abs(c) > 1e-6) for (const X of [-W2, W2]) { const tt = (X - I.x) / c; if (tt > 0) t = Math.min(t, tt); }
-      if (Math.abs(s2) > 1e-6) for (const Y of [-H2, H2]) { const tt = (Y - I.y) / s2; if (tt > 0) t = Math.min(t, tt); }
-      return V2(I.x + c * t, I.y + s2 * t);
-    };
-    const norm = (a) => ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-    const corners = [V2(W2, H2), V2(-W2, H2), V2(-W2, -H2), V2(W2, -H2)].map((c) => ({ c, a: norm(Math.atan2(c.y - I.y, c.x - I.x)) }));
-    for (let k = 0; k < A.length; k++) {
-      const a0 = norm(A[k]), a1 = norm(A[(k + 1) % A.length]);
-      const span = norm(a1 - a0) || Math.PI * 2;
-      const pts = [I.clone(), hit(a0)];
-      corners.filter((q) => norm(q.a - a0) < span).sort((p1, p2) => norm(p1.a - a0) - norm(p2.a - a0)).forEach((q) => pts.push(q.c.clone()));
-      pts.push(hit(a1));
-      const shape = new THREE.Shape(pts.map((q) => V2(q.x - I.x, q.y - I.y)));
-      const sg = new THREE.ShapeGeometry(shape);
-      const sp = sg.attributes.position, su = sg.attributes.uv;
-      for (let i = 0; i < sp.count; i++) su.setXY(i, (sp.getX(i) + I.x) / (W2 * 2) + 0.5, (sp.getY(i) + I.y) / (H2 * 2) + 0.5);
-      const shard = mesh(sg, mats.mirror, I.x, I.y, 0.006 + k * 0.0006, mirror);
-      const b = a0 + span / 2;
-      const deg = (0.3 + ((k * 0.37) % 0.7)) * (k % 2 ? 1 : -1) * Math.PI / 180;
-      shard.quaternion.setFromAxisAngle(V3(-Math.sin(b), Math.cos(b), 0), deg);
+    const sites = MIRROR_SEEDS.map(([u, v]) => new THREE.Vector2((u - 0.5) * W2 * 2, (v - 0.5) * H2 * 2));
+    const rect = [new THREE.Vector2(-W2, -H2), new THREE.Vector2(W2, -H2), new THREE.Vector2(W2, H2), new THREE.Vector2(-W2, H2)];
+    sites.forEach((sp, k) => {
+      let poly = rect.map((q) => q.clone());
+      for (let j = 0; j < sites.length; j++) {
+        if (j === k) continue;
+        const o = sp.clone().add(sites[j]).multiplyScalar(0.5), n = sites[j].clone().sub(sp).normalize();
+        poly = clipPoly(poly, o, n);
+      }
+      if (poly.length < 3) return;
+      const c = poly.reduce((acc, q) => acc.add(q), new THREE.Vector2()).multiplyScalar(1 / poly.length);
+      // pull each edge in a hair (0.9 mm) so the seams open onto black
+      const shrunk = poly.map((q) => { const d = q.clone().sub(c); const l = d.length(); return c.clone().add(d.multiplyScalar(Math.max(0, l - 0.0009) / l)); });
+      const sg = new THREE.ShapeGeometry(new THREE.Shape(shrunk.map((q) => new THREE.Vector2(q.x - c.x, q.y - c.y))));
+      const sp2 = sg.attributes.position, su = sg.attributes.uv;
+      for (let i = 0; i < sp2.count; i++) su.setXY(i, (sp2.getX(i) + c.x) / (W2 * 2) + 0.5, (sp2.getY(i) + c.y) / (H2 * 2) + 0.5);
+      const shard = mesh(sg, mats.mirror, c.x, c.y, 0.006 + (k % 3) * 0.0007, mirror);
+      const ax = ((k * 2.39) % 6.283), deg = (0.5 + ((k * 0.61) % 1.5)) * Math.PI / 180;
+      shard.quaternion.setFromAxisAngle(V3(Math.cos(ax), Math.sin(ax), 0), deg);
       shard.name = 'mirrorShard';
-    }
+    });
+    // black backing board seen through the seams
+    mesh(new THREE.PlaneGeometry(W2 * 2, H2 * 2), mats.black, 0, 0, 0.003, mirror);
   }
   mesh(rbox(G, mw + 0.1, mh + 0.1, 0.02, 0.005), mats.walnut, 0, 0, -0.012, mg);
   // crest
@@ -1102,12 +1166,25 @@ export function buildWardrobe(ctx, mats, { w = 1.42, h = 2.32, d = 0.62 } = {}) 
     const pivot = new THREE.Group(); pivot.position.set(sx * (w / 2 - 0.03), 0.2, d + 0.0);
     pivot.userData.keep = true;
     const leaf = new THREE.Group(); leaf.position.x = -sx * dw / 2; pivot.add(leaf);
-    mesh(rbox(G, dw - 0.005, dh, 0.03, 0.006), mats.mahogany, 0, dh / 2, 0, leaf);
-    mesh(G.raisedPanel(dw - 0.12, dh * 0.62, { border: 0.05, bevel: 0.04 }), mats.panel, 0, dh * 0.62, 0.015, leaf);
-    mesh(G.raisedPanel(dw - 0.12, dh * 0.25, { border: 0.04, bevel: 0.03 }), mats.panel, 0, dh * 0.16, 0.015, leaf);
+    // a proper 45 mm leaf: stiles and rails, two fielded panels each framed by a bolection moulding
+    mesh(rbox(G, dw - 0.005, dh, 0.045, 0.006), mats.mahogany, 0, dh / 2, 0, leaf);
+    for (const [py, ph, bd] of [[dh * 0.62, dh * 0.62, 0.05], [dh * 0.16, dh * 0.25, 0.04]]) {
+      mesh(G.raisedPanel(dw - 0.12, ph, { border: bd, bevel: 0.035 }), mats.panel, 0, py, 0.0225, leaf);
+      mesh(G.frameGeometry(dw - 0.12, ph, { width: 0.022, depth: 0.014, uvScale: 1 }), mats.mahogany, 0, py, 0.0225, leaf);
+    }
+    // three brass butt hinges on the hanging stile: leaves on the edge + a knuckle with a finial pin
+    for (const hy of [0.12, dh * 0.5, dh - 0.12]) {
+      const hx = sx * (dw / 2 - 0.0025);
+      mesh(rbox(G, 0.004, 0.09, 0.03, 0.001), mats.brass, hx, hy, 0.0, leaf);
+      mesh(new THREE.CylinderGeometry(0.0065, 0.0065, 0.09, 14), mats.brass, hx + sx * 0.004, hy, 0.024, leaf);
+      for (const e of [-1, 1]) mesh(new THREE.SphereGeometry(0.0065, 10, 6), mats.brass, hx + sx * 0.004, hy + e * 0.047, 0.024, leaf);
+    }
+    // the latch: a keeper plate on the meeting stile (left leaf) and the bolt housing (right leaf)
+    if (sx < 0) mesh(rbox(G, 0.018, 0.11, 0.004, 0.0015), mats.brass, -sx * (dw / 2 - 0.012), dh * 0.48, 0.024, leaf);
+    else { mesh(rbox(G, 0.02, 0.06, 0.012, 0.002), mats.brass, -sx * (dw / 2 - 0.014), dh * 0.48, 0.028, leaf); mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.012, 10).rotateX(Math.PI / 2), mats.black, -sx * (dw / 2 - 0.014), dh * 0.48 - 0.018, 0.035, leaf); }
     // inside face of the leaf
-    mesh(G.raisedPanel(dw - 0.12, dh * 0.8, { border: 0.05, bevel: 0.03 }), mats.walnut, 0, dh * 0.5, -0.015, leaf).rotation.y = Math.PI;
-    mesh(lathe(G, [[0, 0], [0.012, 0], [0.016, 0.02], [0.008, 0.035], [0, 0.04]], 12).rotateX(Math.PI / 2), mats.brass, -sx * (dw / 2 - 0.05), dh * 0.48, 0.015, leaf);
+    mesh(G.raisedPanel(dw - 0.12, dh * 0.8, { border: 0.05, bevel: 0.03 }), mats.walnut, 0, dh * 0.5, -0.0225, leaf).rotation.y = Math.PI;
+    mesh(lathe(G, [[0, 0], [0.012, 0], [0.016, 0.02], [0.008, 0.035], [0, 0.04]], 12).rotateX(Math.PI / 2), mats.brass, -sx * (dw / 2 - 0.05), dh * 0.48, 0.0225, leaf);
     g.add(pivot); doors.push(pivot);
   }
   g.userData = { doors, back, opening: { w: ow, y0: oy0, y1: oy1 } };

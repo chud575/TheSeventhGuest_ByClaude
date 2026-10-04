@@ -17,7 +17,7 @@ export function mergeStatic(root) {
     if (o.isMesh && !o.isInstancedMesh && !o.isSkinnedMesh && o.visible && !Array.isArray(o.material) && !o.material.isShaderMaterial && !o.userData.noBake && !o.morphTargetInfluences) {
       const g = o.geometry;
       if (g.attributes.position && g.attributes.normal) {
-        const key = `${o.material.uuid}|${o.castShadow ? 1 : 0}${o.receiveShadow ? 1 : 0}|${o.renderOrder}`;
+        const key = `${o.material.uuid}|${o.castShadow ? 1 : 0}${o.receiveShadow ? 1 : 0}|${o.renderOrder}|${g.attributes.color ? 'c' : ''}`;
         let b = buckets.get(key);
         if (!b) buckets.set(key, (b = { material: o.material, cast: o.castShadow, receive: o.receiveShadow, renderOrder: o.renderOrder, items: [] }));
         b.items.push(o);
@@ -33,7 +33,8 @@ export function mergeStatic(root) {
     const geos = [];
     for (const o of b.items) {
       let g = o.geometry.clone();
-      for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
+      for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(name)) g.deleteAttribute(name);
+      if (g.attributes.color && g.attributes.color.itemSize !== 3) g.deleteAttribute('color');
       if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
       if (!g.index) {
         const n = g.attributes.position.count;
