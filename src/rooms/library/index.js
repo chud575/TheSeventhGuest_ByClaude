@@ -538,6 +538,7 @@ async function ghostLab(ctx, root) {
     nodes: {
       main: { position: c.clone().add(V3(0, 0.05, 0.75)).toArray(), target: c.toArray(), fov: 30 },
       side: { position: c.clone().add(V3(0.75, 0.05, 0.1)).toArray(), target: c.toArray(), fov: 30 },
+      q34: { position: c.clone().add(V3(0.5, 0.05, 0.58)).toArray(), target: c.toArray(), fov: 30 },
       far: { position: c.clone().add(V3(0.2, -0.2, 1.9)).toArray(), target: c.clone().add(V3(0, -0.12, 0)).toArray(), fov: 40 },
     },
     edges: [], exits: [], hotspots: [],

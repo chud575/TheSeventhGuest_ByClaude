@@ -278,8 +278,9 @@ function sheet(px, py, pz, { y0, y1, cx0, cx1, w0, w1, z0, z1, t, pleat, pleatF,
   return d;
 }
 export function cravatSdf(px, py, pz) {
-  const ang = Math.atan2(px, pz);
-  const rr = Math.hypot(px, pz - 0.004);
+  const ang = Math.atan2(px, pz + 0.012);
+  // centred on the (old man's forward-set) neck, and full enough at the back to cover the nape
+  const rr = Math.hypot(px, pz + 0.012) - 0.008 * Math.max(0, -Math.cos(ang));
   // the band: tall at the back, dipping under the chin; horizontal wrapping creases
   const yc = -0.074 + 0.02 * (1 - Math.max(0, Math.cos(ang)));
   const hh = 0.025 - 0.006 * Math.max(0, Math.cos(ang));
@@ -348,7 +349,7 @@ export function coatSdf(px, py, pz) {
     d += 0.0007 * Math.exp(-(((Math.abs(ax - ex - 0.026) - 0.019) / 0.0018) ** 2)) * (Math.abs(py + 0.22) < 0.1 ? 1 : 0);
   }
   // rolled collar standing behind the neck (taller at the back)
-  d = smin(d, len3(Math.hypot(px, pz + 0.006) - 0.066, (py + 0.1 - 0.012 * smoothstep(0, -0.06, pz)) * 0.7, 0) - 0.016 + Math.max(0, pz) * 0.45, 0.02);
+  d = smin(d, len3(Math.hypot(px, pz + 0.012) - 0.07, (py + 0.098 - 0.03 * smoothstep(0, -0.07, pz)) * 0.6, 0) - 0.017 + Math.max(0, pz) * 0.45, 0.02);
   // shoulder seams
   d += 0.0008 * Math.exp(-(((Math.hypot(ax - 0.12, (py + 0.13) * 1.5) - 0.045) / 0.002) ** 2));
   // buttons (domed, with a rim)

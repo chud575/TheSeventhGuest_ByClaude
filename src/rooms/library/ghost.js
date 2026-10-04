@@ -63,7 +63,7 @@ export function spectralMaterial({
   rim = 0x9fb4dc, rimStrength = 0.25, rimBand = [0.2, 0.6], glow = 0.04,
   fadeY = -1, fadeSoft = 0.1, roughness = 0.6, tint = 0xc8d0dc, depthWrite = true, breakup = 0.3,
   bump = 0.0, bumpFreq = 700, desat = 0.35, wrap = 0.0, sss = [1.0, 0.45, 0.32], time = null,
-  map = null, bumpMap = null, bumpScale = 1, side = THREE.FrontSide, key = '', envMapIntensity = 0.35, keySpec = 0.0, shine = 30,
+  map = null, bumpMap = null, bumpScale = 1, side = THREE.FrontSide, key = '', envMapIntensity = 0.35, keySpec = 0.0, shine = 30, lid = 0.0,
 } = {}) {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness, metalness: 0, transparent: true, depthWrite, color: tint, map, bumpMap, bumpScale, side, envMapIntensity });
   const u = {
@@ -74,7 +74,7 @@ export function spectralMaterial({
     uWrap: { value: wrap }, uSSS: { value: new THREE.Color(...sss) },
     // ghost-only lights (no cost to the room, no spill on it): warm under-fill + cold back-rim, world-space dirs
     uFillDir: RIG.fillDir, uFillCol: RIG.fillCol, uRimDir: RIG.rimDir, uRimCol: RIG.rimCol,
-    uKeyDir: RIG.keyDir, uKeyCol: RIG.keyCol, uSceneK: RIG.sceneK, uKeySpec: { value: keySpec }, uShine: { value: shine },
+    uKeyDir: RIG.keyDir, uKeyCol: RIG.keyCol, uSceneK: RIG.sceneK, uKeySpec: { value: keySpec }, uShine: { value: shine }, uLid: { value: lid },
     uTime: time || { value: 0 },
   };
   m.userData.uniforms = u;
@@ -101,7 +101,7 @@ varying vec3 vGp;
 uniform float uOpacity, uCoreA, uEdgeA, uRimS, uGlow, uFadeY, uFadeSoft, uBreak, uBump, uBumpF, uDesat, uTime, uWrap;
 uniform vec2 uEdge, uRimBand;
 uniform vec3 uRim, uSSS, uFillDir, uFillCol, uRimDir, uRimCol, uKeyDir, uKeyCol;
-uniform float uSceneK, uKeySpec, uShine;
+uniform float uSceneK, uKeySpec, uShine, uLid;
 ${NOISE_GLSL}`)
       .replace('#include <lights_physical_pars_fragment>', lights)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
@@ -132,6 +132,11 @@ ${NOISE_GLSL}`)
     float ks = pow(saturate(dot(nV, hv)), uShine) * uKeySpec * saturate(knl * 4.0);
     outgoingLight += diffuseColor.rgb * kdiff + uKeyCol * ks;
     outgoingLight += uRimCol * pow(1.0 - gNdv, 2.5) * saturate(dot(nV, rd) + 0.25) * (0.35 + 0.65 * diffuseColor.rgb);
+  }
+  if (uLid > 0.0) {
+    // the upper lid shades the top of the eyeball; the ball darkens as it turns away into the socket
+    vec3 nV2 = normalize(normal);
+    outgoingLight *= (1.0 - uLid * smoothstep(-0.15, 0.45, nV2.y)) * mix(0.45, 1.0, smoothstep(0.55, 0.92, gNdv));
   }
   float gl = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
   outgoingLight = mix(outgoingLight, vec3(gl), uDesat);
@@ -172,12 +177,12 @@ export async function buildGhost(ctx, root) {
   const mats = {
     // the face reads solid (the eye must find it); it only thins right at the silhouette
     head: spectralMaterial({ coreAlpha: 1.0, edgeAlpha: 0.5, edgeStart: 0.55, edgeEnd: 1.0, rim: cool, rimStrength: 0.05, rimBand: [0.45, 0.85], glow: 0.006, fadeY: -0.1, fadeSoft: 0.025, roughness: 0.5, tint: Number(ctx.params.get('gtint') || 0xb4b8c0), map: skinC, bumpMap: skinH, bumpScale: 1.2, bump: 0.00004, bumpFreq: 2600, breakup: 0.0, desat: Number(ctx.params.get('gdesat') || 0.35), wrap: Number(ctx.params.get('gwrap') || 0.3), keySpec: 0.22, shine: 22, time, key: 'skin' }),
-    eye: spectralMaterial({ coreAlpha: 1.0, edgeAlpha: 1.0, rimStrength: 0.0, glow: 0.01, roughness: 0.35, tint: 0xf2f2f2, breakup: 0.0, desat: 0.12, wrap: 0.3, sss: [1, 0.7, 0.6], time, key: 'eye' }),
+    eye: spectralMaterial({ coreAlpha: 1.0, edgeAlpha: 1.0, rimStrength: 0.0, glow: 0.0, roughness: 0.35, tint: 0xc8c8c8, breakup: 0.0, desat: 0.2, wrap: 0.2, sss: [1, 0.8, 0.75], lid: 0.6, time, key: 'eye' }),
     cravat: spectralMaterial({ coreAlpha: 0.95, edgeAlpha: 0.25, edgeStart: 0.5, rim: cool, rimStrength: 0.12, glow: 0.01, fadeY: -0.235, fadeSoft: 0.045, roughness: 0.75, tint: 0x9c9a96, bump: 0.0004, bumpFreq: 260, breakup: 0.15, desat: 0.2, wrap: 0.5, sss: [0.9, 0.85, 0.8], time, key: 'cloth' }),
     waistcoat: spectralMaterial({ coreAlpha: 0.5, edgeAlpha: 0.05, edgeStart: 0.25, edgeEnd: 0.85, rim: cool, rimStrength: 0.35, rimBand: [0.15, 0.55], glow: 0.08, fadeY: -0.37, fadeSoft: 0.1, roughness: 0.7, tint: 0xd8e0ee, bump: 0.0003, bumpFreq: 420, breakup: 0.3, depthWrite: false, desat: 0.35, wrap: 0.3, time, key: 'wc' }),
     coat: spectralMaterial({ coreAlpha: 0.5, edgeAlpha: 0.05, edgeStart: 0.2, edgeEnd: 0.8, rim: cool, rimStrength: 0.45, rimBand: [0.12, 0.5], glow: 0.07, fadeY: -0.32, fadeSoft: 0.13, roughness: 0.78, tint: 0xd0d8e6, bump: 0.0003, bumpFreq: 380, breakup: 0.45, depthWrite: false, desat: 0.35, wrap: 0.3, time, key: 'coat' }),
     // white hair scatters light: strong wrap, a little self-glow, a cold sheen in the inner fresnel band
-    hair: spectralMaterial({ map: hairT, coreAlpha: 0.95, edgeAlpha: 0.7, rim: cool, rimStrength: 0.12, rimBand: [0.3, 0.8], glow: 0.05, roughness: 0.45, tint: 0xeceae6, breakup: 0.1, depthWrite: false, desat: 0.35, wrap: 0.9, sss: [1, 0.95, 0.9], side: THREE.DoubleSide, time, key: 'hair' }),
+    hair: spectralMaterial({ map: hairT, coreAlpha: 1.0, edgeAlpha: 0.8, rim: cool, rimStrength: 0.18, rimBand: [0.3, 0.8], glow: 0.13, roughness: 0.45, tint: 0xeceae6, breakup: 0.1, depthWrite: false, desat: 0.35, wrap: 0.9, sss: [1, 0.95, 0.9], side: THREE.DoubleSide, time, key: 'hair' }),
     // cornea: black + additive, so only its wet specular and reflections land on the eye
     cornea: new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 0.06, metalness: 0, transparent: true, blending: THREE.AdditiveBlending, specularIntensity: 1, envMapIntensity: 1.6, depthWrite: false }),
   };
@@ -206,8 +211,18 @@ export async function buildGhost(ctx, root) {
     if (eyeSide && meshes[`pivot${eyeSide[2]}`]) meshes[`pivot${eyeSide[2]}`].add(m); else group.add(m);
     meshes[name] = m;
   }
+  // catchlights: the key's wet glint on each cornea (the key lives in the shader, so place them by hand)
+  const catchMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2.5, 2.8), transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false });
+  const catches = eyes.map(() => {
+    const d = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), catchMat);
+    d.renderOrder = 17; d.userData.noBake = true;
+    group.add(d);
+    return d;
+  });
+  const eyeR = Object.values(meta.eyes || {}).map((e) => e.r);
   // the eyes follow the visitor (clamped), with a slight lazy lag
   const tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), fwd = new THREE.Vector3(0, 0, 1), look = new THREE.Vector3();
+  const hv = new THREE.Vector3(), kd = new THREE.Vector3(), fw = new THREE.Vector3();
   const aimEyes = (camPos, k = 1) => {
     group.updateMatrixWorld(true);
     for (const p of eyes) {
@@ -220,6 +235,23 @@ export async function buildGhost(ctx, root) {
       tmpQ.setFromUnitVectors(fwd, tmpV);
       p.quaternion.slerp(tmpQ, k);
     }
+    // catchlights: on the cornea along the half-vector between the viewer and the key (local space)
+    eyes.forEach((p, i) => {
+      look.copy(camPos); p.parent.worldToLocal(look);
+      tmpV.copy(look).sub(p.position).normalize();
+      kd.copy(RIG.keyDir.value);
+      const inv = new THREE.Quaternion(); group.getWorldQuaternion(inv).invert();
+      kd.applyQuaternion(inv).normalize();
+      hv.copy(tmpV).multiplyScalar(2.2).add(kd).normalize();
+      fw.set(0, 0, 1).applyQuaternion(p.quaternion);
+      // keep it on the cornea dome (within ~18 deg of the eye's axis)
+      const ang = fw.angleTo(hv);
+      if (ang > 0.16) hv.lerp(fw, 1 - 0.16 / ang).normalize();
+      const r = eyeR[i] || 0.0165;
+      catches[i].position.copy(p.position).addScaledVector(hv, r * 1.06);
+      catches[i].scale.setScalar(r * 0.085);
+      catches[i].visible = RIG.keyCol.value.r > 0.01;
+    });
   };
   const setRig = ({ fillDir, fillColor, fillI = 1, rimDir, rimColor, rimI = 1, keyDir, keyColor, keyI = 1, sceneK }) => {
     if (keyDir) RIG.keyDir.value.set(...keyDir).normalize();

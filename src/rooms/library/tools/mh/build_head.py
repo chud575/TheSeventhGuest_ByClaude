@@ -597,7 +597,7 @@ def eyeball(r):
     t = TH.ravel(); p = PH.ravel()
     rng = np.random.default_rng(3)
     # sclera: old, faintly yellowed, pink and veined toward the corners
-    col = np.tile([0.86, 0.82, 0.76], (len(P), 1))
+    col = np.tile([0.8, 0.78, 0.75], (len(P), 1))
     veins = np.zeros(len(P))
     for k in range(26):
         a0 = rng.uniform(0, 2 * np.pi)
@@ -661,7 +661,7 @@ def hair_texture(path):
     yy = np.arange(H)[:, None] / H
     for var in range(4):
         x0 = var * 128
-        n = (70, 40, 11, 5)[var]
+        n = (42, 26, 11, 5)[var]
         for k in range(n):
             cx = r.uniform(10, 118)
             amp = r.uniform(1, 6); fr = r.uniform(0.6, 2.2); ph = r.uniform(0, 6)
@@ -673,7 +673,7 @@ def hair_texture(path):
             d = np.abs(gx - xs[:, None]) / wid[:, None]
             a = np.clip(1.15 - d, 0, 1) ** 1.5
             a *= (1 - sstep(end - 0.25, end, yy)) * sstep(0.0, 0.03, yy)
-            a *= 0.75 + 0.25 * np.sin(yy * r.uniform(30, 60) + ph)
+            a *= (0.75 + 0.25 * np.sin(yy * r.uniform(30, 60) + ph)) * (0.85 if var < 2 else 1.0)
             g = r.uniform(0.72, 1.0)
             tone = np.array([g, g * 0.985, g * 0.96])
             sl = img[:, x0:x0 + 128]
@@ -731,7 +731,7 @@ class Strands:
             tg = pts[min(i + 1, segs)] - pts[max(i - 1, 0)]; tg /= np.linalg.norm(tg)
             _, n = self.sd(p[None]); n = n[0]
             b = np.cross(tg, n); b /= max(np.linalg.norm(b), 1e-9)
-            w = width * (1 - 0.35 * t)
+            w = width * (1 - 0.7 * t)
             for sgn, u in ((-1, u0), (1, u1)):
                 self.P.append(p + b * w * 0.5 * sgn)
                 self.UV.append([u, t])
@@ -763,7 +763,7 @@ def hair_parts(parts, V, N, T, eyeFit):
     bot = np.where(ath < 105, 0.098, 0.098 - 0.07 * sstep(105, 150, ath))
     band = (ath > 68) & (y < top) & (y > bot) & ~ear & (N[:, 1] > -0.4)
     cand = np.where(band)[0]
-    roots = cand[r.choice(len(cand), size=min(len(cand), 520), replace=False)]
+    roots = cand[r.choice(len(cand), size=min(len(cand), 950), replace=False)]
     for k, vi in enumerate(roots):
         p = V[vi]
         a = np.radians(th[vi])
@@ -771,9 +771,9 @@ def hair_parts(parts, V, N, T, eyeFit):
         back = np.array([np.sin(a), 0, np.cos(a)])
         d0 = np.array([0, -0.7, 0]) + back * 0.8 + r.normal(0, 0.2, 3)
         fly = r.random() < 0.07
-        L = r.uniform(0.026, 0.05) * (1.25 if fly else 1)
-        st.card(p, d0, L, r.uniform(0.006, 0.011), 0.0004, r.uniform(0.0015, 0.004) * (2.5 if fly else 1),
-                variant=int(r.integers(0, 2)), gravity=0.006, curl=r.uniform(-0.03, 0.03), rng=r, segs=9,
+        L = r.uniform(0.03, 0.056) * (1.2 if fly else 1)
+        st.card(p, d0, L, r.uniform(0.004, 0.008), 0.0003, r.uniform(0.001, 0.003) * (2.5 if fly else 1),
+                variant=int(r.integers(0, 2)), gravity=0.009, curl=r.uniform(-0.035, 0.035), rng=r, segs=10,
                 tone=r.uniform(0.82, 1.0), wave=0.1 if fly else 0.035)
     parts.append(st.part('hair'))
     # ---- eyebrows: grey, bristly, with a few long wiry hairs
