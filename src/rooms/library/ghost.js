@@ -1,6 +1,8 @@
 // The library's apparition: "Mr. Quill", an original elderly scholar ghost (bust).
-// Geometry is sculpted offline (tools/ghostSdf.mjs -> tools/genGhost.mjs -> ghost.bin);
-// here we load it and give it a lit-but-translucent spectral material.
+// The head is authored offline (tools/mh/build_head.py: CC0 MakeHuman base mesh ->
+// our own ageing/shape blend, sculpted folds, painted skin, baked fine-wrinkle bump
+// and freckle maps, eyeballs, hair cards); the stock and coat are SDF sculpts
+// (tools/ghostSdf.mjs). tools/genGhost.mjs packs everything into ghost.bin.
 import * as THREE from 'three';
 
 async function loadParts(url) {
@@ -26,24 +28,43 @@ async function loadParts(url) {
     g.setAttribute('normal', new THREE.BufferAttribute(n3, 3));
     g.setAttribute('color', new THREE.BufferAttribute(new Uint8Array(buf, base + p.col, p.vertices * 4), 4, true));
     g.setIndex(new THREE.BufferAttribute(new Uint32Array(buf, base + p.idx, p.indices), 1));
+    if (p.uv !== undefined) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(buf, base + p.uv, p.vertices * 2), 2));
     g.computeBoundingSphere();
     parts[p.name] = g;
   }
-  return parts;
+  return { parts, meta: header.meta || {} };
 }
 
+const NOISE_GLSL = `
+float gHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float gNoise(vec3 x) {
+  vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(gHash(i), gHash(i + vec3(1, 0, 0)), f.x), mix(gHash(i + vec3(0, 1, 0)), gHash(i + vec3(1, 1, 0)), f.x), f.y),
+             mix(mix(gHash(i + vec3(0, 0, 1)), gHash(i + vec3(1, 0, 1)), f.x), mix(gHash(i + vec3(0, 1, 1)), gHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+}
+float gFbm(vec3 p) { return 0.5 * gNoise(p) + 0.25 * gNoise(p * 2.03 + 7.1) + 0.125 * gNoise(p * 4.1 + 3.3) + 0.0625 * gNoise(p * 8.3 + 1.7); }`;
+
 /**
- * Lit spectral material (one family for every part of the apparition): vertex-painted PBR,
- * translucent toward the silhouette (fresnel), a slow drifting noise breakup of the alpha,
- * fine procedural skin/cloth bump, a cold desaturating tint, and a soft fade below `fadeY`.
+ * Lit spectral material (one family for every part of the apparition): vertex-painted PBR
+ * with optional albedo/bump maps, wrap diffuse with a warm subsurface tint (skin), an
+ * alpha that is densest in the core and thins to nothing at the silhouette (no cut-out
+ * outline), a cold glow in an inner fresnel band, a drifting noise breakup and a soft
+ * fade below `fadeY`.
  */
-export function spectralMaterial({ opacity = 1, coreAlpha = 0.78, edgeAlpha = 0.15, rim = 0x9fb4dc, rimStrength = 0.25, glow = 0.04, fadeY = -1, fadeSoft = 0.1, roughness = 0.6, tint = 0xc8d0dc, depthWrite = true, breakup = 0.3, bump = 0.0, bumpFreq = 700, desat = 0.35, time = null } = {}) {
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness, metalness: 0, transparent: true, depthWrite, color: tint });
+export function spectralMaterial({
+  opacity = 1, coreAlpha = 0.78, edgeAlpha = 0.15, edgeStart = 0.35, edgeEnd = 0.95,
+  rim = 0x9fb4dc, rimStrength = 0.25, rimBand = [0.2, 0.6], glow = 0.04,
+  fadeY = -1, fadeSoft = 0.1, roughness = 0.6, tint = 0xc8d0dc, depthWrite = true, breakup = 0.3,
+  bump = 0.0, bumpFreq = 700, desat = 0.35, wrap = 0.0, sss = [1.0, 0.45, 0.32], time = null,
+  map = null, bumpMap = null, bumpScale = 1, side = THREE.FrontSide, key = '',
+} = {}) {
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness, metalness: 0, transparent: true, depthWrite, color: tint, map, bumpMap, bumpScale, side });
   const u = {
-    uOpacity: { value: opacity }, uCoreA: { value: coreAlpha }, uEdgeA: { value: edgeAlpha },
-    uRim: { value: new THREE.Color(rim) }, uRimS: { value: rimStrength }, uGlow: { value: glow },
+    uOpacity: { value: opacity }, uCoreA: { value: coreAlpha }, uEdgeA: { value: edgeAlpha }, uEdge: { value: new THREE.Vector2(edgeStart, edgeEnd) },
+    uRim: { value: new THREE.Color(rim) }, uRimS: { value: rimStrength }, uRimBand: { value: new THREE.Vector2(...rimBand) }, uGlow: { value: glow },
     uFadeY: { value: fadeY }, uFadeSoft: { value: fadeSoft }, uBreak: { value: breakup },
     uBump: { value: bump }, uBumpF: { value: bumpFreq }, uDesat: { value: desat },
+    uWrap: { value: wrap }, uSSS: { value: new THREE.Color(...sss) },
     uTime: time || { value: 0 },
   };
   m.userData.uniforms = u;
@@ -53,21 +74,26 @@ export function spectralMaterial({ opacity = 1, coreAlpha = 0.78, edgeAlpha = 0.
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vGp;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGp = position;');
+    const lights = THREE.ShaderChunk.lights_physical_pars_fragment.replace(
+      'reflectedLight.directDiffuse += irradiance * BRDF_Lambert( material.diffuseContribution ) * ( 1.0 - F );',
+      `{
+        // wrap lighting: light bleeds past the terminator, reddened as if scattered under the skin
+        float nl = dot( geometryNormal, directLight.direction );
+        float wrapped = saturate( ( nl + uWrap ) / ( 1.0 + uWrap ) );
+        vec3 sssIrr = directLight.color * ( dotNL + ( wrapped - dotNL ) * uSSS );
+        reflectedLight.directDiffuse += sssIrr * BRDF_Lambert( material.diffuseContribution ) * ( 1.0 - F );
+      }`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 varying vec3 vGp;
-uniform float uOpacity, uCoreA, uEdgeA, uRimS, uGlow, uFadeY, uFadeSoft, uBreak, uBump, uBumpF, uDesat, uTime;
-uniform vec3 uRim;
-float gHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
-float gNoise(vec3 x) {
-  vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(mix(gHash(i), gHash(i + vec3(1, 0, 0)), f.x), mix(gHash(i + vec3(0, 1, 0)), gHash(i + vec3(1, 1, 0)), f.x), f.y),
-             mix(mix(gHash(i + vec3(0, 0, 1)), gHash(i + vec3(1, 0, 1)), f.x), mix(gHash(i + vec3(0, 1, 1)), gHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
-}
-float gFbm(vec3 p) { return 0.5 * gNoise(p) + 0.25 * gNoise(p * 2.03 + 7.1) + 0.125 * gNoise(p * 4.1 + 3.3) + 0.0625 * gNoise(p * 8.3 + 1.7); }`)
+uniform float uOpacity, uCoreA, uEdgeA, uRimS, uGlow, uFadeY, uFadeSoft, uBreak, uBump, uBumpF, uDesat, uTime, uWrap;
+uniform vec2 uEdge, uRimBand;
+uniform vec3 uRim, uSSS;
+${NOISE_GLSL}`)
+      .replace('#include <lights_physical_pars_fragment>', lights)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
   if (uBump > 0.0) {
-    float gh = gFbm(vGp * uBumpF) + 0.5 * gNoise(vGp * uBumpF * 3.7);
+    float gh = gFbm(vGp * uBumpF);
     vec2 dH = vec2(dFdx(gh), dFdy(gh)) * uBump;
     vec3 sX = dFdx(-vViewPosition), sY = dFdy(-vViewPosition);
     vec3 R1 = cross(sY, normal), R2 = cross(normal, sX);
@@ -77,71 +103,95 @@ float gFbm(vec3 p) { return 0.5 * gNoise(p) + 0.25 * gNoise(p * 2.03 + 7.1) + 0.
   }`)
       .replace('#include <opaque_fragment>', `
   float gNdv = abs(dot(normalize(normal), normalize(vViewPosition)));
-  float gFres = pow(1.0 - gNdv, 2.0);
+  float gFres = 1.0 - gNdv;
   float gl = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
   outgoingLight = mix(outgoingLight, vec3(gl), uDesat);
-  outgoingLight += diffuseColor.rgb * uGlow + uRim * gFres * uRimS;
+  float gBand = smoothstep(uRimBand.x, uRimBand.y, gFres) * (1.0 - smoothstep(0.85, 1.0, gFres));
+  outgoingLight += diffuseColor.rgb * uGlow + uRim * gBand * uRimS;
   float gFlow = gFbm(vGp * 22.0 + vec3(0.0, -uTime * 0.06, uTime * 0.025));
   float gBreak = mix(1.0, smoothstep(0.18, 0.62, gFlow), uBreak);
   float gFade = smoothstep(uFadeY - uFadeSoft, uFadeY + uFadeSoft, vGp.y + (gFlow - 0.5) * uFadeSoft * 1.6);
-  diffuseColor.a = min(1.0, uOpacity * mix(uCoreA, uEdgeA, smoothstep(0.4, 0.95, gFres)) * gBreak * gFade);
+  diffuseColor.a *= min(1.0, uOpacity * mix(uCoreA, uEdgeA, smoothstep(uEdge.x, uEdge.y, gFres)) * gBreak * gFade);
 #include <opaque_fragment>`);
   };
-  m.customProgramCacheKey = () => `library-spectral3-${depthWrite}`;
+  m.customProgramCacheKey = () => `library-spectral4-${depthWrite}-${!!map}-${!!bumpMap}-${key}`;
   return m;
+}
+
+async function loadTex(url, srgb) {
+  const t = await new THREE.TextureLoader().loadAsync(url);
+  t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+  t.wrapS = THREE.RepeatWrapping;
+  t.anisotropy = 4;
+  return t;
 }
 
 export async function buildGhost(ctx, root) {
   const group = new THREE.Group();
   group.name = 'ghost';
-  let parts;
-  try { parts = await loadParts(ctx.assetUrl('ghost.bin')); } catch (e) { console.warn('[library] ghost mesh missing', e); return { group, materials: [] }; }
+  let parts, meta;
+  try { ({ parts, meta } = await loadParts(ctx.assetUrl('ghost.bin'))); } catch (e) { console.warn('[library] ghost mesh missing', e); return { group, materials: [] }; }
+  let skinC = null, skinH = null, hairT = null;
+  try {
+    [skinC, skinH, hairT] = await Promise.all([
+      loadTex(ctx.assetUrl('ghost_skin_c.jpg'), true), loadTex(ctx.assetUrl('ghost_skin_h.png'), false),
+      parts.hair || parts.brows ? loadTex(ctx.assetUrl('ghost_hair.png'), true) : Promise.resolve(null),
+    ]);
+  } catch (e) { console.warn('[library] ghost maps missing', e); }
   const time = ctx.time;
+  const cool = 0x9fb4dc;
   const mats = {
-    // the face reads near-solid (the eye must find it); the body thins to a cold, rim-lit veil
-    head: spectralMaterial({ coreAlpha: 1.0, edgeAlpha: 0.72, rimStrength: 0.35, glow: 0.02, fadeY: -0.1, fadeSoft: 0.02, roughness: 0.5, tint: 0xc8ccd4, bump: 0.00022, bumpFreq: 320, breakup: 0.0, desat: 0.28, time }),
-    hair: spectralMaterial({ coreAlpha: 0.9, edgeAlpha: 0.3, rimStrength: 1.0, glow: 0.12, roughness: 0.55, tint: 0xe4e8f0, breakup: 0.25, desat: 0.4, time }),
-    eyes: spectralMaterial({ coreAlpha: 0.97, edgeAlpha: 0.9, rimStrength: 0.05, glow: 0.02, roughness: 0.06, tint: 0xe8ecf2, breakup: 0.0, desat: 0.2, time }),
-    cravat: spectralMaterial({ coreAlpha: 0.95, edgeAlpha: 0.45, rimStrength: 0.3, glow: 0.025, fadeY: -0.235, fadeSoft: 0.045, roughness: 0.7, tint: 0xcfcdc8, bump: 0.0006, bumpFreq: 220, breakup: 0.2, desat: 0.25, time }),
-    waistcoat: spectralMaterial({ coreAlpha: 0.42, edgeAlpha: 0.45, rimStrength: 0.8, glow: 0.16, fadeY: -0.37, fadeSoft: 0.1, roughness: 0.7, tint: 0xd8e0ee, breakup: 0.35, depthWrite: false, desat: 0.4, time }),
-    coat: spectralMaterial({ coreAlpha: 0.3, edgeAlpha: 0.55, rimStrength: 1.0, glow: 0.18, fadeY: -0.32, fadeSoft: 0.13, roughness: 0.75, tint: 0xd8e0ee, breakup: 0.6, depthWrite: false, desat: 0.4, time }),
+    // the face reads solid (the eye must find it); it only thins right at the silhouette
+    head: spectralMaterial({ coreAlpha: 1.0, edgeAlpha: 0.55, edgeStart: 0.55, edgeEnd: 1.0, rim: cool, rimStrength: 0.08, rimBand: [0.45, 0.85], glow: 0.012, fadeY: -0.1, fadeSoft: 0.025, roughness: 0.52, tint: 0xf0ece8, map: skinC, bumpMap: skinH, bumpScale: 1.2, bump: 0.00004, bumpFreq: 2600, breakup: 0.0, desat: 0.15, wrap: 0.45, time, key: 'skin' }),
+    eye: spectralMaterial({ coreAlpha: 1.0, edgeAlpha: 1.0, rimStrength: 0.0, glow: 0.01, roughness: 0.35, tint: 0xf2f2f2, breakup: 0.0, desat: 0.12, wrap: 0.3, sss: [1, 0.7, 0.6], time, key: 'eye' }),
+    cravat: spectralMaterial({ coreAlpha: 0.95, edgeAlpha: 0.25, edgeStart: 0.5, rim: cool, rimStrength: 0.18, glow: 0.02, fadeY: -0.235, fadeSoft: 0.045, roughness: 0.75, tint: 0xd6d3cc, bump: 0.0004, bumpFreq: 260, breakup: 0.15, desat: 0.2, wrap: 0.5, sss: [0.9, 0.85, 0.8], time, key: 'cloth' }),
+    waistcoat: spectralMaterial({ coreAlpha: 0.5, edgeAlpha: 0.05, edgeStart: 0.25, edgeEnd: 0.85, rim: cool, rimStrength: 0.35, rimBand: [0.15, 0.55], glow: 0.08, fadeY: -0.37, fadeSoft: 0.1, roughness: 0.7, tint: 0xd8e0ee, bump: 0.0003, bumpFreq: 420, breakup: 0.3, depthWrite: false, desat: 0.35, wrap: 0.3, time, key: 'wc' }),
+    coat: spectralMaterial({ coreAlpha: 0.4, edgeAlpha: 0.04, edgeStart: 0.2, edgeEnd: 0.8, rim: cool, rimStrength: 0.45, rimBand: [0.12, 0.5], glow: 0.07, fadeY: -0.32, fadeSoft: 0.13, roughness: 0.78, tint: 0xd0d8e6, bump: 0.0003, bumpFreq: 380, breakup: 0.45, depthWrite: false, desat: 0.35, wrap: 0.3, time, key: 'coat' }),
+    // white hair scatters light: strong wrap, a little self-glow, a cold sheen in the inner fresnel band
+    hair: spectralMaterial({ map: hairT, coreAlpha: 0.95, edgeAlpha: 0.7, rim: cool, rimStrength: 0.12, rimBand: [0.3, 0.8], glow: 0.05, roughness: 0.45, tint: 0xeceae6, breakup: 0.1, depthWrite: false, desat: 0.35, wrap: 0.9, sss: [1, 0.95, 0.9], side: THREE.DoubleSide, time, key: 'hair' }),
+    // cornea: black + additive, so only its wet specular and reflections land on the eye
+    cornea: new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 0.06, metalness: 0, transparent: true, blending: THREE.AdditiveBlending, specularIntensity: 1, envMapIntensity: 1.6, depthWrite: false }),
   };
-  const order = { coat: 1, waistcoat: 2, cravat: 3, head: 4, eyes: 5, hair: 6 };
+  if (ctx.params.get('hairdbg')) mats.hair = new THREE.MeshBasicMaterial({ map: hairT, transparent: true, side: THREE.DoubleSide, depthWrite: false, vertexColors: ctx.params.get('hairdbg') === '2' });
+  mats.hair.alphaTest = 0.03;
+  mats.hair.userData.noBake = true; mats.cornea.userData.noBake = true;
+  const matFor = (name) => (name.startsWith('eye') ? mats.eye : name.startsWith('cornea') ? mats.cornea : ['hair', 'brows', 'lashes'].includes(name) ? mats.hair : mats[name] || mats.head);
+  const order = { coat: 1, waistcoat: 2, cravat: 3, head: 4, eyeL: 5, eyeR: 5, corneaL: 6, corneaR: 6, lashes: 7, brows: 7, hair: 8 };
   const meshes = {};
+  const eyes = [];
+  for (const [nm, ev] of Object.entries(meta.eyes || {})) {
+    const pivot = new THREE.Group();
+    pivot.name = `ghost-eye${nm}`;
+    pivot.position.fromArray(ev.c);
+    group.add(pivot);
+    eyes.push(pivot);
+    meshes[`pivot${nm}`] = pivot;
+  }
   for (const [name, g] of Object.entries(parts)) {
-    const m = new THREE.Mesh(g, mats[name] || mats.head);
+    const m = new THREE.Mesh(g, matFor(name));
     m.name = `ghost-${name}`;
     m.renderOrder = 10 + (order[name] || 0);
     m.castShadow = false; m.receiveShadow = false;
     m.userData.noBake = true;
-    group.add(m);
+    const eyeSide = /^(eye|cornea)([LR])$/.exec(name);
+    if (eyeSide && meshes[`pivot${eyeSide[2]}`]) meshes[`pivot${eyeSide[2]}`].add(m); else group.add(m);
     meshes[name] = m;
   }
-  // catchlights: the wet glint of the key light on each cornea (keeps the eyes alive at a distance)
-  {
-    const cl = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.65, 1.8), transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false });
-    for (const sx of [-1, 1]) {
-      const d = new THREE.Mesh(new THREE.SphereGeometry(0.0009, 8, 6), cl);
-      d.position.set(sx * 0.0315 - 0.0016, 0.0702, 0.0896);
-      d.renderOrder = 17; d.userData.noBake = true;
-      group.add(d);
+  // the eyes follow the visitor (clamped), with a slight lazy lag
+  const tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), fwd = new THREE.Vector3(0, 0, 1), look = new THREE.Vector3();
+  const aimEyes = (camPos, k = 1) => {
+    group.updateMatrixWorld(true);
+    for (const p of eyes) {
+      look.copy(camPos);
+      p.parent.worldToLocal(look);
+      tmpV.copy(look).sub(p.position).normalize();
+      // clamp to a comfortable cone (~28 deg)
+      const c = Math.max(tmpV.z, Math.cos(0.5));
+      if (tmpV.z < c) { const s = Math.sqrt(Math.max(0, 1 - c * c)) / Math.max(1e-6, Math.hypot(tmpV.x, tmpV.y)); tmpV.set(tmpV.x * s, tmpV.y * s, c); }
+      tmpQ.setFromUnitVectors(fwd, tmpV);
+      p.quaternion.slerp(tmpQ, k);
     }
-  }
-  // a very faint cold aura behind the head
-  {
-    const tex = ctx.textures.canvas('library:ghosthalo', 128, 128, (g2, w, h) => {
-      const grd = g2.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
-      grd.addColorStop(0, 'rgba(170,185,215,0.5)'); grd.addColorStop(0.45, 'rgba(120,135,170,0.14)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
-      g2.fillStyle = grd; g2.fillRect(0, 0, w, h);
-    }, { tile: false });
-    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.2, toneMapped: false }));
-    halo.scale.set(0.7, 0.9, 1);
-    halo.position.set(0, 0.04, -0.08);
-    halo.renderOrder = 8;
-    halo.userData.noBake = true;
-    group.add(halo);
-    meshes.halo = halo;
-  }
+  };
   root.add(group);
-  return { group, meshes, materials: Object.values(mats) };
+  return { group, meshes, materials: Object.values(mats), aimEyes };
 }

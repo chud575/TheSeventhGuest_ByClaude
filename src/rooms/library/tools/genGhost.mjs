@@ -12,6 +12,28 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.resolve(here, '../../../../public/assets/library/ghost.bin');
 const arg = (k, d) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? Number(process.argv[i + 1]) : d; };
 const H = arg('h', 0.0015);
+// mesh parts authored in Python (tools/mh/build_head.py): the head, eyes and hair cards
+const mhCache = process.env.MH_CACHE || path.join(here, 'mh/.cache');
+const headBin = path.join(mhCache, 'headparts.bin');
+function readHeadParts() {
+  if (!fs.existsSync(headBin)) return null;
+  const buf = fs.readFileSync(headBin);
+  const hl = buf.readUInt32LE(0);
+  const header = JSON.parse(buf.subarray(4, 4 + hl).toString());
+  const base = 4 + hl;
+  const ab = buf.buffer.slice(buf.byteOffset + base, buf.byteOffset + buf.length);
+  const out = [];
+  for (const p of header.parts) {
+    out.push({
+      name: p.name, region: p.name,
+      pos: new Float32Array(ab, p.pos, p.vertices * 3), nrm: new Float32Array(ab, p.nrm, p.vertices * 3),
+      col: new Float32Array(ab, p.col, p.vertices * 3), idx: new Uint32Array(ab, p.idx, p.indices),
+      uv: p.uv !== undefined ? new Float32Array(ab, p.uv, p.vertices * 2) : null,
+    });
+  }
+  return { parts: out, meta: header.meta };
+}
+const headParts = readHeadParts();
 
 function surfaceNets(f, min, max, h) {
   const nx = Math.ceil((max[0] - min[0]) / h) + 1, ny = Math.ceil((max[1] - min[1]) / h) + 1, nz = Math.ceil((max[2] - min[2]) / h) + 1;
@@ -88,6 +110,7 @@ const parts = [
   { name: 'waistcoat', f: (x, y, z) => smax(waistcoatSdf(x, y, z), -(cravatSdf(x, y, z) + 0.0015), 0.003), min: [-0.15, -0.52, -0.06], max: [0.15, -0.1, 0.13], h: H * 1.4, region: 'waistcoat' },
   { name: 'coat', f: (x, y, z) => smax(coatSdf(x, y, z), -(cravatSdf(x, y, z) + 0.002), 0.004), min: [-0.26, -0.56, -0.16], max: [0.26, -0.04, 0.15], h: H * 2.3, region: 'coat' },
 ];
+// @@sdf-end
 // whole-figure field for ambient occlusion (creases, the stock shading the jaw, etc.)
 const all = (x, y, z) => Math.min(headSdf(x, y, z), cravatSdf(x, y, z), coatSdf(x, y, z), waistcoatSdf(x, y, z));
 function bakeAO(px, py, pz, nx, ny, nz) {
@@ -101,38 +124,80 @@ function bakeAO(px, py, pz, nx, ny, nz) {
   return Math.max(0, Math.min(1, 1 - occ * 45));
 }
 
+const costume = (x, y, z) => Math.min(cravatSdf(x, y, z), coatSdf(x, y, z), waistcoatSdf(x, y, z));
+function bakeAOWith(field, px, py, pz, nx, ny, nz) {
+  let occ = 0, w = 1;
+  for (let i = 1; i <= 6; i++) {
+    const hh = 0.0018 * i * i * 0.6 + 0.0008;
+    const d = field(px + nx * hh, py + ny * hh, pz + nz * hh);
+    occ += w * Math.max(0, hh - d);
+    w *= 0.62;
+  }
+  return Math.max(0, Math.min(1, 1 - occ * 45));
+}
+const lin = (v) => { v = Math.min(1, Math.max(0, v)); return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+
+// SDF parts are slow to mesh: cache them by the sculpt source + resolution
+const sdfSrc = fs.readFileSync(path.join(here, 'ghostSdf.mjs'), 'utf8') + fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('// @@sdf-end')[0];
+let hsh = 0; for (let i = 0; i < sdfSrc.length; i++) hsh = (hsh * 31 + sdfSrc.charCodeAt(i)) | 0;
+const sdfCache = path.join(mhCache, `sdfparts-${(hsh >>> 0).toString(16)}-${H}.json`);
+let cached = fs.existsSync(sdfCache) ? JSON.parse(fs.readFileSync(sdfCache, 'utf8')) : null;
+const toCache = {};
+
 const meshes = [];
-for (const p of parts) {
+const usedParts = headParts ? parts.filter((p) => !['head', 'hair', 'eyes'].includes(p.name)) : parts;
+const sources = [];
+if (headParts) for (const hp of headParts.parts) sources.push({ name: hp.name, mesh: hp });
+for (const p of usedParts) sources.push({ name: p.name, sdf: p });
+for (const src of sources) {
   const t0 = Date.now();
-  const m = surfaceNets(p.f, p.min, p.max, p.h);
-  const col = new Uint8Array((m.pos.length / 3) * 4);
-  for (let n = 0, c = 0; n < m.pos.length; n += 3, c += 4) {
-    const rgb = headColor(m.pos[n], m.pos[n + 1], m.pos[n + 2], p.region);
-    const ao = bakeAO(m.pos[n], m.pos[n + 1], m.pos[n + 2], m.nrm[n], m.nrm[n + 1], m.nrm[n + 2]);
-    const k = 0.5 + 0.5 * Math.pow(ao, 1.2);
-    rgb[0] *= k; rgb[1] *= k; rgb[2] *= k;
-    const lin = (v) => { v = Math.min(1, Math.max(0, v)); return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
-    col[c] = Math.round(lin(rgb[0]) * 255); col[c + 1] = Math.round(lin(rgb[1]) * 255); col[c + 2] = Math.round(lin(rgb[2]) * 255); col[c + 3] = 255;
+  let m, col;
+  if (src.mesh) {
+    m = src.mesh;
+    col = new Uint8Array((m.pos.length / 3) * 4);
+    const isHead = ['head', 'ears'].includes(src.name);
+    for (let n = 0, c = 0; n < m.pos.length; n += 3, c += 4) {
+      const ao = isHead ? bakeAOWith(costume, m.pos[n], m.pos[n + 1], m.pos[n + 2], m.nrm[n], m.nrm[n + 1], m.nrm[n + 2]) : 1;
+      const k = 0.55 + 0.45 * Math.pow(ao, 1.2);
+      col[c] = Math.round(lin(m.col[n] * k) * 255); col[c + 1] = Math.round(lin(m.col[n + 1] * k) * 255); col[c + 2] = Math.round(lin(m.col[n + 2] * k) * 255); col[c + 3] = 255;
+    }
+  } else {
+    const p = src.sdf;
+    if (cached?.[p.name]) {
+      const cm = cached[p.name];
+      m = { pos: new Float32Array(cm.pos), nrm: new Float32Array(cm.nrm), idx: new Uint32Array(cm.idx) };
+    } else m = surfaceNets(p.f, p.min, p.max, p.h);
+    toCache[p.name] = { pos: Array.from(m.pos), nrm: Array.from(m.nrm), idx: Array.from(m.idx) };
+    col = new Uint8Array((m.pos.length / 3) * 4);
+    for (let n = 0, c = 0; n < m.pos.length; n += 3, c += 4) {
+      const rgb = headColor(m.pos[n], m.pos[n + 1], m.pos[n + 2], p.region);
+      const ao = bakeAO(m.pos[n], m.pos[n + 1], m.pos[n + 2], m.nrm[n], m.nrm[n + 1], m.nrm[n + 2]);
+      const k = 0.5 + 0.5 * Math.pow(ao, 1.2);
+      rgb[0] *= k; rgb[1] *= k; rgb[2] *= k;
+      col[c] = Math.round(lin(rgb[0]) * 255); col[c + 1] = Math.round(lin(rgb[1]) * 255); col[c + 2] = Math.round(lin(rgb[2]) * 255); col[c + 3] = 255;
+    }
   }
   const nrm8 = new Int8Array((m.pos.length / 3) * 4);
   for (let n = 0, c = 0; n < m.pos.length; n += 3, c += 4) { nrm8[c] = Math.round(m.nrm[n] * 127); nrm8[c + 1] = Math.round(m.nrm[n + 1] * 127); nrm8[c + 2] = Math.round(m.nrm[n + 2] * 127); }
-  // quantise positions to int16 inside the part's bounds
   const q = new Int16Array(m.pos.length);
   const qmin = [Infinity, Infinity, Infinity], qmax = [-Infinity, -Infinity, -Infinity];
   for (let n = 0; n < m.pos.length; n++) { const a = n % 3; qmin[a] = Math.min(qmin[a], m.pos[n]); qmax[a] = Math.max(qmax[a], m.pos[n]); }
   const qs = [0, 1, 2].map((a) => Math.max(1e-9, qmax[a] - qmin[a]) / 65534);
   for (let n = 0; n < m.pos.length; n++) { const a = n % 3; q[n] = Math.round((m.pos[n] - qmin[a]) / qs[a]) - 32767; }
-  meshes.push({ name: p.name, pos: q, qmin, qs, nrm: nrm8, col, idx: m.idx });
-  console.log(`${p.name}: ${m.pos.length / 3} verts, ${m.idx.length / 3} tris, ${Date.now() - t0} ms`);
+  meshes.push({ name: src.name, pos: q, qmin, qs, nrm: nrm8, col, idx: m.idx, uv: m.uv ? new Float32Array(m.uv) : null });
+  console.log(`${src.name}: ${m.pos.length / 3} verts, ${m.idx.length / 3} tris, ${Date.now() - t0} ms`);
 }
+if (!cached || Object.keys(toCache).some((k) => !cached[k])) fs.writeFileSync(sdfCache, JSON.stringify(toCache));
 
 // layout: [u32 headerLen][header json padded to 4][buffers...]
-const header = { version: 2, parts: [] };
+const header = { version: 3, parts: [], meta: headParts?.meta || {} };
 let offset = 0;
 const chunks = [];
 for (const m of meshes) {
   const entry = { name: m.name, vertices: m.pos.length / 3, indices: m.idx.length, qmin: m.qmin, qs: m.qs };
-  for (const [k, arr] of [['pos', m.pos], ['idx', m.idx], ['nrm', m.nrm], ['col', m.col]]) {
+  const arrs = [['pos', m.pos], ['idx', m.idx], ['nrm', m.nrm], ['col', m.col]];
+  if (m.uv) arrs.push(['uv', m.uv]);
+  for (const [k, arr] of arrs) {
     entry[k] = offset; chunks.push(Buffer.from(arr.buffer, arr.byteOffset, arr.byteLength)); offset += arr.byteLength;
     const pad = (4 - (offset % 4)) % 4; if (pad) { chunks.push(Buffer.alloc(pad)); offset += pad; }
   }

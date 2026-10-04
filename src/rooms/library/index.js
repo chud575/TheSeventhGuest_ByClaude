@@ -190,9 +190,11 @@ export default {
     g.rotation.y = Math.atan2(faceTo.x - GHOST_POS.x, faceTo.z - GHOST_POS.z) + 0.1;
     g.rotation.x = 0.12;   // chin down: he regards the visitor below him
     g.rotation.z = -0.03;
+    const camW = new THREE.Vector3();
     ctx.onUpdate((dt, t) => {
       g.position.y = GHOST_POS.y + Math.sin(t * 0.7) * 0.025;
       g.rotation.z = -0.03 + Math.sin(t * 0.45) * 0.015;
+      ghost.aimEyes?.(ctx.camera.getWorldPosition(camW), ctx.shot ? 1 : 1 - Math.exp(-dt * 4));
     });
 
     // ================================================================ lighting
@@ -456,6 +458,8 @@ async function ghostLab(ctx, root) {
   warm.position.copy(GHOST_POS).add(V3(1.6, -0.6, 0.8));
   root.add(warm);
   const c = GHOST_POS.clone().add(V3(0, 0.02, 0));
+  const camW = new THREE.Vector3();
+  ctx.onUpdate(() => ghost.aimEyes?.(ctx.camera.getWorldPosition(camW), 1));
   return {
     scene: root,
     nodes: {
