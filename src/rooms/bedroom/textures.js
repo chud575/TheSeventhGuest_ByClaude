@@ -115,7 +115,7 @@ export function tornDrape(ctx, { seed = 1, color = [0.3, 0.085, 0.09], valance =
       float eHem = M.y - (hs + rag);
       // rips running up from between the tatters: ragged, wandering, chewed lips (not clean slits)
       float tl = min(sf, 1.0 - sf) * 0.13;
-      float ripLen = step(0.78, hash11(sid + 3.3 + uS)) * (0.1 + 0.35 * hash11(sid + 5.1 + uS)) * (uVal > 0.5 ? 0.6 : 1.0);
+      float ripLen = step(0.86, hash11(sid + 3.3 + uS)) * (0.1 + 0.35 * hash11(sid + 5.1 + uS)) * (uVal > 0.5 ? 0.6 : 1.0);
       float rt = clamp(eHem / max(ripLen, 1e-3), 0.0, 1.0);
       float ripW = (0.03 * (1.0 - rt) * (0.6 + 0.8 * (nz(vec2(M.y * 9.0, sid + uS)) * 0.5 + 0.5)) + 0.002) * step(eHem, ripLen);
       float eRip = (ripLen > 0.0 && eHem < ripLen) ? tl + 0.012 * nz(vec2(M.y * 7.0, sid * 3.1 + uS)) + 0.005 * nz(M * vec2(60.0, 40.0) + uS) - ripW : 1.0;
@@ -133,9 +133,9 @@ export function tornDrape(ctx, { seed = 1, color = [0.3, 0.085, 0.09], valance =
       // ---------------- rents through the body: a jagged slit with a branch, threads bridging it
       float eT = 1.0; float span = 0.0;
       if (uVal < 0.5 && uStrip < 0.5) {
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 4; i++) {
           float fi = float(i) + uS;
-          if (hash11(fi * 3.7) < 0.35) continue;
+          if (hash11(fi * 3.7) < 0.4) continue;
           vec2 c = vec2((0.15 + 0.7 * hash11(fi * 1.3)) * W, (0.3 + 0.55 * hash11(fi * 2.9)) * Hh);
           float ang = (hash11(fi * 5.1) - 0.5) * 1.3;
           float len = 0.1 + 0.28 * hash11(fi * 7.7);
@@ -1405,7 +1405,7 @@ export function lathPlaster(ctx) {
       behind = mix(behind, vec3(0.45, 0.43, 0.4), key * 0.8);
       // plaster face: lime, a little blotchy, tide-marked damp
       float stain = smoothstep(0.55, 0.75, fbm(uv * 1.5 + 9.0, vec2(1.5), 5) * 0.5 + 0.5);
-      vec3 pl = vec3(0.5, 0.49, 0.46) * (0.88 + 0.16 * n2);
+      vec3 pl = vec3(0.4, 0.39, 0.37) * (0.85 + 0.2 * n2) * (0.85 + 0.25 * n);
       pl = mix(pl, pl * vec3(0.78, 0.7, 0.58), stain * 0.6);
       pl *= 1.0 - smoothstep(0.015, 0.0, abs(stain - 0.5)) * 0.15;
       vec3 c = mix(pl, behind, hole);

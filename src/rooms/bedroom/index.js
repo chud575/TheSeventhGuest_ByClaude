@@ -196,7 +196,7 @@ export default {
       // damask at ~23 cm repeat, low motif contrast; aged in world space below (ageWall)
       wall: M.create('damask', { repeat: [4.4, 4.4], base: [0.088, 0.11, 0.235], motif: [0.13, 0.16, 0.33], sheen: 0.35, aging: 0.6, variant: 0 }),
       floor: M.create('floorboards', { species: 'walnut', boards: 8, boardLength: 0.34, polish: 0.4, wear: 0.75, tint: [0.68, 0.55, 0.46], repeat: [1 / 3.0, 1 / 1.0], macro: 0.6 }),
-      ceiling: M.create('plaster', { color: [0.56, 0.57, 0.63], cracks: 0.7, stains: 0.7, repeat: [0.45, 0.45] }),
+      ceiling: M.create('plaster', { color: [0.56, 0.55, 0.56], cracks: 0.7, stains: 0.7, repeat: [0.45, 0.45] }),
       // mahogany pulled ~30% toward brown-black (the stock species reads saturated red)
       mahogany: M.create('mahogany', { tint: [0.64, 0.47, 0.37], polish: 0.6, wear: 0.55, repeat: [1.6, 1.6], clearcoat: 0.3, clearcoatRoughness: 0.42, envMapIntensity: 0.4 }),
       canopyWood: M.create('mahogany', { tint: [0.6, 0.45, 0.35], wear: 0.6, repeat: [1.6, 1.6], clearcoat: 0.15, clearcoatRoughness: 0.5, envMapIntensity: 0.3 }),
@@ -264,7 +264,7 @@ export default {
       plasterRose: M.create('plaster', { color: [0.62, 0.6, 0.58], cracks: 0.5, stains: 0.8, repeat: [4, 4] }),
       atticBoard: M.create('wood', { species: 'oak', boards: 4, boardLength: 0.6, polish: 0.15, wear: 0.95, tint: [0.66, 0.52, 0.42], repeat: [1.4, 1.4], side: THREE.DoubleSide, clearcoat: 0, macro: 0.6 }),
       atticBeam: M.create('wood', { species: 'oak', boards: 0, polish: 0.05, wear: 0.8, tint: [0.42, 0.36, 0.32], repeat: [1.5, 1.5], clearcoat: 0 }),
-      atticPlaster: (() => { const t = lathPlaster(ctx).withRepeat(1, 1); return new THREE.MeshStandardMaterial({ map: t.map, normalMap: t.normalMap, normalScale: new THREE.Vector2(1, 1), roughnessMap: t.ormMap, aoMap: t.ormMap, roughness: 1, metalness: 0, side: THREE.DoubleSide, name: 'lathPlaster' }); })(),
+      atticPlaster: (() => { const t = lathPlaster(ctx).withRepeat(1, 1); return new THREE.MeshStandardMaterial({ map: t.map, normalMap: t.normalMap, normalScale: new THREE.Vector2(0.55, 0.55), roughnessMap: t.ormMap, aoMap: t.ormMap, roughness: 1, metalness: 0, side: THREE.DoubleSide, name: 'lathPlaster' }); })(),
       trunkCanvas: M.create('leather', { color: [0.13, 0.075, 0.05], wear: 0.8, repeat: [3, 3] }),
       trunkStrap: M.create('leather', { color: [0.07, 0.04, 0.03], wear: 0.6, repeat: [6, 6] }),
       rug: (() => { const r = persianRug(ctx); return new THREE.MeshPhysicalMaterial({ map: r.map, normalMap: r.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), roughnessMap: r.ormMap, aoMap: r.ormMap, roughness: 1, metalness: 0, sheen: 0.5, sheenRoughness: 0.6, sheenColor: new THREE.Color(0.45, 0.36, 0.32), specularIntensity: 0.35, envMapIntensity: 0.3, side: THREE.DoubleSide, name: 'rug' }); })(),
@@ -704,9 +704,9 @@ export default {
       parent: chest, center: V3(0, chest.userData.boardTop, 0), size: boardField,
       mats: {
         // old bone: warm ivory, satin with a thin wax, faint yellowed grain
-        bone: knightAO(new THREE.MeshPhysicalMaterial({ color: 0xe8dcc0, map: boneSet.map, roughness: 0.42, normalMap: boneSet.normalMap, normalScale: new THREE.Vector2(0.3, 0.3), clearcoat: 0.3, clearcoatRoughness: 0.35, sheen: 0.15, sheenRoughness: 0.6, sheenColor: new THREE.Color(1.0, 0.92, 0.78), specularIntensity: 0.4, envMapIntensity: 0.35, name: 'bone' }), [0.5, 0.36, 0.2]),
+        bone: knightAO(new THREE.MeshPhysicalMaterial({ color: 0xdcc69c, map: boneSet.map, roughness: 0.42, normalMap: boneSet.normalMap, normalScale: new THREE.Vector2(0.3, 0.3), clearcoat: 0.3, clearcoatRoughness: 0.35, sheen: 0.15, sheenRoughness: 0.6, sheenColor: new THREE.Color(1.0, 0.92, 0.78), specularIntensity: 0.4, envMapIntensity: 0.35, name: 'bone' }), [0.5, 0.36, 0.2]),
         // ebony: near-black, a deep polish, the grain only showing in the highlights
-        ebony: knightAO(new THREE.MeshPhysicalMaterial({ color: 0x15100c, map: ebonySet.map, roughness: 0.28, normalMap: ebonySet.normalMap, normalScale: new THREE.Vector2(0.45, 0.45), clearcoat: 0.7, clearcoatRoughness: 0.14, specularColor: new THREE.Color(1.0, 0.88, 0.74), specularIntensity: 0.5, envMapIntensity: 0.22, name: 'ebonyPiece' }), [0.45, 0.4, 0.38]),
+        ebony: knightAO(new THREE.MeshPhysicalMaterial({ color: 0x15100c, map: ebonySet.map, roughness: 0.28, normalMap: ebonySet.normalMap, normalScale: new THREE.Vector2(0.45, 0.45), clearcoat: 0.7, clearcoatRoughness: 0.14, specularColor: new THREE.Color(0.9, 0.88, 0.85), specularIntensity: 0.38, envMapIntensity: 0.22, name: 'ebonyPiece' }), [0.45, 0.4, 0.38]),
       },
       camera: puzzleCam,
       onSolved: async () => { openWardrobe(false); },
@@ -768,7 +768,7 @@ export default {
     }
     // wing chair before the fire
     {
-      const wc = buildWingChair(ctx, mats); wc.position.set(2.05, 0, FIRE.z + 1.55); wc.rotation.y = Math.PI - 0.62; add(wc);
+      const wc = buildWingChair(ctx, mats); wc.position.set(2.3, 0, FIRE.z + 1.75); wc.rotation.y = Math.PI - 0.6; add(wc);
       // the fire's glow wrapping round the chair: a weak, wide, unshadowed fill from the fire mouth
       const rimF = new THREE.PointLight(0xff7a36, 1.2, 3.5, 2); rimF.position.set(X1 - 0.8, 0.5, FIRE.z + 0.45); add(rimF);
       ctx.onUpdate((dt, t) => { rimF.intensity = 1.2 * (0.85 + 0.1 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1)); });
@@ -958,7 +958,7 @@ export default {
       {
         const tr = buildTrunk(ctx, mats);
         tr.position.set(0.42, 0, Z1 - 0.34); tr.rotation.y = Math.PI + 0.06; add(tr);
-        const sheetMat = new THREE.MeshPhysicalMaterial({ map: linenSet.map, normalMap: linenSet.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), color: new THREE.Color(0x7a756c), roughness: 0.95, metalness: 0, sheen: 0.5, sheenRoughness: 0.7, sheenColor: new THREE.Color(0.6, 0.58, 0.55), side: THREE.DoubleSide, name: 'dustSheet' });
+        const sheetMat = new THREE.MeshPhysicalMaterial({ map: linenSet.map, normalMap: linenSet.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), color: new THREE.Color(0x5c5852), roughness: 0.95, metalness: 0, sheen: 0.5, sheenRoughness: 0.7, sheenColor: new THREE.Color(0.6, 0.58, 0.55), side: THREE.DoubleSide, name: 'dustSheet' });
         stainCloth(sheetMat, 1.0); addDust(sheetMat, 0.5);
         const ud = tr.userData;
         const sh = new THREE.Mesh(dustSheet(G, { cover: { w: ud.w, d: ud.d }, top: ud.top, size: [1.0, 1.0], offset: [0.2, 0.02], seed: 3 }), sheetMat);
@@ -1011,7 +1011,7 @@ export default {
       for (const b of [-1, 1]) C({ x: X0 + 0.3, z: BED.z + b * (BED.W / 2 + 0.36), w: 0.6, d: 0.62, opacity: 0.7 });
       C({ x: VAN.x, z: Z0 + 0.27, w: 1.35, d: 0.62, opacity: 0.7 });
       C({ x: VAN.x + 0.05, z: Z0 + 0.78, w: 0.6, d: 0.48, rotY: 0.2, opacity: 0.6 });
-      C({ x: 2.05, z: FIRE.z + 1.55, w: 0.95, d: 0.95, rotY: Math.PI - 0.62, opacity: 0.75 });
+      C({ x: 2.3, z: FIRE.z + 1.75, w: 0.95, d: 0.95, rotY: Math.PI - 0.6, opacity: 0.75 });
       C({ x: 2.45, z: Z0 + 0.75, w: 0.62, d: 0.72, rotY: -0.55, opacity: 0.6 });
       C({ x: WARD.x, z: Z1 - 0.3, w: 1.65, d: 0.85, opacity: 0.75 });
       C({ x: 2.75, z: FIRE.z + 2.35, w: 0.5, d: 0.5, opacity: 0.55 });
@@ -1024,7 +1024,7 @@ export default {
     }
 
     // ================================================================ lighting
-    const moon = new THREE.SpotLight(0xa8bcff, 1500, 20, 0.28, 0.6, 2);
+    const moon = new THREE.SpotLight(0xb4c2ec, 1500, 20, 0.28, 0.6, 2);     // cold, but not so saturated that walnut under it turns violet
     moon.position.set(WIN.x + 1.6, 5.6, Z0 - 4.6);
     moon.target.position.set(WIN.x - 0.9, 0.0, -0.7);
     moon.castShadow = ctx.quality.shadows;
