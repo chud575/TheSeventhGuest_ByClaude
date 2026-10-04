@@ -419,8 +419,8 @@ def toymaker_extra(img, W, H, u, v):
     # carries readable paint (brushwork, a glow behind the head), not a black square
     scum = (0.85 + 0.3 * noise(H, W, 70, 73))[..., None]
     lum = img @ np.array([0.3, 0.59, 0.11], np.float32)
-    dark = smoothstep(0.16, 0.03, lum)[..., None]
-    ground = np.array([0.2, 0.135, 0.085]) * scum * (0.65 + 0.6 * np.exp(-(((u - 0.45) / 0.45) ** 2 + ((v - 0.35) / 0.42) ** 2)))[..., None]
+    dark = smoothstep(0.3, 0.05, lum)[..., None]
+    ground = np.array([0.34, 0.235, 0.15]) * scum * (0.65 + 0.6 * np.exp(-(((u - 0.45) / 0.45) ** 2 + ((v - 0.35) / 0.42) ** 2)))[..., None]
     img = img * (1 - dark * 0.8) + np.maximum(img, ground) * dark * 0.8
     glow = np.exp(-(((u - 0.4) / 0.35) ** 2 + ((v - 0.3) / 0.3) ** 2))[..., None] * np.array([0.07, 0.045, 0.02])
     return np.clip(img * vig[..., None] + glow, 0, 1)
@@ -494,7 +494,49 @@ def ghost_card():
     Image.fromarray((out * 255).astype(np.uint8), 'RGBA').save(os.path.join(OUT, '..', 'ghost.png'), optimize=True)
 
 
+def landscape(idx, W=768, H=590):
+    """small dark oil landscapes for the salon hang: dusk/moonlit skies, hills, a tree mass, still water."""
+    seed = 300 + idx * 17
+    r = np.random.default_rng(seed)
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    u = xx / W; v = yy / H
+    pal = [
+        dict(sky0=(40, 52, 70), sky1=(150, 130, 96), land=(26, 24, 18), glow=(0.62, 0.3), water=True),     # dusk lake
+        dict(sky0=(22, 30, 46), sky1=(88, 98, 112), land=(18, 20, 18), glow=(0.3, 0.25), water=False),     # moonlit moor
+        dict(sky0=(60, 58, 50), sky1=(170, 140, 90), land=(34, 30, 20), glow=(0.5, 0.42), water=True),     # stormy evening
+        dict(sky0=(30, 34, 40), sky1=(120, 112, 92), land=(24, 22, 16), glow=(0.75, 0.3), water=False),
+    ][idx % 4]
+    hz = 0.58 + 0.06 * r.random()
+    sky = srgb(pal['sky0'])[None, None, :] * (1 - smoothstep(0.0, hz, v))[..., None] + srgb(pal['sky1'])[None, None, :] * smoothstep(0.0, hz, v)[..., None]
+    gx, gy = pal['glow']
+    sky = sky + np.exp(-(((u - gx) / 0.2) ** 2 + ((v - gy) / 0.14) ** 2))[..., None] * np.array([0.25, 0.2, 0.12])
+    cl = noise(H, W, 90, seed + 1) * 0.7 + noise(H, W, 30, seed + 2) * 0.3
+    sky = sky * (0.75 + 0.5 * cl[..., None])
+    img = sky
+    # far hills, near hills, tree mass
+    def ridge(base, amp, cell, sd):
+        n = noise(1, W, cell, sd, 3)[0]
+        return (base - amp * n)[None, :] * H
+    for k, (base, amp, cell, tone) in enumerate([(hz + 0.02, 0.1, 160, 0.75), (hz + 0.08, 0.14, 90, 0.5), (hz + 0.14, 0.3, 40, 0.28)]):
+        rr = ridge(base, amp, cell, seed + 10 + k)
+        m = smoothstep(-2, 2, yy - rr)[..., None]
+        col = srgb(pal['land']) * (0.6 + tone * 1.6) + np.array([0.02, 0.025, 0.035]) * (2 - k)
+        img = img * (1 - m) + (col[None, None, :] * (0.8 + 0.4 * noise(H, W, 20, seed + 20 + k)[..., None])) * m
+    if pal['water']:
+        wy = hz + 0.2
+        wm = smoothstep(wy * H - 2, wy * H + 2, yy)[..., None]
+        refl = np.flipud(img)[np.clip((2 * wy * H - yy).astype(int), 0, H - 1), xx.astype(int)]
+        img = img * (1 - wm) + (refl * 0.55 + 0.02) * wm
+    img = np.clip(img, 0, 1)
+    img, sh = painterly(img, seed, (10, 5, 2.5), np.zeros((H, W), np.float32))
+    img, bump = age_canvas(img, W, H, seed, sh)
+    to_img(img).save(os.path.join(OUT, f'land{idx}.jpg'), quality=86, optimize=True)
+
+
 if __name__ == '__main__':
+    if sys_argv_land := [a for a in __import__('sys').argv[1:] if a == 'land']:
+        for i in range(4): landscape(i)
+        raise SystemExit
     import sys
     only = sys.argv[1:]
     jp = os.path.join(ROOT, 'src/rooms/gallery/portraitData.json')

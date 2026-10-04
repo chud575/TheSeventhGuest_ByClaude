@@ -373,7 +373,7 @@ export async function makeCoveredBust(ctx, mat) {
         ax = ax / 4 - pos[a * 3]; ay = ay / 4 - pos[a * 3 + 1]; az = az / 4 - pos[a * 3 + 2];
         cav = ax * n.getX(a) + ay * n.getY(a) + az * n.getZ(a);    // > 0 = concave valley
       }
-      const occ = THREE.MathUtils.clamp(1 - cav * 45, 0.55, 1.06);
+      const occ = THREE.MathUtils.clamp(1 - cav * 60, 0.5, 1.08);
       const up = Math.max(0, n.getY(a));
       const dust = up * up * 0.2;
       // dust is a dull grey-brown film: darker and less saturated than the clean linen

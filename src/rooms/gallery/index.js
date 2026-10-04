@@ -44,7 +44,7 @@ export default {
 
     // ================================================================ materials
     const mat = {
-      wall: M.create('damask', { base: [0.062, 0.112, 0.26], motif: [0.08, 0.138, 0.3], accent: [0.5, 0.4, 0.22], accentStrength: 0.02, sheen: 0.62, aging: 0.45, variant: 0, normalScale: 0.12, repeat: [2 / 0.1777, 2 / 0.1777], size: hiTex }),
+      wall: M.create('damask', { base: [0.074, 0.11, 0.215], motif: [0.094, 0.135, 0.25], accent: [0.5, 0.4, 0.22], accentStrength: 0.02, sheen: 0.62, aging: 0.5, variant: 0, normalScale: 0.18, repeat: [2 / 0.1777 / 1.6, 2 / 0.1777 / 1.6], size: hiTex }),
       floor: M.create('floorboards', { species: 'walnut', boards: 6, boardLength: 0.5, polish: 0.9, wear: 0.5, tint: [1.05, 0.86, 0.72], roughness: 0.85, repeat: [1 / 3.2, 1 / 1.0] }),
       ceiling: M.create('plaster', { color: [0.25, 0.28, 0.38], cracks: 0.3, stains: 0.45, repeat: [0.45, 0.45] }),
       beam: M.create('plaster', { color: [0.24, 0.27, 0.36], cracks: 0.15, stains: 0.3, repeat: [0.8, 0.8] }),
@@ -68,7 +68,7 @@ export default {
       velvet: M.create('velvet', { color: [0.05, 0.08, 0.24], crush: 0.55, repeat: [2, 2], side: THREE.DoubleSide }),
       velvetSeat: M.create('velvet', { color: [0.3, 0.04, 0.06], crush: 0.4, repeat: [3, 3], sheen: 1.0, sheenRoughness: 0.4, sheenColor: new THREE.Color(0.42, 0.12, 0.22) }),
       seatFabric: M.create('damask', { base: [0.22, 0.04, 0.05], motif: [0.27, 0.07, 0.07], accent: [0.6, 0.45, 0.2], accentStrength: 0.0, sheen: 0.8, aging: 0.6, variant: 1, normalScale: 0.4, repeat: [7, 7], size: 1024 }),
-      marble: M.create('marble', { type: 'nero', polish: 0.8, repeat: [1, 1] }),
+      marble: M.create('marble', { type: 'nero', vein: [0.4, 0.385, 0.36], vein2: [0.15, 0.14, 0.14], scale: 3.2, polish: 0.8, repeat: [1.4, 1.4] }),
       glass: M.create('glass', { dirt: 0.55, transparent: true, opacity: 0.12 }),
       black: M.basic('black', { color: 0x020203, roughness: 0.9 }),
       windowFrame: M.basic('black', { color: 0x110c0a, roughness: 0.55 }),
@@ -130,7 +130,7 @@ export default {
     // embossed Lincrusta in every ceiling coffer, smoked dark above the lanterns and sconces
     {
       const lt = lincrustaTexture(ctx);
-      const lm = new THREE.MeshStandardMaterial({ map: lt.map, normalMap: lt.normalMap, roughnessMap: lt.ormMap, metalnessMap: lt.ormMap, aoMap: lt.ormMap, roughness: 1, metalness: 1, normalScale: new THREE.Vector2(1.2, 1.2), name: 'lincrusta' });
+      const lm = new THREE.MeshStandardMaterial({ map: lt.map, normalMap: lt.normalMap, roughnessMap: lt.ormMap, metalnessMap: lt.ormMap, aoMap: lt.ormMap, roughness: 1, metalness: 0.35, normalScale: new THREE.Vector2(1.2, 1.2), name: 'lincrusta' });
       const soot = [V3(0, H, BAY_CENTERS[1]), V3(0, H, BAY_CENTERS[3]), V3(0, H, Z1 + 1.5)];
       lm.onBeforeCompile = (sh) => {
         sh.uniforms.uSoot = { value: soot };
@@ -181,7 +181,7 @@ export default {
       const RPT = len / 2.1;
       const rep = runnerSet.withRepeat(1, RPT);
       mat.runner.map = rep.map; mat.runner.normalMap = rep.normalMap; mat.runner.roughnessMap = rep.ormMap; mat.runner.aoMap = rep.ormMap;
-      mat.runner.roughness = 1; mat.runner.normalScale.set(0.6, 0.6);
+      mat.runner.roughness = 1; mat.runner.normalScale.set(1.1, -1.1); mat.runner.sheen = 0.6; mat.runner.sheenRoughness = 0.8;
       // wear in metres along the whole runner (never repeats): a pale, flattened walking line down
       // the centre, darker unworn edges, fading toward the moonlit window end, a few old stains
       mat.runner.onBeforeCompile = (sh) => {
@@ -202,15 +202,40 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
   // sun-fade near the window, darker where furniture kept the light off the edges
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(lum) * vec3(1.1, 0.95, 0.85) * 1.15, smoothstep(3.5, 0.0, al) * 0.3);
   diffuseColor.rgb *= 1.0 - 0.22 * smoothstep(0.3, 0.48, ax);
+  // every 2.1 m repeat was woven from a different dye lot: the field shifts between madder and
+  // brick, the navy greys or deepens (so the medallions never read as one stamp repeated)
+  float rep = floor(vMapUv.y);
+  float hA = rH(vec2(rep, 3.1)), hB = rH(vec2(rep, 7.7));
+  diffuseColor.rgb *= vec3(0.92 + 0.16 * hA, 0.9 + 0.14 * hB, 0.88 + 0.2 * (1.0 - hA));
   // old stains and grime
   float st = smoothstep(0.72, 0.86, rF(vec2(ax * 3.0 + 11.0, al * 0.9)));
   diffuseColor.rgb *= 1.0 - 0.35 * st;
   diffuseColor.rgb *= 0.9 + 0.2 * rF(vec2(ax * 20.0, al * 6.0));
 }`);
       };
-      mat.runner.customProgramCacheKey = () => 'gallery-runner-wear';
+      mat.runner.customProgramCacheKey = () => 'gallery-runner-wear2';
       mat.runner.needsUpdate = true;
-      const g = new G.RoundedBoxGeometry(RUN_W, TH, len, 2, 0.0028);
+      // not a flat slab: the runner wanders a little off the hall's centre line, its bound edges
+      // roll down to the boards over the last 1.5 cm, and it has rucked up in two places where feet
+      // have dragged it (one near the window, one by the bedroom door)
+      const runX = (z) => 0.01 * Math.sin(z * 0.55 + 0.4) + 0.005 * Math.sin(z * 1.9);
+      const g = new THREE.PlaneGeometry(RUN_W, len, 14, 340);
+      g.rotateX(-Math.PI / 2);
+      {
+        const p = g.attributes.position;
+        for (let i = 0; i < p.count; i++) {
+          const x = p.getX(i), zl = p.getZ(i), z = zl + (zA + zB) / 2;
+          const e = RUN_W / 2 - Math.abs(x);
+          let y = TH * Math.sqrt(Math.min(1, e / 0.015)) - TH / 2;
+          y += 0.007 * Math.exp(-(((z + 6.4) / 0.16) ** 2)) * (0.6 + 0.4 * Math.cos(x * 3.0));
+          y += 0.004 * Math.exp(-(((z - 3.6) / 0.12) ** 2)) * (1 - Math.abs(x) / RUN_W);
+          if (e < 0.001) y = -TH / 2 + 0.0004;
+          p.setXYZ(i, x + runX(z), y, zl);
+        }
+        // v = 0 at the window end (the wear shader measures metres from there)
+        const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
+        g.computeVertexNormals();
+      }
       const run = new THREE.Mesh(g, mat.runner);
       run.position.set(0, TH / 2 + 0.0005, (zA + zB) / 2);
       run.name = 'runner';
@@ -269,6 +294,22 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
       mount(door, d.side, d.z, 0, 0);
       root.add(door);
       doors[name] = door;
+    }
+    // someone has left a lamp burning in the bedroom: a thin blade of warm light leaks under the
+    // door and fans out across the boards (a glow strip in the gap + a low light just outside)
+    {
+      const d = DOORS.bedroom;
+      const gt = ctx.textures.canvas('gallery:underDoor', 64, 64, (c, w, h) => {
+        const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.25, 'rgba(255,255,255,0.35)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+        c.fillStyle = g; c.fillRect(0, 0, w, h);
+        const s = c.createLinearGradient(0, 0, w, 0); s.addColorStop(0, 'rgba(0,0,0,1)'); s.addColorStop(0.08, 'rgba(0,0,0,0)'); s.addColorStop(0.92, 'rgba(0,0,0,0)'); s.addColorStop(1, 'rgba(0,0,0,1)');
+        c.globalCompositeOperation = 'destination-out'; c.fillStyle = s; c.fillRect(0, 0, w, h);
+      }, { tile: false });
+      const spill = new THREE.Mesh(new THREE.PlaneGeometry(d.w - 0.02, 0.22), new THREE.MeshBasicMaterial({ map: gt, color: new THREE.Color(0.55, 0.3, 0.12), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, name: 'underDoor' }));
+      spill.rotation.x = -Math.PI / 2; spill.position.set(X1 - 0.11 - 0.0, 0.0016, d.z); spill.rotation.z = Math.PI / 2;
+      spill.userData.noShadow = true; spill.renderOrder = 2;
+      root.add(spill);
+      const ul = new THREE.PointLight(0xff9c48, 0.35, 1.4, 2); ul.position.set(X1 - 0.16, 0.025, d.z); root.add(ul);
     }
     const atticHinge = doors.attic.userData.hinge;
     doors.attic.getObjectByName('void').visible = false;
@@ -382,9 +423,17 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
       return g;
     };
     const oBelle = await hangOval('belle', 1, 6.62, 2.28, 0.36, 0.46);
+    // small dark oil landscapes (painted offline, tools/genPortraits.py land): tonalist dusk and
+    // moonlit scenes under yellowed varnish
+    const landMats = await Promise.all([0, 1, 2, 3].map(async (i) => {
+      const t = await new THREE.TextureLoader().loadAsync(ctx.assetUrl(`portraits/land${i}.jpg`));
+      t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+      return new THREE.MeshPhysicalMaterial({ map: t, roughness: 0.7, clearcoat: 0.3, clearcoatRoughness: 0.5, envMapIntensity: 0.4, emissiveMap: t, emissive: new THREE.Color(0.04, 0.035, 0.03), name: `landscape${i}` });
+    }));
     // two lesser cabinet pictures by the far doors (dark landscapes)
     for (const [side, z, subject, seed] of [[1, -5.0, 0, 21], [-1, -6.25, 0, 33]]) {
-      const pm = M.create('painting', { subject, seed, aspect: 0.78, size: 512 });
+      void subject;
+      const pm = landMats[seed % 4];
       const f = makeGiltFrame(ctx, mat, pm, 0.4, 0.51, { fw: 0.075 });
       mount(f.group, side, z, 1.8, 0.03);
       root.add(f.group);
@@ -408,7 +457,7 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
         const sm = new THREE.MeshStandardMaterial({ map: silhouetteTexture(ctx, seed, extra), roughness: 0.8, name: 'silhouette' });
         g = makeOvalFrame(ctx, mat, sm, 0.2, 0.26);
       } else {
-        const pm = M.create('painting', { subject: extra, seed: seed * 13, aspect: 1.3, size: 512 });
+        const pm = landMats[(seed + extra) % 4];
         g = makeGiltFrame(ctx, mat, pm, 0.34, 0.26, { fw: 0.055, profile: 'slim', corners: false }).group;
       }
       mount(g, side, z, y, 0.02);
@@ -517,7 +566,7 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
       const plaque = makePlaque(ctx, mat, 'HENRY STAUF\nToymaker  ·  MDCCCLXXXIX', 0.44, 0.095);
       plaque.position.set(0, -0.685, 0.035);
       // a little hooded lamp-glow falls on the plate from the panel's lower rail
-      const pl = new THREE.PointLight(0xffb070, 0.35, 0.9, 2); pl.position.set(0, -0.52, 0.3); panel.add(pl); panel.add(plaque);
+      const pl = new THREE.PointLight(0xffb070, 0.3, 0.6, 2); pl.position.set(0, -0.76, 0.16); panel.add(pl); panel.add(plaque);
     }
     mount(panel, -1, PUZZLE.z, PUZZLE.y, 0.025);
     root.add(panel);

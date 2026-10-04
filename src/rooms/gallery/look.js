@@ -96,11 +96,32 @@ export function makeReflectiveFloor(ctx, baseMat, { w, l, cx = 0, cz = 0, y = 0,
     Object.assign(sh.uniforms, uniforms);
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nuniform mat4 uTexMat; varying vec4 vReflUv;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvReflUv = uTexMat * vec4(position, 1.0);');
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvReflUv = uTexMat * vec4(position, 1.0);\nvFlW = (modelMatrix * vec4(position, 1.0)).xyz;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vFlW;');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform sampler2D tRefl; uniform float uReflStrength; uniform float uBlur; uniform vec2 uTexel;
-varying vec4 vReflUv;`)
+varying vec4 vReflUv; varying vec3 vFlW;
+float flH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+{
+  // every board its own tree: per-strip tone and varnish, and random-length planks within a strip
+  // (staggered butt joints) so the texture's repeat never lines up into a brick pattern
+  float strip = floor(vFlW.x * 6.0);
+  float off = flH(vec2(strip, 1.7)) * 4.0;
+  float plen = 1.3 + 1.9 * flH(vec2(strip, 5.3));
+  float plank = floor((vFlW.z + off) / plen);
+  float hv = flH(vec2(strip, plank));
+  float hv2 = flH(vec2(plank + 3.0, strip * 1.3));
+  diffuseColor.rgb *= 0.84 + 0.3 * hv;
+  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.08, 0.94, 0.82), 0.5 * hv2);
+  // a fine dark butt joint at each plank end
+  float fz = fract((vFlW.z + off) / plen) * plen;
+  diffuseColor.rgb *= 1.0 - 0.55 * (smoothstep(0.004, 0.0, fz) + smoothstep(plen - 0.004, plen, fz));
+  gFlRough = 0.85 + 0.35 * hv2;
+}`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = clamp(roughnessFactor * gFlRough, 0.05, 1.0);')
+      .replace('void main() {', 'float gFlRough = 1.0;\nvoid main() {')
       .replace('#include <opaque_fragment>', `
 {
   vec2 ruv = vReflUv.xy / vReflUv.w;
@@ -123,7 +144,7 @@ varying vec4 vReflUv;`)
 }
 #include <opaque_fragment>`);
   };
-  mat.customProgramCacheKey = () => 'gallery-floor-refl';
+  mat.customProgramCacheKey = () => 'gallery-floor-refl2';
   mat.needsUpdate = true;
   refl.material = mat;
   return refl;

@@ -48,12 +48,13 @@ export function formSDF(x, y, z) {
   // head turned a touch to its left, chin slightly raised
   let d = sdEll(x, y, z, 0.0, T + 0.385, 0.0, 0.088, 0.112, 0.102);
   d = smin(d, sdCap(x, y, z, -0.048, T + 0.408, 0.082, 0.048, T + 0.408, 0.082, 0.02), 0.03);      // brow
-  d = smin(d, sdCap(x, y, z, 0.0, T + 0.392, 0.1, 0.0, T + 0.352, 0.128, 0.018), 0.02);           // nose
+  d = smin(d, sdCap(x, y, z, 0.0, T + 0.392, 0.098, 0.0, T + 0.358, 0.115, 0.015), 0.02);          // nose
   d = smin(d, sdEll(x, y, z, 0.0, T + 0.3, 0.07, 0.04, 0.032, 0.035), 0.03);                         // chin
   d = smin(d, sdEll(x, y, z, 0.0, T + 0.47, -0.035, 0.07, 0.04, 0.06), 0.04);                         // hair knot
   d = smin(d, sdCap(x, y, z, 0.0, T + 0.2, -0.005, 0.0, T + 0.31, 0.01, 0.056), 0.03);              // neck
   d = smin(d, sdCap(x, y, z, -0.17, T + 0.205, -0.01, 0.17, T + 0.205, -0.01, 0.062), 0.08);         // shoulder line
-  d = smin(d, sdEll(x, y, z, 0.0, T + 0.13, 0.0, 0.215, 0.11, 0.115), 0.05);                          // chest
+  d = smin(d, sdEll(x, y, z, 0.0, T + 0.13, 0.02, 0.215, 0.115, 0.13), 0.05);                         // chest
+  d = smin(d, sdEll(x, y, z, 0.0, T + 0.205, 0.07, 0.14, 0.075, 0.08), 0.05);                        // upper chest / collarbones
   d = smin(d, sdCyl(x, y, z, T + 0.03, 0.03, 0.1), 0.02);                                              // socle
   // pedestal: abacus, capital, shaft, plinth, floor
   d = Math.min(d, sdCyl(x, y, z, T - 0.02, 0.022, 0.138));   // round turned top: no corners to tent the cloth
@@ -69,7 +70,7 @@ export function simulate({ steps = 420, iters = 8, log = false } = {}) {
   const P = N * N;
   const p = new Float64Array(P * 3), q = new Float64Array(P * 3), contact = new Float32Array(P);
   const rot = 0.38, cr = Math.cos(rot), sr = Math.sin(rot);
-  const ox = 0.02, oz = 0.11;
+  const ox = 0.02, oz = 0.05;
   let s = 7; const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     const u = (i / (N - 1) - 0.5) * SIZE, v = (j / (N - 1) - 0.5) * SIZE;
@@ -174,7 +175,7 @@ export function simulate({ steps = 420, iters = 8, log = false } = {}) {
   }
   // relax solver jitter on the free cloth, then re-project everything off the form so smoothing
   // can never pull the linen inside the bust or through the abacus corners
-  for (let pass = 0; pass < 3; pass++) {
+  for (let pass = 0; pass < 6; pass++) {
     const tmp = Float64Array.from(p);
     for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) {
       const a = j * N + i, w = 0.5 * (1 - 0.85 * contact[a]);
