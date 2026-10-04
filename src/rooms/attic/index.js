@@ -354,7 +354,7 @@ export default {
           let sd2 = 5; const r2 = () => { sd2 = (sd2 * 16807) % 2147483647; return sd2 / 2147483647; };
           for (let i = 0; i < 70; i++) { const x = r2() * w, y = r2() * h, rr = 6 + r2() * 40; const gr = g2.createRadialGradient(x, y, 0, x, y, rr); const k = 0.15 + r2() * r2() * 0.85; gr.addColorStop(0, `rgba(255,255,255,${k})`); gr.addColorStop(1, 'rgba(255,255,255,0)'); g2.fillStyle = gr; g2.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
         }, { tile: true });
-        const leakMat = new THREE.MeshBasicMaterial({ map: leakTex, color: new THREE.Color(0.1, 0.13, 0.24), name: 'roofLeak', side: THREE.DoubleSide });
+        const leakMat = new THREE.MeshBasicMaterial({ map: leakTex, color: new THREE.Color(0.05, 0.065, 0.12), name: 'roofLeak', side: THREE.DoubleSide });
         for (const s2 of [-1, 1]) {
           const lift = sideN(s2).multiplyScalar(-0.03);
           const e0 = V3(s2 * HALF, KNEE, Z0 + 0.2).add(lift), e1 = V3(s2 * HALF, KNEE, Z1 - 0.2).add(lift), r0 = V3(0, RIDGE, Z0 + 0.2).add(lift), r1 = V3(0, RIDGE, Z1 - 0.2).add(lift);
@@ -366,6 +366,9 @@ export default {
           const outer = add(new THREE.Mesh(og, new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide, name: 'roofSkin' })));
           outer.position.addScaledVector(sideN(s2), -0.06); outer.name = 'sarking';
         }
+        // ridge cap: closes the apex where the two offset skins part
+        const cap = add(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.16, Z1 - Z0 + 0.8), new THREE.MeshBasicMaterial({ color: 0x000000, name: 'ridgeCap' })));
+        cap.position.set(0, RIDGE + 0.1, (Z0 + Z1) / 2 - 0.1); cap.name = 'sarking';
       }
       // common rafters: hewn, each with its own chamfers, sag and roll
       const zs = [];

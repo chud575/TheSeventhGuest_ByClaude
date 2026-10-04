@@ -98,7 +98,7 @@ function faceUV(x, y, z) { const l = Math.hypot(x, y / 1.04, z); const u = 0.25 
 function dollFace(forge, { key, lip = '#7a2420', seed = 1, chip = 1 }) {
   const mk = (bump) => forge.canvas(`attic:dollface2:${key}:${bump ? 'b' : 'c'}`, 1024, 512, (g, w, h) => {
     let s = seed * 7919 + 13; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
-    g.fillStyle = bump ? '#808080' : '#ddd0bd'; g.fillRect(0, 0, w, h);
+    g.fillStyle = bump ? '#808080' : '#c4b29a'; g.fillRect(0, 0, w, h);
     if (!bump) {
       // yellowed, uneven glaze; grime toward the hairline and under the chin
       for (let i = 0; i < 90; i++) { const x = rnd() * w, y = rnd() * h, r = 20 + rnd() * 90; const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(${120 + rnd() * 40},${95 + rnd() * 30},${60},${0.06 + rnd() * 0.08})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
@@ -173,9 +173,9 @@ function laceBand(forge, r, h, scallops = 28) {
 /** glass paperweight eye: sclera yellowed, a streaky iris, a dark pupil; iris faces +z */
 function glassEyeMat(forge, iris = '#3a5a8a', key = 'e') {
   const t = forge.canvas(`attic:glasseye:${key}`, 256, 128, (g, w, h) => {
-    g.fillStyle = '#d8ceb8'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#a89e88'; g.fillRect(0, 0, w, h);
     const cx = w * 0.25, cy = h * 0.5;
-    const rg = g.createRadialGradient(cx, cy, 2, cx, cy, 26); rg.addColorStop(0, '#0a0806'); rg.addColorStop(0.32, '#0a0806'); rg.addColorStop(0.36, iris); rg.addColorStop(0.85, iris); rg.addColorStop(1, '#100c0a'); g.fillStyle = rg; g.beginPath(); g.ellipse(cx, cy, 26, 22, 0, 0, Math.PI * 2); g.fill();
+    const rg = g.createRadialGradient(cx, cy, 2, cx, cy, 34); rg.addColorStop(0, '#0a0806'); rg.addColorStop(0.32, '#0a0806'); rg.addColorStop(0.36, iris); rg.addColorStop(0.85, iris); rg.addColorStop(1, '#100c0a'); g.fillStyle = rg; g.beginPath(); g.ellipse(cx, cy, 34, 29, 0, 0, Math.PI * 2); g.fill();
     g.strokeStyle = 'rgba(255,255,255,0.25)'; g.lineWidth = 0.8; for (let k = 0; k < 40; k++) { const a = (k / 40) * Math.PI * 2; g.beginPath(); g.moveTo(cx + Math.cos(a) * 10, cy + Math.sin(a) * 8.5); g.lineTo(cx + Math.cos(a) * 22, cy + Math.sin(a) * 19); g.stroke(); }
     g.strokeStyle = 'rgba(150,60,50,0.35)'; for (let k = 0; k < 10; k++) { g.beginPath(); g.moveTo(cx + 60 * (k % 2 ? 1 : -1) * (0.5 + 0.5 * Math.sin(k)), cy + (k - 5) * 8); g.lineTo(cx + 30 * (k % 2 ? 1 : -1), cy + (k - 5) * 3); g.stroke(); }
   }, { tile: false });
@@ -192,7 +192,7 @@ export function buildDoll(ctx, m, { dress, trim, seed = 1, eye = '#2a3a5a', lip 
   const T = trim || m.lace;
   const H = hair || m.hair;
   const fx2 = dollFace(ctx.textures, { key: `doll${seed}`, lip, seed, chip });
-  const face = new THREE.MeshPhysicalMaterial({ map: fx2.map, bumpMap: fx2.bump, bumpScale: 0.8, roughness: 0.4, clearcoat: 1, clearcoatRoughness: 0.12, sheen: 0.25, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.9, 0.85, 0.8), envMapIntensity: 0.7, name: `dollFace${seed}` });
+  const face = new THREE.MeshPhysicalMaterial({ map: fx2.map, bumpMap: fx2.bump, bumpScale: 0.8, roughness: 0.45, clearcoat: 0.8, clearcoatRoughness: 0.22, sheen: 0.25, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.9, 0.85, 0.8), envMapIntensity: 0.7, name: `dollFace${seed}` });
   const dusty = (mt, k = 0.35) => { mt.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>\n  { float up = clamp(normalize(vNormal).y, 0.0, 1.0); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.39, 0.35), up * up * ${k.toFixed(2)}); }`); }; mt.customProgramCacheKey = () => `dollDust${k}`; return mt; };
   const bisque = dusty(new THREE.MeshPhysicalMaterial({ color: 0xb2a590, roughness: 0.42, clearcoat: 0.6, clearcoatRoughness: 0.3, name: 'dollBisque' }));
   const hairM = dusty(H.clone(), 0.5);
@@ -248,12 +248,12 @@ export function buildDoll(ctx, m, { dress, trim, seed = 1, eye = '#2a3a5a', lip 
   for (const s of [-1, 1]) {
     const ep = V3(s * EYE.x * 0.95 * HR, EYE.y * 1.04 * HR + 0.025, EYE.depth * HR + 0.003);
     if (missingEye === s) { const hole = mesh(new THREE.SphereGeometry(0.0072, 12, 10), new THREE.MeshBasicMaterial({ color: 0x050302, name: 'dollHole' })); hole.position.copy(ep); hole.position.z -= 0.002; hp.add(hole); continue; }
-    const e = mesh(new THREE.SphereGeometry(0.0074, 20, 14), gEye); e.position.copy(ep); e.rotation.y = s * 0.12 + (seed % 2 ? 0.25 : -0.2); e.rotation.x = 0.08; hp.add(e);
+    const e = mesh(new THREE.SphereGeometry(0.0063, 20, 14), gEye); e.position.copy(ep); e.position.z -= 0.0012; e.rotation.y = s * 0.12 + (seed % 2 ? 0.25 : -0.2); e.rotation.x = 0.08; hp.add(e);
   }
   // wig: a waved cap under ringlets, ringlets all round from three rows, a fringe of curls, frizz and dust
-  const cap = new THREE.SphereGeometry(0.0405, 40, 20, 0, Math.PI * 2, 0, Math.PI * 0.56);
+  const cap = new THREE.SphereGeometry(0.0405, 40, 20, 0, Math.PI * 2, 0, Math.PI * 0.4);
   { const pp = cap.attributes.position; for (let i = 0; i < pp.count; i++) { const x = pp.getX(i), y = pp.getY(i), z = pp.getZ(i); const a = Math.atan2(x, z); const wv = 1 + 0.05 * Math.sin(a * 26) * Math.min(1, (0.04 - y) / 0.02) - 0.03 * Math.exp(-(x * x) / 0.00002) * Math.max(0, z / 0.04); pp.setXYZ(i, x * wv, y, z * wv); } cap.computeVertexNormals(); }
-  const capM = mesh(cap, hairM); capM.scale.set(1.0, 1.08, 1.04); at(capM, 0, 0.027, -0.004); capM.rotation.x = -0.18; hp.add(capM);
+  const capM = mesh(cap, hairM); capM.scale.set(1.0, 1.08, 1.04); at(capM, 0, 0.026, -0.006); capM.rotation.x = -0.42; hp.add(capM);
   let rs = seed * 31 + 7; const rr = () => { rs = (rs * 16807) % 2147483647; return rs / 2147483647; };
   const rows = [[0.042, 0.036, 15, 0.3, 1.4], [0.03, 0.04, 17, 0.25, 1.5], [0.016, 0.039, 13, 0.4, 1.2]];
   rows.forEach(([y, r, n, a0, span], ri) => {
@@ -264,7 +264,6 @@ export function buildDoll(ctx, m, { dress, trim, seed = 1, eye = '#2a3a5a', lip 
       hp.add(mesh(ringlet(top, 0.04 + ri * 0.012 + rr() * 0.02, 0.005 + rr() * 0.002, seed + k * 3 + ri), hairM));
     }
   });
-  for (let k = 0; k < 7; k++) { const cu = mesh(new THREE.TorusGeometry(0.0042, 0.002, 5, 10), hairM); cu.position.set(-0.02 + k * 0.0066, 0.055 - Math.abs(k - 3) * 0.0015, 0.03 - Math.abs(k - 3) * 0.002); cu.rotation.set(0.2, 0, k); hp.add(cu); }
   // frizz: stray, broken hairs standing off the wig
   for (let k = 0; k < 40; k++) {
     const a = rr() * Math.PI * 2, el2 = rr() * 1.2;
@@ -275,7 +274,6 @@ export function buildDoll(ctx, m, { dress, trim, seed = 1, eye = '#2a3a5a', lip 
     hp.add(mesh(taperTube([base, base.clone().addScaledVector(dir, L * 0.5).add(V3((rr() - 0.5) * 0.008, 0.002, (rr() - 0.5) * 0.008)), base.clone().addScaledVector(dir, L).add(V3((rr() - 0.5) * 0.012, -0.004, (rr() - 0.5) * 0.012))], [0.0006, 0.0004, 0.0002], 3, 6), hairM));
   }
   // a limp bow hanging off one side
-  { const b = mesh(new THREE.SphereGeometry(0.014, 10, 8), m.bow || D); b.scale.set(1.2, 0.7, 0.45); at(b, (seed % 2 ? 1 : -1) * 0.03, 0.058, -0.016); b.rotation.z = (seed % 2 ? 1 : -1) * 1.0; hp.add(b); }
   return g;
 }
 

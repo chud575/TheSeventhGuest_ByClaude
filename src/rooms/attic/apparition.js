@@ -621,6 +621,18 @@ export function buildApparition(mat, { shadowTex } = {}) {
     g.userData.glow = { mats: [glowMat, mGlowMat, coreMat, mouthMat], base: [glowMat.color.clone(), mGlowMat.color.clone(), coreMat.color.clone(), mouthMat.color.clone()], sprites: glows };
   }
 
+  // a watch chain slung across the waistcoat and a row of jet buttons: small things that catch the light and
+  // break up the black of the coat front
+  {
+    const metal = new THREE.MeshStandardMaterial({ color: 0x6a5434, metalness: 1, roughness: 0.32, name: 'staufChain' });
+    const jet = new THREE.MeshStandardMaterial({ color: 0x050505, metalness: 0.2, roughness: 0.15, name: 'staufJet' });
+    const pts = []; for (let k = 0; k <= 16; k++) { const t = k / 16; pts.push(V3(-0.07 + 0.15 * t, 1.12 - 0.045 * Math.sin(t * Math.PI), 0.13 + 0.012 * Math.sin(t * Math.PI))); }
+    const ch = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.0022, 5, false), metal); g.add(ch);
+    const fob = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.005, 16).rotateX(Math.PI / 2), metal); fob.position.set(0.085, 1.1, 0.132); g.add(fob);
+    for (let k = 0; k < 4; k++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.0065, 10, 8).scale(1, 1, 0.6), jet); b.position.set(0.0, 1.06 + k * 0.065, 0.134 + (k > 2 ? 0.004 : 0)); g.add(b); }
+    for (const sx of [-1, 1]) for (let k = 0; k < 2; k++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.008, 10, 8).scale(1, 1, 0.6), jet); b.position.set(sx * 0.105, 1.02 - k * 0.09, 0.142 - k * 0.006); g.add(b); }
+  }
+
   // ---------------------------------------------------------------- legs and shoes (opaque; the coat parts over them)
   const legs = [
     { x: -0.078, fwd: -0.01 },
