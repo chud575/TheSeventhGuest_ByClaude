@@ -623,7 +623,7 @@ export function buildProps(ctx, root, mat) {
     const g = new THREE.Group();
     g.name = 'telescope';
     const head = V3(0, 1.32, 0);
-    const legs = [];
+    const legs = [], ferrules = [];
     for (let k = 0; k < 3; k++) {
       const a = (k / 3) * Math.PI * 2 + 0.5;
       const foot = V3(Math.cos(a) * 0.48, 0, Math.sin(a) * 0.48);
@@ -634,13 +634,22 @@ export function buildProps(ctx, root, mat) {
       const q = new THREE.Quaternion().setFromUnitVectors(V3(0, 1, 0), dir.normalize());
       leg.applyQuaternion(q); leg.translate(foot.x, 0, foot.z);
       legs.push(leg);
-      const shoe = new THREE.CylinderGeometry(0.02, 0.016, 0.04, 10);
-      shoe.applyQuaternion(q); shoe.translate(foot.x, 0.02, foot.z);
-      legs.push(shoe);
+      // brass shoe, a mid-leg clamp collar and a top ferrule
+      const shoe = new THREE.CylinderGeometry(0.024, 0.017, 0.06, 16);
+      shoe.applyQuaternion(q); shoe.translate(foot.x, 0.03, foot.z);
+      ferrules.push(shoe);
+      for (const [t, r, h] of [[0.47, 0.024, 0.035], [0.93, 0.02, 0.05]]) {
+        const c = new THREE.CylinderGeometry(r, r, h, 16);
+        c.applyQuaternion(q);
+        const pp = foot.clone().lerp(head, t);
+        c.translate(pp.x, pp.y, pp.z);
+        ferrules.push(c);
+      }
     }
-    // spreader ring
-    legs.push(new THREE.TorusGeometry(0.17, 0.008, 6, 24).rotateX(Math.PI / 2).translate(0, 0.62, 0));
-    g.add(mesh(merge(legs), mat.mahogany, 'tripod'));
+    // spreader ring (brass)
+    ferrules.push(new THREE.TorusGeometry(0.17, 0.007, 8, 32).rotateX(Math.PI / 2).translate(0, 0.62, 0));
+    g.add(mesh(merge(legs), mat.walnut || mat.mahogany, 'tripod'));
+    g.add(mesh(merge(ferrules), mat.brass, 'tripod-brass'));
     const mount = new THREE.Mesh(lathe([[0.001, 0], [0.06, 0], [0.05, 0.03], [0.03, 0.06], [0.028, 0.1], [0.001, 0.1]], 24), mat.brass);
     mount.position.copy(head).add(V3(0, -0.03, 0));
     g.add(mount);
@@ -719,7 +728,8 @@ export function buildProps(ctx, root, mat) {
     out.lectern = g; out.hintBook = book;
     // a candle on a tall pricket stand beside the lectern
     const stand = new THREE.Group();
-    stand.add(new THREE.Mesh(lathe([[0.001, 0], [0.14, 0], [0.12, 0.03], [0.04, 0.06], [0.025, 0.3], [0.035, 0.5], [0.02, 0.9], [0.03, 1.1], [0.07, 1.14], [0.06, 1.16], [0.001, 1.16]], 20), mat.iron));
+    // a tall turned-brass pricket stand (catches the flame along its knops, so the candle never floats)
+    stand.add(new THREE.Mesh(lathe([[0.001, 0], [0.15, 0], [0.15, 0.012], [0.13, 0.03], [0.07, 0.05], [0.045, 0.07], [0.05, 0.09], [0.03, 0.12], [0.024, 0.3], [0.042, 0.34], [0.046, 0.37], [0.03, 0.4], [0.022, 0.62], [0.038, 0.66], [0.022, 0.7], [0.019, 0.95], [0.032, 1.0], [0.026, 1.06], [0.04, 1.1], [0.078, 1.135], [0.07, 1.16], [0.001, 1.16]], 32), mat.brass));
     const candle = ctx.fx.candle({ height: 0.28, radius: 0.016, lightIntensity: 0.9, lightDistance: 5, seed: 23, burn: 0.8 });
     candle.position.y = 1.16;
     stand.add(candle);
@@ -787,7 +797,7 @@ export function buildProps(ctx, root, mat) {
 
   // ================================================================ rug (faded Persian)
   {
-    const rug = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 3.4), ctx.materials.create('rug', { palette: 'heriz', colors: { field: [0.3, 0.07, 0.05], border: [0.1, 0.05, 0.04], ivory: [0.42, 0.34, 0.24], gold: [0.45, 0.3, 0.12], teal: [0.1, 0.13, 0.11], dark: [0.05, 0.035, 0.03], rose: [0.38, 0.14, 0.09] }, aspect: 2.3 / 3.4, knots: 200, wear: 0.7, fringe: 0.04, seed: 7, size: 1536 }));
+    const rug = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 3.4), ctx.materials.create('rug', { palette: 'heriz', colors: { field: [0.36, 0.06, 0.045], border: [0.06, 0.07, 0.12], ivory: [0.55, 0.45, 0.31], gold: [0.56, 0.37, 0.13], teal: [0.08, 0.16, 0.15], dark: [0.04, 0.03, 0.03], rose: [0.48, 0.16, 0.1] }, aspect: 2.3 / 3.4, knots: 220, wear: 0.5, fringe: 0.04, seed: 7, size: 1536 }));
     rug.rotation.x = -Math.PI / 2; rug.rotation.z = 0.04;
     rug.position.set(-1.7, 0.005, -2.3);
     rug.receiveShadow = true;

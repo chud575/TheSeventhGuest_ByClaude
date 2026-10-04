@@ -117,7 +117,8 @@ export function buildShell(ctx, root, mat) {
   const bx = (i) => X0 + (L.W / NX) * i, bz = (j) => Z0 + (L.D / NZ) * j;
   {
     const geos = [];
-    const mainW = 0.26, mainD = 0.34, crossW = 0.18, crossD = 0.26;
+    // shallow enough that the moonlit glass reads from the hero view (deep coffers hid all but a sliver)
+    const mainW = 0.26, mainD = 0.24, crossW = 0.18, crossD = 0.15;
     for (let i = 0; i <= NX; i++) {          // main beams along z (built along x, rotated so the grain follows)
       const x = Math.min(X1 - mainW / 4, Math.max(X0 + mainW / 4, bx(i)));
       const w = (i === 0 || i === NX) ? mainW / 2 : mainW;
@@ -216,7 +217,7 @@ export function buildShell(ctx, root, mat) {
       for (let k = 0; k < uv.count; k++) col.set([lum, lum, lum], k * 3);
       g.setAttribute('color', new THREE.BufferAttribute(col, 3));
       g.rotateX(Math.PI / 2);
-      g.translate((xa + xb) / 2, H + 0.34 + 0.04, (za + zb) / 2);
+      g.translate((xa + xb) / 2, H + mainD + 0.04, (za + zb) / 2);
       glassGeos.push(g);
     }
     const glass = new THREE.Mesh(merge(glassGeos.map((g) => { const c = g.attributes.color; const n = g.toNonIndexed(); return n; })), mat.skylight);

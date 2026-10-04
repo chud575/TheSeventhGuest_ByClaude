@@ -176,40 +176,43 @@ void surface(vec2 uv, inout Surface s) {
 
 // ------------------------------------------------------------------ wing-chair cut-velvet damask (tone-on-tone, worn pile)
 export function tapestryMap(ctx) {
-  return ctx.textures.generate('library:tapestry:v5', {
-    size: 1024, tile: true, normalStrength: 0.8,
+  // a worn ikat-woven tapestry: rows of feathered lozenges in rust, umber, ochre and near-black,
+  // the dye edges bleeding along the warp (the jagged "ikat blur"), on a fine plain weave
+  return ctx.textures.generate('library:tapestry:v6', {
+    size: 1024, tile: true, normalStrength: 0.9,
     glsl: /* glsl */ `
-float damask(vec2 c) {
-  // a symmetric ogee/palmette motif built from a few soft lobes (mirror in x)
-  c.x = abs(c.x);
-  float ogee = abs(c.x - 0.36 * (0.5 + 0.5 * cos(c.y * 6.2832))) - 0.035;
-  float palm = length((c - vec2(0.0, 0.02)) * vec2(1.5, 1.0)) - 0.17;
-  float leafA = length((c - vec2(0.12, 0.17)) * vec2(1.2, 2.4)) - 0.08;
-  float leafB = length((c - vec2(0.12, -0.13)) * vec2(1.2, 2.4)) - 0.07;
-  float bud = length(c - vec2(0.0, 0.3)) - 0.045;
-  float stem = max(abs(c.x) - 0.012, abs(c.y + 0.25) - 0.1);
-  return min(min(min(ogee, palm), min(leafA, leafB)), min(bud, stem));
-}
 void surface(vec2 uv, inout Surface s) {
-  // 3 x 3 repeats per texture tile; half-drop on alternate columns
-  vec2 p = uv * 3.0;
-  p.y += 0.5 * mod(floor(p.x), 2.0);
-  vec2 c = fract(p) - 0.5;
-  float d = damask(c + 0.01 * vec2(fbm(uv * 3.0, vec2(12.0), 3), 0.0));
-  float motif = smoothstep(0.012, -0.012, d);
-  // ground: deep claret velvet; motif: slightly lighter, browner, with a flat (sheared) pile
-  vec3 ground = vec3(0.2, 0.065, 0.05), fig = vec3(0.3, 0.13, 0.075);
-  float pile = vnoise(uv * vec2(420.0, 420.0), vec2(420.0)) * 0.6 + vnoise(uv * vec2(1100.0), vec2(1100.0)) * 0.4;
-  float rib = 0.5 + 0.5 * sin(uv.y * 1024.0 * 3.14159 * 0.5);            // fine woven rib of the ground
-  vec3 col = mix(ground * (0.85 + 0.25 * pile + 0.06 * rib), fig * (0.9 + 0.15 * pile), motif);
-  // wear: pile rubbed down on high spots (lighter, greyer), plus faint fading
+  vec2 p = uv * vec2(4.0, 6.0);
+  float row = floor(p.y);
+  // warp-wise feathering: each thread row shifts the motif edge a little
+  float thread = floor(uv.y * 1024.0 / 3.0);
+  float feather = (hash12(vec2(thread, row)) - 0.5) * 0.09 + 0.03 * sin(uv.y * 160.0 + row);
+  vec2 c = vec2(fract(p.x + 0.5 * mod(row, 2.0) + feather) - 0.5, fract(p.y) - 0.5);
+  float lz = abs(c.x) * 1.15 + abs(c.y) * 0.9;           // lozenge distance
+  float ring1 = smoothstep(0.43, 0.4, lz);
+  float ring2 = smoothstep(0.3, 0.27, lz);
+  float core = smoothstep(0.15, 0.12, lz);
+  float pick = hash12(vec2(floor(p.x + 0.5 * mod(row, 2.0)), row));
+  vec3 rust = vec3(0.4, 0.15, 0.07), umber = vec3(0.17, 0.09, 0.05), ochre = vec3(0.5, 0.31, 0.13), ink = vec3(0.045, 0.035, 0.03), cream = vec3(0.58, 0.47, 0.33);
+  vec3 col = umber;
+  col = mix(col, pick > 0.5 ? rust : ochre * 0.85, ring1);
+  col = mix(col, ink, ring2);
+  col = mix(col, pick > 0.75 ? cream : rust * 1.1, core);
+  // horizontal stripe bands between motif rows
+  float band = smoothstep(0.47, 0.5, abs(fract(p.y) - 0.5));
+  col = mix(col, ink * 1.4, band * 0.8);
+  // plain weave
+  vec2 w = fract(uv * 512.0);
+  float weave = 0.5 + 0.5 * sin(w.x * 6.2832) * sin(w.y * 6.2832);
+  col *= 0.86 + 0.2 * weave;
+  // wear: rubbed and faded on high spots
   float wear = smoothstep(0.55, 0.9, fbm(uv, vec2(3.0), 4) * 0.5 + 0.5);
-  col = mix(col, col * 0.75 + vec3(0.07, 0.055, 0.05), wear * 0.45);
-  col *= 0.92 + 0.12 * (fbm(uv + 5.0, vec2(2.0), 3) * 0.5 + 0.5);
+  col = mix(col, col * 0.7 + vec3(0.08, 0.065, 0.05), wear * 0.5);
+  col *= 0.9 + 0.14 * (fbm(uv + 5.0, vec2(2.0), 3) * 0.5 + 0.5);
   s.albedo = col;
-  s.height = 0.5 + motif * 0.12 + pile * 0.1 + rib * 0.03 * (1.0 - motif) - wear * 0.06;
-  s.rough = mix(0.88, 0.76, motif) + wear * 0.05;
-  s.metal = 0.0; s.ao = 1.0 - (1.0 - motif) * 0.08;
+  s.height = 0.5 + weave * 0.12 + ring2 * 0.04 - wear * 0.06;
+  s.rough = 0.82 + wear * 0.06;
+  s.metal = 0.0; s.ao = 1.0;
 }`,
   });
 }

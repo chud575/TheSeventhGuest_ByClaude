@@ -129,3 +129,49 @@ float mNoise(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 *
   material.customProgramCacheKey = () => `${prevKey ? prevKey() : ''}|${key}-${amount}-${scale}`;
   return material;
 }
+
+/**
+ * Hand-worn polish: world-space smudges and wipe marks that roughen the clearcoat and the base
+ * (fingerprints, dust in the low spots), plus a gentle albedo desaturation toward `desat`.
+ * Works on MeshStandard/MeshPhysical; safe to combine with addMacro.
+ */
+export function addPolishWear(material, { smudge = 0.35, scale = 9, dust = 0.15, desat = 0.0, key = 'polish' } = {}) {
+  const prev = material.onBeforeCompile;
+  material.onBeforeCompile = (sh, r) => {
+    prev?.call(material, sh, r);
+    if (!sh.vertexShader.includes('varying vec3 vMacroW;')) {
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vMacroW;')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvMacroW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vMacroW;');
+    }
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+float pwHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float pwNoise(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(pwHash(i), pwHash(i + vec3(1, 0, 0)), f.x), mix(pwHash(i + vec3(0, 1, 0)), pwHash(i + vec3(1, 1, 0)), f.x), f.y),
+             mix(mix(pwHash(i + vec3(0, 0, 1)), pwHash(i + vec3(1, 0, 1)), f.x), mix(pwHash(i + vec3(0, 1, 1)), pwHash(i + vec3(1, 1, 1)), f.x), f.y), f.z); }
+float pwSmudge(vec3 w) {
+  float a = pwNoise(w * ${scale.toFixed(2)}) * 0.55 + pwNoise(w * ${(scale * 3.1).toFixed(2)}) * 0.3 + pwNoise(w * ${(scale * 9.7).toFixed(2)}) * 0.15;
+  return smoothstep(0.45, 0.8, a);
+}`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+  {
+    float pl = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(pl), ${desat.toFixed(3)});
+    float sm = pwSmudge(vMacroW);
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.85 + vec3(0.02, 0.018, 0.015), sm * ${dust.toFixed(3)});
+  }`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+  roughnessFactor = clamp(roughnessFactor + pwSmudge(vMacroW) * ${smudge.toFixed(3)}, 0.0, 1.0);`);
+    if (sh.fragmentShader.includes('#include <lights_physical_fragment>')) {
+      sh.fragmentShader = sh.fragmentShader.replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
+  #ifdef USE_CLEARCOAT
+    material.clearcoatRoughness = clamp(material.clearcoatRoughness + pwSmudge(vMacroW) * ${(smudge * 0.8).toFixed(3)}, 0.0, 1.0);
+  #endif`);
+    }
+  };
+  const prevKey = material.customProgramCacheKey?.bind(material);
+  material.customProgramCacheKey = () => `${prevKey ? prevKey() : ''}|${key}-${smudge}-${scale}-${dust}-${desat}`;
+  return material;
+}

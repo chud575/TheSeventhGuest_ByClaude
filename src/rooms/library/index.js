@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { L, V3, addMacro } from './lib.js';
+import { L, V3, addMacro, addPolishWear } from './lib.js';
 import { buildShell, wallToWorld, OPEN } from './shell.js';
 import { buildBookcase } from './bookcase.js';
 import { buildProps, SPOTS } from './props.js';
@@ -17,7 +17,7 @@ import { tapestryMap, globeMap, nightSky, riddleCard, brickMap, timberMap, coffe
  */
 const { X0, X1, Z0, Z1, H } = L;
 const GHOST_POS = V3(-0.42, 1.74, 0.25);
-const GRADE = { exposure: 1.25, contrast: 1.2, saturation: 0.8, shadowTint: [0.93, 1.0, 1.03], highlightTint: [1.1, 1.0, 0.86], splitAmount: 0.5, lift: [0, 0, 0], blackPoint: 0.012, bloomStrength: 0.2, bloomRadius: 0.4, bloomThreshold: 1.6, godRayWeight: 0.14, vignette: 0.45, aoIntensity: 1.6, aoRadius: 0.25 };
+const GRADE = { exposure: 1.25, contrast: 1.15, saturation: 0.8, shadowTint: [0.93, 1.0, 1.03], highlightTint: [1.1, 1.0, 0.86], splitAmount: 0.5, lift: [0, 0, 0], blackPoint: 0.012, bloomStrength: 0.2, bloomRadius: 0.4, bloomThreshold: 1.6, godRayWeight: 0.14, vignette: 0.45, aoIntensity: 1.6, aoRadius: 0.25 };
 
 export default {
   id: 'library',
@@ -38,7 +38,7 @@ export default {
 
     // ================================================================ materials
     const tap = tapestryMap(ctx);
-    const tapRep = tap.withRepeat(2.2, 2.2);
+    const tapRep = tap.withRepeat(1.6, 1.6);
     const glob = globeMap(ctx);
     const cg = cofferGlassMap(ctx);
     const bm = brickMap(ctx, hi ? 2048 : 1024);
@@ -51,7 +51,8 @@ export default {
     const rain = rainGlassMap(ctx).withRepeat(1.4, 1.4);
     const timberMat = (set) => new THREE.MeshPhysicalMaterial({ map: set.map, normalMap: set.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), roughnessMap: set.roughnessMap, aoMap: set.aoMap, roughness: 1, metalness: 0, clearcoat: 0.08, clearcoatRoughness: 0.6, envMapIntensity: 0.5, name: 'timber' });
     const mat = {
-      floor: M.create('wood', { species: 'oak', boards: 6, boardLength: 0.36, polish: 0.32, wear: 0.75, figure: 0.6, tint: [0.44, 0.39, 0.36], repeat: [1 / 3.0, 1 / 1.02], size: hi ? 2048 : 1024, physical: true, clearcoat: 0.18, clearcoatRoughness: 0.45, macro: 0.45 }),
+      // warm, waxed oak boards: glossy enough to pick up the candles and the globe, worn in the walkways
+      floor: M.create('wood', { species: 'oak', boards: 6, boardLength: 0.36, polish: 0.55, wear: 0.35, figure: 0.7, tint: [0.66, 0.5, 0.38], repeat: [1 / 3.0, 1 / 1.02], size: hi ? 2048 : 1024, physical: true, clearcoat: 0.28, clearcoatRoughness: 0.3, roughness: 0.8, envMapIntensity: 0.45, macro: 0.4 }),
       brick: new THREE.MeshStandardMaterial({ map: brickRep.map, normalMap: brickRep.normalMap, normalScale: new THREE.Vector2(1.0, 1.0), roughnessMap: brickRep.roughnessMap, aoMap: brickRep.aoMap, aoMapIntensity: 1, roughness: 1, metalness: 0, envMapIntensity: 0.35, name: 'brick' }),
       timber: timberMat(timberH),
       timberV: timberMat(timberV),
@@ -65,13 +66,15 @@ export default {
       gilt: M.create('gold', { wear: 0.55, dirt: 0.65, repeat: [4, 1] }),
       giltCap: M.create('gold', { wear: 0.5, dirt: 0.7, repeat: [6, 6] }),
       frameGilt: M.create('gilded', { pattern: 1, repeats: 3, wear: 0.55, dirt: 0.7, repeat: [1 / 0.45, 1] }),
-      mahogany: M.create('mahogany', { repeat: [1.5, 1.5], color: [0.4, 0.3, 0.26], roughness: 1.1 }),
-      doorWood: M.create('wood', { species: 'walnut', boards: 0, polish: 0.5, wear: 0.5, tint: [0.7, 0.58, 0.5], repeat: [1, 1], physical: true, clearcoat: 0.2, clearcoatRoughness: 0.4 }),
-      deskLeather: M.create('leather', { color: [0.05, 0.12, 0.07], wear: 0.55, repeat: [2, 2] }),
-      tapestry: new THREE.MeshPhysicalMaterial({ map: tapRep.map, normalMap: tapRep.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: tapRep.roughnessMap, roughness: 1, metalness: 0, sheen: 0.6, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.62, 0.34, 0.24), envMapIntensity: 0.25, name: 'tapestry' }),
+      // old, dark, desaturated mahogany under a worn French polish (not the orange of new veneer)
+      mahogany: M.create('mahogany', { repeat: [1.5, 1.5], color: [0.3, 0.2, 0.17], roughness: 1.0, clearcoat: 0.3, clearcoatRoughness: 0.25 }),
+      walnut: M.create('walnut', { repeat: [3, 3], color: [0.42, 0.33, 0.27], roughness: 1.0, clearcoat: 0.15, clearcoatRoughness: 0.45 }),
+      doorWood: M.create('wood', { species: 'walnut', boards: 0, polish: 0.5, wear: 0.5, tint: [0.7, 0.58, 0.5], repeat: [3.5, 3.5], physical: true, clearcoat: 0.2, clearcoatRoughness: 0.4 }),
+      deskLeather: M.create('leather', { color: [0.055, 0.105, 0.065], wear: 0.9, repeat: [3, 3], normalScale: 1.7, macro: 0.55 }),
+      tapestry: new THREE.MeshPhysicalMaterial({ map: tapRep.map, normalMap: tapRep.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: tapRep.roughnessMap, roughness: 1, metalness: 0, sheen: 0.4, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.6, 0.42, 0.3), envMapIntensity: 0.25, name: 'tapestry' }),
       brass: M.create('brass', { tarnish: 0.45, polish: 0.6, repeat: [2, 2] }),
       brassBright: M.create('brass', { tarnish: 0.2, polish: 0.85, repeat: [3, 3] }),
-      iron: M.basic('iron', { color: 0x1c1b1a, roughness: 0.65 }),
+      iron: M.basic('iron', { color: 0x37322e, roughness: 0.42, metalness: 0.85 }),
       glassClear: M.basic('crystal', { transparent: true, opacity: 0.25 }),
       glassDark: new THREE.MeshPhysicalMaterial({ color: 0x0c140f, roughness: 0.08, metalness: 0, clearcoat: 1, transparent: true, opacity: 0.85 }),
       lens: new THREE.MeshPhysicalMaterial({ color: 0x223040, roughness: 0.02, metalness: 0.2, clearcoat: 1 }),
@@ -99,7 +102,7 @@ export default {
       glass: new THREE.MeshPhysicalMaterial({ map: rain.map, normalMap: rain.normalMap, color: 0xb8c4d0, roughness: 0.15, metalness: 0, transparent: true, opacity: 0.9, clearcoat: 1, clearcoatRoughness: 0.05, depthWrite: false, name: 'rain-glass' }),
       sky: new THREE.MeshBasicMaterial({ map: nightSky(ctx).map, color: new THREE.Color(1, 1, 1).multiplyScalar(2.6), toneMapped: false }),
       // the coffer glass glows with moonlight: the leaded lozenge lattice must read from the hero view
-      skylight: new THREE.MeshBasicMaterial({ map: cg.map, vertexColors: true, color: new THREE.Color(0x9fb0d8).multiplyScalar(1.15), name: 'skylight-glass' }),
+      skylight: new THREE.MeshBasicMaterial({ map: cg.map, vertexColors: true, color: new THREE.Color(0x9fb0d8).multiplyScalar(1.7), name: 'skylight-glass' }),
       sand: new THREE.MeshStandardMaterial({ color: 0xb89a66, roughness: 0.95 }),
       wax: M.create('wax', { color: [0.88, 0.83, 0.7], drips: 0.6, size: 256 }),
       bone: M.basic('bone'),
@@ -112,7 +115,15 @@ export default {
     addMacro(mat.brick, { amount: 0.3, scale: 0.6, key: 'brick' });
     addWallGrime(mat.brick);
     mat.gilt.roughness = 1.6;   // the shelf-edge gilt is dull and dusty: no pin-point lamp glints
+    // capitals and bases: old water-gilt, dulled by a century of lamp smoke (was reading as bright brass)
+    mat.giltCap.color.multiplyScalar(0.55); mat.giltCap.roughness = 1.5;
+    addPolishWear(mat.mahogany, { smudge: 0.3, scale: 7, dust: 0.25, desat: 0.25, key: 'mahog' });
+    addPolishWear(mat.floor, { smudge: 0.35, scale: 2.2, dust: 0.3, desat: 0.05, key: 'floorwear' });
+    addPolishWear(mat.deskLeather, { smudge: 0.3, scale: 6, dust: 0.0, desat: 0.0, key: 'leatherwear' });
     addMacro(mat.timber, { amount: 0.25, scale: 0.8, key: 'timber' });
+    // moonlight from the skylight glass washes down the sides of every coffer (the reference's lit lattice)
+    addSkyBounce(mat.beam, { y0: H + 0.02, y1: H + 0.28, color: [0.5, 0.58, 0.8], strength: 0.11, key: 'beam' });
+    addSkyBounce(mat.beamMould, { y0: H - 0.05, y1: H + 0.28, color: [0.5, 0.58, 0.8], strength: 0.09, key: 'bmould' });
     addMacro(mat.timberV, { amount: 0.25, scale: 0.8, key: 'timberv' });
 
     // ================================================================ build
@@ -192,9 +203,16 @@ export default {
     g.rotation.x = 0.12;   // chin down: he regards the visitor below him
     g.rotation.z = -0.03;
     const camW = new THREE.Vector3();
+    const baseYaw = g.rotation.y;
     ctx.onUpdate((dt, t) => {
       g.position.y = GHOST_POS.y + Math.sin(t * 0.7) * 0.025;
       g.rotation.z = -0.03 + Math.sin(t * 0.45) * 0.015;
+      // he turns to regard the visitor wherever they stand (never shows the back of his head)
+      ctx.camera.getWorldPosition(camW);
+      const want = Math.atan2(camW.x - g.position.x, camW.z - g.position.z) + 0.1;
+      let dy = want - g.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+      g.rotation.y += dy * (ctx.shot ? 1 : 1 - Math.exp(-dt * 1.2));
+      void baseYaw;
       ghost.aimEyes?.(ctx.camera.getWorldPosition(camW), ctx.shot ? 1 : 1 - Math.exp(-dt * 4));
     });
 
@@ -212,12 +230,12 @@ export default {
     // neutral, dim skylight spill + near-neutral ambient (the cold stays in the moon and the bay)
     root.add(fx.areaLight({ center: [(X0 + X1) / 2, H - 0.03, (Z0 + Z1) / 2], normal: [0, -1, 0], width: L.W * 0.8, height: L.D * 0.8, color: 0xa4aec6, intensity: 0.45 }));
     // the hemisphere's ground term is the moonlight bounced up off the floor: it picks out beam soffits and coffer mouldings
-    root.add(new THREE.HemisphereLight(0x2a2c34, 0x3a3634, 0.3));
+    root.add(new THREE.HemisphereLight(0x2a2c34, 0x2c2622, 0.3));
     // the bay window's moon spill
     root.add(fx.areaLight({ center: wallToWorld('left', OPEN.bay.x + OPEN.bay.w / 2, OPEN.bay.y + 1.1, 0.05).toArray(), normal: [1, -0.2, -0.4], width: OPEN.bay.w, height: OPEN.bay.h, color: 0x8ea6ff, intensity: 1.8 }));
     // moonlight through the bay window: the glazing bars throw their pattern across the floor and the telescope
     const bayC = wallToWorld('left', OPEN.bay.x + OPEN.bay.w / 2, OPEN.bay.y + 1.1, 0);
-    const bayMoon = new THREE.SpotLight(0xa8bce8, 700, 14, 0.3, 0.5, 2);
+    const bayMoon = new THREE.SpotLight(0xa8bce8, 250, 14, 0.3, 0.8, 2);
     bayMoon.position.copy(bayC).add(V3(-3.1, 2.3, 0.8));
     bayMoon.target.position.set(-3.0, 0.2, 1.1);
     bayMoon.castShadow = ctx.quality.shadows;
@@ -248,8 +266,8 @@ export default {
     bayKey.target.position.set(-2.4, 0.9, 0.9);
     root.add(bayKey, bayKey.target);
     // the music-room door would otherwise be a black hole: a low warm glow from the sconce side
-    const doorGlow = new THREE.PointLight(0xffa060, 3.5, 3.5, 2);
-    doorGlow.position.copy(wallToWorld('right', OPEN.rightDoor.x + OPEN.rightDoor.w * 0.9, 1.5, 0.9));
+    const doorGlow = new THREE.PointLight(0xffa060, 2.2, 3.0, 2);
+    doorGlow.position.copy(wallToWorld('right', OPEN.rightDoor.x + OPEN.rightDoor.w * 0.85, 1.6, 0.42));
     root.add(doorGlow);
     // cold fill in the bay so the curtains and reveal read
     const bayFill = new THREE.PointLight(0x8094c0, 2.4, 2.6, 2);
@@ -267,7 +285,7 @@ export default {
     for (const [i, j, s] of [[1, 3, 0.32], [2, 2, 0.26], [1, 1, 0.22], [2, 4, 0.2]]) {
       const cx = (bx(i) + bx(i + 1)) / 2, cz = (bz(j) + bz(j + 1)) / 2;
       const w = (bx(i + 1) - bx(i)) - 0.55, d = (bz(j + 1) - bz(j)) - 0.5;
-      const sh = fx.shaft({ center: V3(cx, H + 0.35, cz), right: V3(w / 2, 0, 0), up: V3(0, 0, d / 2), direction: moonDir, length: 4.4, color: 0xa8b8e0, intensity: s * 0.5, softness: 0.55, falloff: 0.9, panes: [3, 3], mullion: 0.02, noise: 0.8 });
+      const sh = fx.shaft({ center: V3(cx, H + 0.27, cz), right: V3(w / 2, 0, 0), up: V3(0, 0, d / 2), direction: moonDir, length: 4.4, color: 0xa8b8e0, intensity: s * 0.5, softness: 0.55, falloff: 0.9, panes: [3, 3], mullion: 0.02, noise: 0.8 });
       sh.name = 'shaft';
       root.add(sh);
       shafts.push(sh);
@@ -281,12 +299,12 @@ export default {
 
     // ================================================================ navigation
     const nodes = {
-      main: { position: [-0.35, 1.52, 2.6], target: [-0.7, 1.46, -5.0], fov: 46, label: 'The Library', look: { yaw: [-55, 50], pitch: [-30, 32] } },
-      main_back: { position: [0.05, 1.62, 1.6], target: [-1.2, 1.35, 7.0], fov: 58, label: 'The way out' },
-      shelves: { position: [-2.05, 1.62, -1.95], target: [-2.25, 1.95, -5.0], fov: 58, label: 'The bookcase', look: { yaw: [-50, 50], pitch: [-30, 38] } },
-      bay: { position: [-1.9, 1.6, 0.35], target: [-4.3, 1.1, 2.2], fov: 56, label: 'The telescope', look: { yaw: [-50, 50], pitch: [-30, 32] } },
-      door: { position: [-0.6, 1.62, -1.9], target: [1.1, 1.45, -3.85], fov: 56, label: 'The music-room door' },
-      corner: { position: [-1.2, 1.62, -3.4], target: [0.2, 1.25, 3.8], fov: 58, label: 'The reading corner', look: { yaw: [-50, 50], pitch: [-28, 30] } },
+      main: { position: [-0.35, 1.52, 2.6], target: [-0.7, 1.46, -5.0], fov: 46, label: 'The Library', look: { yaw: [-55, 50], pitch: [-30, 32] }, grade: { exposure: GRADE.exposure, contrast: GRADE.contrast, gamma: [1, 1, 1] } },
+      main_back: { position: [0.05, 1.62, 1.6], target: [-1.2, 1.35, 7.0], fov: 58, label: 'The way out', grade: { exposure: 1.75, contrast: 1.05, gamma: [1.16, 1.16, 1.16] } },
+      shelves: { position: [-2.05, 1.62, -1.95], target: [-2.25, 1.95, -5.0], fov: 58, label: 'The bookcase', look: { yaw: [-50, 50], pitch: [-30, 38] }, grade: { exposure: 1.6, contrast: 1.06, gamma: [1.14, 1.14, 1.14] } },
+      bay: { position: [-1.9, 1.6, 0.35], target: [-4.3, 1.1, 2.2], fov: 56, label: 'The telescope', look: { yaw: [-50, 50], pitch: [-30, 32] }, grade: { exposure: 1.5, contrast: 1.06, gamma: [1.12, 1.12, 1.12] } },
+      door: { position: [-0.6, 1.62, -1.9], target: [1.1, 1.45, -3.85], fov: 56, label: 'The music-room door', grade: { exposure: 1.4, contrast: 1.08, gamma: [1.08, 1.08, 1.08] } },
+      corner: { position: [-1.2, 1.62, -3.4], target: [0.2, 1.25, 3.8], fov: 58, label: 'The reading corner', look: { yaw: [-50, 50], pitch: [-28, 30] }, grade: { exposure: 1.35, contrast: 1.08, gamma: [1.08, 1.08, 1.08] } },
     };
     const edges = [
       ['main', 'main_back'],
@@ -412,16 +430,43 @@ export default {
         }
       },
       update() {},
+      // shots render at a frozen clock, so the engine's 0.8 s node-grade blend never lands: apply it at once
+      onArrive(id) { if (ctx.shot && nodes[id]?.grade) ctx.post.set(structuredClone(nodes[id].grade), 0); },
       dispose() { if (window.__debug?.library) delete window.__debug.library; },
     };
   },
 };
+
+/** Fake bounce from the moonlit coffer glass: cool emissive on side faces near the glass, a little on soffits. */
+function addSkyBounce(material, { y0, y1, color, strength, key }) {
+  const prev = material.onBeforeCompile;
+  material.onBeforeCompile = (sh, r) => {
+    prev?.call(material, sh, r);
+    if (!sh.vertexShader.includes('varying vec3 vMacroW;')) {
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vMacroW;')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvMacroW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vMacroW;');
+    }
+    sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+  {
+    vec3 nw = normalize((vec4(normal, 0.0) * viewMatrix).xyz);
+    float hk = smoothstep(${y0.toFixed(3)}, ${y1.toFixed(3)}, vMacroW.y);
+    float side = 1.0 - abs(nw.y);
+    float down = max(-nw.y, 0.0);
+    totalEmissiveRadiance += vec3(${color.map((v) => v.toFixed(3)).join(', ')}) * ${strength.toFixed(3)} * (hk * hk * side * 1.6 + down * 0.25) * diffuseColor.rgb * 6.0;
+  }`);
+  };
+  const prevKey = material.customProgramCacheKey?.bind(material);
+  material.customProgramCacheKey = () => `${prevKey ? prevKey() : ''}|sky-${key}`;
+}
 
 /**
  * World-space soot on the brick infill: darker toward the ceiling (a century of lamp smoke)
  * and in soft bands against every timber rail, with a few smoke runs down from the wall plate.
  */
 function addWallGrime(material) {
+  const SCONCE_W = wallToWorld('right', OPEN.rightDoor.x + OPEN.rightDoor.w + 0.36, 1.86, 0.02);
   const prev = material.onBeforeCompile;
   material.onBeforeCompile = (sh, r) => {
     prev?.call(material, sh, r);
@@ -438,7 +483,17 @@ function addWallGrime(material) {
     float along = vMacroW.x + vMacroW.z;
     float runs = smoothstep(0.55, 0.95, fract(sin(floor(along * 3.1) * 91.7) * 4375.5)) * smoothstep(1.6, ${(H - 0.3).toFixed(2)}, y);
     float g = 0.3 * exp(-dr / 0.07) + 0.3 * smoothstep(2.3, ${(H - 0.3).toFixed(2)}, y) + 0.12 * runs;
-    diffuseColor.rgb *= 1.0 - g;
+    // rising damp: a darker, salt-bloomed tide line along the foot of the walls
+    float tide = 0.4 + 0.12 * sin(along * 5.3) + 0.06 * sin(along * 13.7);
+    g += 0.28 * smoothstep(tide, 0.0, y);
+    // soot plume above the gas sconce
+    vec3 sc = vec3(${SCONCE_W.x.toFixed(3)}, ${SCONCE_W.y.toFixed(3)}, ${SCONCE_W.z.toFixed(3)});
+    vec2 dq = vec2(length(vMacroW.xz - sc.xz), vMacroW.y - sc.y);
+    g += 0.45 * exp(-dq.x * dq.x / (0.03 + 0.06 * max(dq.y, 0.0))) * smoothstep(-0.1, 0.15, dq.y) * smoothstep(1.4, 0.2, dq.y);
+    diffuseColor.rgb *= 1.0 - min(g, 0.8);
+    // world-space hue drift between brick batches (breaks the tile repeat)
+    float hb = fract(sin(dot(floor(vMacroW * vec3(1.6, 3.2, 1.6)), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+    diffuseColor.rgb *= mix(vec3(1.0), mix(vec3(1.08, 0.96, 0.9), vec3(0.9, 0.93, 1.02), hb), 0.6);
   }`);
   };
   const prevKey = material.customProgramCacheKey?.bind(material);

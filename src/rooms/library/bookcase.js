@@ -150,24 +150,63 @@ export function buildBookcase(ctx, root, mat) {
     const sh = flutedShaft(C.colR, colH - 0.36, { flutes: 18, depth: 0.0055, taper: 0.9 });
     sh.translate(x, sBot + 0.156 + (colH - 0.36) / 2, z);
     colGeos.push(sh);
-    // neck ring + capital (bell with leafy volutes suggested by stacked tori) + abacus
+    // Ionic capital: necking astragal, egg-and-dart echinus, a channelled band (canalis) rolling
+    // into two spiral volutes on the front and back faces, bolsters (pulvini) on the sides, abacus
     const cy = sBot + 0.156 + colH - 0.36;
-    capGeos.push(at(lathe([[0.001, 0], [0.072, 0], [0.076, 0.008], [0.07, 0.016], [0.07, 0.02], [0.075, 0.03], [0.083, 0.06], [0.094, 0.1], [0.108, 0.13], [0.118, 0.15], [0.12, 0.165], [0.001, 0.165]], 40), x, cy, z));
-    for (let k = 0; k < 8; k++) {        // acanthus leaves: tilted flattened spheres around the bell
-      const a = (k / 8) * Math.PI * 2;
-      const leaf = new THREE.SphereGeometry(0.03, 10, 8);
-      leaf.scale(0.7, 1.5, 0.45);
-      leaf.rotateX(-0.35);
-      leaf.rotateY(-a + Math.PI / 2);
-      leaf.translate(x + Math.cos(a) * 0.082, cy + 0.07, z + Math.sin(a) * 0.082);
-      capGeos.push(leaf);
+    capGeos.push(at(lathe([[0.001, 0], [0.072, 0], [0.078, 0.006], [0.078, 0.014], [0.071, 0.02], [0.071, 0.026], [0.084, 0.05], [0.092, 0.07], [0.09, 0.08], [0.001, 0.08]], 48), x, cy, z));
+    for (let k = 0; k < 16; k++) {        // eggs round the echinus
+      const a = (k / 16) * Math.PI * 2;
+      const egg = new THREE.SphereGeometry(0.012, 10, 8);
+      egg.scale(0.75, 1.15, 0.55);
+      egg.rotateY(-a + Math.PI / 2);
+      egg.translate(x + Math.cos(a) * 0.084, cy + 0.052, z + Math.sin(a) * 0.084);
+      capGeos.push(egg);
     }
-    for (const s of [-1, 1]) {           // corner volutes
-      const v = new THREE.TorusGeometry(0.02, 0.008, 8, 16);
-      v.rotateY(Math.PI / 2 * 0); v.translate(x + s * 0.1, cy + 0.15, z + 0.09);
-      capGeos.push(v);
+    const vy = cy + 0.095, vx = 0.088;
+    for (const sx of [-1, 1]) {
+      for (const fz of [-1, 1]) {
+        const pts = [];
+        const turns = 2.6 * Math.PI;
+        for (let k = 0; k <= 64; k++) {
+          const t = (k / 64) * turns;
+          const r = 0.036 * Math.exp(-0.17 * t);
+          const ang = Math.PI / 2 - sx * t;          // start at the top, roll outward then down and in
+          pts.push(V3(x + sx * vx + Math.cos(ang) * r, vy + Math.sin(ang) * r, z + fz * 0.08));
+        }
+        const curve = new THREE.CatmullRomCurve3(pts);
+        const tube = new THREE.TubeGeometry(curve, 96, 1, 8, false);
+        // taper the tube radius along the spiral
+        const pos = tube.attributes.position, cpts = curve.getSpacedPoints(96);
+        for (let i = 0; i < pos.count; i++) {
+          const seg = Math.min(96, Math.floor(i / 9));
+          const c = cpts[seg];
+          const rr = 0.0062 * (1 - 0.55 * (seg / 96));
+          const dx = pos.getX(i) - c.x, dy = pos.getY(i) - c.y, dz = pos.getZ(i) - c.z;
+          const len = Math.hypot(dx, dy, dz) || 1;
+          pos.setXYZ(i, c.x + dx / len * rr, c.y + dy / len * rr, c.z + dz / len * rr);
+        }
+        tube.computeVertexNormals();
+        capGeos.push(tube);
+        // the volute face (a shallow disc behind the spiral) and its eye
+        const disc = new THREE.CylinderGeometry(0.036, 0.036, 0.008, 32).rotateX(Math.PI / 2);
+        disc.translate(x + sx * vx, vy, z + fz * 0.076);
+        capGeos.push(disc);
+        const eye = new THREE.SphereGeometry(0.0075, 12, 8);
+        eye.translate(x + sx * vx, vy, z + fz * 0.083);
+        capGeos.push(eye);
+      }
+      // bolster between the two faces, pinched by a belt
+      const bol = lathe([[0.001, -0.08], [0.034, -0.08], [0.03, -0.05], [0.024, -0.012], [0.028, -0.008], [0.028, 0.008], [0.024, 0.012], [0.03, 0.05], [0.034, 0.08], [0.001, 0.08]], 24);
+      bol.rotateX(Math.PI / 2);
+      bol.translate(x + sx * vx, vy, z);
+      capGeos.push(bol);
     }
-    capGeos.push(bboxAt(0.25, 0.04, 0.25, x, cy + 0.185, z, { r: 0.006 }));
+    // canalis: the band that joins the volutes across each face
+    for (const fz of [-1, 1]) capGeos.push(bboxAt(2 * vx, 0.024, 0.012, x, vy + 0.024, z + fz * 0.077, { r: 0.004 }));
+    capGeos.push(bboxAt(2 * vx, 0.03, 0.15, x, vy + 0.02, z, { r: 0.004 }));
+    // abacus with a small ovolo
+    capGeos.push(bboxAt(0.23, 0.022, 0.23, x, cy + 0.15, z, { r: 0.004 }));
+    capGeos.push(bboxAt(0.25, 0.018, 0.25, x, cy + 0.17, z, { r: 0.006 }));
   }
 
   // ---------------------------------------------------------- entablature
@@ -220,7 +259,7 @@ export function buildBookcase(ctx, root, mat) {
       const clear = rowH - 0.03;
       let x = a + 0.006;
       // reserve a prop gap on some shelves
-      const propAt = (bi === 1 && (r === 1 || r === 4)) || (bi !== 1 && r === 3) || rnd.chance(0.3) ? a + (b - a) * rnd.range(0.2, 0.75) : -1;
+      const propAt = (bi === 1 && r === 4) || (bi === 0 && r === 2) || rnd.chance(0.07) ? a + (b - a) * rnd.range(0.2, 0.75) : -1;
       let propDone = false;
       while (x < b - 0.02) {
         if (!propDone && propAt > 0 && x > propAt) {
@@ -228,7 +267,7 @@ export function buildBookcase(ctx, root, mat) {
           x += 0.16; propDone = true; continue;
         }
         // occasional horizontal stack
-        if (rnd.chance(0.13) && b - x > 0.3) {
+        if (rnd.chance(0.07) && b - x > 0.3) {
           const n = rnd.int(2, 5);
           const bw = rnd.range(0.17, 0.25), bd = rnd.range(0.15, 0.22);
           let yy = y0;
@@ -241,7 +280,7 @@ export function buildBookcase(ctx, root, mat) {
           continue;
         }
         const w = rnd.chance(0.14) ? rnd.range(0.05, 0.08) : rnd.range(0.018, 0.05);
-        const h = Math.min(clear - 0.004, (rnd.chance(0.2) ? rnd.range(0.86, 0.97) : rnd.chance(0.15) ? rnd.range(0.4, 0.55) : rnd.range(0.55, 0.86)) * clear);
+        const h = Math.min(clear - 0.004, (rnd.chance(0.25) ? rnd.range(0.86, 0.97) : rnd.chance(0.1) ? rnd.range(0.5, 0.62) : rnd.range(0.66, 0.88)) * clear);
         const d = Math.min(C.shelfD - 0.04, h * rnd.range(0.62, 0.8));
         // a lean at the end of a run
         if (rnd.chance(0.11) && x > a + 0.2) {
@@ -251,7 +290,7 @@ export function buildBookcase(ctx, root, mat) {
           continue;
         }
         books.push({ x: x + w / 2, y: y0, z: C.shelfD - d / 2 - 0.012 - rnd.range(0, 0.025), w, h, d });
-        x += w + (rnd.chance(0.1) ? rnd.range(0.004, 0.014) : 0.0015);
+        x += w + (rnd.chance(0.06) ? rnd.range(0.003, 0.01) : 0.0008);
       }
     }
   });
