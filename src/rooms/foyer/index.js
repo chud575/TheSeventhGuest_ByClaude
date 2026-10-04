@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { STAIR, buildStaircase, stairEye, stairXZ, pitchY } from './staircase.js';
-import { buildDoorway, buildClock, buildSconce, buildColumn, buildConsole, buildCandelabrum, spiderGeometry } from './props.js';
+import { buildDoorway, buildClock, buildSconce, buildColumn, buildConsole, buildCandelabrum, spiderGeometry, acanthusLeaf } from './props.js';
 import { fanlightTexture, greatWindowTexture, sidelightTexture, medallionTexture, carpetTexture, clockDialTexture, floorTexture } from './textures.js';
 import { centreTable, flowerUrn, hallChair, bustOnPlinth, porcelainMaterial, demiluneConsole } from './furnish.js';
 import { createWebPuzzle, webMeta, WEB_ID } from './puzzleWeb.js';
@@ -131,8 +131,9 @@ export default {
       crystal: new THREE.MeshPhysicalMaterial({ color: 0x2a3036, roughness: 0.0, metalness: 0.15, ior: 2.0, specularIntensity: 1, clearcoat: 1, clearcoatRoughness: 0.0, iridescence: 0.35, iridescenceIOR: 1.6, envMapIntensity: 3.2, flatShading: true }),
       iron: M.basic('iron'),
       black: M.basic('black'),
+      doorWood: M.create('mahogany', { species: 'walnut', figure: 0.12, polish: 0.75, repeat: [1, 1], color: [0.58, 0.39, 0.33], clearcoat: 0.5, clearcoatRoughness: 0.28 }),
       rug: M.create('rug', { palette: 'tabriz', aspect: 1.6 / 4.3, knots: 200, wear: 0.45, fringe: 0.04, seed: 11, size: big }),
-      floorboards: M.create('parquet', { species: 'oak', ratio: 5, planksAcross: 2, repeat: [0.9, 0.9], polish: 0.55, wear: 0.4 }),
+      floorboards: M.create('parquet', { species: 'oak', ratio: 5, planksAcross: 4, repeat: [0.9, 0.9], polish: 0.55, wear: 0.4, macro: 0.6 }),
     };
     {
       // aged marble checker: ivory Carrara (~0.62 albedo) and Nero, per-tile jitter, dark grout, scuffs;
@@ -403,11 +404,17 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
     }
     // entablature belt at the gallery level (open path: skips the curved stair wall)
     {
-      const path = [V3(X1, 0, STAIR.cz), V3(X1, 0, Z1), V3(X0, 0, Z1), V3(X0, 0, Z0), V3(STAIR.cx, 0, Z0)];
+      // the belt stops where the gallery floor meets the wall: up there it would sit at skirting height
+      const path = [V3(X1, 0, STAIR.cz), V3(X1, 0, Z1), V3(X0, 0, Z1), V3(X0, 0, BAL_Z + 0.02)];
       const y0 = UF - 0.22;
       add(new THREE.Mesh(G.sweepProfile([new THREE.Vector2(0.01, 0), new THREE.Vector2(0.01, 0.36)], atY(path, y0), { uvScale: 1 }), mat.frieze), { cast: false });
       add(new THREE.Mesh(G.sweepProfile(G.PROFILES.crown(0.2, 0.15), atY(path, y0 + 0.36), { uvScale: 1 }), mat.crown), { cast: false });
       add(new THREE.Mesh(G.sweepProfile(G.PROFILES.chairRail(0.05, 0.03), atY(path, y0 - 0.05), { uvScale: 2 }), mat.gilt), { cast: false });
+      // upstairs: a plain ogee skirting and a simple dado rail on the gallery walls (the egg-and-dart stays on cornices)
+      const gp = [V3(X0, UF, BAL_Z + 0.02), V3(X0, UF, Z0), V3(STAIR.cx, UF, Z0)];
+      const ogee = [[0, 0], [0.024, 0], [0.024, 0.14], [0.02, 0.15], [0.012, 0.16], [0.014, 0.175], [0.008, 0.185], [0, 0.19]].map(([x, y]) => new THREE.Vector2(x, y));
+      add(new THREE.Mesh(G.sweepProfile(ogee, gp, { uvScale: 1 }), mat.dark));
+      add(new THREE.Mesh(G.sweepProfile(G.PROFILES.chairRail(0.07, 0.03), atY(gp, UF + 0.92), { uvScale: 1 }), mat.panel));
     }
 
     // ---------------------------------------------------------------- coffered ceiling
@@ -535,14 +542,14 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
     }
 
     // ================================================================ doors
-    const doorMats = { noCartouche: true, leafMat: mat.mahogany, caseMat: mat.panel, giltMat: mat.crown, brassMat: mat.brass, friezeMat: mat.frieze, ironMat: mat.iron, thresholdMat: mat.columns };
+    const doorMats = { noCartouche: true, leafMat: mat.doorWood, caseMat: mat.panel, giltMat: mat.crown, brassMat: mat.brass, friezeMat: mat.frieze, ironMat: mat.iron, thresholdMat: mat.columns };
     const placeOnWall = (wall, along, obj, y = 0) => { obj.position.set(along, y, 0); walls[wall].group.add(obj); return obj; };
     const doorObjs = {};
     doorObjs.music = placeOnWall('back', lx.back(DOORS.music.x), buildDoorway(ctx, { ...doorMats, w: DOORS.music.w, h: DOORS.music.h, double: true, pediment: 'segment', ajar: 0.1 }));
-    doorObjs.kitchen = placeOnWall('back', lx.back(DOORS.kitchen.x), buildDoorway(ctx, { ...doorMats, w: DOORS.kitchen.w, h: DOORS.kitchen.h, head: false, ajar: 0.22 }));
+    doorObjs.kitchen = placeOnWall('back', lx.back(DOORS.kitchen.x), buildDoorway(ctx, { ...doorMats, w: DOORS.kitchen.w, h: DOORS.kitchen.h, head: false, ajar: 0.22, panels: 6 }));
     doorObjs.dining = placeOnWall('left', lx.left(DOORS.dining.z), buildDoorway(ctx, { ...doorMats, w: DOORS.dining.w, h: DOORS.dining.h, double: true, ajar: 0.2, pediment: 'segment' }));
     doorObjs.library = placeOnWall('right', lx.right(DOORS.library.z), buildDoorway(ctx, { ...doorMats, w: DOORS.library.w, h: DOORS.library.h, double: true, pediment: 'triangle', ajar: 0.2 }));
-    doorObjs.gallery = placeOnWall('left', lx.left(DOORS.gallery.z), buildDoorway(ctx, { ...doorMats, w: DOORS.gallery.w, h: DOORS.gallery.h, head: false }), UF);
+    doorObjs.gallery = placeOnWall('left', lx.left(DOORS.gallery.z), buildDoorway(ctx, { ...doorMats, w: DOORS.gallery.w, h: DOORS.gallery.h, head: false, panels: 6 }), UF);
     doorObjs.front = placeOnWall('front', 6, buildDoorway(ctx, { ...doorMats, w: DOORS.front.w, h: DOORS.front.h, double: true, arch: true, depth: 0.42 }));
     {
       // the porch beyond the front door: night-black, so the meeting stiles never show a hairline of sky
@@ -590,7 +597,8 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
   float seedy = 0.78 + 0.3 * sgN(su * vec2(9.0, 40.0)) + 0.12 * sgN(su * 23.0 + 3.0);
   float bubbles = smoothstep(0.93, 0.99, sgN(su * 180.0));
   float sky = 0.75 + 0.5 * su.y;          // the moon side of the glass glows hardest
-  totalEmissiveRadiance *= seedy * sky * (1.0 + bubbles * 0.6);
+  float pane = 0.85 + 0.3 * sgH(floor(su * vec2(7.0, 15.0)) + 3.7);   // every quarry was cut from a different sheet (+-15%)
+  totalEmissiveRadiance *= seedy * sky * pane * (1.0 + bubbles * 0.6);
 }`);
       };
       return m;
@@ -673,7 +681,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
 float sgH(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
 float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(sgH(i), sgH(i + vec2(1, 0)), f.x), mix(sgH(i + vec2(0, 1)), sgH(i + vec2(1, 1)), f.x), f.y); }`)
             .replace('#include <map_fragment>', `#include <map_fragment>
-  diffuseColor.rgb *= (0.78 + 0.3 * sgN(vMapUv * vec2(9.0, 40.0)) + 0.12 * sgN(vMapUv * 23.0 + 3.0)) * (0.8 + 0.4 * vMapUv.y);`);
+  diffuseColor.rgb *= (0.78 + 0.3 * sgN(vMapUv * vec2(9.0, 40.0)) + 0.12 * sgN(vMapUv * 23.0 + 3.0)) * (0.8 + 0.4 * vMapUv.y) * (0.85 + 0.3 * sgH(floor(vMapUv * vec2(9.0, 11.0)) + 1.3));`);
         };
       }
       wg.add(glass);
@@ -916,6 +924,32 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
       portrait.add(fr);
       const ob = new THREE.Mesh(G.frameGeometry(pw + 0.51, ph + 0.51, { width: 0.05, depth: 0.16, uvScale: 1 }), mat.crown);
       portrait.add(ob);
+      // carved compo ornament: a bead-and-reel sight edge, acanthus cartouches at the corners and centres
+      {
+        const beads = [], reels = [];
+        const bw2 = (pw + 0.03) / 2, bh2 = (ph + 0.03) / 2;
+        const beadG = new THREE.SphereGeometry(0.009, 10, 6); beadG.scale(1.6, 1, 1);
+        const reelG = new THREE.SphereGeometry(0.0055, 8, 6); reelG.scale(0.6, 1, 1);
+        const edge = (ax, ay, bx, by) => {
+          const len = Math.hypot(bx - ax, by - ay), n = Math.floor(len / 0.034), rot = Math.atan2(by - ay, bx - ax);
+          for (let k = 0; k < n; k++) {
+            const t = (k + 0.5) / n, x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
+            beads.push(new THREE.Matrix4().compose(V3(x, y, 0.035), new THREE.Quaternion().setFromAxisAngle(V3(0, 0, 1), rot), V3(1, 1, 1)));
+            const t2 = (k + 1) / n; if (k < n - 1) reels.push(new THREE.Matrix4().compose(V3(ax + (bx - ax) * t2, ay + (by - ay) * t2, 0.035), new THREE.Quaternion().setFromAxisAngle(V3(0, 0, 1), rot), V3(1, 1, 1)));
+          }
+        };
+        edge(-bw2, -bh2, bw2, -bh2); edge(bw2, -bh2, bw2, bh2); edge(bw2, bh2, -bw2, bh2); edge(-bw2, bh2, -bw2, -bh2);
+        for (const [geo, list] of [[beadG, beads], [reelG, reels]]) { const im = new THREE.InstancedMesh(geo, mat.gilt, list.length); list.forEach((m, i) => im.setMatrixAt(i, m)); portrait.add(im); }
+        const leafG = acanthusLeaf(0.16, 0.26, 0.9);
+        const lg = [];
+        const cw2 = (pw + 0.29) / 2, ch2 = (ph + 0.29) / 2;
+        const leaf = (x, y, th, sc) => lg.push(leafG.clone().applyMatrix4(new THREE.Matrix4().makeTranslation(x, y, 0.125).multiply(new THREE.Matrix4().makeRotationZ(th)).multiply(new THREE.Matrix4().makeRotationX(0.25)).multiply(new THREE.Matrix4().makeScale(sc, sc, sc))));
+        // acanthus sprays run along both rails from every corner boss, and out both ways from each rail centre
+        for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { leaf(sx * cw2, sy * ch2, sx * Math.PI / 2, 1); leaf(sx * cw2, sy * ch2, sy > 0 ? Math.PI : 0, 1); }
+        for (const [x, y, ths] of [[0, -ch2, [-Math.PI / 2, Math.PI / 2]], [-cw2, 0, [0, Math.PI]], [cw2, 0, [0, Math.PI]]]) for (const th of ths) leaf(x, y, th, 0.8);
+        const lm = new THREE.Mesh(G.mergeGeometries(lg), mat.gilt.clone()); lm.material.side = THREE.DoubleSide; portrait.add(lm);
+        for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const bo = new THREE.Mesh(new THREE.SphereGeometry(0.035, 16, 10), mat.gilt); bo.scale.set(1, 1, 0.55); bo.position.set(sx * cw2, sy * ch2, 0.16); portrait.add(bo); }
+      }
       // cresting: a carved shell-and-scroll cartouche on the top rail
       {
         const sh = new THREE.Shape();
@@ -927,13 +961,13 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
         for (const sx of [-1, 1]) { const v = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.016, 8, 20, Math.PI * 1.5), mat.gilt); v.position.set(sx * 0.3, ph / 2 + 0.29, 0.1); v.rotation.z = sx > 0 ? -0.5 : Math.PI + 0.5; portrait.add(v); }
       }
       // engraved brass plaque
-      const plaqueTex = ctx.textures.canvas('foyer:staufplaque', 512, 112, (g2, w2, h2) => {
+      const plaqueTex = ctx.textures.canvas('foyer:staufplaque2', 1024, 224, (g2, w2, h2) => {
         const gr = g2.createLinearGradient(0, 0, 0, h2); gr.addColorStop(0, '#9c7a3a'); gr.addColorStop(0.5, '#c9a35a'); gr.addColorStop(1, '#7a5a26');
         g2.fillStyle = gr; g2.fillRect(0, 0, w2, h2);
-        g2.strokeStyle = '#3a2a10'; g2.lineWidth = 4; g2.strokeRect(8, 8, w2 - 16, h2 - 16);
-        g2.fillStyle = '#2a1c08'; g2.textAlign = 'center'; g2.textBaseline = 'middle';
-        g2.font = 'bold 44px "Cinzel", "Times New Roman", serif'; g2.fillText('HENRY STAUF', w2 / 2, h2 / 2 - 4);
-        g2.font = 'italic 20px "Cormorant Garamond", serif'; g2.fillText('Toymaker  ·  Master of this House', w2 / 2, h2 - 22);
+        g2.strokeStyle = '#3a2a10'; g2.lineWidth = 6; g2.strokeRect(16, 16, w2 - 32, h2 - 32); g2.lineWidth = 2; g2.strokeRect(28, 28, w2 - 56, h2 - 56);
+        g2.fillStyle = '#21160a'; g2.textAlign = 'center'; g2.textBaseline = 'middle';
+        g2.font = 'bold 84px "Cinzel", "Times New Roman", serif'; g2.fillText('HENRY STAUF', w2 / 2, h2 / 2 - 14);
+        g2.font = 'italic 38px "Cormorant Garamond", serif'; g2.fillText('Toymaker  ·  Master of this House', w2 / 2, h2 - 46);
       }, { tile: false });
       const plaqueBump = ctx.textures.canvas('foyer:staufplaqueH', 1024, 224, (g2, w2, h2) => {
         g2.fillStyle = '#fff'; g2.fillRect(0, 0, w2, h2);
@@ -943,7 +977,8 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
         g2.font = 'bold 84px "Cinzel", "Times New Roman", serif'; g2.fillText('HENRY STAUF', w2 / 2, h2 / 2 - 14);
         g2.font = 'italic 38px "Cormorant Garamond", serif'; g2.fillText('Toymaker  ·  Master of this House', w2 / 2, h2 - 46);
       }, { srgb: false, tile: false });
-      const plMat = new THREE.MeshStandardMaterial({ map: plaqueTex, bumpMap: plaqueBump, bumpScale: 1.5, metalness: 0.9, roughness: 0.3, envMapIntensity: 1.2 });
+      plaqueTex.anisotropy = 8; plaqueBump.anisotropy = 8;
+      const plMat = new THREE.MeshStandardMaterial({ map: plaqueTex, bumpMap: plaqueBump, bumpScale: 2.5, metalness: 0.9, roughness: 0.32, envMapIntensity: 1.2 });
       const pl = new THREE.Mesh(new G.RoundedBoxGeometry(0.62, 0.135, 0.012, 2, 0.004), [mat.brass, mat.brass, mat.brass, mat.brass, plMat, mat.brass]);
       pl.position.set(0, -ph / 2 - 0.17, 0.15); portrait.add(pl);
       // the faintest glint in his eyes
@@ -1103,17 +1138,46 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
         ctx.onUpdate((dt, t) => { cl.intensity = 2.2 * (0.9 + 0.1 * Math.sin(t * 8.7 + sx) * Math.sin(t * 3.1)); });
       }
     }
-    // newel lamp: bronze torchère with a frosted globe
+    // newel lamp: a patinated bronze baluster wrapped in acanthus, carrying an acid-etched glass globe
     {
       const top = stair.newel.userData.top;
       const lamp = new THREE.Group();
-      lamp.add(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.09, 0], [0.085, 0.02], [0.05, 0.05], [0.035, 0.1], [0.05, 0.16], [0.02, 0.22], [0.016, 0.5], [0.03, 0.53], [0.06, 0.56], [0.0, 0.57]], 28), mat.brass));
-      const globe = new THREE.Mesh(new THREE.SphereGeometry(0.11, 32, 20), new THREE.MeshStandardMaterial({ color: 0x302418, emissive: new THREE.Color(1.0, 0.55, 0.24), emissiveIntensity: 0.32, roughness: 0.3 }));
-      globe.position.y = 0.66; globe.castShadow = false; lamp.add(globe);
+      const bronze = new THREE.MeshPhysicalMaterial({ color: 0x3b2a18, metalness: 0.85, roughness: 0.42, clearcoat: 0.3, clearcoatRoughness: 0.4, envMapIntensity: 1.2 });
+      lamp.add(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.1, 0], [0.104, 0.012], [0.092, 0.024], [0.07, 0.04], [0.06, 0.06], [0.07, 0.08], [0.05, 0.11], [0.034, 0.15], [0.03, 0.3], [0.042, 0.32], [0.05, 0.34], [0.036, 0.36], [0.024, 0.4], [0.022, 0.5], [0.036, 0.52], [0.06, 0.55], [0.064, 0.565], [0.03, 0.58], [0.0, 0.585]], 32), bronze));
+      const lg = [];
+      const leafLo = acanthusLeaf(0.07, 0.16, 0.7), leafHi = acanthusLeaf(0.05, 0.12, 0.8);
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2;
+        lg.push(leafLo.clone().applyMatrix4(new THREE.Matrix4().makeRotationY(a).multiply(new THREE.Matrix4().makeTranslation(0, 0.07, 0.05))));
+        lg.push(leafHi.clone().applyMatrix4(new THREE.Matrix4().makeRotationY(a + Math.PI / 6).multiply(new THREE.Matrix4().makeTranslation(0, 0.36, 0.026))));
+      }
+      const leaves = new THREE.Mesh(G.mergeGeometries(lg), bronze.clone()); leaves.material.side = THREE.DoubleSide; lamp.add(leaves);
+      // gallery (crown) holding the globe
+      const gal = new THREE.Mesh(G.latheFromProfile([[0.03, 0.0], [0.07, 0.02], [0.075, 0.035], [0.065, 0.04], [0.03, 0.02]], 32), bronze); gal.position.y = 0.58; lamp.add(gal);
+      const etch = ctx.textures.canvas('foyer:etchedglobe', 1024, 512, (g2, w2, h2) => {
+        g2.fillStyle = '#9a9a9a'; g2.fillRect(0, 0, w2, h2);   // frosted ground
+        g2.fillStyle = '#ffffff';
+        let sd = 9; const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+        for (let i = 0; i < 9000; i++) { g2.globalAlpha = 0.05; g2.fillRect(rnd() * w2, rnd() * h2, 2, 2); }
+        g2.globalAlpha = 1;
+        // clear-cut stars and a band of laurel: the etched pattern reads darker (clear) on the glowing frost
+        g2.fillStyle = '#3a3a3a'; g2.strokeStyle = '#3a3a3a';
+        for (let r = 0; r < 4; r++) for (let k = 0; k < 10; k++) {
+          const x = (k + (r % 2) * 0.5) * (w2 / 10), y = h2 * (0.22 + r * 0.19);
+          g2.beginPath();
+          for (let p = 0; p < 10; p++) { const a = (p / 10) * Math.PI * 2 - Math.PI / 2, rr = p % 2 ? 9 : 22; g2.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 1.6); }
+          g2.closePath(); g2.fill();
+        }
+        g2.lineWidth = 4;
+        for (const y of [h2 * 0.1, h2 * 0.9]) { g2.beginPath(); g2.moveTo(0, y); g2.lineTo(w2, y); g2.stroke(); for (let x = 0; x < w2; x += 26) { g2.beginPath(); g2.ellipse(x, y - 9, 5, 10, 0.6, 0, 7); g2.fill(); g2.beginPath(); g2.ellipse(x + 13, y + 9, 5, 10, -0.6, 0, 7); g2.fill(); } }
+      }, { tile: false });
+      const globe = new THREE.Mesh(new THREE.SphereGeometry(0.115, 48, 32), new THREE.MeshPhysicalMaterial({ color: 0x2a2620, emissive: new THREE.Color(1.0, 0.62, 0.3), emissiveMap: etch, emissiveIntensity: 1.1, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08, transmission: 0, envMapIntensity: 0.8 }));
+      globe.position.y = 0.72; globe.castShadow = false; lamp.add(globe);
+      const fin = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.018, 0], [0.012, 0.02], [0.016, 0.03], [0.004, 0.06], [0, 0.065]], 16), bronze); fin.position.y = 0.83; lamp.add(fin);
       lamp.position.copy(top);
       add(lamp);
       const nl = new THREE.PointLight(0xffa25a, 6, 9, 2);
-      nl.position.copy(top).add(V3(0, 0.66, 0));
+      nl.position.copy(top).add(V3(0, 0.72, 0));
       root.add(nl);
     }
     // gas sconces: flanking the front door and the music-room doors, plus one on the gallery
@@ -1171,7 +1235,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
         const f2 = new THREE.Mesh(G.frameGeometry(w + 0.05, h + 0.05, { width: 0.008, depth: 0.003, uvScale: 1 }), mat.gilt);
         f2.position.set(0, y, z); clock.add(f2);
       };
-      band(0.33, 0.74, 1.08, 0.127); band(0.46, 0.32, 0.32, 0.157);
+      band(0.37, 0.89, 1.07, 0.127); band(0.46, 0.32, 0.32, 0.157);
       // a brass break-arch moulding over the dial
       const arc = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.012, 8, 32, Math.PI), mat.brass);
       arc.position.set(0, 2.0, 0.155); clock.add(arc);
@@ -1441,7 +1505,9 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     const fill = new THREE.HemisphereLight(0x2a3a5a, 0x1a120c, Number(ctx.params.get('hemi') || 0.3));
     root.add(fill);
     // moon bounce off the marble onto the long side walls: wide, low, cool washes so the damask, pictures and doors hold
-    root.add(fx.areaLight({ center: [X0 + 0.25, 2.2, 0.5], normal: [1, 0.15, 0], width: 11.0, height: 3.4, color: 0x5a7ab8, intensity: 1.6 }));
+    // (split round the dining-room doorway: an unshadowed panel right beside the open leaf blew its edge out to a white sliver)
+    root.add(fx.areaLight({ center: [X0 + 0.25, 2.2, 3.2], normal: [1, 0.15, 0], width: 5.6, height: 3.4, color: 0x5a7ab8, intensity: 1.6 }));
+    root.add(fx.areaLight({ center: [X0 + 0.25, 2.2, -4.6], normal: [1, 0.15, 0], width: 3.4, height: 3.4, color: 0x5a7ab8, intensity: 1.6 }));
     root.add(fx.areaLight({ center: [X1 - 0.25, 2.2, 4.4], normal: [-1, 0.15, 0], width: 5.0, height: 3.4, color: 0x5a7ab8, intensity: 0.8 }));
     root.add(fx.areaLight({ center: [-2.4, UF + 1.6, -4.0], normal: [0, -0.1, -1], width: 6.0, height: 2.6, color: 0x5a7ab8, intensity: 5.2 }));
     // upper volume: cool moon bounce washing the high walls and the curved stair wall so the damask and gilt hold
@@ -1492,7 +1558,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     const mvol = moonVolume(ctx, {
       moon, box: new THREE.Box3(V3(X0 + 0.02, 0.012, Z0 + 0.02), V3(X1 - 0.02, H - 0.02, Z1 - 0.05)),
       occ: [BAL_X1, BAL_Z, UF - 0.4, 0],
-      intensity: Number(ctx.params.get('mvol') || 650), density: Number(ctx.params.get('mdens') || 0.035), heightK: 0.8,
+      intensity: Number(ctx.params.get('mvol') || 260), density: Number(ctx.params.get('mdens') || 0.035), heightK: 0.8,
       topExt: Number(ctx.params.get('mtop') || 0.07), topY: UF + 0.6, steps: Q.volumetricSteps ? Math.max(20, Math.min(40, Q.volumetricSteps * 2)) : 28,
     });
     root.add(mvol.mesh); puzzleHide.push(mvol.mesh);
@@ -1508,7 +1574,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
       center: { position: [-1.25, 1.62, 2.55], target: [-0.2, 2.25, -7], fov: 58, label: 'The gallery', look: { yaw: [-45, 45], pitch: [-25, 35] }, grade: NODE_BASE },
       center_w: { position: [-1.25, 1.62, 2.55], target: [-6, 1.75, -1.6], fov: 56, label: 'The dining-room doors', grade: NODE_BASE },
       center_e: { position: [-1.25, 1.62, 2.55], target: [6, 1.9, 3.0], fov: 56, label: 'The library doors', grade: NODE_BASE },
-      center_s: { position: [-1.25, 1.62, 2.55], target: [0.0, 2.7, 7], fov: 58, label: 'The front door', look: { yaw: [-45, 45], pitch: [-20, 40] }, grade: { ...NODE_BASE, godRayWeight: 0.15 } },
+      center_s: { position: [-1.25, 1.62, 2.55], target: [0.0, 3.25, 7], fov: 62, label: 'The front door', look: { yaw: [-45, 45], pitch: [-20, 40] }, grade: { ...NODE_BASE, godRayWeight: 0.15 } },
       stairs: { position: [3.25, 1.62, 3.65], target: [4.9, 3.0, -2.6], fov: 58, label: 'The staircase', look: { yaw: [-60, 50], pitch: [-25, 40] }, grade: { ...NODE_BASE, exposure: 1.3 } },
       landing: { position: [-1.3, UF + 1.62, -4.5], target: [-0.4, 3.3, 6], fov: 60, label: 'The gallery landing', look: { yaw: [-60, 60], pitch: [-40, 30] }, grade: { ...NODE_BASE, godRayWeight: 0 } },
       landing_n: { position: [-1.45, UF + 1.62, -4.45], target: [DOORS.music.x, UF + 2.0, -7], fov: 66, label: 'The portrait', grade: NODE_BASE },

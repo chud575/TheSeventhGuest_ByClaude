@@ -59,7 +59,7 @@ void main() {
     // density: a low, drifting haze, thickest near the floor, broken into slow wisps
     vec3 q = p * 0.55 + vec3(uTime * 0.02, -uTime * 0.01, uTime * 0.015);
     float n = vn(q) * 0.65 + vn(q * 2.3 + 7.1) * 0.35;
-    float dens = uDensity * (0.35 + exp(-max(p.y - uFloorY, 0.0) * uHeightK)) * (0.45 + 1.1 * n);
+    float dens = uDensity * (0.3 + exp(-max(p.y - uFloorY, 0.0) * uHeightK)) * (0.15 + 1.9 * n * n);
     // moon in-scatter through the stained glass
     vec3 L = uMoonPos - p;
     float dist = length(L);
@@ -70,7 +70,7 @@ void main() {
     if (cone > 0.0) {
       vec4 c = uMoonVP * vec4(p, 1.0);
       vec2 cuv = c.xy / c.w * 0.5 + 0.5;
-      vec3 cook = uCookieOn > 0.5 ? textureLod(uCookie, clamp(cuv, 0.0, 1.0), 2.0).rgb   // explicit LOD: jittered march -> huge derivatives : vec3(1.0);
+      vec3 cook = uCookieOn > 0.5 ? textureLod(uCookie, clamp(cuv, 0.0, 1.0), 0.8).rgb /* explicit LOD: jittered march => huge derivatives */ : vec3(1.0);
       // the gallery slab shades everything beneath it
       float occ = 1.0;
       if (p.y < uOcc.z) {

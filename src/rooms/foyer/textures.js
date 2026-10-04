@@ -940,7 +940,7 @@ vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
  * grout is dark and grimy; the chamfered edges are slightly lifted; light scuffing.
  */
 export function floorTexture(forge, size = 1024) {
-  return forge.generate('foyer:floor9', {
+  return forge.generate('foyer:floor10', {
     size, aspect: 1, tile: true, normalStrength: 0.55,
     glsl: /* glsl */ `
 // Carrara + Nero Marquina checker. Everything here is LOW frequency on purpose: soft clouds, drifting
@@ -984,7 +984,7 @@ void surface(vec2 uv, inout Surface s) {
     rough = 0.1 + 0.03 * (h2 - 0.5) + vein * 0.03;
   } else {
     // Nero Marquina: deep true-black body with sparse, branching white calcite veins and milky halos
-    float vein = warpedVein(q * 0.8, h2 * 11.0 + 2.0, 0.022, halo);
+    float vein = warpedVein(q * 0.8, h2 * 11.0 + 2.0, 0.015, halo);
     float vein2 = warpedVein(q * 1.4 + 3.0, h3 * 7.0 + 5.0, 0.014, halo2);
     float vein3 = warpedVein(q * 2.6 + 9.0, h4 * 5.0 + 1.0, 0.012, halo3);
     vec3 base = vec3(0.014, 0.0135, 0.015) * (0.85 + 0.3 * h1);

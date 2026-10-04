@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { scallopedPan, waxDrips } from './dressing.js';
 import { sdfGeometry, sdEllipsoid, sdRoundCone, smin, smax } from '../../engine/lib/contrib/bedroom-sdf.js';
 
 /**
@@ -38,7 +39,8 @@ export function buildDoorway(ctx, o) {
     body.position.set(0, h / 2, 0); leaf.add(body);
     // panel layout: tall upper pair, small middle rail, lower pair
     const pw = lw * 0.36, cols = lw > 0.8 ? 2 : 1;
-    const rows = [[h * 0.66, h * 0.44], [h * 0.2, h * 0.24]];
+    // 4-panel (tall upper pair, lower pair) or the classic 6-panel (small frieze panels, tall middle, lower)
+    const rows = o.panels === 6 ? [[h * 0.86, h * 0.17], [h * 0.555, h * 0.36], [h * 0.19, h * 0.27]] : [[h * 0.66, h * 0.44], [h * 0.2, h * 0.24]];
     for (const [cy, ph] of rows) {
       for (let c = 0; c < cols; c++) {
         const px = cols === 1 ? 0 : (c === 0 ? -1 : 1) * lw * 0.22;
@@ -138,20 +140,42 @@ export function buildClock(ctx, { case: wood, dark, brass, gilt, glass, dial, ir
   const box = (w, h, d, x, y, z, m = wood, r) => { const b = new THREE.Mesh(r ? RB(w, h, d, r) : G.boxUV(w, h, d, 1), m); b.position.set(x, y, z); g.add(b); return b; };
   // plinth with bracket feet
   box(0.58, 0.07, 0.34, 0, 0.1, 0, wood, 0.01);
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const foot = new THREE.Mesh(G.latheFromProfile([[0.0, 0], [0.04, 0], [0.05, 0.03], [0.035, 0.06], [0.045, 0.075], [0.0, 0.075]], 12), wood);
-    foot.position.set(sx * 0.24, 0, sz * 0.12); g.add(foot);
+  // ogee bracket feet: each corner is two mitred cyma-profiled brackets
+  {
+    const fs = new THREE.Shape();
+    fs.moveTo(0, 0); fs.lineTo(0.03, 0); fs.bezierCurveTo(0.03, 0.03, 0.075, 0.025, 0.09, 0.05); fs.bezierCurveTo(0.105, 0.065, 0.11, 0.075, 0.11, 0.075); fs.lineTo(0, 0.075); fs.lineTo(0, 0);
+    const fg = G.applyBoxUVs(new THREE.ExtrudeGeometry(fs, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 2, curveSegments: 10 }), 1);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const a = new THREE.Mesh(fg, wood); a.scale.x = -sx; a.position.set(sx * 0.29, 0, sz * 0.17 - (sz > 0 ? 0.04 : 0)); g.add(a);
+      const b = new THREE.Mesh(fg, wood); const th = sz > 0 ? Math.PI / 2 : -Math.PI / 2; b.rotation.y = th;
+      b.position.set(th > 0 ? (sx > 0 ? 0.25 : -0.29) : (sx > 0 ? 0.29 : -0.25), 0, sz * 0.17); g.add(b);
+    }
   }
   box(0.54, 0.38, 0.31, 0, 0.32, 0, wood, 0.006);
   const basePanel = new THREE.Mesh(G.raisedPanel(0.38, 0.26, { border: 0.035, bevel: 0.02, fieldDepth: 0.008 }), wood); basePanel.position.set(0, 0.32, 0.155); g.add(basePanel);
   box(0.58, 0.04, 0.34, 0, 0.53, 0, wood, 0.01);
-  // trunk
-  box(0.44, 1.02, 0.25, 0, 1.06, 0, wood, 0.006);
-  // trunk door with glazed lenticle showing the pendulum
-  const doorF = new THREE.Mesh(G.frameGeometry(0.2, 0.62, { width: 0.06, depth: 0.025, uvScale: 1 }), wood); doorF.position.set(0, 1.08, 0.126); g.add(doorF);
-  const back = box(0.2, 0.62, 0.01, 0, 1.08, 0.09, dark);
+  // trunk: a hollow case (carcass + sides + a front with the door opening) so the pendulum hangs in real depth
+  box(0.44, 1.02, 0.125, 0, 1.06, -0.0625, wood, 0.006);
+  for (const sx of [-1, 1]) box(0.03, 1.02, 0.13, sx * 0.205, 1.06, 0.06, wood, 0.004);
+  {
+    const fs = new THREE.Shape(); fs.moveTo(-0.22, -0.51); fs.lineTo(0.22, -0.51); fs.lineTo(0.22, 0.51); fs.lineTo(-0.22, 0.51); fs.lineTo(-0.22, -0.51);
+    const hole = new THREE.Path(); hole.moveTo(-0.14, -0.39); hole.lineTo(0.14, -0.39); hole.lineTo(0.14, 0.41); hole.lineTo(-0.14, 0.41); hole.lineTo(-0.14, -0.39); fs.holes.push(hole);
+    const fm = new THREE.Mesh(G.applyBoxUVs(new THREE.ExtrudeGeometry(fs, { depth: 0.02, bevelEnabled: false }), 1), wood); fm.position.set(0, 1.06, 0.105); g.add(fm);
+  }
+  // a glazed trunk door: arched-top glass, the pendulum and the two weights hanging inside on a gilt-painted backboard
+  const doorF = new THREE.Mesh(G.frameGeometry(0.28, 0.8, { width: 0.045, depth: 0.025, uvScale: 1 }), wood); doorF.position.set(0, 1.07, 0.126); g.add(doorF);
+  const bead = new THREE.Mesh(G.frameGeometry(0.29, 0.81, { width: 0.008, depth: 0.03, uvScale: 1 }), gilt); bead.position.set(0, 1.07, 0.126); g.add(bead);
+  const backMat = new THREE.MeshStandardMaterial({ color: 0x3a2a14, roughness: 0.6, metalness: 0.35 });
+  const back = box(0.28, 0.8, 0.008, 0, 1.07, 0.004, backMat);
   void back;
-  const lens = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.62), glass); lens.position.set(0, 1.08, 0.13); lens.castShadow = false; g.add(lens);
+  const lens = new THREE.Mesh(new THREE.PlaneGeometry(0.27, 0.79), new THREE.MeshPhysicalMaterial({ color: 0x0a0c10, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.12, envMapIntensity: 1.6, clearcoat: 1, clearcoatRoughness: 0.03, depthWrite: false })); lens.position.set(0, 1.07, 0.135); lens.castShadow = false; lens.renderOrder = 3; g.add(lens);
+  // brass weights on gut lines
+  for (const sx of [-0.07, 0.07]) {
+    const wgt = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.026, 0], [0.028, 0.01], [0.028, 0.2], [0.024, 0.215], [0.006, 0.225], [0, 0.225]], 20), brass);
+    wgt.position.set(sx, 1.22 + (sx > 0 ? 0.08 : 0), 0.06); g.add(wgt);
+    const line = new THREE.Mesh(new THREE.CylinderGeometry(0.0012, 0.0012, 0.3, 4), backMat); line.position.set(sx, 1.6 + (sx > 0 ? 0.04 : 0), 0.06); g.add(line);
+    const hook = new THREE.Mesh(new THREE.TorusGeometry(0.008, 0.002, 6, 12), brass); hook.position.set(sx, 1.452 + (sx > 0 ? 0.08 : 0), 0.06); g.add(hook);
+  }
   // quarter columns on the trunk corners
   for (const sx of [-1, 1]) {
     const col = new THREE.Mesh(G.latheFromProfile([[0.0, 0], [0.022, 0], [0.022, 0.02], [0.016, 0.03], [0.016, 0.9], [0.022, 0.91], [0.022, 0.94], [0.0, 0.94]], 12), wood);
@@ -161,14 +185,24 @@ export function buildClock(ctx, { case: wood, dark, brass, gilt, glass, dial, ir
   // pendulum (animated)
   const pend = new THREE.Group();
   pend.position.set(0, 1.62, 0.1);
-  const rod = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.62, 0.004), brass); rod.position.y = -0.31; pend.add(rod);
-  const bob = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.06, 0.004], [0.065, 0.012], [0.06, 0.02], [0, 0.024]], 32), brass);
-  bob.rotation.x = Math.PI / 2; bob.position.set(0, -0.62, -0.012); pend.add(bob);
+  const rod = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.64, 0.004), brass); rod.position.y = -0.32; pend.add(rod);
+  const bob = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.07, 0.004], [0.078, 0.014], [0.07, 0.024], [0, 0.03]], 40), brass);
+  bob.rotation.x = Math.PI / 2; bob.position.set(0, -0.66, -0.012); pend.add(bob);
   g.add(pend);
   // waist moulding
   box(0.5, 0.04, 0.29, 0, 1.585, 0, wood, 0.01);
-  // hood
+  // hood: carcass, a glazed hood door round the dial, a fretted frieze and a moulded cornice
   box(0.54, 0.62, 0.3, 0, 1.93, 0, wood, 0.008);
+  {
+    const hg = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.56), new THREE.MeshPhysicalMaterial({ color: 0x0a0c10, roughness: 0.03, transparent: true, opacity: 0.1, envMapIntensity: 1.8, clearcoat: 1, clearcoatRoughness: 0.02, depthWrite: false }));
+    hg.position.set(0, 1.93, 0.172); hg.renderOrder = 3; g.add(hg);
+    const hf = new THREE.Mesh(G.frameGeometry(0.4, 0.56, { width: 0.03, depth: 0.025, uvScale: 1 }), wood); hf.position.set(0, 1.93, 0.155); g.add(hf);
+    // blind fret: a row of small pierced lozenges under the cornice
+    for (let k = -5; k <= 5; k++) { const lz = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.022, 0.006), gilt); lz.rotation.z = Math.PI / 4; lz.position.set(k * 0.045, 2.215, 0.152); g.add(lz); }
+    const cp = [[0, 0], [0.008, 0], [0.012, 0.01], [0.025, 0.02], [0.035, 0.035], [0.04, 0.045], [0.045, 0.05], [0, 0.05]].map(([x, y]) => V2(x, y));
+    const cpath = [new THREE.Vector3(-0.27, 0, -0.15), new THREE.Vector3(-0.27, 0, 0.15), new THREE.Vector3(0.27, 0, 0.15), new THREE.Vector3(0.27, 0, -0.15)];
+    const corn = new THREE.Mesh(G.sweepProfile(cp, cpath.map((v) => v.clone()).reverse(), { uvScale: 1 }), wood); corn.position.y = 2.235; g.add(corn);
+  }
   // dial: square + arch, the arch carries the moon
   const dw = 0.34;
   const dShape = new THREE.Shape();
@@ -293,7 +327,7 @@ function flutedShaft(height, radius, { flutes = 24, depth = 0.11, radial = 144, 
 }
 
 /** an acanthus leaf: a tapered, cupped strip that bows out and curls over at the tip (local: +z out, +y up) */
-function acanthusLeaf(w, h, curl = 0.6) {
+export function acanthusLeaf(w, h, curl = 0.6) {
   const g = new THREE.PlaneGeometry(1, 1, 6, 10);
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
@@ -399,21 +433,28 @@ export function buildConsole(ctx, { wood, marble, gilt }) {
 export function buildCandelabrum(ctx, { brass, arms = 3, candleOpts = {} }) {
   const { geometry: G, fx } = ctx;
   const g = new THREE.Group();
-  const stem = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.085, 0], [0.08, 0.015], [0.04, 0.04], [0.03, 0.08], [0.045, 0.12], [0.02, 0.17], [0.016, 0.3], [0.03, 0.32], [0.02, 0.36], [0, 0.37]], 28), brass);
+  const wax = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(0.86, 0.8, 0.66), roughness: 0.42, sheen: 0.6, sheenRoughness: 0.5, sheenColor: new THREE.Color(1.0, 0.85, 0.6), emissive: new THREE.Color(1.0, 0.6, 0.25), emissiveIntensity: 0.025 });
+  // a stout cast stem: domed, stepped foot, two knops, a vase-shaped nozzle
+  const stem = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.095, 0], [0.098, 0.008], [0.09, 0.016], [0.07, 0.03], [0.05, 0.05], [0.036, 0.07], [0.042, 0.085], [0.05, 0.1], [0.04, 0.115], [0.026, 0.13],
+    [0.022, 0.17], [0.034, 0.19], [0.042, 0.205], [0.034, 0.22], [0.022, 0.235], [0.02, 0.26], [0.03, 0.27], [0.035, 0.29], [0.024, 0.31], [0.02, 0.33], [0.03, 0.35], [0.034, 0.37], [0, 0.375]], 32), brass);
   g.add(stem);
   const candles = [];
   for (let i = 0; i < arms; i++) {
     const sx = arms === 1 ? 0 : -1 + (2 * i) / (arms - 1);
-    let tipY = 0.37;
+    let tipY = 0.375;
     if (sx !== 0) {
-      const pts = [new THREE.Vector3(0, 0.27, 0), new THREE.Vector3(sx * 0.07, 0.25, 0), new THREE.Vector3(sx * 0.14, 0.29, 0), new THREE.Vector3(sx * 0.15, 0.33, 0)];
-      g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 14, 0.008, 6, false), brass));
-      tipY = 0.33;
+      const pts = [new THREE.Vector3(0, 0.275, 0), new THREE.Vector3(sx * 0.06, 0.25, 0), new THREE.Vector3(sx * 0.13, 0.27, 0), new THREE.Vector3(sx * 0.155, 0.31, 0), new THREE.Vector3(sx * 0.155, 0.335, 0)];
+      g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.011, 8, false), brass));
+      const kn = new THREE.Mesh(new THREE.SphereGeometry(0.017, 12, 8), brass); kn.scale.set(1, 0.8, 1); kn.position.set(sx * 0.09, 0.252, 0); g.add(kn);
+      tipY = 0.335;
     }
-    const cup = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.018, 0], [0.028, 0.02], [0.022, 0.03], [0, 0.03]], 16), brass);
-    cup.position.set(sx * 0.15, tipY, 0); g.add(cup);
+    const pan = new THREE.Mesh(scallopedPan(G, 0.038, 8), brass); pan.position.set(sx * 0.155, tipY + 0.008, 0); g.add(pan);
+    const cup = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.02, 0], [0.028, 0.012], [0.024, 0.02], [0.018, 0.03], [0.021, 0.034], [0, 0.034]], 16), brass);
+    cup.position.set(sx * 0.155, tipY, 0); g.add(cup);
+    const h = 0.2 * (candleOpts.height ? candleOpts.height / 0.2 : 1);
     const c = fx.candle({ height: 0.2, radius: 0.011, light: false, seed: 300 + i * 7, burn: 0.7, ...candleOpts });
-    c.position.set(sx * 0.15, tipY + 0.028, 0); g.add(c);
+    c.position.set(sx * 0.155, tipY + 0.032, 0); g.add(c);
+    const dr = waxDrips(ctx, { height: h * 0.78, radius: 0.011, seed: 300 + i * 7, mat: wax }); dr.position.copy(c.position); g.add(dr);
     candles.push(c);
   }
   g.userData.candles = candles;

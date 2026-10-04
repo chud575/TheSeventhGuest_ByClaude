@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { sdfGeometry, sdEllipsoid, sdRoundCone, smin, smax } from '../../engine/lib/contrib/bedroom-sdf.js';
 
 /**
  * Extra furniture for the foyer (round 4 dressing): a round centre table with an urn of dying roses,
@@ -140,65 +141,121 @@ export function bustOnPlinth(ctx, { marble, plinthMat }) {
   g.add(new THREE.Mesh(plinth, plinthMat));
   const base = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.09, 0], [0.09, 0.02], [0.06, 0.04], [0.045, 0.08], [0.06, 0.1], [0, 0.1]], 24), marble);
   base.position.y = 1.1; g.add(base);
-  // chest + shoulders: a squashed, truncated ellipsoid with a toga drape fold across it
-  const chest = new THREE.SphereGeometry(0.2, 32, 20, 0, Math.PI * 2, 0, Math.PI * 0.62);
-  chest.scale(1.15, 0.62, 0.58);
-  const cp = chest.attributes.position;
-  for (let i = 0; i < cp.count; i++) { const x = cp.getX(i), y = cp.getY(i), z = cp.getZ(i); cp.setY(i, y + 0.012 * Math.sin(x * 40 + y * 18) * (z > 0 ? 1 : 0)); }
-  chest.computeVertexNormals();
-  const ch = new THREE.Mesh(chest, marble); ch.position.y = 1.18; g.add(ch);
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.062, 0.12, 20), marble); neck.position.set(0, 1.33, 0.0); g.add(neck);
-  // head: an egg with a brow ridge, nose and chin, curls on the crown
-  const head = new THREE.SphereGeometry(0.09, 36, 28);
-  const hp = head.attributes.position;
-  for (let i = 0; i < hp.count; i++) {
-    let x = hp.getX(i), y = hp.getY(i), z = hp.getZ(i);
-    const nz = z / 0.09;
-    y *= 1.22; z *= 1.08;
-    if (y < 0) { x *= 1 - 0.18 * (-y / 0.11); z *= 1 - 0.1 * (-y / 0.11); }
-    if (nz > 0.6) {
-      const f = (nz - 0.6) / 0.4;
-      z += 0.022 * f * Math.exp(-((x / 0.014) ** 2) - (((y + 0.005) / 0.03) ** 2));        // nose
-      z += 0.01 * f * Math.exp(-(((y - 0.035) / 0.012) ** 2)) * (1 - Math.abs(x) / 0.09);   // brow
-      z += 0.008 * f * Math.exp(-(((y + 0.085) / 0.02) ** 2) - ((x / 0.03) ** 2));        // chin
-      z -= 0.008 * f * Math.exp(-(((y - 0.012) / 0.012) ** 2) - (((Math.abs(x) - 0.03) / 0.015) ** 2));   // eye sockets
+  // the sitter, sculpted as an SDF and polygonised once: truncated chest and shoulders under a toga
+  // whose folds sweep over the left shoulder, a muscular neck, and a Roman head (cranium, brow ridge,
+  // sockets, aquiline nose, lips, chin, ears) with a cap of curls; baked cavity occlusion in vertex colour
+  const yaw = 0.35, cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const sdf = (x, y, z) => {
+    // chest and shoulders
+    let d = sdEllipsoid(x, y - 0.1, z, 0.215, 0.14, 0.11);
+    d = smin(d, sdEllipsoid(x - 0.13, y - 0.17, z + 0.005, 0.085, 0.05, 0.075), 0.05);
+    d = smin(d, sdEllipsoid(x + 0.13, y - 0.17, z + 0.005, 0.085, 0.05, 0.075), 0.05);
+    // toga: diagonal folds from the left shoulder across the chest, deepest at the front
+    const fold = Math.sin((x * 0.8 + y * 1.3) * 42) * 0.0055 * Math.max(0, Math.min(1, (z + 0.02) * 12)) * (x < 0.08 ? 1 : 0.25);
+    d += fold;
+    d = smax(d, -(y - 0.012), 0.004);                 // flat cut on the socle
+    // neck (sterno-mastoid swell)
+    d = smin(d, sdRoundCone(x, y, z, [0, 0.17, -0.005], [0, 0.3, 0.012], 0.062, 0.05), 0.03);
+    // head in its own (turned) frame
+    const hx = cy * x - sy * z, hz = sy * x + cy * z, hy = y;
+    let h = sdEllipsoid(hx, hy - 0.4, hz + 0.008, 0.083, 0.1, 0.098);                       // cranium
+    h = smin(h, sdEllipsoid(hx, hy - 0.335, hz - 0.03, 0.066, 0.075, 0.07), 0.03);          // face mass
+    h = smin(h, sdEllipsoid(hx, hy - 0.29, hz - 0.058, 0.03, 0.026, 0.028), 0.02);          // chin
+    h = smin(h, sdEllipsoid(hx, hy - 0.392, hz - 0.08, 0.06, 0.014, 0.02), 0.012);          // brow ridge
+    h = smin(h, sdRoundCone(hx, hy, hz, [0, 0.385, 0.088], [0, 0.345, 0.11], 0.009, 0.014), 0.006); // nose
+    for (const s2 of [-1, 1]) {
+      h = smax(h, -sdEllipsoid(hx - s2 * 0.031, hy - 0.37, hz - 0.088, 0.017, 0.011, 0.014), 0.008);   // eye sockets
+      h = smin(h, sdEllipsoid(hx - s2 * 0.03, hy - 0.368, hz - 0.08, 0.011, 0.008, 0.008), 0.004);     // eyeballs (blank, as in marble)
+      h = smin(h, sdEllipsoid(hx - s2 * 0.081, hy - 0.36, hz + 0.004, 0.011, 0.028, 0.018), 0.008);   // ears
+      h = smin(h, sdEllipsoid(hx - s2 * 0.035, hy - 0.335, hz - 0.075, 0.018, 0.02, 0.02), 0.012);     // cheekbones
     }
-    if (y > 0.03 || z < -0.02) { const c = 0.006 * Math.sin(x * 160) * Math.sin(y * 150) * Math.sin(z * 140); x *= 1.04 + c * 4; z *= 1.02 + c * 4; y += y > 0 ? 0.006 + c : 0; }  // curls
-    hp.setXYZ(i, x, y, z);
+    h = smin(h, sdEllipsoid(hx, hy - 0.318, hz - 0.091, 0.02, 0.006, 0.01), 0.004);          // upper lip
+    h = smin(h, sdEllipsoid(hx, hy - 0.307, hz - 0.087, 0.017, 0.0055, 0.009), 0.004);       // lower lip
+    h = smax(h, -sdEllipsoid(hx, hy - 0.312, hz - 0.098, 0.016, 0.0015, 0.01), 0.002);       // mouth line
+    // cap of curls over crown, temples and nape
+    const hairZone = Math.max(0, Math.min(1, (hy - 0.4) * 30 + 0.5)) * (hz < 0.06 ? 1 : Math.max(0, 1 - (hz - 0.06) * 40)) + (hz < -0.02 && hy > 0.32 ? 1 : 0);
+    if (hairZone > 0) {
+      const c = Math.sin(hx * 150) * Math.sin(hy * 140 + hx * 30) * Math.sin(hz * 150 + hy * 20);
+      h -= Math.min(1, hairZone) * (0.006 + 0.004 * c);
+    }
+    return smin(d, h, 0.02);
+  };
+  const bustGeo = sdfGeometry(sdf, { min: [-0.26, 0.0, -0.17], max: [0.26, 0.53, 0.2], step: 0.0042, ao: 0.03, aoStrength: 1.1 });
+  const bm = marble.clone();
+  bm.vertexColors = true;
+  if (bm.isMeshPhysicalMaterial || bm.isMeshStandardMaterial) {
+    bm.roughness = Math.max(0.3, bm.roughness);
+    if ('sheen' in bm) { bm.sheen = 0.55; bm.sheenRoughness = 0.6; bm.sheenColor = new THREE.Color(1.0, 0.94, 0.86); }
   }
-  head.computeVertexNormals();
-  const hd = new THREE.Mesh(head, marble); hd.scale.setScalar(1.22); hd.position.set(0, 1.47, 0.015); hd.rotation.y = 0.7; hd.rotation.x = 0.05; g.add(hd);
+  const bust = new THREE.Mesh(bustGeo, bm); bust.position.y = 1.19; g.add(bust);
   return shadowAll(g);
 }
 
-/** blue-and-white porcelain glaze (canvas), for the umbrella jar */
+/** blue-and-white porcelain glaze (canvas), for the umbrella jar: ruyi collar, key-fret, a dense
+ *  scrolling peony field, lappet foot band; the glaze carries a fine brown craquelure */
 export function porcelainMaterial(ctx) {
-  const tex = ctx.textures.canvas('foyer:porcelain', 1024, 512, (g, w, h) => {
-    g.fillStyle = '#d8dde2'; g.fillRect(0, 0, w, h);
-    const blue = '#1e3a7a';
-    g.strokeStyle = blue; g.fillStyle = blue;
-    // bands top and bottom
-    g.fillRect(0, 0, w, 26); g.fillRect(0, h - 30, w, 30);
-    g.lineWidth = 3;
-    for (let x = 0; x < w; x += 32) { g.beginPath(); g.arc(x + 16, 26, 14, 0, Math.PI); g.stroke(); g.beginPath(); g.arc(x + 16, h - 30, 14, Math.PI, 0); g.stroke(); }
-    // scrolling peony and leaf
+  const tex = ctx.textures.canvas('foyer:porcelain2', 2048, 1024, (g, w, h) => {
     let sd = 5; const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
-    g.lineWidth = 5;
-    g.beginPath();
-    for (let x = 0; x <= w; x += 4) { const y = h * 0.5 + Math.sin((x / w) * Math.PI * 6) * h * 0.18; if (x === 0) g.moveTo(x, y); else g.lineTo(x, y); }
-    g.stroke();
-    for (let i = 0; i < 6; i++) {
-      const x = (i + 0.25) * (w / 6), y = h * 0.5 + Math.sin(((x) / w) * Math.PI * 6) * h * 0.18;
-      for (let k = 0; k < 9; k++) { g.globalAlpha = 0.7; g.beginPath(); const a = (k / 9) * Math.PI * 2; g.ellipse(x + Math.cos(a) * 22, y + Math.sin(a) * 22, 20, 11, a, 0, Math.PI * 2); g.fill(); }
-      g.globalAlpha = 1; g.fillStyle = '#d8dde2'; g.beginPath(); g.arc(x, y, 9, 0, Math.PI * 2); g.fill(); g.fillStyle = blue;
-      for (let k = 0; k < 4; k++) { g.globalAlpha = 0.8; g.beginPath(); g.ellipse(x + 50 + rnd() * 30, y + (rnd() - 0.5) * 70, 18, 7, rnd() * 3, 0, Math.PI * 2); g.fill(); }
-      g.globalAlpha = 1;
+    g.fillStyle = '#e4e6e3'; g.fillRect(0, 0, w, h);
+    const blue = '#14306e', blue2 = '#3a5aa0';
+    // v = 0 at the foot (canvas bottom), 1 at the lip (canvas top)
+    const band = (y0, y1) => { g.fillStyle = blue; g.fillRect(0, y0, w, y1 - y0); };
+    band(0, 18); band(h - 22, h);
+    // ruyi-head collar under the lip
+    g.fillStyle = blue;
+    for (let x = 0; x < w; x += 128) { g.beginPath(); g.moveTo(x, 18); g.bezierCurveTo(x + 10, 110, x + 60, 60, x + 64, 120); g.bezierCurveTo(x + 68, 60, x + 118, 110, x + 128, 18); g.fill(); }
+    g.fillStyle = '#e4e6e3';
+    for (let x = 0; x < w; x += 128) { g.beginPath(); g.arc(x + 64, 70, 16, 0, Math.PI * 2); g.fill(); }
+    // key-fret band
+    const fy = 140; g.strokeStyle = blue; g.lineWidth = 5;
+    g.beginPath(); g.moveTo(0, fy - 2); g.lineTo(w, fy - 2); g.moveTo(0, fy + 42); g.lineTo(w, fy + 42); g.stroke();
+    for (let x = 0; x < w; x += 48) { g.beginPath(); g.moveTo(x + 6, fy + 36); g.lineTo(x + 6, fy + 6); g.lineTo(x + 40, fy + 6); g.lineTo(x + 40, fy + 30); g.lineTo(x + 18, fy + 30); g.lineTo(x + 18, fy + 18); g.lineTo(x + 30, fy + 18); g.stroke(); }
+    // main field: two rows of large peonies on a scrolling vine, leaves washed in two blues
+    const top = fy + 60, bot = h - 170;
+    g.lineWidth = 7; g.strokeStyle = blue;
+    for (const ph of [0, Math.PI]) {
+      g.beginPath();
+      for (let x = 0; x <= w; x += 4) { const y = (top + bot) / 2 + Math.sin((x / w) * Math.PI * 8 + ph) * (bot - top) * 0.3; if (x === 0) g.moveTo(x, y); else g.lineTo(x, y); }
+      g.stroke();
     }
-    // crackle
-    g.strokeStyle = 'rgba(80,70,50,0.18)'; g.lineWidth = 1;
-    for (let i = 0; i < 300; i++) { const x = rnd() * w, y = rnd() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - 0.5) * 30, y + (rnd() - 0.5) * 30); g.stroke(); }
+    for (let i = 0; i < 16; i++) {
+      const x = (i + 0.5) * (w / 16), up = i % 2 === 0;
+      const y = (top + bot) / 2 + (up ? -1 : 1) * (bot - top) * 0.26;
+      // leaves
+      for (let k = 0; k < 6; k++) {
+        const a = rnd() * Math.PI * 2, r = 70 + rnd() * 30;
+        g.fillStyle = k % 2 ? blue2 : blue; g.globalAlpha = 0.85;
+        g.beginPath(); g.ellipse(x + Math.cos(a) * r, y + Math.sin(a) * r * 0.7, 34, 13, a, 0, Math.PI * 2); g.fill();
+      }
+      // peony: layered petals, dark outline, pale centre
+      g.globalAlpha = 1;
+      for (let ring = 3; ring >= 1; ring--) {
+        for (let k = 0; k < 10; k++) {
+          const a = (k / 10) * Math.PI * 2 + ring * 0.3, r = ring * 18;
+          g.fillStyle = ring === 1 ? blue : (ring === 2 ? blue2 : blue); g.globalAlpha = ring === 3 ? 0.9 : 0.8;
+          g.beginPath(); g.ellipse(x + Math.cos(a) * r, y + Math.sin(a) * r * 0.8, 22, 14, a, 0, Math.PI * 2); g.fill();
+        }
+      }
+      g.globalAlpha = 1; g.fillStyle = '#e4e6e3'; g.beginPath(); g.arc(x, y, 10, 0, Math.PI * 2); g.fill();
+      g.fillStyle = blue; for (let k = 0; k < 7; k++) { g.beginPath(); g.arc(x + (rnd() - 0.5) * 12, y + (rnd() - 0.5) * 12, 2.5, 0, 7); g.fill(); }
+    }
+    // lappet band at the foot
+    const ly = h - 150;
+    g.strokeStyle = blue; g.lineWidth = 5; g.beginPath(); g.moveTo(0, ly); g.lineTo(w, ly); g.stroke();
+    for (let x = 0; x < w; x += 96) {
+      g.fillStyle = blue; g.beginPath(); g.moveTo(x + 6, h - 24); g.lineTo(x + 6, ly + 40); g.quadraticCurveTo(x + 48, ly - 10, x + 90, ly + 40); g.lineTo(x + 90, h - 24); g.fill();
+      g.fillStyle = '#e4e6e3'; g.beginPath(); g.moveTo(x + 22, h - 34); g.lineTo(x + 22, ly + 46); g.quadraticCurveTo(x + 48, ly + 16, x + 74, ly + 46); g.lineTo(x + 74, h - 34); g.fill();
+      g.fillStyle = blue; g.beginPath(); g.arc(x + 48, h - 70, 12, 0, 7); g.fill();
+    }
+    // craquelure: a fine brown network in the glaze
+    g.strokeStyle = 'rgba(90,72,48,0.22)'; g.lineWidth = 1.2;
+    for (let i = 0; i < 900; i++) {
+      let x = rnd() * w, y = rnd() * h; g.beginPath(); g.moveTo(x, y);
+      for (let k = 0; k < 4; k++) { x += (rnd() - 0.5) * 34; y += (rnd() - 0.5) * 34; g.lineTo(x, y); }
+      g.stroke();
+    }
   });
-  return new THREE.MeshPhysicalMaterial({ map: tex, color: new THREE.Color(0.5, 0.52, 0.56), roughness: 0.18, clearcoat: 0.8, clearcoatRoughness: 0.12, envMapIntensity: 0.8 });
+  return new THREE.MeshPhysicalMaterial({ map: tex, color: new THREE.Color(0.62, 0.64, 0.68), roughness: 0.14, clearcoat: 1.0, clearcoatRoughness: 0.06, envMapIntensity: 0.9 });
 }
 
 /** small half-moon console for the upstairs gallery */

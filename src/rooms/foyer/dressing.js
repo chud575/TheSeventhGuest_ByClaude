@@ -170,9 +170,17 @@ export function umbrellaStand(ctx, { brass, porcelain }) {
   const G = ctx.geometry;
   const g = new THREE.Group();
   g.name = 'umbrellaStand';
-  const body = G.latheFromProfile([[0, 0], [0.13, 0], [0.135, 0.02], [0.12, 0.05], [0.115, 0.2], [0.13, 0.45], [0.14, 0.55], [0.15, 0.6], [0.14, 0.61], [0.125, 0.6], [0.11, 0.1], [0, 0.1]], 32);
+  // a rouleau jar: the outer glaze is one lathe whose v runs foot -> lip so the decoration sits upright
+  const prof = [[0.12, 0.0], [0.132, 0.012], [0.128, 0.03], [0.118, 0.06], [0.116, 0.2], [0.122, 0.38], [0.134, 0.5], [0.138, 0.56], [0.13, 0.6], [0.128, 0.62], [0.142, 0.645], [0.148, 0.655]];
+  const body = G.latheFromProfile(prof, 48);
+  const uv = body.attributes.uv, bp = body.attributes.position;
+  for (let i = 0; i < uv.count; i++) uv.setY(i, bp.getY(i) / 0.655);
   g.add(new THREE.Mesh(body, porcelain));
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.145, 0.008, 8, 32), brass); rim.rotation.x = Math.PI / 2; rim.position.y = 0.6; g.add(rim);
+  const inner = G.latheFromProfile([[0.0, 0.08], [0.11, 0.08], [0.11, 0.3], [0.12, 0.6], [0.14, 0.652]].map(([r, y]) => [r - 0.004, y]), 32);
+  const innerM = new THREE.MeshStandardMaterial({ color: 0x1c1d20, roughness: 0.5, side: THREE.BackSide });
+  g.add(new THREE.Mesh(inner, innerM));
+  const foot = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.12, 0], [0.12, 0.004], [0, 0.004]], 32), new THREE.MeshStandardMaterial({ color: 0x8a7a62, roughness: 0.8 })); g.add(foot);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.146, 0.006, 8, 48), brass); rim.rotation.x = Math.PI / 2; rim.position.y = 0.655; g.add(rim);
   // two umbrellas and a silver-topped cane
   const black = new THREE.MeshStandardMaterial({ color: 0x0c0c0e, roughness: 0.6, side: THREE.DoubleSide });
   for (const [x, z, rx, rz] of [[0.04, 0.02, 0.1, -0.12], [-0.05, -0.03, -0.08, 0.15]]) {
@@ -311,23 +319,72 @@ export function corbelGeometry(G, { w = 0.14, h = 0.34, d = 0.26 } = {}) {
 }
 
 // -------------------------------------------------------------------- torchère
-/** tall brass floor candelabrum (≈1.75 m): tripod lion-paw base, baluster stem, five candles */
+/** a cast-brass knop/bobeche drip pan with a scalloped rim (lathe, radius modulated) */
+export function scallopedPan(G, r = 0.05, lobes = 10) {
+  const geo = G.latheFromProfile([[0.0001, -0.004], [r * 0.45, -0.006], [r * 0.8, -0.002], [r, 0.004], [r * 1.02, 0.008], [r * 0.92, 0.007], [r * 0.5, 0.002], [0.0001, 0.003]], lobes * 6);
+  const ps = geo.attributes.position;
+  for (let i = 0; i < ps.count; i++) {
+    const x = ps.getX(i), z = ps.getZ(i), rr = Math.hypot(x, z);
+    if (rr < r * 0.6) continue;
+    const a = Math.atan2(z, x), k = 1 - 0.08 * (1 - Math.abs(Math.cos(a * lobes / 2)));
+    ps.setX(i, x * k); ps.setZ(i, z * k);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+/** wax runs down a candle and a puddle on the pan: returns a Group in candle-local space */
+export function waxDrips(ctx, { height, radius, seed = 1, mat }) {
+  const g = new THREE.Group();
+  let sd = seed * 977 + 13; const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+  const n = 3 + Math.floor(rnd() * 3);
+  for (let k = 0; k < n; k++) {
+    const a = rnd() * Math.PI * 2, len = height * (0.25 + rnd() * 0.55), top = height * (0.82 + rnd() * 0.12);
+    const pts = [];
+    for (let t = 0; t <= 6; t++) { const u = t / 6; pts.push(new THREE.Vector3(Math.cos(a + Math.sin(u * 3 + k) * 0.08) * radius * 1.02, top - len * u, Math.sin(a + Math.sin(u * 3 + k) * 0.08) * radius * 1.02)); }
+    const tg = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, radius * (0.16 + rnd() * 0.1), 6, false);
+    const tp = tg.attributes.position;   // taper to a bead at the bottom
+    g.add(new THREE.Mesh(tg, mat));
+    const bead = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.3, 8, 6), mat); bead.position.copy(pts[6]); bead.scale.set(1, 1.3, 1); g.add(bead);
+    void tp;
+  }
+  const pud = new THREE.Mesh(new THREE.CylinderGeometry(radius * 1.9, radius * 2.2, radius * 0.35, 18), mat); pud.position.y = radius * 0.15; g.add(pud);
+  return g;
+}
+/** tall brass floor candelabrum (≈1.75 m): cast tripod with lion-paw feet, a stout baluster stem with knops,
+ *  five branches each ending in a scalloped drip pan; guttered, dripping candles */
 export function torchere(ctx, { brass, seed = 1, flameIntensity = 4.5 }) {
   const G = ctx.geometry, fx = ctx.fx;
   const g = new THREE.Group();
   g.name = 'torchere';
+  const wax = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(0.86, 0.8, 0.66), roughness: 0.42, sheen: 0.6, sheenRoughness: 0.5, sheenColor: new THREE.Color(1.0, 0.85, 0.6), emissive: new THREE.Color(1.0, 0.6, 0.25), emissiveIntensity: 0.025 });
   const stem = G.latheFromProfile([
-    [0.0, 0.1], [0.07, 0.1], [0.075, 0.12], [0.05, 0.16], [0.035, 0.24], [0.05, 0.3], [0.03, 0.36], [0.022, 0.6], [0.035, 0.63], [0.022, 0.66],
-    [0.018, 1.1], [0.032, 1.14], [0.05, 1.2], [0.04, 1.26], [0.02, 1.3], [0.018, 1.45], [0.03, 1.47], [0.0, 1.48],
-  ], 24);
+    [0.0, 0.1], [0.1, 0.1], [0.108, 0.115], [0.095, 0.13], [0.07, 0.16], [0.052, 0.22], [0.06, 0.26], [0.078, 0.3], [0.07, 0.34], [0.045, 0.37],
+    [0.036, 0.42], [0.034, 0.6], [0.05, 0.62], [0.062, 0.66], [0.05, 0.7], [0.034, 0.72],                 // lower knop
+    [0.03, 0.9], [0.028, 1.06], [0.042, 1.1], [0.07, 1.16], [0.074, 1.2], [0.06, 1.25], [0.04, 1.28],      // the great knop under the branches
+    [0.032, 1.3], [0.05, 1.32], [0.052, 1.35], [0.032, 1.37], [0.026, 1.45], [0.04, 1.47], [0.044, 1.49], [0.0, 1.5],
+  ], 32);
   g.add(new THREE.Mesh(stem, brass));
-  // tripod scroll legs with paw feet
+  // ring collars on the stem
+  for (const y of [0.42, 0.9, 1.06]) { const r = new THREE.Mesh(new THREE.TorusGeometry(y > 1 ? 0.03 : 0.036, 0.006, 8, 24), brass); r.rotation.x = Math.PI / 2; r.position.y = y; g.add(r); }
+  // cast tripod: thick S-scroll legs with acanthus knuckles and paw feet
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2;
     const d = V3(Math.cos(a), 0, Math.sin(a));
-    const pts = [V3(0, 0.2, 0), d.clone().multiplyScalar(0.08).setY(0.17), d.clone().multiplyScalar(0.17).setY(0.1), d.clone().multiplyScalar(0.22).setY(0.03)];
-    g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 14, 0.014, 6, false), brass));
-    const paw = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), brass); paw.scale.set(1, 0.6, 1.2); paw.position.copy(d.clone().multiplyScalar(0.23)).setY(0.018); g.add(paw);
+    const pts = [V3(0, 0.24, 0), d.clone().multiplyScalar(0.07).setY(0.24), d.clone().multiplyScalar(0.15).setY(0.19), d.clone().multiplyScalar(0.2).setY(0.1), d.clone().multiplyScalar(0.235).setY(0.035)];
+    const tg = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 20, 0.02, 8, false);
+    // taper the scroll towards the foot
+    const tp = tg.attributes.position, segs = 21, radial = 9;
+    for (let k = 0; k < tp.count; k++) {
+      const ring = Math.floor(k / radial), u = ring / (segs - 1);
+      const c = new THREE.Vector3(); new THREE.CatmullRomCurve3(pts).getPointAt(Math.min(1, u), c);
+      const v = new THREE.Vector3(tp.getX(k), tp.getY(k), tp.getZ(k)).sub(c).multiplyScalar(1.15 - 0.45 * u);
+      tp.setXYZ(k, c.x + v.x, c.y + v.y, c.z + v.z);
+    }
+    tg.computeVertexNormals();
+    g.add(new THREE.Mesh(tg, brass));
+    const knuckle = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 8), brass); knuckle.scale.set(1, 0.8, 1); knuckle.position.copy(d.clone().multiplyScalar(0.1).setY(0.235)); g.add(knuckle);
+    const paw = new THREE.Mesh(new THREE.SphereGeometry(0.034, 12, 8), brass); paw.scale.set(1, 0.62, 1.25); paw.position.copy(d.clone().multiplyScalar(0.245)).setY(0.02); paw.lookAt(d.clone().multiplyScalar(2).setY(0.02)); g.add(paw);
+    for (const t of [-1, 0, 1]) { const toe = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), brass); const side = V3(-d.z, 0, d.x).multiplyScalar(t * 0.016); toe.position.copy(d.clone().multiplyScalar(0.275)).add(side).setY(0.011); g.add(toe); }
   }
   // arms + candles
   const candles = [];
@@ -338,14 +395,18 @@ export function torchere(ctx, { brass, seed = 1, flameIntensity = 4.5 }) {
     else {
       const a = (i / arms) * Math.PI * 2 + 0.4;
       const d = V3(Math.cos(a), 0, Math.sin(a));
-      const pts = [V3(0, 1.32, 0), d.clone().multiplyScalar(0.1).setY(1.28), d.clone().multiplyScalar(0.2).setY(1.33), d.clone().multiplyScalar(0.22).setY(1.42)];
-      g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 12, 0.009, 6, false), brass));
-      tip = d.clone().multiplyScalar(0.22).setY(1.42);
+      const pts = [V3(0, 1.33, 0), d.clone().multiplyScalar(0.08).setY(1.29), d.clone().multiplyScalar(0.17).setY(1.3), d.clone().multiplyScalar(0.22).setY(1.36), d.clone().multiplyScalar(0.225).setY(1.42)];
+      g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.014, 8, false), brass));
+      const kn = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 8), brass); kn.scale.set(1, 0.8, 1); kn.position.copy(d.clone().multiplyScalar(0.12).setY(1.29)); g.add(kn);
+      tip = d.clone().multiplyScalar(0.225).setY(1.42);
     }
-    const cup = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.02, 0], [0.04, 0.012], [0.045, 0.02], [0.03, 0.022], [0.022, 0.05], [0, 0.05]], 16), brass);
+    const pan = new THREE.Mesh(scallopedPan(G, 0.05, 10), brass); pan.position.copy(tip).add(V3(0, 0.012, 0)); g.add(pan);
+    const cup = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.022, 0], [0.03, 0.012], [0.026, 0.02], [0.02, 0.045], [0.024, 0.05], [0, 0.05]], 16), brass);
     cup.position.copy(tip); g.add(cup);
-    const c = fx.candle({ height: 0.2 + 0.05 * Math.sin(seed * 7 + i * 3), radius: 0.012, light: false, seed: seed * 20 + i, burn: 0.75 });
+    const h = 0.2 + 0.05 * Math.sin(seed * 7 + i * 3);
+    const c = fx.candle({ height: h, radius: 0.012, light: false, seed: seed * 20 + i, burn: 0.75 });
     c.position.copy(tip).add(V3(0, 0.048, 0)); g.add(c);
+    const dr = waxDrips(ctx, { height: h * 0.8, radius: 0.012, seed: seed * 20 + i, mat: wax }); dr.position.copy(c.position); g.add(dr);
     if (c.userData.flame?.material?.uniforms?.uIntensity) c.userData.flame.material.uniforms.uIntensity.value = flameIntensity;
     candles.push(c);
   }
