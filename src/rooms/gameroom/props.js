@@ -428,12 +428,12 @@ export function buildSideChair(ctx, mats) {
     cs.moveTo(-0.185, 0); cs.lineTo(0.185, 0); cs.bezierCurveTo(0.2, 0.035, 0.17, 0.075, 0.12, 0.07); cs.bezierCurveTo(0.07, 0.065, 0.045, 0.1, 0, 0.11);
     cs.bezierCurveTo(-0.045, 0.1, -0.07, 0.065, -0.12, 0.07); cs.bezierCurveTo(-0.17, 0.075, -0.2, 0.035, -0.185, 0);
     for (const sx of [-1, 1]) { const h = new THREE.Path(); h.absellipse(sx * 0.11, 0.038, 0.022, 0.014, 0, Math.PI * 2, true); cs.holes.push(h); }
-    const e = new THREE.ExtrudeGeometry(cs, { depth: 0.014, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 2, curveSegments: 14 });
+    const e = new THREE.ExtrudeGeometry(cs, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.005, bevelSize: 0.0045, bevelSegments: 4, curveSegments: 24 });
     e.translate(0, 0, -0.007);
-    const crest = new THREE.Mesh(G.applyBoxUVs(e, 2), mats.wood); crest.position.set(0, 0.79, -0.252); crest.rotation.x = -0.18; g.add(crest);
+    const crest = new THREE.Mesh(G.applyBoxUVs(e, 7), mats.carve || mats.wood); crest.position.set(0, 0.79, -0.252); crest.rotation.x = -0.18; g.add(crest);
     // carved shell at the top centre
     const sh = new THREE.Mesh(G.latheFromProfile([[0, 0.006], [0.012, 0.005], [0.022, 0.003], [0.028, 0]], 14, 0, Math.PI).rotateX(Math.PI / 2), mats.wood);
-    sh.position.set(0, 0.875, -0.268); sh.rotation.x = -0.18; g.add(sh);
+    sh.material = mats.carve || mats.wood; sh.position.set(0, 0.875, -0.268); sh.rotation.x = -0.18; g.add(sh);
   }
   // pierced vase splat, 18 mm thick: a central vesica, a pair of C-scrolls and a tear-drop
   {
@@ -448,9 +448,9 @@ export function buildSideChair(ctx, mats) {
       if (sx > 0) { const pts = h.getPoints(16).reverse(); const hp = new THREE.Path(pts); sp.holes.push(hp); } else sp.holes.push(h);
     }
     const h2 = new THREE.Path(); h2.absellipse(0, 0.255, 0.012, 0.02, 0, Math.PI * 2, true); sp.holes.push(h2);
-    const e = new THREE.ExtrudeGeometry(sp, { depth: 0.01, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.003, bevelSegments: 2, curveSegments: 14 });
+    const e = new THREE.ExtrudeGeometry(sp, { depth: 0.01, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.003, bevelSegments: 4, curveSegments: 24 });
     e.translate(0, 0, -0.005);
-    const splat = new THREE.Mesh(G.applyBoxUVs(e, 2), mats.wood); splat.position.set(0, seatH + 0.06, -0.218); splat.rotation.x = -0.14; g.add(splat);
+    const splat = new THREE.Mesh(G.applyBoxUVs(e, 7), mats.carve || mats.wood); splat.position.set(0, seatH + 0.06, -0.218); splat.rotation.x = -0.14; g.add(splat);
     // shoe rail the splat stands in
     g.add(at(new THREE.Mesh(new G.RoundedBoxGeometry(0.12, 0.025, 0.035, 1, 0.006), mats.wood), 0, seatH + 0.055, -0.21));
   }
@@ -693,7 +693,22 @@ export function buildFireplace(ctx, mats, { seed = 3 } = {}) {
     // sunk panel with flutes and a carved patera at the top
     const pnl = new THREE.Mesh(G.raisedPanel(0.2, Hm - 0.5, { border: 0.018, bevel: 0.01, fieldDepth: 0.003, frameDepth: 0.006 }), mats.marble);
     pnl.position.set(px, 0.14 + (Hm - 0.5) / 2, D + 0.001); g.add(pnl);
-    for (let i = 0; i < 5; i++) g.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.0085, 0.0085, Hm - 0.6, 10), mats.marbleDark), px - 0.06 + i * 0.03, 0.19 + (Hm - 0.6) / 2, D + 0.006));
+    {
+      // five carved flutes: one smooth grooved field (concave cosine flutes with rounded fillets), not loose cylinders
+      const fw = 0.15, fh = Hm - 0.6, nf = 5;
+      const fg = new THREE.PlaneGeometry(fw, fh, nf * 16, 24);
+      const fp = fg.attributes.position;
+      for (let k = 0; k < fp.count; k++) {
+        const x = fp.getX(k), y = fp.getY(k);
+        const u = (x / fw + 0.5) * nf, f = u - Math.floor(u);
+        const groove = Math.pow(Math.max(0, Math.sin(Math.PI * Math.min(1, Math.max(0, (f - 0.12) / 0.76)))), 0.8);
+        const endT = Math.min(1, (fh / 2 - Math.abs(y)) / 0.04);           // rounded stopped ends
+        fp.setZ(k, -0.006 * groove * Math.sqrt(Math.max(0, endT)));
+      }
+      fg.computeVertexNormals();
+      const fl = new THREE.Mesh(G.applyBoxUVs(fg, 1), mats.marbleDark);
+      fl.position.set(px, 0.19 + fh / 2, D + 0.0045); g.add(fl);
+    }
     const pat = new THREE.Mesh(G.latheFromProfile([[0, 0.018], [0.012, 0.017], [0.022, 0.012], [0.03, 0.004], [0.034, 0]], 16).rotateX(Math.PI / 2), mats.marbleDark);
     pat.position.set(px, Hm - 0.3, D + 0.004); g.add(pat);
     // plinth block

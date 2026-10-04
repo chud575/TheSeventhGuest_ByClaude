@@ -214,10 +214,10 @@ void surface(vec2 uv, inout Surface s) {
 export function marbleNero3Texture(forge, { key = 'gameroom:nero3', seed = 0 } = {}) {
   return forge.generate(key, {
     size: 1024, normalStrength: 0.12,
-    uniforms: { uSeed: seed },
+    uniforms: { uVar: seed },
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
-  vec2 p = uv + uSeed * 0.37;
+  vec2 p = uv + uVar * 0.37;
   // dominant flow along a diagonal
   vec2 dir = normalize(vec2(1.0, 0.45));
   vec2 per = vec2(-dir.y, dir.x);
@@ -259,7 +259,6 @@ void surface(vec2 uv, inout Surface s) {
 export function oilPortraitTexture(forge, { aspect = 0.756, key = 'gameroom:portrait' } = {}) {
   return forge.generate(key, {
     size: 1024, aspect, tile: false, normalStrength: 0.9,
-    uniforms: { uAspect: aspect },
     glsl: /* glsl */ `
 float sstep(float a, float b, float x) { return smoothstep(a, b, x); }
 void surface(vec2 uv, inout Surface s) {
@@ -377,7 +376,7 @@ void surface(vec2 uv, inout Surface s) {
 export function engravingTexture(forge, { aspect = 0.8, subject = 0, key } = {}) {
   return forge.generate(key || `gameroom:engr${subject}@${aspect.toFixed(2)}`, {
     size: 1024, aspect, tile: false, normalStrength: 0.4,
-    uniforms: { uAspect: aspect, uSubj: subject },
+    uniforms: { uSubj: subject },
     glsl: /* glsl */ `
 float seg(vec2 p, vec2 a, vec2 b, float r) { return sdSegment(p, a, b) - r; }
 float tone(vec2 p) {     // 0 = paper white, 1 = black; p in plate coords (x 0..1, y 0..1)
@@ -532,7 +531,6 @@ void surface(vec2 uv, inout Surface s) {
 export function treeSilhouetteTexture(forge, { aspect = 0.75, key = 'gameroom:trees' } = {}) {
   return forge.generate(key, {
     size: 1024, aspect, tile: false, normalStrength: 0.0,
-    uniforms: { uAspect: aspect },
     glsl: /* glsl */ `
 float br(vec2 p, vec2 a, vec2 b, float w0, float w1) {
   vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);

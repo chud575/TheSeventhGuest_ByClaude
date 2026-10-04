@@ -394,7 +394,7 @@ void surface(vec2 uv, inout Surface s) {
 
 /** Moonlit winter sky over the grounds, seen from the upper floor: moon, torn cloud, the crown of a dead elm. HDR (multiply in material). */
 export function nightSkyTexture(forge) {
-  return forge.generate('gameroom:nightsky', {
+  return forge.generate('gameroom:nightsky2', {
     size: 1024, aspect: 0.75, tile: false,
     glsl: /* glsl */ `
 float branch(vec2 p, vec2 a, vec2 b, float w0, float w1) {
@@ -411,7 +411,11 @@ void surface(vec2 uv, inout Surface s) {
   float cl2 = fbm(p + 0.3, vec2(4.0, 7.0), 4);
   sky = mix(sky, sky * 0.45 + vec3(0.02, 0.025, 0.04), smoothstep(-0.05, 0.35, cl + cl2 * 0.3) * 0.75);
   sky += vec3(0.8, 0.85, 0.95) * smoothstep(0.18, 0.0, abs(cl - 0.02)) * exp(-md * 2.5) * 0.5;
-  sky = mix(sky, vec3(1.0, 0.98, 0.94) * 1.4, smoothstep(0.045, 0.038, md));
+  // a soft halo ring in the thin cloud, then the moon itself: limb-darkened, mottled maria, a soft edge
+  sky += vec3(0.5, 0.56, 0.7) * exp(-pow((md - 0.09) / 0.035, 2.0)) * 0.12;
+  float maria = fbmv((p - moon) * 60.0 + 3.0, vec2(1000.0), 4);
+  vec3 mcol = vec3(1.0, 0.97, 0.92) * (0.82 + 0.18 * smoothstep(0.35, 0.7, maria)) * (1.0 - 0.25 * pow(md / 0.042, 2.0));
+  sky = mix(sky, mcol * 1.05, smoothstep(0.043, 0.036, md));
   // stars
   vec2 g = p * vec2(90.0, 120.0); vec2 id = floor(g); vec2 f = fract(g) - 0.5;
   float st = smoothstep(0.06, 0.0, length(f - (hash22(id) - 0.5) * 0.7)) * step(0.93, hash12(id + 1.7));
@@ -422,8 +426,8 @@ void surface(vec2 uv, inout Surface s) {
   float hill = p.y - (0.12 + 0.02 * fbm(vec2(p.x, 0.3), vec2(3.0, 1.0), 4));
   col = mix(col, vec3(0.3, 0.36, 0.5) * (0.8 + 0.2 * fbmv(p, vec2(30.0), 3)), smoothstep(0.004, -0.004, hill));
   // a dead elm: trunk from the lower right, limbs, branches and twigs (3 generations)
-  float d = branch(p, vec2(0.98, -0.05), vec2(0.9, 0.42), 0.045, 0.024);
-  for (int i = 0; i < 5; i++) {
+  float d = 1e3;
+  for (int i = 0; i < 0; i++) {
     float fi = float(i);
     vec2 a = mix(vec2(0.97, 0.0), vec2(0.9, 0.42), 0.35 + fi * 0.15);
     float ang = 1.7 + (hash11(fi * 3.1) - 0.3) * 1.6 + fi * 0.12;
@@ -453,7 +457,7 @@ void surface(vec2 uv, inout Surface s) {
 
 // ------------------------------------------------------------------ canvas atlases
 
-export const BALL_COLORS = ['#f2ead2', '#e8b81c', '#1d3f9a', '#b8221c', '#4a1f6a', '#e0661c', '#12623a', '#6b1a1c', '#121010'];
+export const BALL_COLORS = ['#f4ecd2', '#f2b60a', '#1236b4', '#cc160e', '#581884', '#f45a08', '#047238', '#7c0e12', '#0e0c0c'];
 
 /** 4x4 atlas of equirect billiard-ball maps (cell 256x128). Index 0 = cue ball, 1..15 numbered. */
 export function ballAtlas(forge) {

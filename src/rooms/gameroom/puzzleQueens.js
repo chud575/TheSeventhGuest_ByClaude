@@ -26,49 +26,66 @@ export const SOLUTION = [0, 4, 7, 5, 2, 6, 1, 3];          // file for each rank
 const N = 8;
 
 /**
- * Carved Staunton queen (unit ~0.1 * s tall, base radius 0.0222 * s):
- * a wide double-collared plinth with 0.5 mm bevel rings, a long concave skirt
- * sweeping in to a slender waist (~35% of the base radius), a double collar, a
- * flared bowl and a coronet of nine tall, thin, outward-flaring points each
- * tipped with a ball finial, around a domed cap with a neck and ball on top.
+ * Carved Jaques-pattern queen (~0.1 * s tall, base radius 0.0228 * s): a wide weighted base with two stepped
+ * collars, a slim waisted stem, a pronounced double collar under the crown, a flared cup and a coronet carved as
+ * eight pointed merlons (one continuous crenellated wall, outer face + rim + inner face), a domed cap inside it and
+ * a small finial ball. Vertex colours carry a dark crevice tone in the coves (concave profile) and inside the crown.
  */
+function latheAO(prof, segs, s) {
+  const g = new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(Math.max(1e-5, r * s), y * s)), segs);
+  const n = prof.length;
+  const ao = prof.map(([r, y], j) => {
+    if (j === 0 || j === n - 1) return 1;
+    const [r0, y0] = prof[j - 1], [r1, y1] = prof[j + 1];
+    const c = r - (r0 + r1) / 2;
+    const span = Math.hypot(r1 - r0, y1 - y0) + 1e-6;
+    return 1 - 0.5 * Math.min(1, Math.max(0, -c / span) * 6);
+  });
+  // soften
+  const aos = ao.map((v, j) => (j > 0 && j < n - 1 ? (ao[j - 1] + 2 * v + ao[j + 1]) / 4 : v));
+  const col = new Float32Array(g.attributes.position.count * 3);
+  for (let i = 0; i < g.attributes.position.count; i++) { const k = aos[i % n]; col.set([k, k * 0.97, k * 0.93], i * 3); }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  return g;
+}
+
 export function queenGeometry(G, s = 1) {
   const prof = [
-    [0, 0], [0.0214, 0], [0.0222, 0.0005], [0.0222, 0.0032], [0.0217, 0.0037],          // foot ring + 0.5 mm bevels
-    [0.0206, 0.0043], [0.0199, 0.0056],                                                 // cove
-    [0.0204, 0.0064], [0.0210, 0.0075], [0.0208, 0.0086], [0.0199, 0.0094],            // torus
-    [0.0186, 0.0099], [0.0181, 0.0104],                                                 // fillet
-    [0.0185, 0.0110], [0.0189, 0.0119], [0.0186, 0.0128], [0.0177, 0.0134],            // second bead
-    [0.0166, 0.0138], [0.0163, 0.0143],
+    [0, 0], [0.0218, 0], [0.0228, 0.0006], [0.0228, 0.0034], [0.0222, 0.0040],           // weighted foot, bevelled
+    [0.0208, 0.0046], [0.0200, 0.0058],                                                 // cove
+    [0.0206, 0.0067], [0.0213, 0.0079], [0.0210, 0.0091], [0.0200, 0.0099],            // torus
+    [0.0186, 0.0103], [0.0182, 0.0110],                                                 // fillet (first step)
+    [0.0187, 0.0116], [0.0190, 0.0124], [0.0186, 0.0133], [0.0176, 0.0139],            // second collar
+    [0.0163, 0.0143], [0.0160, 0.0149],
   ];
-  // the concave skirt: flares out at the plinth, sweeps in to a slender waist
-  const y0 = 0.0143, y1 = 0.0575, r0 = 0.0163, r1 = 0.0076;
-  for (let i = 1; i <= 16; i++) { const u = i / 16; prof.push([r1 + (r0 - r1) * Math.pow(1 - u, 2.4), y0 + (y1 - y0) * u]); }
+  // waisted stem: concave sweep in to ~33% of the base radius, then a slight swell under the collar
+  const y0 = 0.0149, y1 = 0.0548, r0 = 0.016, r1 = 0.0074;
+  for (let i = 1; i <= 18; i++) { const u = i / 18; prof.push([r1 + (r0 - r1) * Math.pow(1 - u, 2.6) + 0.0004 * Math.sin(u * Math.PI), y0 + (y1 - y0) * u]); }
   prof.push(
-    [0.0080, 0.0592], [0.0098, 0.0600], [0.0118, 0.0606], [0.0124, 0.0613], [0.0124, 0.0622], [0.0118, 0.0629],   // collar ring (bevelled)
-    [0.0090, 0.0636], [0.0084, 0.0642], [0.0096, 0.0650], [0.0098, 0.0657], [0.0086, 0.0664],                       // small upper collar
-    [0.0078, 0.0672], [0.0081, 0.0690], [0.0092, 0.0715], [0.0110, 0.0742], [0.0130, 0.0768], [0.0146, 0.0790],     // flared bowl
-    [0.0154, 0.0802], [0.0156, 0.0810],
-    [0.0, 0.0810],
+    [0.0080, 0.0562], [0.0094, 0.0568],                                                 // flare into the collar
+    [0.0122, 0.0574], [0.0131, 0.0581], [0.0131, 0.0592], [0.0122, 0.0599],            // pronounced lower collar ring
+    [0.0098, 0.0604], [0.0094, 0.0610],
+    [0.0108, 0.0615], [0.0112, 0.0622], [0.0104, 0.0629],                              // smaller upper ring
+    [0.0084, 0.0634], [0.0080, 0.0645],
+    [0.0088, 0.0668], [0.0102, 0.0700], [0.0120, 0.0735], [0.0138, 0.0765], [0.0150, 0.0786],  // flared cup
+    [0.0156, 0.0796], [0.0158, 0.0802], [0.0, 0.0802],
   );
-  const RAD = 64;
-  const body = G.latheFromProfile(prof.map(([r, y]) => [r * s, y * s]), RAD);
-  const parts = [body];
-  // coronet: 9 tall thin points, flaring outward, notched V between them (outer wall, rim, inner wall)
-  const NP = 9;
+  const RAD = 72;
+  const parts = [latheAO(prof, RAD, s)];
+  // coronet: one crenellated wall with eight pointed merlons
   {
-    const N = NP * 16, pos = [], idx = [], uv = [];
-    const yb = 0.0790, rb = 0.0146, th = 0.0011;
-    const peak = (a) => { const c = 0.5 + 0.5 * Math.cos(a * NP); return Math.pow(c, 5); };
-    const topY = (a) => 0.0815 + 0.0125 * peak(a);
-    const topR = (a) => 0.0157 + 0.0026 * peak(a);
-    const rows = 7;
+    const NP = 8, N = NP * 18, rows = 7;
+    const pos = [], idx = [], uv = [], col = [];
+    const yb = 0.0790, rb = 0.0150, th = 0.0016;
+    const tri = (a) => { const f = ((a * NP) / (Math.PI * 2)) % 1; const t = 1 - Math.abs(f - 0.5) * 2; return Math.pow(t, 1.6); };
     for (let i = 0; i <= N; i++) {
       const a = (i / N) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
-      const yt = topY(a), rt = topR(a);
-      const ym = yb + (yt - yb) * 0.5, rm = rb + (rt - rb) * 0.42;
-      const pts = [[rb, yb], [rm, ym], [rt, yt], [rt - th * 0.6, yt + 0.0004], [rt - th, yt], [rm - th, ym], [rb - th * 1.4, yb + 0.0005]];
-      pts.forEach(([r, y], k) => { pos.push(ca * r * s, y * s, sa * r * s); uv.push(i / N, k / rows); });
+      const pk = tri(a);
+      const yt = 0.0812 + 0.0118 * pk, rt = 0.0160 + 0.0022 * pk;
+      const ym = yb + (yt - yb) * 0.55, rm = rb + (rt - rb) * 0.5 + 0.0003;
+      const pts = [[rb, yb], [rm, ym], [rt, yt], [rt - th * 0.5, yt + 0.0005], [rt - th, yt], [rm - th, ym], [rb - th * 1.5, yb + 0.0006]];
+      const shade = [1, 1, 1, 1, 0.82, 0.62, 0.5];
+      pts.forEach(([r, y], k) => { pos.push(ca * r * s, y * s, sa * r * s); uv.push(i / N, 0.85 + k / rows * 0.15); const c = shade[k]; col.push(c, c * 0.97, c * 0.93); });
     }
     for (let i = 0; i < N; i++) for (let j = 0; j < rows - 1; j++) {
       const a = i * rows + j, b = (i + 1) * rows + j;
@@ -77,23 +94,21 @@ export function queenGeometry(G, s = 1) {
     const cg = new THREE.BufferGeometry();
     cg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     cg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    cg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     cg.setIndex(idx); cg.computeVertexNormals();
     parts.push(cg);
-    // ball finials on every point
-    for (let k = 0; k < NP; k++) {
-      const a = (k / NP) * Math.PI * 2;
-      const b = new THREE.SphereGeometry(0.0019 * s, 12, 8);
-      b.translate(Math.cos(a) * 0.0177 * s, 0.0950 * s, Math.sin(a) * 0.0177 * s);
-      parts.push(b);
-    }
   }
-  // domed cap inside the coronet, a turned neck and the ball finial
-  const cap = G.latheFromProfile([[0, 0.0812], [0.0136, 0.0808], [0.0132, 0.0835], [0.0115, 0.0862], [0.0085, 0.0885], [0.0045, 0.0902], [0.0030, 0.0912], [0.0040, 0.0921], [0.0026, 0.0930], [0, 0.0932]].map(([r, y]) => [r * s, y * s]), 40);
+  // domed cap inside the coronet, a turned neck and the finial ball
+  const capProf = [[0, 0.0806], [0.0142, 0.0804], [0.0138, 0.0832], [0.0120, 0.0860], [0.0090, 0.0882], [0.0052, 0.0898], [0.0034, 0.0906], [0.0044, 0.0914], [0.0028, 0.0924], [0, 0.0926]];
+  const cap = latheAO(capProf, 48, s);
+  { const c = cap.attributes.color; for (let i = 0; i < c.count; i++) { const y = cap.attributes.position.getY(i) / s; const k = 0.6 + 0.4 * Math.min(1, (y - 0.0804) / 0.009); c.setXYZ(i, c.getX(i) * k, c.getY(i) * k, c.getZ(i) * k); } }
   parts.push(cap);
-  const ball = new THREE.SphereGeometry(0.0046 * s, 20, 14); ball.translate(0, 0.0972 * s, 0); parts.push(ball);
+  const ball = new THREE.SphereGeometry(0.0044 * s, 24, 16); ball.translate(0, 0.0966 * s, 0);
+  ball.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(ball.attributes.position.count * 3).fill(1), 3));
+  parts.push(ball);
   const g = G.mergeGeometries(parts.map((p) => {
     const q = p.index ? p.toNonIndexed() : p;
-    for (const k of Object.keys(q.attributes)) if (!['position', 'normal', 'uv'].includes(k)) q.deleteAttribute(k);
+    for (const k of Object.keys(q.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(k)) q.deleteAttribute(k);
     if (!q.attributes.uv) q.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(q.attributes.position.count * 2), 2));
     if (!q.attributes.normal) q.computeVertexNormals();
     return q;

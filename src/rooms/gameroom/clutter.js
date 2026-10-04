@@ -66,7 +66,12 @@ export function buildPrint(ctx, mats, { w = 0.42, h = 0.54, seed = 3, subject = 
   const g = new THREE.Group();
   const iw = w - 0.12, ih = h - 0.12;
   g.add(at(new THREE.Mesh(new THREE.PlaneGeometry(w - 0.02, h - 0.02), mats.mount), 0, 0, 0.004));
-  g.add(at(new THREE.Mesh(new THREE.PlaneGeometry(iw, ih), M.create('painting', { subject, seed, aspect: iw / ih, size: 512, varnish: 0.2, cracks: 0.1, color: [0.85, 0.78, 0.66] })), 0, 0, 0.006));
+  // a sepia line engraving (hunt / stag / billiards) on cream laid paper inside a bevelled cream mat
+  const et = mats.engraving ? mats.engraving(subject, iw / ih) : null;
+  const pm = et ? new THREE.MeshStandardMaterial({ map: et.map, normalMap: et.normalMap, roughness: 0.85, name: 'engraving' }) : M.create('painting', { subject, seed, aspect: iw / ih, size: 512, varnish: 0.2, cracks: 0.1, color: [0.85, 0.78, 0.66] });
+  g.add(at(new THREE.Mesh(new THREE.PlaneGeometry(iw, ih), pm), 0, 0, 0.006));
+  // mat bevel: a thin pale core round the window
+  g.add(at(new THREE.Mesh(G.frameGeometry(iw + 0.008, ih + 0.008, { width: 0.004, depth: 0.003, uvScale: 2 }), mats.mountCore || mats.mount), 0, 0, 0.004));
   g.add(at(new THREE.Mesh(G.frameGeometry(w, h, { width: 0.035, depth: 0.025, uvScale: 2 }), mats.ebony), 0, 0, 0.0));
   g.add(at(new THREE.Mesh(G.frameGeometry(w - 0.06, h - 0.06, { width: 0.008, depth: 0.008, uvScale: 2 }), mats.gilt), 0, 0, 0.006));
   // glass

@@ -16,7 +16,7 @@ const SHOTS = {
   puzzle_mid: 'node=chess&queens=mid&ui=1&screen=puzzle',
   puzzle_solved: 'node=chess&queens=solved&ui=1&screen=puzzle',
   // close-ups for self-review (not part of the standard set unless named)
-  c_queen: 'node=chess&queens=solved&pos=-1.47,0.93,-2.42&target=-1.66,0.79,-2.78&fov=34',
+  c_queen: 'node=chess&queens=solved&pos=-1.38,0.95,-2.47&target=-1.66,0.79,-2.8&fov=36',
   c_stag: 'node=hearth&pos=1.75,2.05,-1.25&target=3.2,2.25,-2.62&fov=42',
   c_fire: 'node=hearth&pos=1.7,1.05,0.4&target=3.3,0.6,-0.45&fov=50',
   c_drape: 'node=chess&pos=-0.2,1.7,-2.4&target=-1.45,1.8,-3.95&fov=50',
