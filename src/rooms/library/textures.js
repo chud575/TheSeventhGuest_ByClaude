@@ -544,7 +544,7 @@ void surface(vec2 uv, inout Surface s) {
 
 // ------------------------------------------------------------------ coffer inserts: lozenge leaded glass in pressed-brass cames
 export function cofferGlassMap(ctx) {
-  return ctx.textures.generate('library:cofferglass:v2', {
+  return ctx.textures.generate('library:cofferglass:v3', {
     size: 1024, tile: true, normalStrength: 1.4,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
@@ -558,7 +558,7 @@ void surface(vec2 uv, inout Surface s) {
   float came = 1.0 - smoothstep(0.03, 0.045, e);
   float t = hash12(id + 3.1);
   float wav = fbm(uv + id * 0.1, vec2(8.0), 3) * 0.5 + 0.5;
-  vec3 glass = mix(vec3(0.42, 0.42, 0.4), vec3(0.6, 0.57, 0.48), t) * (0.7 + 0.4 * wav);
+  vec3 glass = mix(vec3(0.62, 0.64, 0.66), vec3(0.8, 0.8, 0.76), t) * (0.75 + 0.35 * wav);
   // amber-tinted replacement quarries here and there
   glass = mix(glass, vec3(0.62, 0.45, 0.2), step(0.85, hash12(id + 9.7)) * 0.7);
   // grime: corners of each quarry, and a general dirty vignette over the panel
@@ -566,7 +566,7 @@ void surface(vec2 uv, inout Surface s) {
   vec2 pe = min(uv, 1.0 - uv);
   float edge = 1.0 - smoothstep(0.0, 0.18, min(pe.x, pe.y));
   float dirt = fbm(uv * 2.0 + 5.0, vec2(6.0), 4) * 0.5 + 0.5;
-  glass *= 1.0 - corner * 0.55 - edge * 0.45 - smoothstep(0.5, 0.9, dirt) * 0.35;
+  glass *= 1.0 - corner * 0.4 - edge * 0.35 - smoothstep(0.5, 0.9, dirt) * 0.3;
   vec3 lead = vec3(0.07, 0.065, 0.06) * (0.8 + 0.4 * wav);
   vec3 col = mix(glass, lead, came);
   s.albedo = col;

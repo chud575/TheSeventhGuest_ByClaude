@@ -35,6 +35,13 @@ async function loadParts(url) {
   return { parts, meta: header.meta || {} };
 }
 
+// shared rig for the ghost-only lights (set from the room via ghost.setRig)
+const RIG = {
+  keyDir: { value: new THREE.Vector3(0.6, 0.6, 0.5).normalize() }, keyCol: { value: new THREE.Color(0, 0, 0) }, sceneK: { value: 1 },
+  fillDir: { value: new THREE.Vector3(-0.5, -0.6, 0.6).normalize() }, fillCol: { value: new THREE.Color(0, 0, 0) },
+  rimDir: { value: new THREE.Vector3(-0.5, 0.5, -0.9).normalize() }, rimCol: { value: new THREE.Color(0, 0, 0) },
+};
+
 const NOISE_GLSL = `
 float gHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float gNoise(vec3 x) {
@@ -56,15 +63,18 @@ export function spectralMaterial({
   rim = 0x9fb4dc, rimStrength = 0.25, rimBand = [0.2, 0.6], glow = 0.04,
   fadeY = -1, fadeSoft = 0.1, roughness = 0.6, tint = 0xc8d0dc, depthWrite = true, breakup = 0.3,
   bump = 0.0, bumpFreq = 700, desat = 0.35, wrap = 0.0, sss = [1.0, 0.45, 0.32], time = null,
-  map = null, bumpMap = null, bumpScale = 1, side = THREE.FrontSide, key = '',
+  map = null, bumpMap = null, bumpScale = 1, side = THREE.FrontSide, key = '', envMapIntensity = 0.35, keySpec = 0.0, shine = 30,
 } = {}) {
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness, metalness: 0, transparent: true, depthWrite, color: tint, map, bumpMap, bumpScale, side });
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness, metalness: 0, transparent: true, depthWrite, color: tint, map, bumpMap, bumpScale, side, envMapIntensity });
   const u = {
     uOpacity: { value: opacity }, uCoreA: { value: coreAlpha }, uEdgeA: { value: edgeAlpha }, uEdge: { value: new THREE.Vector2(edgeStart, edgeEnd) },
     uRim: { value: new THREE.Color(rim) }, uRimS: { value: rimStrength }, uRimBand: { value: new THREE.Vector2(...rimBand) }, uGlow: { value: glow },
     uFadeY: { value: fadeY }, uFadeSoft: { value: fadeSoft }, uBreak: { value: breakup },
     uBump: { value: bump }, uBumpF: { value: bumpFreq }, uDesat: { value: desat },
     uWrap: { value: wrap }, uSSS: { value: new THREE.Color(...sss) },
+    // ghost-only lights (no cost to the room, no spill on it): warm under-fill + cold back-rim, world-space dirs
+    uFillDir: RIG.fillDir, uFillCol: RIG.fillCol, uRimDir: RIG.rimDir, uRimCol: RIG.rimCol,
+    uKeyDir: RIG.keyDir, uKeyCol: RIG.keyCol, uSceneK: RIG.sceneK, uKeySpec: { value: keySpec }, uShine: { value: shine },
     uTime: time || { value: 0 },
   };
   m.userData.uniforms = u;
@@ -75,12 +85,14 @@ export function spectralMaterial({
       .replace('#include <common>', '#include <common>\nvarying vec3 vGp;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGp = position;');
     const lights = THREE.ShaderChunk.lights_physical_pars_fragment.replace(
+      'reflectedLight.directSpecular += irradiance * specularBRDF * material.multiScatteringCompensation;',
+      'reflectedLight.directSpecular += irradiance * uSceneK * specularBRDF * material.multiScatteringCompensation;').replace(
       'reflectedLight.directDiffuse += irradiance * BRDF_Lambert( material.diffuseContribution ) * ( 1.0 - F );',
       `{
         // wrap lighting: light bleeds past the terminator, reddened as if scattered under the skin
         float nl = dot( geometryNormal, directLight.direction );
         float wrapped = saturate( ( nl + uWrap ) / ( 1.0 + uWrap ) );
-        vec3 sssIrr = directLight.color * ( dotNL + ( wrapped - dotNL ) * uSSS );
+        vec3 sssIrr = directLight.color * uSceneK * ( dotNL + ( wrapped - dotNL ) * uSSS );
         reflectedLight.directDiffuse += sssIrr * BRDF_Lambert( material.diffuseContribution ) * ( 1.0 - F );
       }`);
     sh.fragmentShader = sh.fragmentShader
@@ -88,7 +100,8 @@ export function spectralMaterial({
 varying vec3 vGp;
 uniform float uOpacity, uCoreA, uEdgeA, uRimS, uGlow, uFadeY, uFadeSoft, uBreak, uBump, uBumpF, uDesat, uTime, uWrap;
 uniform vec2 uEdge, uRimBand;
-uniform vec3 uRim, uSSS;
+uniform vec3 uRim, uSSS, uFillDir, uFillCol, uRimDir, uRimCol, uKeyDir, uKeyCol;
+uniform float uSceneK, uKeySpec, uShine;
 ${NOISE_GLSL}`)
       .replace('#include <lights_physical_pars_fragment>', lights)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
@@ -104,6 +117,22 @@ ${NOISE_GLSL}`)
       .replace('#include <opaque_fragment>', `
   float gNdv = abs(dot(normalize(normal), normalize(vViewPosition)));
   float gFres = 1.0 - gNdv;
+  {
+    vec3 nV = normalize(normal);
+    vec3 fd = normalize((viewMatrix * vec4(uFillDir, 0.0)).xyz);
+    vec3 rd = normalize((viewMatrix * vec4(uRimDir, 0.0)).xyz);
+    float fw = saturate((dot(nV, fd) + uWrap) / (1.0 + uWrap));
+    outgoingLight += diffuseColor.rgb * uFillCol * fw;
+    // the key: soft wrap diffuse with a reddened terminator + a broad skin sheen
+    vec3 kd = normalize((viewMatrix * vec4(uKeyDir, 0.0)).xyz);
+    float knl = dot(nV, kd);
+    float kw = saturate((knl + uWrap) / (1.0 + uWrap));
+    vec3 kdiff = uKeyCol * (saturate(knl) + (kw - saturate(knl)) * uSSS);
+    vec3 hv = normalize(kd + normalize(vViewPosition));
+    float ks = pow(saturate(dot(nV, hv)), uShine) * uKeySpec * saturate(knl * 4.0);
+    outgoingLight += diffuseColor.rgb * kdiff + uKeyCol * ks;
+    outgoingLight += uRimCol * pow(1.0 - gNdv, 2.5) * saturate(dot(nV, rd) + 0.25) * (0.35 + 0.65 * diffuseColor.rgb);
+  }
   float gl = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
   outgoingLight = mix(outgoingLight, vec3(gl), uDesat);
   float gBand = smoothstep(uRimBand.x, uRimBand.y, gFres) * (1.0 - smoothstep(0.85, 1.0, gFres));
@@ -142,7 +171,7 @@ export async function buildGhost(ctx, root) {
   const cool = 0x9fb4dc;
   const mats = {
     // the face reads solid (the eye must find it); it only thins right at the silhouette
-    head: spectralMaterial({ coreAlpha: 1.0, edgeAlpha: 0.55, edgeStart: 0.55, edgeEnd: 1.0, rim: cool, rimStrength: 0.08, rimBand: [0.45, 0.85], glow: 0.012, fadeY: -0.1, fadeSoft: 0.025, roughness: 0.52, tint: 0xf0ece8, map: skinC, bumpMap: skinH, bumpScale: 1.2, bump: 0.00004, bumpFreq: 2600, breakup: 0.0, desat: 0.15, wrap: 0.45, time, key: 'skin' }),
+    head: spectralMaterial({ coreAlpha: 1.0, edgeAlpha: 0.5, edgeStart: 0.55, edgeEnd: 1.0, rim: cool, rimStrength: 0.05, rimBand: [0.45, 0.85], glow: 0.006, fadeY: -0.1, fadeSoft: 0.025, roughness: 0.5, tint: Number(ctx.params.get('gtint') || 0xd4d6dc), map: skinC, bumpMap: skinH, bumpScale: 1.2, bump: 0.00004, bumpFreq: 2600, breakup: 0.0, desat: Number(ctx.params.get('gdesat') || 0.35), wrap: Number(ctx.params.get('gwrap') || 0.3), keySpec: 0.22, shine: 22, time, key: 'skin' }),
     eye: spectralMaterial({ coreAlpha: 1.0, edgeAlpha: 1.0, rimStrength: 0.0, glow: 0.01, roughness: 0.35, tint: 0xf2f2f2, breakup: 0.0, desat: 0.12, wrap: 0.3, sss: [1, 0.7, 0.6], time, key: 'eye' }),
     cravat: spectralMaterial({ coreAlpha: 0.95, edgeAlpha: 0.25, edgeStart: 0.5, rim: cool, rimStrength: 0.18, glow: 0.02, fadeY: -0.235, fadeSoft: 0.045, roughness: 0.75, tint: 0xd6d3cc, bump: 0.0004, bumpFreq: 260, breakup: 0.15, desat: 0.2, wrap: 0.5, sss: [0.9, 0.85, 0.8], time, key: 'cloth' }),
     waistcoat: spectralMaterial({ coreAlpha: 0.5, edgeAlpha: 0.05, edgeStart: 0.25, edgeEnd: 0.85, rim: cool, rimStrength: 0.35, rimBand: [0.15, 0.55], glow: 0.08, fadeY: -0.37, fadeSoft: 0.1, roughness: 0.7, tint: 0xd8e0ee, bump: 0.0003, bumpFreq: 420, breakup: 0.3, depthWrite: false, desat: 0.35, wrap: 0.3, time, key: 'wc' }),
@@ -192,6 +221,15 @@ export async function buildGhost(ctx, root) {
       p.quaternion.slerp(tmpQ, k);
     }
   };
+  const setRig = ({ fillDir, fillColor, fillI = 1, rimDir, rimColor, rimI = 1, keyDir, keyColor, keyI = 1, sceneK }) => {
+    if (keyDir) RIG.keyDir.value.set(...keyDir).normalize();
+    if (keyColor) RIG.keyCol.value.setRGB(...keyColor).multiplyScalar(keyI);
+    if (sceneK !== undefined) RIG.sceneK.value = sceneK;
+    if (fillDir) RIG.fillDir.value.set(...fillDir).normalize();
+    if (fillColor) RIG.fillCol.value.setRGB(...fillColor).multiplyScalar(fillI);
+    if (rimDir) RIG.rimDir.value.set(...rimDir).normalize();
+    if (rimColor) RIG.rimCol.value.setRGB(...rimColor).multiplyScalar(rimI);
+  };
   root.add(group);
-  return { group, meshes, materials: Object.values(mats), aimEyes };
+  return { group, meshes, materials: Object.values(mats), aimEyes, setRig };
 }

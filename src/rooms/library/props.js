@@ -243,14 +243,17 @@ export function buildProps(ctx, root, mat) {
       const tips = [[-0.12, 0.295, 0.13], [0, 0.275, 0.18], [0.12, 0.295, 0.1]];
       tips.forEach(([x, y, hgt], k) => {
         const c = ctx.fx.candle({ height: hgt, radius: 0.0105, light: false, seed: 60 + k, burn: 0.75 });
+        const fu = c.userData.flame?.material?.uniforms?.uIntensity;
+        if (fu) fu.value = 3.2;   // glow, don't blow out
         c.position.set(x, y, 0); cb.add(c);
       });
-      cb.position.set(0.12, Hh, 0.56); cb.rotation.y = 0.5;
+      // set back on the far side of the desk, left of the ghost, and a little lower: a practical, not the focal point
+      cb.position.set(-0.24, Hh, 0.3); cb.rotation.y = 0.5; cb.scale.setScalar(0.8);
       g.add(cb);
-      const pl = new THREE.PointLight(0xffa456, 2.2, 6, 2);
-      pl.position.set(0.12, Hh + 0.5, 0.56);
+      const pl = new THREE.PointLight(0xffa456, 1.5, 5, 2);
+      pl.position.set(-0.24, Hh + 0.42, 0.3);
       g.add(pl);
-      ctx.onUpdate((dt, t) => { pl.intensity = 2.2 * flicker(t * 0.7, 3.3); });
+      ctx.onUpdate((dt, t) => { pl.intensity = 1.5 * flicker(t * 0.7, 3.3); });
     }
     g.add(objs);
 

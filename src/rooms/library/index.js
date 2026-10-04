@@ -17,7 +17,7 @@ import { tapestryMap, globeMap, nightSky, riddleCard, brickMap, timberMap, coffe
  */
 const { X0, X1, Z0, Z1, H } = L;
 const GHOST_POS = V3(-0.42, 1.74, 0.25);
-const GRADE = { exposure: 1.25, contrast: 1.2, saturation: 0.8, shadowTint: [0.93, 1.0, 1.03], highlightTint: [1.1, 1.0, 0.86], splitAmount: 0.5, lift: [0, 0, 0], blackPoint: 0.012, bloomStrength: 0.32, bloomThreshold: 1.5, godRayWeight: 0.25, vignette: 0.45, aoIntensity: 1.6, aoRadius: 0.25 };
+const GRADE = { exposure: 1.25, contrast: 1.2, saturation: 0.8, shadowTint: [0.93, 1.0, 1.03], highlightTint: [1.1, 1.0, 0.86], splitAmount: 0.5, lift: [0, 0, 0], blackPoint: 0.012, bloomStrength: 0.2, bloomRadius: 0.4, bloomThreshold: 1.6, godRayWeight: 0.14, vignette: 0.45, aoIntensity: 1.6, aoRadius: 0.25 };
 
 export default {
   id: 'library',
@@ -98,7 +98,8 @@ export default {
       windowFrame: new THREE.MeshStandardMaterial({ color: 0x0b0908, roughness: 0.9 }),
       glass: new THREE.MeshPhysicalMaterial({ map: rain.map, normalMap: rain.normalMap, color: 0xb8c4d0, roughness: 0.15, metalness: 0, transparent: true, opacity: 0.9, clearcoat: 1, clearcoatRoughness: 0.05, depthWrite: false, name: 'rain-glass' }),
       sky: new THREE.MeshBasicMaterial({ map: nightSky(ctx).map, color: new THREE.Color(1, 1, 1).multiplyScalar(2.6), toneMapped: false }),
-      skylight: new THREE.MeshBasicMaterial({ map: cg.map, vertexColors: true, color: new THREE.Color(0.6, 0.62, 0.66).multiplyScalar(0.7), name: 'skylight-glass' }),
+      // the coffer glass glows with moonlight: the leaded lozenge lattice must read from the hero view
+      skylight: new THREE.MeshBasicMaterial({ map: cg.map, vertexColors: true, color: new THREE.Color(0x9fb0d8).multiplyScalar(1.15), name: 'skylight-glass' }),
       sand: new THREE.MeshStandardMaterial({ color: 0xb89a66, roughness: 0.95 }),
       wax: M.create('wax', { color: [0.88, 0.83, 0.7], drips: 0.6, size: 256 }),
       bone: M.basic('bone'),
@@ -185,7 +186,7 @@ export default {
     const g = ghost.group;
     g.position.copy(GHOST_POS);
     g.scale.setScalar(1.45);
-    const faceTo = V3(-0.35, 1.52, 2.6);
+    const faceTo = V3(-0.35, 1.52, 2.6);   // the hero camera
     g.rotation.order = 'YXZ';
     g.rotation.y = Math.atan2(faceTo.x - GHOST_POS.x, faceTo.z - GHOST_POS.z) + 0.1;
     g.rotation.x = 0.12;   // chin down: he regards the visitor below him
@@ -209,8 +210,9 @@ export default {
     moon.shadow.camera.near = 6; moon.shadow.camera.far = 16;
     root.add(moon, moon.target);
     // neutral, dim skylight spill + near-neutral ambient (the cold stays in the moon and the bay)
-    root.add(fx.areaLight({ center: [(X0 + X1) / 2, H - 0.03, (Z0 + Z1) / 2], normal: [0, -1, 0], width: L.W * 0.8, height: L.D * 0.8, color: 0x9a9890, intensity: 0.12 }));
-    root.add(new THREE.HemisphereLight(0x2a2c34, 0x24170e, 0.25));
+    root.add(fx.areaLight({ center: [(X0 + X1) / 2, H - 0.03, (Z0 + Z1) / 2], normal: [0, -1, 0], width: L.W * 0.8, height: L.D * 0.8, color: 0xa4aec6, intensity: 0.45 }));
+    // the hemisphere's ground term is the moonlight bounced up off the floor: it picks out beam soffits and coffer mouldings
+    root.add(new THREE.HemisphereLight(0x2a2c34, 0x3a3634, 0.3));
     // the bay window's moon spill
     root.add(fx.areaLight({ center: wallToWorld('left', OPEN.bay.x + OPEN.bay.w / 2, OPEN.bay.y + 1.1, 0.05).toArray(), normal: [1, -0.2, -0.4], width: OPEN.bay.w, height: OPEN.bay.h, color: 0x8ea6ff, intensity: 1.8 }));
     // moonlight through the bay window: the glazing bars throw their pattern across the floor and the telescope
@@ -230,14 +232,15 @@ export default {
     bw.position.set(-1.0, 2.7, 0.2);
     bw.target.position.set(-2.25, 1.5, -4.8);
     root.add(bw, bw.target);
-    // a cold key on the ghost's face (a skylight pane singles him out) + a warm kicker from the lamps below
-    const gk = new THREE.SpotLight(0xdfe6f4, 10, 5, 0.24, 0.5, 2);
-    gk.position.copy(GHOST_POS).add(V3(-0.55, 1.05, 1.05));
-    gk.target.position.copy(GHOST_POS).add(V3(0, 0.08, 0));
-    root.add(gk, gk.target);
+    // the apparition's light rig: a soft cool key from above camera-right (a skylight pane singles him
+    // out), a faint warm under-fill from the desk candles, and a cold back-rim to cut him off the shelves
+    // the apparition is lit by his own rig (inside his shader, so it costs the room nothing and never
+    // spills onto it): a soft cool key from above camera-right (a skylight pane singling him out), a faint
+    // warm under-fill from the desk candles and a cold back-rim; the room's own lights reach him at a fraction
+    ghost.setRig?.(ghostRig(ctx));
     // warm spill so the foreground wing chair and desk aren't black holes
     const fillW = new THREE.PointLight(0xffa060, 1.8, 4.2, 2);
-    fillW.position.set(0.0, 1.1, 0.0);
+    fillW.position.set(0.45, 0.55, 0.7);   // low and forward: lights the chairs, not the ghost's face
     root.add(fillW);
     // cold moon fill through the bay onto the telescope and floor (aimed away from the entrance doors)
     const bayKey = new THREE.SpotLight(0x9fb2e0, 380, 6, 0.85, 0.9, 2);
@@ -264,18 +267,21 @@ export default {
     for (const [i, j, s] of [[1, 3, 0.32], [2, 2, 0.26], [1, 1, 0.22], [2, 4, 0.2]]) {
       const cx = (bx(i) + bx(i + 1)) / 2, cz = (bz(j) + bz(j + 1)) / 2;
       const w = (bx(i + 1) - bx(i)) - 0.55, d = (bz(j + 1) - bz(j)) - 0.5;
-      const sh = fx.shaft({ center: V3(cx, H + 0.35, cz), right: V3(w / 2, 0, 0), up: V3(0, 0, d / 2), direction: moonDir, length: 4.4, color: 0xa8b8e0, intensity: s * 0.8, softness: 0.55, falloff: 0.9, panes: [3, 3], mullion: 0.02, noise: 0.8 });
+      const sh = fx.shaft({ center: V3(cx, H + 0.35, cz), right: V3(w / 2, 0, 0), up: V3(0, 0, d / 2), direction: moonDir, length: 4.4, color: 0xa8b8e0, intensity: s * 0.5, softness: 0.55, falloff: 0.9, panes: [3, 3], mullion: 0.02, noise: 0.8 });
+      sh.name = 'shaft';
       root.add(sh);
       shafts.push(sh);
     }
     const dust = fx.dust({ box: new THREE.Box3(V3(-3.0, 0.1, -4.2), V3(1.2, 3.3, 1.6)), count: Math.round(1000 * (ctx.quality.particles ?? 1)), shafts, size: 0.005, intensity: 1.6, ambient: 0.0 });
+    dust.name = 'dust';
     root.add(dust);
     const mist = fx.fog({ box: new THREE.Box3(V3(X0 + 0.2, 0, Z0 + 0.6), V3(X1 - 0.2, 0.5, Z1 - 0.4)), color: 0x0b0c10, litColor: 0x2a3040, density: 0.35, heightFalloff: 5 });
+    mist.name = 'mist';
     root.add(mist);
 
     // ================================================================ navigation
     const nodes = {
-      main: { position: [-0.35, 1.52, 2.6], target: [-0.7, 1.32, -5.0], fov: 46, label: 'The Library', look: { yaw: [-55, 50], pitch: [-30, 32] } },
+      main: { position: [-0.35, 1.52, 2.6], target: [-0.7, 1.46, -5.0], fov: 46, label: 'The Library', look: { yaw: [-55, 50], pitch: [-30, 32] } },
       main_back: { position: [0.05, 1.62, 1.6], target: [-1.2, 1.35, 7.0], fov: 58, label: 'The way out' },
       shelves: { position: [-2.05, 1.62, -1.95], target: [-2.25, 1.95, -5.0], fov: 58, label: 'The bookcase', look: { yaw: [-50, 50], pitch: [-30, 38] } },
       bay: { position: [-1.9, 1.6, 0.35], target: [-4.3, 1.1, 2.2], fov: 56, label: 'The telescope', look: { yaw: [-50, 50], pitch: [-30, 32] } },
@@ -390,7 +396,7 @@ export default {
     root.getObjectByName('floor').castShadow = false;
 
     const godRays = [
-      { position: V3(-1.6, H + 0.4, 0.4), color: new THREE.Color(0.7, 0.8, 1.0), strength: 0.35, radius: 0.3 },
+      { position: V3(-1.6, H + 0.4, 0.4), color: new THREE.Color(0.7, 0.8, 1.0), strength: 0.25, radius: 0.3 },
     ];
 
     return {
@@ -439,6 +445,17 @@ function addWallGrime(material) {
   material.customProgramCacheKey = () => `${prevKey ? prevKey() : ''}|wallgrime`;
 }
 
+function ghostRig(ctx) {
+  const num = (k, d) => Number(ctx.params.get(k) || d);
+  const kp = (ctx.params.get('gkp') || '1.0,0.95,0.7').split(',').map(Number);
+  return {
+    keyDir: kp, keyColor: [0.86, 0.9, 1.0], keyI: num('gk', 3.0),
+    fillDir: [-0.55, -0.6, 0.6], fillColor: [1.0, 0.62, 0.36], fillI: num('gfill', 0.25),
+    rimDir: [-0.5, 0.55, -0.9], rimColor: [0.62, 0.72, 0.95], rimI: num('grim', 0.6),
+    sceneK: num('gscene', 0.2),
+  };
+}
+
 // Look-dev stage for the ghost (?ghostlab=1): just the bust, a backdrop and the face key.
 async function ghostLab(ctx, root) {
   const ghost = await buildGhost(ctx, root);
@@ -449,7 +466,7 @@ async function ghostLab(ctx, root) {
   const back = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), new THREE.MeshStandardMaterial({ color: 0x1a1512, roughness: 0.9 }));
   back.position.set(GHOST_POS.x, GHOST_POS.y, GHOST_POS.z - 2.5);
   root.add(back);
-  const gk = new THREE.SpotLight(0xc8d8ff, Number(ctx.params.get('key') || 26), 5, 0.22, 0.8, 2);
+  const gk = new THREE.SpotLight(0xc8d8ff, Number(ctx.params.get('key') || 4), 5, 0.22, 0.8, 2);
   gk.position.copy(GHOST_POS).add(V3(-0.9, 1.5, 0.9));
   gk.target.position.copy(GHOST_POS).add(V3(0, 0.08, 0));
   root.add(gk, gk.target);
@@ -460,6 +477,7 @@ async function ghostLab(ctx, root) {
   const c = GHOST_POS.clone().add(V3(0, 0.02, 0));
   const camW = new THREE.Vector3();
   ctx.onUpdate(() => ghost.aimEyes?.(ctx.camera.getWorldPosition(camW), 1));
+  ghost.setRig?.(ghostRig(ctx));
   return {
     scene: root,
     nodes: {

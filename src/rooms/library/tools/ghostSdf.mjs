@@ -305,27 +305,57 @@ export function cravatSdf(px, py, pz) {
 }
 
 // ------------------------------------------------------------------ COAT (frock coat + waistcoat)
-export function coatSdf(px, py, pz) {
+function coatBody(px, py, pz) {
   const ax = Math.abs(px);
   // sloping shoulders and chest
   let d = ell(px, py, pz, 0, -0.2, -0.012, 0.18, 0.1, 0.105);
   d = smin(d, ell(px, py, pz, 0, -0.33, 0.0, 0.16, 0.19, 0.1), 0.07);
   d = smin(d, ell(ax, py, pz, 0.145, -0.22, -0.012, 0.06, 0.075, 0.07), 0.05);
+  return d;
+}
+// coat-front buttons sit on the surface: find it once by bisection
+const COAT_BUTTONS = [];
+for (const s of [-1, 1]) for (let k = 0; k < 3; k++) {
+  const x = s * (0.084 + k * 0.004), y = -0.25 - k * 0.042;
+  let lo = 0.0, hi = 0.2;
+  for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (coatBody(x, y, m) < 0) lo = m; else hi = m; }
+  COAT_BUTTONS.push([x, y, lo + 0.001]);
+}
+export function coatSdf(px, py, pz) {
+  const ax = Math.abs(px);
+  let d = coatBody(px, py, pz);
+  // heavy wool drape: soft vertical folds that deepen toward the hem, a crease under each arm
+  {
+    const ang = Math.atan2(px, pz + 0.01);
+    const fall = smoothstep(-0.18, -0.4, py);
+    const fold = Math.sin(ang * 7 + 1.3 * Math.sin(py * 14 + ang * 2)) * 0.6 + Math.sin(ang * 13 + 2.1) * 0.25;
+    d -= 0.0032 * fold * fall;
+    d += 0.004 * Math.exp(-(((ax - 0.15) / 0.02) ** 2)) * smoothstep(-0.2, -0.3, py);
+  }
   // open V at the front (the waistcoat shows)
-  d = smax(d, -coatV(px, py, pz), 0.012);
-  // lapels: raised folded slabs along the V edge, notched at the collar
+  d = smax(d, -coatV(px, py, pz), 0.01);
+  // lapels: raised folded slabs along the V edge with a crisp roll line, notched at the collar
   {
     const ly = clamp((-0.13 - py) / 0.2, 0, 1);
     const ex = 0.03 + 0.1 * ly;           // inner edge of the V at this height (approx)
-    const lap = Math.max(Math.abs(ax - ex - 0.025) - 0.022, Math.abs(py + 0.22) - 0.1);
+    const lap = Math.max(Math.abs(ax - ex - 0.026) - 0.024, Math.abs(py + 0.22) - 0.1);
     const surf = ell(px, py, pz, 0, -0.2, -0.012, 0.185, 0.104, 0.112);
-    let L = Math.max(lap, surf - 0.004, -surf - 0.012);
+    let Lp = Math.max(lap, surf - 0.0055, -surf - 0.012);
     // notch
-    L = smax(L, -sph(ax, py, pz, 0.075, -0.15, 0.08, 0.014), 0.003);
-    d = smin(d, L, 0.004);
+    Lp = smax(Lp, -sph(ax, py, pz, 0.075, -0.15, 0.08, 0.014), 0.002);
+    d = smin(d, Lp, 0.0025);
+    // stitched edge groove just inside the lapel border
+    d += 0.0007 * Math.exp(-(((Math.abs(ax - ex - 0.026) - 0.019) / 0.0018) ** 2)) * (Math.abs(py + 0.22) < 0.1 ? 1 : 0);
   }
-  // rolled collar standing behind the neck
-  d = smin(d, len3(Math.hypot(px, pz + 0.006) - 0.064, (py + 0.11) * 0.7, 0) - 0.015 + Math.max(0, pz) * 0.45, 0.02);
+  // rolled collar standing behind the neck (taller at the back)
+  d = smin(d, len3(Math.hypot(px, pz + 0.006) - 0.066, (py + 0.1 - 0.012 * smoothstep(0, -0.06, pz)) * 0.7, 0) - 0.016 + Math.max(0, pz) * 0.45, 0.02);
+  // shoulder seams
+  d += 0.0008 * Math.exp(-(((Math.hypot(ax - 0.12, (py + 0.13) * 1.5) - 0.045) / 0.002) ** 2));
+  // buttons (domed, with a rim)
+  for (const [bx, by, bz] of COAT_BUTTONS) {
+    const b = sph(px, py, pz, bx, by, bz - 0.002, 0.0072);
+    d = Math.min(d, smax(b, -sph(px, py, pz, bx, by, bz + 0.0075, 0.005), 0.0015));
+  }
   return d;
 }
 export function coatV(px, py, pz) {

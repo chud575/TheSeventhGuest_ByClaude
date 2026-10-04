@@ -39,10 +39,14 @@ export const telescopeMeta = {
 
 export function createTelescopePuzzle(ctx, { parent, frieze, telescope, eyePose, onSolvedFx, restoreGrade }) {
   const atlas = letterAtlas(ctx);
+  // from the room the rotors are what the caption says: small, dusty, dull brass blocks (no legible text);
+  // through the glass they are cleaned up by the puzzle's warm light and a little emissive lift
+  const DUSTY = new THREE.Color(0x5e584c), CLEAN = new THREE.Color(1, 1, 1);
   const tileMat = new THREE.MeshPhysicalMaterial({
-    map: atlas, emissiveMap: atlas, emissive: new THREE.Color(1, 0.86, 0.6), emissiveIntensity: 0.03,
-    metalness: 0.9, roughness: 0.3, envMapIntensity: 1.4, clearcoat: 0.3, clearcoatRoughness: 0.3, name: 'letter-tiles',
+    map: atlas, emissiveMap: atlas, emissive: new THREE.Color(1, 0.86, 0.6), emissiveIntensity: 0.0, color: DUSTY.clone(),
+    metalness: 0.85, roughness: 0.6, envMapIntensity: 0.8, clearcoat: 0.0, clearcoatRoughness: 0.5, name: 'letter-tiles',
   });
+  const dusty = (on) => { tileMat.color.copy(on ? DUSTY : CLEAN); tileMat.roughness = on ? 0.6 : 0.32; tileMat.envMapIntensity = on ? 0.8 : 1.4; };
   const capMat = new THREE.MeshStandardMaterial({ color: 0x7a5a28, metalness: 0.9, roughness: 0.35, envMapIntensity: 1.3 });
   const slots = [];
   const chars = PHRASE.split('');
@@ -149,6 +153,7 @@ export function createTelescopePuzzle(ctx, { parent, frieze, telescope, eyePose,
       if (instant) { p.angle = p.target; p.group.rotation.x = p.angle; }
     });
     tileMat.emissiveIntensity = 0.5;
+    dusty(false);
   };
   ctx.onUpdate((dt, t) => {
     for (const p of prisms) {
@@ -163,7 +168,7 @@ export function createTelescopePuzzle(ctx, { parent, frieze, telescope, eyePose,
   if (ctx.state.isSolved(PUZZLE_ID)) applySolved(true);
 
   // a hidden candle glow below the frieze so the brass reads gold through the glass
-  const warm = new THREE.PointLight(0xffb060, 0.7, 2.2, 2);
+  const warm = new THREE.PointLight(0xffb060, 0.25, 2.2, 2);
   warm.position.set((frieze.x0 + frieze.x1) / 2, frieze.y - 0.35, frieze.z + 0.45);
   parent.add(warm);
   let focusT = 1;
@@ -183,6 +188,7 @@ export function createTelescopePuzzle(ctx, { parent, frieze, telescope, eyePose,
       vig.material.uniforms.uAspect.value = (ctx.camera.aspect || 1.33);
       vig.visible = true;
       if (!ctx.state.isSolved(PUZZLE_ID)) tileMat.emissiveIntensity = 0.22;
+      dusty(false);
       ctx.post.set({ exposure: 1.9, vignette: 0.0, dof: null, bloomStrength: 0.25, chromaticAberration: 0.0035, saturation: 0.85 }, 0.4);
       focusT = ctx.shot ? 1 : 0;
       warm.intensity = 1.6;
@@ -191,9 +197,9 @@ export function createTelescopePuzzle(ctx, { parent, frieze, telescope, eyePose,
     },
     teardown() {
       vig.visible = false;
-      if (!ctx.state.isSolved(PUZZLE_ID)) tileMat.emissiveIntensity = 0.04;
+      if (!ctx.state.isSolved(PUZZLE_ID)) { tileMat.emissiveIntensity = 0.0; dusty(true); }
       telescope.tubeVisible(true);
-      warm.intensity = 0.7;
+      warm.intensity = 0.25;
       if (ctx.post.grade) ctx.post.grade.dof = null;
       if (restoreGrade) restoreGrade(0.6); else ctx.post.reset(0.6);
     },

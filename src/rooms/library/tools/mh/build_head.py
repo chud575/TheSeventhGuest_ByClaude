@@ -610,7 +610,7 @@ def eyeball(r):
     # iris: pale watery grey-blue with radial fibres, a darker collarette and limbal ring
     ir = t / lim
     fib = 0.5 + 0.5 * np.sin(p * 47 + 3 * np.sin(p * 9)) * np.sin(p * 23 + 1.3)
-    icol = np.array([0.5, 0.55, 0.58]) * (0.72 + 0.38 * fib)[:, None]
+    icol = np.array([0.52, 0.55, 0.56]) * (0.72 + 0.38 * fib)[:, None]
     icol = icol * (1 - 0.35 * np.exp(-((ir - 0.45) / 0.08) ** 2))[:, None] + np.array([0.55, 0.48, 0.36]) * (0.35 * np.exp(-((ir - 0.36) / 0.07) ** 2))[:, None]
     icol *= (1 - 0.6 * sstep(0.82, 1.0, ir))[:, None]
     m = t < lim
@@ -778,7 +778,7 @@ def hair_parts(parts, V, N, T, eyeFit):
     parts.append(st.part('hair'))
     # ---- eyebrows: grey, bristly, with a few long wiry hairs
     for s in (1, -1):
-        for k in range(70):
+        for k in range(95):
             t = r.random() ** 0.85
             x = s * (0.011 + t * 0.044)
             yb = 0.0845 + 0.0055 * np.sin(np.pi * (0.15 + 0.85 * t)) - 0.004 * t * t
@@ -789,8 +789,8 @@ def hair_parts(parts, V, N, T, eyeFit):
             d0 = np.array([s * np.cos(ang), np.sin(ang), 0.15])
             wiry = r.random() < 0.08
             L = (r.uniform(0.006, 0.011) if not wiry else r.uniform(0.014, 0.02))
-            st.card(pv, d0, L, r.uniform(0.0016, 0.0026), 0.0003, 0.0012 if not wiry else 0.004, variant=int(r.integers(2, 4)),
-                    gravity=0.0 if not wiry else -0.002, curl=s * r.uniform(-0.03, 0.03), segs=4, rng=r, tone=r.uniform(0.62, 0.9), wave=0.05 if wiry else 0.02)
+            st.card(pv, d0, L, r.uniform(0.0022, 0.0034), 0.0007, 0.0018 if not wiry else 0.004, variant=int(r.integers(2, 4)),
+                    gravity=0.0 if not wiry else -0.002, curl=s * r.uniform(-0.03, 0.03), segs=4, rng=r, tone=r.uniform(0.75, 0.97), wave=0.05 if wiry else 0.02)
     parts.append(st.part('brows'))
     # ---- lashes: along the upper lid margin (the eye-hole boundary), sparse and pale
     from collections import Counter
