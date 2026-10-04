@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { baizeTexture, chessboardTexture, furTexture, nightSkyTexture, ballAtlas, cardAtlas, CARD_FACES, marbleNeroTexture, logTextures, sootTexture, antlerTexture, cofferTexture, huntPaintingTexture, ivoryTexture, persianRugTexture, castIronTexture, majolicaTileTexture } from './textures.js';
-import { buildStag, buildBoar } from './trophy.js';
+import { buildStag2, buildBoar2 } from './trophy2.js';
+import { trophyMaterials } from './trophyMats.js';
 import { flockDamaskTexture, hairStrandTexture, glassEyeTexture, boxwoodTexture, marbleNero3Texture, oilPortraitTexture, engravingTexture, clubLeatherTexture, treeSilhouetteTexture } from './textures2.js';
 import { clippedShaft, hazeCone } from './fx.js';
 import {
@@ -38,6 +39,7 @@ const T = new THREE.Vector3(0.25, 0, -0.3);        // billiard table centre
 const C = new THREE.Vector3(-1.6, 0, -2.85);       // games table (chessboard) centre
 const FIRE_Z = -0.45;
 const STAG_Z = -2.62;
+const BOAR_Y = 2.47;                               // 0.25 m clear of the frieze
 const CARD = new THREE.Vector3(2.05, 0, 2.55);
 const BOARD = 0.6, FIELD = BOARD * 0.76;
 const ROOM_GRADE = { exposure: 2.1, contrast: 1.1, saturation: 0.84, shadowTint: [0.92, 1.0, 1.01], highlightTint: [1.07, 1.0, 0.88], splitAmount: 0.5, bloomStrength: 0.24, bloomThreshold: 1.75, godRayWeight: 0.24, godRayThreshold: 3.0, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4 };
@@ -78,9 +80,6 @@ export default {
     const baize = baizeTexture(ctx.textures, { color: [0.02, 0.24, 0.1] });
     const baizeSet = baize.withRepeat(2, 2);
     const mkBaize = (set, tint = 1) => new THREE.MeshPhysicalMaterial({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, aoMap: set.ormMap, roughness: 1, metalness: 0, sheen: 0.5, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.25, 0.62, 0.36), color: new THREE.Color(tint, tint, tint), envMapIntensity: 0.3, name: 'baize' });
-    const furSet = furTexture(ctx.textures, { a: [0.06, 0.04, 0.025], b: [0.27, 0.17, 0.09], key: 'stag2' }).withRepeat(7, 7);
-    const boarSet = furTexture(ctx.textures, { a: [0.09, 0.07, 0.055], b: [0.44, 0.34, 0.25], key: 'boar3' }).withRepeat(8, 8);
-    const furMat = (set) => new THREE.MeshStandardMaterial({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, aoMap: set.ormMap, roughness: 1, metalness: 0, envMapIntensity: 0.4, name: 'fur' });
     const mat = {
       wall: (() => {
         // dense flock damask, bottle green: velvet flock motif on a satin ground, 0.35 m repeat
@@ -120,10 +119,6 @@ export default {
       iron: M.basic('iron'),
       silver: M.basic('silver', { roughness: 0.3 }),
       crystal: M.basic('crystal', { envMapIntensity: 1.5, opacity: 0.3 }),
-      fur: furMat(furSet),
-      furBoar: furMat(boarSet),
-      eye: new THREE.MeshPhysicalMaterial({ color: 0x080504, roughness: 0.05, clearcoat: 1, name: 'glassEye' }),
-      antler: new THREE.MeshStandardMaterial({ color: 0x8a7458, roughness: 0.6, name: 'antler' }),
       // acid-etched tulip shade: frosted, glowing hottest round the mantle low in the bowl, falling off to a cool rim
       globe: new THREE.MeshPhysicalMaterial({ color: 0x3a3028, emissive: new THREE.Color(1.0, 0.64, 0.34), emissiveIntensity: 1.3, roughness: 0.55, clearcoat: 0.6, clearcoatRoughness: 0.35, name: 'sconceGlobe',
         emissiveMap: ctx.textures.canvas('gameroom:tulipGlow', 4, 128, (c) => { const g = c.createLinearGradient(0, 0, 0, 128); g.addColorStop(0, '#2a2a2a'); g.addColorStop(0.25, '#9a9a9a'); g.addColorStop(0.45, '#c8c8c8'); g.addColorStop(0.7, '#6a6a6a'); g.addColorStop(0.9, '#2e2e2e'); g.addColorStop(1, '#1a1a1a'); c.fillStyle = g; c.fillRect(0, 0, 4, 128); }, { tile: false }) }),
@@ -148,27 +143,6 @@ export default {
       mat.log = new THREE.MeshStandardMaterial({ map: lb.map, normalMap: lb.normalMap, roughness: 0.95, emissive: new THREE.Color(1, 1, 1), emissiveMap: logs.ember.map, emissiveIntensity: 2.2, name: 'log' });
       const soot = sootTexture(ctx.textures);
       mat.soot = new THREE.MeshStandardMaterial({ map: soot.map, normalMap: soot.normalMap, roughness: 0.95, name: 'soot' });
-      const at2 = antlerTexture(ctx.textures).withRepeat(1, 1);
-      // antler: rough bone, colour entirely from the vertex ramp (dark burr -> brown beam -> ivory tips)
-      mat.antler = new THREE.MeshPhysicalMaterial({ normalMap: at2.normalMap, normalScale: new THREE.Vector2(1.2, 1.2), roughness: 0.7, vertexColors: true, clearcoat: 0.12, clearcoatRoughness: 0.6, envMapIntensity: 0.5, name: 'antler' });
-      mat.tusk = new THREE.MeshPhysicalMaterial({ roughness: 0.35, vertexColors: true, clearcoat: 0.4, clearcoatRoughness: 0.3, envMapIntensity: 0.7, name: 'tusk' });
-      const fs2 = furTexture(ctx.textures, { a: [0.11, 0.08, 0.055], b: [0.5, 0.37, 0.23], key: 'stag4' }).withRepeat(5, 5);
-      mat.stagFur = new THREE.MeshStandardMaterial({ map: fs2.map, normalMap: fs2.normalMap, normalScale: new THREE.Vector2(1.3, 1.3), roughnessMap: fs2.ormMap, aoMap: fs2.ormMap, roughness: 1, metalness: 0, vertexColors: true, envMapIntensity: 0.4, color: new THREE.Color(0.95, 0.82, 0.7), name: 'stagFur' });
-      mat.stagFurD = mat.stagFur.clone(); mat.stagFurD.side = THREE.DoubleSide; mat.stagFurD.name = 'stagFurD';
-      const strand = hairStrandTexture(ctx.textures, { root: [0.08, 0.05, 0.032], tip: [0.42, 0.31, 0.2] });
-      mat.stagHair = new THREE.MeshStandardMaterial({ map: strand.map, normalMap: strand.normalMap, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.72, metalness: 0, vertexColors: true, envMapIntensity: 0.3, name: 'stagHair' });
-      const strandB = hairStrandTexture(ctx.textures, { root: [0.05, 0.04, 0.032], tip: [0.36, 0.33, 0.3], key: 'gameroom:strandBoar' });
-      mat.boarHair = new THREE.MeshStandardMaterial({ map: strandB.map, normalMap: strandB.normalMap, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.7, metalness: 0, vertexColors: true, envMapIntensity: 0.3, name: 'boarHair' });
-      mat.boarFur = new THREE.MeshStandardMaterial({ map: boarSet.map, normalMap: boarSet.normalMap, normalScale: new THREE.Vector2(1.4, 1.4), roughnessMap: boarSet.ormMap, aoMap: boarSet.ormMap, roughness: 1, metalness: 0, vertexColors: true, envMapIntensity: 0.4, color: new THREE.Color(0.85, 0.8, 0.76), name: 'boarFur' });
-      mat.boarFurD = mat.boarFur.clone(); mat.boarFurD.side = THREE.DoubleSide; mat.boarFurD.name = 'boarFurD';
-      mat.bristle = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65, name: 'bristle' });
-      mat.noseLeather = new THREE.MeshPhysicalMaterial({ color: 0x090706, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.12, name: 'noseLeather' });
-      mat.nostril = new THREE.MeshStandardMaterial({ color: 0x020101, roughness: 0.9, name: 'nostril' });
-      mat.snout = new THREE.MeshPhysicalMaterial({ color: 0x6a5048, roughness: 0.45, clearcoat: 0.5, clearcoatRoughness: 0.3, name: 'snout' });
-      const eyeT = glassEyeTexture(ctx.textures, { iris: [0.17, 0.085, 0.03], pupilW: 0.5, pupilH: 0.22, key: 'gameroom:eyeStag2' });
-      mat.glassEye = new THREE.MeshPhysicalMaterial({ map: eyeT.map, roughness: 0.25, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.0, transmission: 0, envMapIntensity: 1.5, name: 'glassEye' });
-      const eyeB = glassEyeTexture(ctx.textures, { iris: [0.34, 0.2, 0.06], pupilW: 0.32, pupilH: 0.32, key: 'gameroom:eyeBoar' });
-      mat.glassEyeBoar = new THREE.MeshPhysicalMaterial({ map: eyeB.map, roughness: 0.25, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.0, envMapIntensity: 1.5, name: 'glassEyeBoar' });
       // shields: the room's dark walnut (~#3a1f12) under a clearcoat, not orange
       const wal = M.create('walnut', { repeat: [3, 3] });
       mat.shieldWalnut = new THREE.MeshPhysicalMaterial({ map: wal.map, normalMap: wal.normalMap, roughnessMap: wal.roughnessMap, color: new THREE.Color(0.36, 0.25, 0.2), roughness: 0.6, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.3, envMapIntensity: 0.08, name: 'shieldWalnut' });
@@ -550,6 +524,7 @@ export default {
     }
 
     // ================================================================ fireplace + stag (right wall)
+    const trophyMats = trophyMaterials(ctx, { shield: mat.shieldWalnut, gilt: mat.gilt });
     const ci = castIronTexture(ctx.textures).withRepeat(3, 3);
     const tl = majolicaTileTexture(ctx.textures).withRepeat(1, 1);
     const fireMats = {
@@ -572,7 +547,7 @@ export default {
       og.position.set(lx.right(FIRE_Z), fire.userData.Hm + 0.2 + mh / 2, 0.035);
       S.right.grp.add(og);
       // the stag, on its own carved shield on the bare damask further along the wall, over the armchair
-      const stag = buildStag(ctx, { shield: mat.shieldWalnut, fur: mat.stagFur, furDouble: mat.stagFurD, hair: mat.stagHair, eye: mat.glassEye, nose: mat.noseLeather, nostril: mat.nostril, antler: mat.antler, gilt: mat.gilt });
+      const stag = buildStag2(ctx, trophyMats.stag);
       stag.position.set(lx.right(STAG_Z), 2.02, 0.035); stag.rotation.y = -0.14; stag.scale.setScalar(1.1);
       S.right.grp.add(stag);
       // mantel garniture: clock and two candlesticks
@@ -608,8 +583,8 @@ export default {
     {
       const rack = buildCueRack(ctx, { wood: mat.wood, brass: mat.brass, gilt: mat.gilt, dark: mat.dark, ivory: mat.ivory, ebony: mat.ebony, maple: mat.maple, tip: mat.tip, leather: mat.leather });
       rack.position.set(lx.left(0.85), 0.3, 0.02); S.left.grp.add(rack);
-      const boar = buildBoar(ctx, { shield: mat.shieldWalnut, fur: mat.boarFur, furDouble: mat.boarFurD, hair: mat.boarHair, eye: mat.glassEyeBoar, nose: mat.noseLeather, nostril: mat.nostril, snout: mat.snout, tusk: mat.tusk, antler: mat.antler, bristle: mat.bristle, gilt: mat.gilt });
-      boar.position.set(lx.left(0.85), 2.72, 0.04); S.left.grp.add(boar);
+      const boar = buildBoar2(ctx, trophyMats.boar);
+      boar.position.set(lx.left(0.85), BOAR_Y, 0.04); S.left.grp.add(boar);
       // hunting landscape
       const pg = new THREE.Group();
       const pw = 1.35, ph = 0.95;
@@ -820,7 +795,7 @@ export default {
       sl.castShadow = Q.shadows; sl.shadow.mapSize.set(1024, 1024); sl.shadow.bias = -0.0008; sl.shadow.normalBias = 0.01; sl.shadow.radius = 3; sl.shadow.camera.near = 0.3; sl.shadow.camera.far = 3;
       root.add(sl, sl.target);
       const bl = new THREE.SpotLight(0xffcf98, 8, 4, 0.36, 0.55, 2);
-      bl.position.set(X0 + 1.0, 3.4, 1.6); bl.target.position.set(X0 + 0.25, 2.66, 0.85);
+      bl.position.set(X0 + 1.0, 3.25, 1.6); bl.target.position.set(X0 + 0.25, BOAR_Y - 0.06, 0.85);
       bl.castShadow = Q.shadows; bl.shadow.mapSize.set(512, 512); bl.shadow.bias = -0.0008; bl.shadow.normalBias = 0.01; bl.shadow.radius = 3; bl.shadow.camera.near = 0.3; bl.shadow.camera.far = 3;
       root.add(bl, bl.target);
     }
@@ -997,7 +972,7 @@ export default {
       },
       { id: 'fire', nodes: ['hearth', 'main'], box: { min: [X1 - 0.6, 0.0, FIRE_Z - 0.7], max: [X1, 1.3, FIRE_Z + 0.7] }, cursor: 'examine', label: 'The fireplace', onActivate: cap('The Fireplace', 'The fire is burning, and has been burning, and nobody has fed it. The logs never grow smaller.') },
       { id: 'cuerack', nodes: ['main', 'chess', 'billiards', 'back'], box: { min: [X0, 0.3, 0.4], max: [X0 + 0.2, 2.15, 1.3] }, cursor: 'examine', label: 'The cue rack', onActivate: cap('The Cue Rack', 'Seven cues and an empty clip. The beads on the scoreboard have been pushed to thirteen.') },
-      { id: 'boar', nodes: ['main', 'chess', 'billiards'], sphere: { center: [X0 + 0.25, 2.72, 0.85], radius: 0.3 }, cursor: 'examine', label: 'A boar\'s head', onActivate: cap('The Boar', 'Its tusks are yellowed and one is chipped. The glass eyes have been turned, very slightly, to watch the door.') },
+      { id: 'boar', nodes: ['main', 'chess', 'billiards'], sphere: { center: [X0 + 0.25, BOAR_Y, 0.85], radius: 0.3 }, cursor: 'examine', label: 'A boar\'s head', onActivate: cap('The Boar', 'Its tusks are yellowed and one is chipped. The glass eyes have been turned, very slightly, to watch the door.') },
       { id: 'scoreboard', nodes: ['back', 'main'], box: { min: [X0, 1.3, 1.95], max: [X0 + 0.15, 2.3, 2.95] }, cursor: 'examine', label: 'The scoreboard', onActivate: cap('The Scoreboard', 'Sixty-five to forty, and the pointers rusted where they stand. The second player never came back from the cellar.') },
       { id: 'cards', nodes: ['back', 'main', 'hearth'], box: { min: [CARD.x - 0.5, 0.6, CARD.z - 0.5], max: [CARD.x + 0.5, 0.95, CARD.z + 0.5] }, cursor: 'examine', label: 'A hand of cards', onActivate: cap('The Card Table', 'A seven of hearts, a queen of spades, an ace. Three hands dealt, and a fourth place laid for a player who never sat down.') },
       { id: 'painting', nodes: ['main', 'chess', 'back'], box: { min: [X0, 1.55, -2.3], max: [X0 + 0.15, 2.65, -0.8] }, cursor: 'examine', label: 'A hunting scene', onActivate: cap('The Painting', 'A moonlit hunt. The hounds are painted with great care. The quarry has been scraped out of the canvas.') },

@@ -21,7 +21,7 @@ const SHOTS = {
   c_fire: 'node=hearth&pos=1.7,1.05,0.4&target=3.3,0.6,-0.45&fov=50',
   c_drape: 'node=chess&pos=-0.2,1.7,-2.4&target=-1.45,1.8,-3.95&fov=50',
   c_chair: 'node=chess&pos=-0.9,1.2,-1.6&target=-1.45,0.55,-2.15&fov=50',
-  c_boar: 'node=main&pos=-1.75,2.35,1.75&target=-3.2,2.7,0.85&fov=40',
+  c_boar: 'node=main&pos=-1.75,2.15,1.75&target=-3.2,2.45,0.85&fov=40',
   c_drape2: 'node=main&pos=-1.2,1.65,-1.6&target=-1.45,1.75,-4.0&fov=55',
   c_chest: 'node=hearth&pos=0.95,1.3,-0.95&target=2.0,0.5,-2.08&fov=50',
   c_wall: 'node=hearth&pos=1.6,2.2,1.6&target=3.3,2.2,1.6&fov=45',

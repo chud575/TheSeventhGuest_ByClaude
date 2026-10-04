@@ -131,7 +131,7 @@ export function antlerTube(curve, segs, r0, r1, radial, c0, c1, tipPow = 1.0, { 
   return g;
 }
 
-function toNI(g) {
+export function toNI(g) {
   const q = g.index ? g.toNonIndexed() : g;
   if (!q.attributes.uv) q.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(q.attributes.position.count * 2), 2));
   if (!q.attributes.normal) q.computeVertexNormals();
@@ -201,7 +201,7 @@ function shieldShape(pw, ph, s = 1) {
   return sh;
 }
 
-function buildShield(G, mats, pw, ph) {
+export function buildShield(G, mats, pw, ph) {
   const g = new THREE.Group();
   const back = new THREE.ExtrudeGeometry(shieldShape(pw, ph, 1), { depth: 0.02, bevelEnabled: true, bevelThickness: 0.014, bevelSize: 0.018, bevelSegments: 5, curveSegments: 32 });
   back.translate(0, 0, 0.012);
@@ -215,7 +215,7 @@ function buildShield(G, mats, pw, ph) {
 }
 
 /** Glass eye: sphere with its +Y pole (iris) turned to look along `dir`, set into a dark lid ring. */
-function glassEye(mats, pos, dir, r, scale = [1, 1, 1]) {
+export function glassEye(mats, pos, dir, r, scale = [1, 1, 1]) {
   const g = new THREE.Group();
   const eg = new THREE.SphereGeometry(r, 28, 20);
   const eye = new THREE.Mesh(eg, mats.eye);
