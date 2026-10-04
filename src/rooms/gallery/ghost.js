@@ -1,14 +1,16 @@
 import * as THREE from 'three';
 
 /**
- * The grey lady, as a body rather than a card.
+ * The grey lady, as one body rather than a stack of shells.
  *
- * A low-poly draped figure (gown flaring to a ragged hem, bodice, shoulders, arms folded at the
- * waist, a veil falling from the crown) rendered with an additive fresnel shader: the silhouette
- * glows cold (rim^3), the core is nearly clear, and slow 3D noise drifts up through her so she
- * never quite holds still. Only the head proxy carries the painted face (front-projected from
- * ghost.png). Wisps rise off the hem, and a soft glow sits behind her. No billboarding: the room
- * turns her at most +/-15 deg toward the camera.
+ * Her figure (gown with deep folds and a ragged hem, folded arms and clasped hands, neck, a
+ * sculpted head with brow, sockets, nose, lips and chin, and a heavy veil falling into a cape) is
+ * a single closed surface polygonised offline from one SDF (tools/genGhost.mjs -> ghost_mesh.bin).
+ * Drawn additively with front faces only, she therefore has exactly one layer wherever you look:
+ * no inner shell boundaries. The fresnel shader glows cold just inside the silhouette, the core is
+ * nearly clear, slow 3D noise drifts up through her, and the hem sways. The painted likeness
+ * (ghost.png) is projected onto the sculpted face and faded by fresnel so it melts into the hood.
+ * A soft glow sits behind her and wisps rise off the hem. The room turns her at most +/-15 deg.
  *
  * Origin at floor level, facing +Z. Returns { group, uniforms: { uFade } }.
  */
@@ -20,101 +22,6 @@ float gvn(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
 float gfbm(vec3 p) { return gvn(p) * 0.55 + gvn(p * 2.03 + 7.1) * 0.3 + gvn(p * 4.1 + 3.3) * 0.15; }
 `;
 
-function bodyMaterial(ctx, { tint, rimPow = 3.0, core = 0.06, rim = 1.25, face = null, seed = 0, gap = 0 }) {
-  const uniforms = {
-    uTime: ctx.time, uFade: { value: 1 }, uTint: { value: new THREE.Color(tint) }, uRimPow: { value: rimPow },
-    uCore: { value: core }, uRim: { value: rim }, uSeed: { value: seed }, tFace: { value: face }, uHasFace: { value: face ? 1 : 0 }, uGap: { value: gap },
-  };
-  const mat = new THREE.ShaderMaterial({
-    uniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide,
-    vertexShader: /* glsl */ `
-      uniform float uTime; uniform float uSeed;
-      attribute vec2 faceUv;
-      varying vec3 vN; varying vec3 vV; varying vec3 vW; varying vec3 vL; varying vec2 vFace;
-      ${NOISE}
-      void main() {
-        vec3 p = position;
-        // soft breathing distortion, stronger toward the hem
-        float low = 1.0 - smoothstep(0.2, 1.3, p.y);
-        vec3 q = vec3(p.x * 3.0, p.y * 2.0 - uTime * 0.25, p.z * 3.0 + uSeed);
-        p += normal * (gfbm(q) - 0.5) * (0.012 + 0.035 * low);
-        p.x += sin(p.y * 4.0 + uTime * 0.8 + uSeed) * 0.02 * low;
-        vec4 w = modelMatrix * vec4(p, 1.0);
-        vW = w.xyz; vL = p;
-        vN = normalize(mat3(modelMatrix) * normal);
-        vV = cameraPosition - w.xyz;
-        vFace = faceUv;
-        gl_Position = projectionMatrix * viewMatrix * w;
-      }`,
-    fragmentShader: /* glsl */ `
-      uniform float uTime; uniform float uFade; uniform vec3 uTint; uniform float uRimPow; uniform float uCore; uniform float uRim; uniform float uSeed;
-      uniform sampler2D tFace; uniform float uHasFace; uniform float uGap;
-      varying vec3 vN; varying vec3 vV; varying vec3 vW; varying vec3 vL; varying vec2 vFace;
-      ${NOISE}
-      void main() {
-        vec3 N = normalize(vN), V = normalize(vV);
-        float ndv = abs(dot(N, V));
-        // the brightest band sits just inside the silhouette, which itself fades out: no drawn outline
-        float rim = pow(1.0 - ndv, uRimPow) * smoothstep(0.02, 0.32, ndv);
-        vec3 q = vec3(vW.x * 3.0, vW.y * 2.2 - uTime * 0.22, vW.z * 3.0 + uSeed);
-        float n = gfbm(q);
-        float n2 = gfbm(q * 2.7 + 5.0);
-        // long vertical drapery streaks: brighter ridges of mist running down the gown
-        float streak = 0.6 + 0.4 * sin(atan(vL.x, vL.z) * 9.0 + n * 3.0);
-        // the rim itself is broken up by the noise so no edge reads as a drawn outline
-        float dens = (uCore + uRim * rim * smoothstep(0.25, 0.7, n + 0.15)) * (0.45 + 0.9 * n) * mix(1.0, streak, 0.5);
-        // open edges of the veil dissolve instead of ending in a line
-        float az = abs(atan(vL.x, vL.z));
-        dens *= mix(1.0, smoothstep(uGap * 0.5, uGap * 0.5 + 0.6, az), step(0.01, uGap));
-        // ragged mist at the hem and wherever the noise thins out
-        dens *= smoothstep(0.02, 0.55, vL.y + 0.35 * (n2 - 0.5));
-        dens *= 0.75 + 0.5 * smoothstep(0.35, 0.65, n2);
-        vec3 col = uTint * dens;
-        if (uHasFace > 0.5) {
-          vec4 f = texture2D(tFace, vFace);
-          // only the features survive: an oval mask in face space, thinned by the drifting noise
-          vec2 fq = (vFace - vec2(0.485, 0.868)) / vec2(0.105, 0.062);
-          float mask = smoothstep(1.0, 0.35, length(fq)) * smoothstep(0.55, 0.9, ndv);
-          float lum = dot(f.rgb, vec3(0.33));
-          // lighter paint = denser ectoplasm; the darks (eyes, brows, mouth) stay see-through
-          vec3 face = vec3(0.72, 0.8, 1.0) * pow(lum, 1.6) * mask * (0.55 + 0.6 * n);
-          col = uTint * (0.02 + uRim * rim * smoothstep(0.25, 0.7, n + 0.15)) * (0.6 + 0.6 * n) + face * 0.8;
-        }
-        gl_FragColor = vec4(col * uFade, 1.0);
-      }`,
-  });
-  mat.userData.noBake = true;
-  return { mat, uniforms };
-}
-
-/** elliptical lathe: profile [[y, rx, rz]], optional angular gap (open veil front) */
-function ellLathe(profile0, segs = 40, { gap = 0, fold = null, rings = 36 } = {}) {
-  // resample the profile smoothly (Catmull-Rom through the key rings) so silhouettes are not faceted
-  const cr = new THREE.CatmullRomCurve3(profile0.map(([y, rx, rz]) => new THREE.Vector3(rx, y, rz)), false, 'centripetal');
-  const profile = cr.getPoints(rings).map((v) => [v.y, Math.max(0.005, v.x), Math.max(0.005, v.z)]);
-  const pos = [], idx = [];
-  const a0 = gap / 2, a1 = Math.PI * 2 - gap / 2;
-  const cols = segs + 1;
-  for (let i = 0; i < profile.length; i++) {
-    const [y, rx, rz] = profile[i];
-    for (let j = 0; j <= segs; j++) {
-      const a = a0 + (a1 - a0) * (j / segs);           // a = 0 is the front (+z)
-      let r = 1;
-      if (fold) r += fold(a, y);
-      pos.push(Math.sin(a) * rx * r, y, Math.cos(a) * rz * r);
-    }
-  }
-  for (let i = 0; i < profile.length - 1; i++) for (let j = 0; j < segs; j++) {
-    const a = i * cols + j, b = a + cols;
-    idx.push(a, b, a + 1, a + 1, b, b + 1);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setIndex(idx);
-  g.computeVertexNormals();
-  return g;
-}
-
 export async function makeGhost(ctx) {
   const tex = await new THREE.TextureLoader().loadAsync(ctx.assetUrl('ghost.png'));
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -122,63 +29,97 @@ export async function makeGhost(ctx) {
   group.name = 'ghost';
   const tint = 0x9fb6ff;
   const mats = [];
-  const mk = (o) => { const m = bodyMaterial(ctx, o); mats.push(m); return m.mat; };
 
-  // ---- gown: bodice to flared, folded hem (y metres; floor at 0, she hovers a little)
-  const gown = ellLathe([
-    [0.02, 0.33, 0.27], [0.18, 0.31, 0.25], [0.42, 0.27, 0.21], [0.66, 0.22, 0.17], [0.86, 0.17, 0.13],
-    [0.98, 0.145, 0.11], [1.1, 0.16, 0.115], [1.2, 0.175, 0.12], [1.28, 0.185, 0.112], [1.33, 0.165, 0.095],
-    [1.37, 0.1, 0.07], [1.39, 0.02, 0.02],
-  ], 48, { fold: (a, y) => (0.06 * Math.sin(a * 9 + 0.7) + 0.03 * Math.sin(a * 17 + 2.1)) * (1 - THREE.MathUtils.smoothstep(y, 0.2, 0.95)) });
-  group.add(new THREE.Mesh(gown, mk({ tint, rimPow: 2.2, core: 0.075, rim: 0.85, seed: 1.3 })));
-
-  // ---- arms: sleeves from the shoulders, hands folded at the waist
-  for (const s of [-1, 1]) {
-    const c = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(s * 0.175, 1.3, -0.01), new THREE.Vector3(s * 0.205, 1.12, 0.0),
-      new THREE.Vector3(s * 0.19, 0.98, 0.07), new THREE.Vector3(s * 0.08, 0.9, 0.15), new THREE.Vector3(s * 0.015, 0.89, 0.155),
-    ]);
-    const tube = new THREE.TubeGeometry(c, 20, 0.042, 10, false);
-    // sleeve tapers toward the wrist
-    const p = tube.attributes.position;
-    const cnt = 11;
-    for (let i = 0; i < p.count; i++) {
-      const ring = Math.floor(i / cnt), t = ring / 20;
-      const ctr = c.getPoint(Math.min(1, t));
-      const k = 1.0 - 0.45 * t;
-      p.setXYZ(i, ctr.x + (p.getX(i) - ctr.x) * k, ctr.y + (p.getY(i) - ctr.y) * k, ctr.z + (p.getZ(i) - ctr.z) * k);
-    }
-    tube.computeVertexNormals();
-    group.add(new THREE.Mesh(tube, mk({ tint, rimPow: 2.0, core: 0.03, rim: 0.35, seed: 4.1 + s })));
+  // ---- the body: ONE closed sculpted surface (tools/genGhost.mjs), so there are no inner shells
+  const buf = await (await fetch(ctx.assetUrl('ghost_mesh.bin'))).arrayBuffer();
+  const [nv, ni] = new Uint32Array(buf, 0, 2);
+  const bb = new Float32Array(buf, 8, 6);
+  let off = 32;
+  const qp = new Uint16Array(buf, off, nv * 3); off += Math.ceil(nv * 3 / 2) * 4;
+  const qn = new Int8Array(buf, off, nv * 3); off += Math.ceil(nv * 3 / 4) * 4;
+  const qpart = new Uint8Array(buf, off, nv); off += Math.ceil(nv / 4) * 4;
+  const idx = new Uint32Array(buf, off, ni);
+  const pos = new Float32Array(nv * 3), nrm = new Float32Array(nv * 3), part = new Float32Array(nv);
+  for (let v = 0; v < nv; v++) {
+    for (let c = 0; c < 3; c++) pos[v * 3 + c] = bb[c] + (qp[v * 3 + c] / 65535) * (bb[c + 3] - bb[c]);
+    const x = qn[v * 3] / 127, y = qn[v * 3 + 1] / 127, z = qn[v * 3 + 2] / 127, l = Math.hypot(x, y, z) || 1;
+    nrm[v * 3] = x / l; nrm[v * 3 + 1] = y / l; nrm[v * 3 + 2] = z / l;
+    part[v] = qpart[v];
   }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  geo.setAttribute('part', new THREE.BufferAttribute(part, 1));
+  geo.setIndex(new THREE.BufferAttribute(idx, 1));
+  geo.computeBoundingSphere();
 
-  // ---- head proxy with the painted face front-projected from ghost.png
-  {
-    const g = new THREE.SphereGeometry(1, 28, 20);
-    g.scale(0.082, 0.108, 0.094);
-    const p = g.attributes.position;
-    // flatten the face a touch and pull the chin forward
-    for (let i = 0; i < p.count; i++) { const y = p.getY(i), z = p.getZ(i); if (z > 0) p.setZ(i, z * (0.92 + 0.12 * (y < -0.04 ? 1 : 0))); }
-    g.computeVertexNormals();
-    const fuv = new Float32Array(p.count * 2);
-    // face in ghost.png: u 0.36..0.61, v 0.814..0.935 (head width/height in metres -> that rect)
-    for (let i = 0; i < p.count; i++) {
-      fuv[i * 2] = 0.485 + (p.getX(i) / 0.082) * 0.13;
-      fuv[i * 2 + 1] = 0.873 + (p.getY(i) / 0.108) * 0.068;
-    }
-    g.setAttribute('faceUv', new THREE.BufferAttribute(fuv, 2));
-    const head = new THREE.Mesh(g, mk({ tint, rimPow: 1.6, core: 0.03, rim: 0.45, face: tex, seed: 2.2 }));
-    head.position.set(0, 1.55, 0.01);
-    head.rotation.x = 0.12;     // she looks a little down
-    group.add(head);
-  }
-
-  // ---- veil: from the crown over the back of the head, falling past the shoulders (open front)
-  const veil = ellLathe([
-    [1.69, 0.02, 0.02], [1.66, 0.075, 0.08], [1.6, 0.105, 0.11], [1.5, 0.12, 0.12], [1.4, 0.16, 0.13],
-    [1.3, 0.23, 0.15], [1.15, 0.26, 0.16], [0.95, 0.27, 0.17],
-  ], 40, { gap: 1.9, fold: (a, y) => 0.05 * Math.sin(a * 7 + y * 4) * (1 - THREE.MathUtils.smoothstep(y, 1.2, 1.6)) });
-  group.add(new THREE.Mesh(veil, mk({ tint: 0x8ea8f0, rimPow: 2.0, core: 0.04, rim: 0.6, seed: 7.7, gap: 1.9 })));
+  const debugSolid = ctx.shot && typeof location !== 'undefined' && new URLSearchParams(location.search).get('gsolid') === '1';
+  const bodyU = {
+    uTime: ctx.time, uFade: { value: 1 }, uTint: { value: new THREE.Color(tint) }, tFace: { value: tex },
+  };
+  const bodyMat = debugSolid ? new THREE.MeshStandardMaterial({ color: 0x8a8f99, roughness: 0.6 }) : new THREE.ShaderMaterial({
+    uniforms: bodyU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide,
+    vertexShader: /* glsl */ `
+      uniform float uTime;
+      attribute float part;
+      varying vec3 vN; varying vec3 vV; varying vec3 vW; varying vec3 vL; varying vec3 vLN; varying float vPart;
+      ${NOISE}
+      void main() {
+        vec3 p = position;
+        float low = 1.0 - smoothstep(0.15, 1.25, p.y);
+        // the cloth breathes: slow swell along the normal, and the hem sways like a drowned gown
+        vec3 q = vec3(p.x * 3.0, p.y * 2.0 - uTime * 0.25, p.z * 3.0);
+        p += normal * (gfbm(q) - 0.5) * (0.004 + 0.03 * low) * (1.0 - step(0.5, part) * step(part, 1.5));
+        p.x += sin(uTime * 0.8 + p.y * 3.0) * 0.02 * low * low;
+        p.z += sin(uTime * 0.6 + p.y * 2.3 + 1.7) * 0.014 * low * low;
+        vec4 w = modelMatrix * vec4(p, 1.0);
+        vW = w.xyz; vL = p; vLN = normal; vPart = part;
+        vN = normalize(mat3(modelMatrix) * normal);
+        vV = cameraPosition - w.xyz;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uTime; uniform float uFade; uniform vec3 uTint; uniform sampler2D tFace;
+      varying vec3 vN; varying vec3 vV; varying vec3 vW; varying vec3 vL; varying vec3 vLN; varying float vPart;
+      ${NOISE}
+      void main() {
+        vec3 N = normalize(vN), V = normalize(vV);
+        float ndv = clamp(dot(N, V), 0.0, 1.0);
+        float isFace = 1.0 - smoothstep(0.3, 0.7, abs(vPart - 1.0));
+        isFace *= smoothstep(1.42, 1.45, vL.y);
+        float isHood = 1.0 - smoothstep(0.3, 0.7, abs(vPart - 2.0));
+        // rim brightest just inside the silhouette, the very edge itself dissolving (no drawn line)
+        float rim = pow(1.0 - ndv, 2.4) * smoothstep(0.0, 0.22, ndv);
+        vec3 q = vec3(vW.x * 3.0, vW.y * 2.2 - uTime * 0.22, vW.z * 3.0);
+        float n = gfbm(q);
+        float n2 = gfbm(q * 2.7 + 5.0);
+        // long vertical mist streaks running down the gown, softened on the hood
+        float streak = 0.65 + 0.35 * sin(atan(vL.x, vL.z) * 11.0 + n * 3.0 + vL.y * 0.8);
+        float core = mix(0.05, 0.035, isHood);
+        float dens = (core + 0.95 * rim * smoothstep(0.2, 0.65, n + 0.12)) * (0.5 + 0.8 * n) * mix(1.0, streak, 0.45 * (1.0 - isFace));
+        // soft top light so folds and the sculpted head read as form, not just outline
+        dens *= 0.75 + 0.35 * clamp(N.y * 0.6 + 0.5, 0.0, 1.0);
+        // hem dissolves into ragged mist
+        dens *= smoothstep(0.02, 0.5, vL.y + 0.35 * (n2 - 0.5));
+        dens *= 0.75 + 0.5 * smoothstep(0.35, 0.65, n2);
+        vec3 col = uTint * dens;
+        // the face: the painted likeness projected onto the sculpted head, fading by fresnel so its
+        // edges melt into the hood; light paint = denser ectoplasm, darks (eyes, mouth) see-through
+        vec2 fuv = vec2((253.5 + vL.x * 1016.0) / 512.0, 1.0 - (176.5 - (vL.y - 1.535) * 1016.0) / 1536.0);
+        vec4 f = texture2D(tFace, fuv);
+        float lum = dot(f.rgb, vec3(0.33));
+        float fo = length((vL.xy - vec2(0.0, 1.507)) / vec2(0.066, 0.088));
+        float fm = smoothstep(1.0, 0.62, fo) * smoothstep(0.035, 0.06, vL.z) * mix(1.0, smoothstep(0.15, 0.6, ndv), smoothstep(0.45, 0.9, fo));
+        vec3 face = vec3(0.7, 0.8, 1.0) * pow(lum, 1.5) * (0.6 + 0.5 * n) * 0.95;
+        col = mix(col, uTint * dens * 0.35 + face, fm);
+        gl_FragColor = vec4(col * uFade, 1.0);
+      }`,
+  });
+  bodyMat.userData.noBake = true;
+  mats.push({ mat: bodyMat, uniforms: debugSolid ? { uFade: { value: 1 } } : bodyU });
+  const body = new THREE.Mesh(geo, bodyMat);
+  body.name = 'ghostBody';
+  group.add(body);
 
   // ---- wisps rising off the hem: tall ribbons of scrolling mist
   {

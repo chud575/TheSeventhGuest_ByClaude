@@ -265,15 +265,62 @@ export function makeBench(ctx, mat) {
 
 /** Brass plaque with an engraved title (canvas texture). Facing +Z. */
 export function makePlaque(ctx, mat, text, w = 0.3, h = 0.07) {
-  const tex = ctx.textures.canvas(`gallery:plaque:${text}`, 512, Math.round(512 * h / w), (g, cw, ch) => {
+  // engraved brass: letters cut into the plate and filled with black wax (albedo), the cuts and a
+  // bevelled border carried as a normal map, the field brushed (roughness streaks), edges worn bright
+  const lines = text.split('\n');
+  const CW = 1024, CH = Math.round(1024 * h / w);
+  const draw = (g, cw, ch, fillText) => {
+    lines.forEach((ln, i) => {
+      const n = lines.length, fs = Math.round(ch * (n > 1 ? (i === 0 ? 0.34 : 0.22) : 0.46));
+      g.font = `${i === 0 ? '' : 'italic '}${fs}px "Cinzel", Georgia, serif`;
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      const y = n > 1 ? ch * (i === 0 ? 0.4 : 0.73) : ch / 2 + 2;
+      fillText(ln, cw / 2, y);
+    });
+  };
+  const height = document.createElement('canvas'); height.width = CW; height.height = CH;
+  {
+    const g = height.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, CW, CH);
+    // bevel: a ramp in from the edge, then a fine incised border line
+    for (let k = 0; k < 14; k++) { const v = Math.round(130 + k * 9); g.strokeStyle = `rgb(${v},${v},${v})`; g.lineWidth = 2; g.strokeRect(k, k, CW - 2 * k, CH - 2 * k); }
+    g.strokeStyle = '#555'; g.lineWidth = 3; g.strokeRect(26, 26, CW - 52, CH - 52);
+    g.fillStyle = '#404040';
+    draw(g, CW, CH, (t, x, y) => g.fillText(t, x, y));
+  }
+  const hd = height.getContext('2d').getImageData(0, 0, CW, CH).data;
+  const nrm = ctx.textures.canvas(`gallery:plaqueN:${text}`, CW, CH, (g, cw, ch) => {
+    const img = g.createImageData(cw, ch);
+    const H = (x, y) => hd[(Math.min(ch - 1, Math.max(0, y)) * cw + Math.min(cw - 1, Math.max(0, x))) * 4] / 255;
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+      const dx = (H(x + 1, y) - H(x - 1, y)) * 2.2, dy = (H(x, y + 1) - H(x, y - 1)) * 2.2;
+      const l = Math.hypot(dx, dy, 1), i = (y * cw + x) * 4;
+      img.data[i] = (-dx / l * 0.5 + 0.5) * 255; img.data[i + 1] = (dy / l * 0.5 + 0.5) * 255; img.data[i + 2] = (1 / l * 0.5 + 0.5) * 255; img.data[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+  }, { tile: false, srgb: false });
+  nrm.colorSpace = THREE.NoColorSpace;
+  const tex = ctx.textures.canvas(`gallery:plaque2:${text}`, CW, CH, (g, cw, ch) => {
     const grd = g.createLinearGradient(0, 0, cw, ch);
-    grd.addColorStop(0, '#8a6a2c'); grd.addColorStop(0.5, '#c9a45a'); grd.addColorStop(1, '#7a5a22');
+    grd.addColorStop(0, '#9a7634'); grd.addColorStop(0.45, '#c8a256'); grd.addColorStop(1, '#86622a');
     g.fillStyle = grd; g.fillRect(0, 0, cw, ch);
-    g.strokeStyle = '#3a2a10'; g.lineWidth = 4; g.strokeRect(8, 8, cw - 16, ch - 16);
-    g.fillStyle = '#2a1c08'; g.font = `italic ${Math.round(ch * 0.42)}px Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(text, cw / 2, ch / 2 + 2);
+    // tarnish blooms toward the corners
+    let sd = 9; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 40; i++) { const x = rnd() * cw, y = rnd() * ch, r = 20 + rnd() * 90; const q = g.createRadialGradient(x, y, 0, x, y, r); q.addColorStop(0, 'rgba(60,40,15,0.25)'); q.addColorStop(1, 'rgba(60,40,15,0)'); g.fillStyle = q; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
+    g.strokeStyle = '#2a1c0a'; g.lineWidth = 3; g.strokeRect(26, 26, cw - 52, ch - 52);
+    g.fillStyle = '#120c06';
+    draw(g, cw, ch, (t, x, y) => g.fillText(t, x, y));
   }, { tile: false });
-  const m = new THREE.Mesh(new ctx.geometry.RoundedBoxGeometry(w, h, 0.006, 2, 0.002), new THREE.MeshStandardMaterial({ map: tex, metalness: 0.85, roughness: 0.35, name: 'plaque' }));
+  const rough = ctx.textures.canvas(`gallery:plaqueR:${text}`, CW, CH, (g, cw, ch) => {
+    g.fillStyle = '#5a5a5a'; g.fillRect(0, 0, cw, ch);
+    // brushed: fine horizontal streaks
+    let sd = 4; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 500; i++) { const y = rnd() * ch, v = 70 + rnd() * 50; g.strokeStyle = `rgba(${v},${v},${v},0.5)`; g.lineWidth = 1; g.beginPath(); g.moveTo(rnd() * cw * 0.3, y); g.lineTo(cw * (0.7 + rnd() * 0.3), y); g.stroke(); }
+    g.fillStyle = '#e0e0e0';
+    draw(g, cw, ch, (t, x, y) => g.fillText(t, x, y));
+  }, { tile: false, srgb: false });
+  rough.colorSpace = THREE.NoColorSpace;
+  const m = new THREE.Mesh(new ctx.geometry.RoundedBoxGeometry(w, h, 0.006, 2, 0.002), new THREE.MeshPhysicalMaterial({ map: tex, normalMap: nrm, normalScale: new THREE.Vector2(0.8, 0.8), roughnessMap: rough, metalness: 0.8, roughness: 0.55, envMapIntensity: 1.0, name: 'plaque' }));
   return m;
 }
 

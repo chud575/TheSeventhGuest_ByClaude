@@ -26,18 +26,18 @@ const N = 4;
 const SOLVED = Array.from({ length: N * N }, (_, i) => i);   // 15 = gap
 const GAP = N * N - 1;
 
-export function createSlidePuzzle(ctx, { material, backMaterial, edgeMaterial, trayMaterial, letterMaterial = null, tile = 0.2205, pitch = 0.224, depth = 0.0065, random, onSolvedCb, camera }) {
+export function createSlidePuzzle(ctx, { material, backMaterial, edgeMaterial, trayMaterial, letterMaterial = null, tile = 0.2205, pitch = 0.224, depth = 0.012, random, onSolvedCb, camera }) {
   const group = new THREE.Group();
   group.name = 'slidePuzzle';
   group.userData.dynamic = true;
 
   // ------------------------------------------------------------ tiles
-  // each piece is a real block of lacquered wood (5 mm, 1.5 mm rounded arris) with the painted
+  // each piece is a real gilded block (12 mm, 3 mm rounded arris) with the painted
   // face laid on its top; 2 mm grooves between pieces show the felt bed 8 mm below the faces.
   const tiles = [];
   const BED = -0.003;                                            // felt surface (tile backs rest on it)
   // 3.5 mm rounded arris all round: the lacquered bevel catches a light edge around every piece
-  const BEV = 0.0035;
+  const BEV = 0.003;
   const bodyGeo = new RoundedBoxGeometry(tile, tile, depth, 4, BEV);
   const shadowTex = ctx.textures.canvas('gallery:tileShadow2', 128, 128, (g, w, h) => {
     const img = g.createImageData(w, h);

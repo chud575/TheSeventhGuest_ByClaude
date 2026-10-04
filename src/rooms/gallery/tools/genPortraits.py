@@ -129,9 +129,10 @@ def paint_portrait(spec):
     bg = bgc[None, None, :] * (0.38 + 0.85 * halo[..., None]) * (0.82 + 0.36 * n1[..., None]) * (0.94 + 0.12 * n2[..., None])
     bg *= (1 - 0.55 * smoothstep(0.35, 1.0, v))[..., None]
     # brushy diagonal strokes in the ground
-    st = stretched_noise(H, W, 9, 60, spec['seed'] + 2)
-    st = Image.fromarray(st.astype(np.float32), 'F').rotate(28, resample=Image.BICUBIC, expand=False)
-    bg *= (0.93 + 0.14 * np.asarray(st))[..., None]
+    if not spec.get('painterly'):
+        st = stretched_noise(H, W, 9, 60, spec['seed'] + 2)
+        st = Image.fromarray(st.astype(np.float32), 'F').rotate(28, resample=Image.BICUBIC, expand=False)
+        bg *= (0.93 + 0.14 * np.asarray(st))[..., None]
     img = bg.copy()
 
     # ---- face placement
@@ -279,7 +280,15 @@ def paint_portrait(spec):
 
     if spec.get('extra'): img = spec['extra'](img, W, H, u, v)
 
-    img, bump = age_canvas(img, W, H, spec['seed'])
+    stroke_h = None
+    if spec.get('painterly'):
+        keep = np.zeros((H, W), np.float32)
+        for (ex, ey) in eyes:
+            px = fx0 + ex / 256 * fs; py = fy0 + ey / 256 * fs
+            keep = np.maximum(keep, np.exp(-(((xx - px) / (fs * 0.07)) ** 2 + ((yy - py) / (fs * 0.045)) ** 2)))
+        img, stroke_h = painterly(img, spec['seed'], spec['painterly'], keep)
+
+    img, bump = age_canvas(img, W, H, spec['seed'], stroke_h)
 
     # eye layout in UV (v up)
     eyes_uv = []
@@ -291,7 +300,67 @@ def paint_portrait(spec):
     return img, bump, {'left': eyes_uv[0], 'right': eyes_uv[1], 'radius': rad, 'iris': iris, 'aspect': W / H}
 
 
-def age_canvas(img, W, H, seed):
+def gblur(a, sigma):
+    """gaussian-ish blur: three box passes (float, any channel count)."""
+    if a.ndim == 3:
+        return np.stack([gblur(a[..., c], sigma) for c in range(a.shape[2])], -1)
+    r = max(1, int(round(sigma * 0.9)))
+    out = a.astype(np.float32)
+    for _ in range(3): out = box(out, r)
+    return out
+
+
+def painterly(ref, seed, sizes, keep):
+    """Re-paint the image in oil: layered brush strokes (coarse to fine) that follow the form
+    (structure-tensor orientation, i.e. along the isophotes), each stroke a flat loaded colour
+    sampled from the blurred reference, only where the canvas still differs from the reference.
+    Returns (painted, stroke height field for the impasto bump)."""
+    H, W = ref.shape[:2]
+    r = np.random.default_rng(seed + 500)
+    lum = ref @ np.array([0.3, 0.59, 0.11], np.float32)
+    L = gblur(lum, 2.5)
+    gx = np.zeros_like(L); gy = np.zeros_like(L)
+    gx[:, 1:-1] = L[:, 2:] - L[:, :-2]; gy[1:-1, :] = L[2:, :] - L[:-2, :]
+    jxx, jxy, jyy = gblur(gx * gx, 9), gblur(gx * gy, 9), gblur(gy * gy, 9)
+    theta = 0.5 * np.arctan2(2 * jxy, jxx - jyy) + np.pi / 2          # along the isophote
+    coher = np.sqrt((jxx - jyy) ** 2 + 4 * jxy ** 2) / (jxx + jyy + 1e-6)
+    canvas = gblur(ref, sizes[0] * 1.5)
+    hgt = np.full((H, W), 0.5, np.float32)
+    for li, rad in enumerate(sizes):
+        refb = gblur(ref, rad * 0.6)
+        err = np.abs(canvas - refb).sum(-1)
+        err = gblur(err, rad)
+        step = max(1.0, rad * 1.15)
+        ys, xs = np.mgrid[0:H:step, 0:W:step]
+        ys = (ys + r.random(ys.shape) * step).astype(int).clip(0, H - 1).ravel()
+        xs = (xs + r.random(xs.shape) * step).astype(int).clip(0, W - 1).ravel()
+        order = r.permutation(len(xs))
+        thr = 0.0 if li == 0 else 0.035
+        cim = to_img(canvas); cd = ImageDraw.Draw(cim)
+        him = Image.fromarray((hgt * 255).astype(np.uint8), 'L'); hd = ImageDraw.Draw(him)
+        for k in order:
+            x, y = xs[k], ys[k]
+            if err[y, x] < thr: continue
+            c = refb[y, x] * (0.96 + 0.08 * r.random()) + (r.random(3) - 0.5) * 0.012
+            c = tuple(int(v) for v in np.clip(c * 255, 0, 255))
+            a = theta[y, x] + (r.random() - 0.5) * 0.35 * (1.2 - min(1.0, coher[y, x]))
+            ln = rad * (1.6 + 2.6 * r.random()) * (0.7 + 0.8 * min(1.0, coher[y, x] * 2))
+            dx, dy = np.cos(a) * ln / 2, np.sin(a) * ln / 2
+            wdt = max(1, int(round(rad * (1.4 + 0.5 * r.random()))))
+            cd.line([(x - dx, y - dy), (x + dx, y + dy)], fill=c, width=wdt)
+            hv = int(120 + 120 * r.random())
+            hd.line([(x - dx, y - dy), (x + dx, y + dy)], fill=hv, width=max(1, wdt - 1))
+        canvas = np.asarray(cim, np.float32) / 255
+        hgt = np.asarray(him, np.float32) / 255
+        print('  painterly layer', rad, 'done')
+    canvas = gblur(canvas, 0.6)
+    # the eyes keep the reference's detail (the glazed final touches a painter would add)
+    k = np.clip(keep * 0.75, 0, 1)[..., None]
+    out = canvas * (1 - k) + ref * k
+    return np.clip(out, 0, 1), gblur(hgt, 0.8)
+
+
+def age_canvas(img, W, H, seed, stroke_h=None):
     yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
     lum = img @ np.array([0.3, 0.59, 0.11], np.float32)
     # brush texture: short strokes following a slowly rotating field
@@ -315,6 +384,7 @@ def age_canvas(img, W, H, seed):
     # height: impasto follows light paint, canvas weave, cracks
     hp = lum - np.asarray(to_img(np.stack([lum] * 3, -1)).filter(ImageFilter.GaussianBlur(6)).convert('L'), np.float32) / 255
     bump = 0.5 + 0.25 * hp + 0.12 * (weave - 0.5) + 0.06 * (weave_c - 0.5) + 0.06 * (strokes - 0.5) - 0.25 * crack
+    if stroke_h is not None: bump = bump + 0.35 * (stroke_h - 0.5)
     return np.clip(img, 0, 1), np.clip(bump, 0, 1)
 
 
@@ -339,47 +409,34 @@ def _scroll(d, cx, cy, sx, sy, scale, gold, dark):
 
 
 def toymaker_extra(img, W, H, u, v):
-    """one coherent oil portrait: deepened ground toward the corners, and only a faint
-    gilt-lettered band along the bottom edge (so only the bottom row of tiles carries text)."""
+    """the master's likeness: a deep umber ground falling to near-black at the corners, a cold
+    rim of light on the shadow side of the head, a warm glow behind it. (No lettering on the
+    canvas: the name is on a separate engraved brass plaque.)"""
     yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
-    band_y = int(H * 0.885)
-    # darken the corners like a feigned oval, but painterly and soft (no hard ring)
-    r = np.sqrt(((xx / W - 0.5) / 0.56) ** 2 + ((yy / band_y - 0.47) / 0.6) ** 2)
-    vig = 1 - 0.3 * smoothstep(0.8, 1.2, r + 0.08 * (noise(H, W, 60, 71) - 0.5))
-    # lift the umber ground so every piece of the scrambled board carries readable paint
-    out = np.clip(img * vig[..., None] * 1.25 + np.array([0.05, 0.036, 0.022]), 0, 1)
-    pil = to_img(out); d = ImageDraw.Draw(pil, 'RGBA')
-    # inscription band: dark brown bole with two worn gilt fillets and faded letters
-    d.rectangle([0, band_y, W, H], fill=(28, 18, 11, 255))
-    d.line([0, band_y + 5, W, band_y + 5], fill=(150, 112, 52, 255), width=4)
-    d.line([0, H - 10, W, H - 10], fill=(120, 90, 40, 255), width=3)
-    try:
-        f2 = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf', 44)
-    except Exception:
-        f2 = ImageFont.load_default()
-    d.text((W / 2, band_y + (H - band_y) / 2 + 3), 'HENRY  STAUF   ·   MDCCCLXXXIX', font=f2, fill=(222, 178, 92, 255), anchor='mm')
-    res = np.asarray(pil, np.float32) / 255
-    # wear the gilt: rub some of the letters back to bole
-    wear = smoothstep(0.55, 0.75, noise(H, W, 24, 72, 3))[..., None]
-    band = (yy >= band_y)[..., None]
-    res = np.where(band, res * (1 - 0.3 * wear) + np.array([0.11, 0.07, 0.045]) * 0.3 * wear, res)
-    m = band.astype(np.float32)
-    soft = np.asarray(to_img(res).filter(ImageFilter.GaussianBlur(0.8)), np.float32) / 255
-    res = res * (1 - m) + soft * m
-    return np.clip(res, 0, 1)
+    r = np.sqrt(((xx / W - 0.5) / 0.55) ** 2 + ((yy / H - 0.42) / 0.62) ** 2)
+    vig = 1 - 0.4 * smoothstep(0.85, 1.35, r + 0.1 * (noise(H, W, 90, 71) - 0.5))
+    # the ground is lifted to a warm, scumbled umber so every scrambled piece of the board still
+    # carries readable paint (brushwork, a glow behind the head), not a black square
+    scum = (0.85 + 0.3 * noise(H, W, 70, 73))[..., None]
+    lum = img @ np.array([0.3, 0.59, 0.11], np.float32)
+    dark = smoothstep(0.16, 0.03, lum)[..., None]
+    ground = np.array([0.2, 0.135, 0.085]) * scum * (0.65 + 0.6 * np.exp(-(((u - 0.45) / 0.45) ** 2 + ((v - 0.35) / 0.42) ** 2)))[..., None]
+    img = img * (1 - dark * 0.8) + np.maximum(img, ground) * dark * 0.8
+    glow = np.exp(-(((u - 0.4) / 0.35) ** 2 + ((v - 0.3) / 0.3) ** 2))[..., None] * np.array([0.07, 0.045, 0.02])
+    return np.clip(img * vig[..., None] + glow, 0, 1)
 
 
 # ----------------------------------------------------------------------------- specs
 SPECS = {
     'lady':    dict(face='s0', H=1314, seed=11, faceW=0.58, faceY=0.1, coat=(30, 46, 98), sheen=0.6, skin=(214, 178, 150), lace=True, pearls=True, oval=(22, 16, 12), shoulderW=0.52, cropFade=0.94),
     'colonel': dict(face='v9_2', H=1306, seed=23, faceW=0.6, faceY=0.08, coat=(74, 14, 13), sheen=0.3, collar=0.16, collarCol=(30, 26, 22), buttons=4, shoulderW=0.56, shoulder=0.95),
-    'elder':   dict(face='s8', H=1314, seed=37, coat=(24, 27, 40), faceW=0.6, faceY=0.08, shirt=True, shirtW=0.15, shirtDepth=0.18, cravat=(225, 220, 205), shoulderW=0.55),
+    'elder':   dict(face='v8_4', H=1314, seed=37, coat=(24, 27, 40), faceW=0.6, faceY=0.08, shirt=True, shirtW=0.15, shirtDepth=0.18, cravat=(225, 220, 205), shoulderW=0.55, bgMul=0.55, painterly=(9, 5, 2.6)),
     'child':   dict(face='s6', H=1331, seed=41, faceW=0.62, faceY=0.12, coat=(70, 84, 104), collar=0.2, oval=(18, 14, 12), shoulderW=0.46),
     'widow':   dict(face='v3_7', H=1314, seed=53, faceW=0.58, faceY=0.1, coat=(14, 13, 15), sheen=0.5, brooch=True, collar=0.14, shoulderW=0.5),
     'belle':   dict(face='m4', H=1314, seed=71, faceW=0.58, faceY=0.1, coat=(28, 58, 44), sheen=0.6, skin=(220, 190, 170), lace=True, oval=(20, 16, 12), shoulderW=0.5, cropFade=0.94),
     'poet':    dict(face='s3', H=1306, seed=83, faceW=0.6, faceY=0.09, coat=(58, 40, 26), sheen=0.3, collar=0.16, collarCol=(36, 26, 18), shoulderW=0.54),
     'doctor':  dict(face='v1_2', H=1306, seed=97, faceW=0.6, faceY=0.08, coat=(18, 18, 22), sheen=0.4, collar=0.15, collarCol=(26, 24, 22), buttons=3, shoulderW=0.56, shoulder=0.95),
-    'toymaker': dict(face='v8_4', W=1024, H=1024, seed=67, faceW=0.8, faceY=0.1, coat=(22, 20, 18), shirt=True, shirtW=0.12, shirtDepth=0.12, cravat=(46, 24, 30), shoulderW=0.56, shoulder=0.92, extra=toymaker_extra, bgMul=0.78, maskInset=(0.13, 0.1), maskBlur=0.075),
+    'toymaker': dict(face='s8', W=2048, H=2048, seed=67, faceW=0.74, faceY=0.06, coat=(40, 31, 27), sheen=0.5, shoulderW=0.6, shoulder=0.95, extra=toymaker_extra, bgMul=0.9, maskInset=(0.04, 0.0), maskBlur=0.09, cropFade=0.8, painterly=(16, 8, 4.2, 2.4)),
 }
 
 

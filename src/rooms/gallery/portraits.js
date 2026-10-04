@@ -28,7 +28,7 @@ export async function makePortraitMaterial(ctx, name) {
   const [map, bump] = await Promise.all([loadTex(ctx, `${name}.jpg`, true), loadTex(ctx, `${name}_bump.png`, false)]);
   const mat = new THREE.MeshPhysicalMaterial({
     map, bumpMap: bump, bumpScale: 1.2,
-    roughness: 0.62, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.35, envMapIntensity: 0.55,
+    roughness: 0.72, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.5, envMapIntensity: 0.45,
     emissiveMap: map, emissive: new THREE.Color(0.045, 0.04, 0.035), emissiveIntensity: 1,
     name: `portrait:${name}`,
   });

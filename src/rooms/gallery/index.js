@@ -60,7 +60,7 @@ export default {
       soffit: M.create('gilded', { pattern: 2, repeats: 4, ground: 1, groundColor: [0.05, 0.06, 0.12], wear: 0.4, dirt: 0.6, repeat: [1 / 0.9, 1] }),
       giltFrame: M.create('gold', { wear: 0.5, dirt: 0.6, repeat: [2, 1], color: new THREE.Color(0.9, 0.82, 0.7), roughness: 1.4, envMapIntensity: 0.6 }),
       gilt: giltMaterial(ctx),
-      felt: M.create('velvet', { color: [0.03, 0.09, 0.05], crush: 0.3, repeat: [6, 6] }),
+      felt: M.create('velvet', { color: [0.05, 0.15, 0.08], crush: 0.3, repeat: [6, 6] }),
       giltPlain: M.create('gold', { wear: 0.5, dirt: 0.55, repeat: [2, 1], roughness: 1.35, envMapIntensity: 0.65 }),
       giltCap: M.create('gold', { wear: 0.3, dirt: 0.4, repeat: [3, 3], roughness: 1.3, envMapIntensity: 0.65 }),
       brass: M.create('brass', { tarnish: 0.45, polish: 0.6, repeat: [3, 3], roughness: 1.25, envMapIntensity: 0.7 }),
@@ -80,6 +80,8 @@ export default {
       deadMantle: new THREE.MeshStandardMaterial({ color: 0x8a8478, roughness: 0.9, name: 'deadMantle' }),
       lanternGlass: new THREE.MeshStandardMaterial({ color: 0x302010, emissive: new THREE.Color(1.0, 0.6, 0.28), emissiveIntensity: 0.55, roughness: 0.2, metalness: 0, transparent: true, opacity: 0.55, depthWrite: false, name: 'lanternGlass' }),
     };
+    // old crown glass: the sconce flames should not print as pin-point dots on the panes
+    mat.glass.clearcoatRoughness = 0.35; mat.glass.roughness = Math.max(mat.glass.roughness ?? 0, 0.3);
     {
       const mt = mahoganyTexture(ctx).withRepeat(1 / 0.5, 1 / 1.0);
       mat.doorWood = new THREE.MeshPhysicalMaterial({ map: mt.map, normalMap: mt.normalMap, roughnessMap: mt.roughnessMap, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 1, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.3, color: new THREE.Color(1.1, 1.0, 1.0), name: 'doorMahogany' });
@@ -87,6 +89,8 @@ export default {
       mat.clockWood = mat.doorWood.clone();
       mat.clockWood.clearcoat = 0.6; mat.clockWood.clearcoatRoughness = 0.2; mat.clockWood.color.setRGB(1.5, 1.3, 1.25); mat.clockWood.name = 'clockMahogany';
       const lt = mahoganyTexture(ctx).withRepeat(4, 4);
+      // tile bodies: gilded gesso blocks, so every bevel catches a thin line of candlelight
+      mat.tileGilt = M.create('gold', { wear: 0.55, dirt: 0.5, repeat: [8, 8], color: new THREE.Color(0.85, 0.7, 0.5), roughness: 1.2, envMapIntensity: 0.9 });
       mat.tileLacquer = new THREE.MeshPhysicalMaterial({ map: lt.map, normalMap: lt.normalMap, normalScale: new THREE.Vector2(0.2, 0.2), roughness: 0.55, metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.35, color: new THREE.Color(0.55, 0.42, 0.36), envMapIntensity: 0.5, name: 'tileLacquer' });
     }
     // sconce jet positions (needed for soot on the wallpaper): pilaster face + bracket reach
@@ -510,8 +514,10 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
       const fr = makeGiltFrame(ctx, mat, mat.black, 0.93, 0.93, { fw: 0.12 });
       fr.canvas.visible = false;
       fr.group.position.set(0, 0.0, 0.03); panel.add(fr.group);
-      const plaque = makePlaque(ctx, mat, 'The Toymaker', 0.34, 0.07);
-      plaque.position.set(0, -0.67, 0.04); panel.add(plaque);
+      const plaque = makePlaque(ctx, mat, 'HENRY STAUF\nToymaker  ·  MDCCCLXXXIX', 0.44, 0.095);
+      plaque.position.set(0, -0.685, 0.035);
+      // a little hooded lamp-glow falls on the plate from the panel's lower rail
+      const pl = new THREE.PointLight(0xffb070, 0.35, 0.9, 2); pl.position.set(0, -0.52, 0.3); panel.add(pl); panel.add(plaque);
     }
     mount(panel, -1, PUZZLE.z, PUZZLE.y, 0.025);
     root.add(panel);
@@ -519,12 +525,27 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
     for (const s of [-1, 1]) {
       const G = ctx.geometry;
       const gir = new THREE.Group();
-      // pierced, scalloped backplate (chased rosette with a ring of cut-outs) + a domed boss
-      const sh = new THREE.Shape();
-      for (let i = 0; i <= 96; i++) { const th = (i / 96) * Math.PI * 2, r = 0.042 * (1 + 0.1 * Math.cos(th * 10)); const x = Math.cos(th) * r, y = Math.sin(th) * r * 1.6; i ? sh.lineTo(x, y) : sh.moveTo(x, y); }
-      for (let k = 0; k < 10; k++) { const th = (k / 10) * Math.PI * 2 + Math.PI / 10; const hp = new THREE.Path(); hp.absellipse(Math.cos(th) * 0.029, Math.sin(th) * 0.029 * 1.6, 0.0045, 0.007, 0, Math.PI * 2, true); sh.holes.push(hp); }
-      const plate = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.004, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 2, curveSegments: 6 }), mat.brass);
+      // cast-brass cartouche backplate: a finial at the top, C-scroll shoulders, a waisted body and a
+      // pendant drop, with a raised moulded rim (second, smaller plate) and a domed boss
+      const cart = (k) => {
+        const sh = new THREE.Shape();
+        sh.moveTo(0, 0.085 * k);
+        sh.bezierCurveTo(0.012 * k, 0.07 * k, 0.012 * k, 0.062 * k, 0.03 * k, 0.058 * k);
+        sh.bezierCurveTo(0.05 * k, 0.055 * k, 0.05 * k, 0.03 * k, 0.034 * k, 0.03 * k);
+        sh.bezierCurveTo(0.026 * k, 0.012 * k, 0.04 * k, -0.01 * k, 0.036 * k, -0.03 * k);
+        sh.bezierCurveTo(0.032 * k, -0.055 * k, 0.014 * k, -0.06 * k, 0.01 * k, -0.075 * k);
+        sh.bezierCurveTo(0.008 * k, -0.09 * k, 0.0, -0.095 * k, 0.0, -0.1 * k);
+        sh.bezierCurveTo(0.0, -0.095 * k, -0.008 * k, -0.09 * k, -0.01 * k, -0.075 * k);
+        sh.bezierCurveTo(-0.014 * k, -0.06 * k, -0.032 * k, -0.055 * k, -0.036 * k, -0.03 * k);
+        sh.bezierCurveTo(-0.04 * k, -0.01 * k, -0.026 * k, 0.012 * k, -0.034 * k, 0.03 * k);
+        sh.bezierCurveTo(-0.05 * k, 0.03 * k, -0.05 * k, 0.055 * k, -0.03 * k, 0.058 * k);
+        sh.bezierCurveTo(-0.012 * k, 0.062 * k, -0.012 * k, 0.07 * k, 0, 0.085 * k);
+        return sh;
+      };
+      const plate = new THREE.Mesh(new THREE.ExtrudeGeometry(cart(1), { depth: 0.003, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 3, curveSegments: 12 }), mat.brass);
       gir.add(plate);
+      const inner = new THREE.Mesh(new THREE.ExtrudeGeometry(cart(0.72), { depth: 0.002, bevelEnabled: true, bevelThickness: 0.0025, bevelSize: 0.002, bevelSegments: 3, curveSegments: 12 }), mat.brass);
+      inner.position.z = 0.004; gir.add(inner);
       const boss = new THREE.Mesh(G.latheFromProfile([[0, 0.016], [0.01, 0.014], [0.017, 0.008], [0.02, 0], [0, 0]], 16), mat.brass);
       boss.rotation.x = Math.PI / 2; boss.position.z = 0.004; gir.add(boss);
       const curve = new THREE.CatmullRomCurve3([V3(0, 0, 0.015), V3(0, -0.06, 0.08), V3(0, -0.02, 0.15), V3(0, 0.03, 0.17)]);
@@ -559,7 +580,7 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
     const slide = createSlidePuzzle(ctx, {
       material: toyMat,
       backMaterial: mat.felt,
-      edgeMaterial: mat.tileLacquer,
+      edgeMaterial: mat.tileGilt,
       trayMaterial: mat.doorWood,
       random: ctx.random.fork('gallery-slide'),
       camera: { position: [X0 + 1.7, PUZZLE.y - 0.02, PUZZLE.z], target: [X0, PUZZLE.y - 0.02, PUZZLE.z], fov: 40 },
@@ -576,7 +597,7 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
     function applySolved(animate) {
       ctx.state.set('gallery.atticOpen', true);
       solvedFx = animate ? 0.001 : 1;
-      if (!animate) { atticHinge.rotation.y = -0.55; toyMat.userData.eyes.uGlow.value = 0.6; slide.forceSolved(); }
+      if (!animate) { atticHinge.rotation.y = -0.55; toyMat.userData.eyes.uGlow.value = 0.32; slide.forceSolved(); }
       else slide.revealSolved();
     }
     // review hook: ?gsolved=1 in shot mode renders the room as it looks after the puzzle
@@ -617,6 +638,9 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
     root.add(moon, moon.target);
     // a whisper of cold sky fill so the blacks are not dead (was two hemisphere lights at 1.55 total)
     root.add(new THREE.HemisphereLight(0x30587e, 0x120c0a, 0.12));
+    // bounce: the gas jets' warmth off the boards and runner and the cold sky off the ceiling keep
+    // the wainscot, doors and chair rails readable in deep shadow instead of falling to pure black
+    root.add(new THREE.HemisphereLight(0x22304e, 0x2a160c, 0.32));
     // the moon pool on the boards bounces a little cold light back up at the far ceiling and the clock
     root.add(fx.areaLight({ center: [0, 0.03, -6.9], normal: [0, 1, 0.15], width: 1.6, height: 2.2, color: 0x6c88b0, intensity: 1.2 }));
     // the window itself: a broad cold panel that models the curtains, jambs and window seat
@@ -715,7 +739,7 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
       const tlm = new THREE.Mesh(new THREE.PlaneGeometry(9, 4.5), new THREE.MeshBasicMaterial({ map: tl.map, transparent: true, alphaTest: 0.02, color: new THREE.Color(1.3, 1.3, 1.5), name: 'treeLine' }));
       tlm.position.set(0.4, 1.3, Z0 - 5.0); tlm.userData.noShadow = true; tlm.name = 'treeLine'; root.add(tlm);
       const br = branchCard(ctx);
-      const brm = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), new THREE.MeshBasicMaterial({ map: br.map, transparent: true, alphaTest: 0.05, name: 'branch' }));
+      const brm = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), new THREE.MeshBasicMaterial({ map: br.map, transparent: true, depthWrite: false, opacity: 0.8, name: 'branch' }));
       const pivot = new THREE.Group(); pivot.position.set(-1.6, 3.9, Z0 - 1.5); pivot.userData.dynamic = true;
       brm.position.set(1.3, -1.3, 0); brm.userData.noShadow = true; brm.name = 'branch'; pivot.add(brm); root.add(pivot);
       ctx.onUpdate((dt, t) => { pivot.rotation.z = Math.sin(t * 0.6) * 0.025 + Math.sin(t * 1.7) * 0.008; });
@@ -835,7 +859,7 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
         await ctx.say({ text: 'She walks the gallery every night, looking for the child she lost. She never looks *up*.', speaker: 'stauf', speakerName: 'Stauf' });
         await h.wait(0.4);
         ghostBoost = 0;
-        ctx.post.set({ saturation: 1.05, vignette: 0.48 }, 1.2);   // back to the room's own grade
+        ctx.post.set({ saturation: 1.0, vignette: 0.48 }, 1.2);   // back to the room's own grade
         await ctx.nav.returnToNode(1.0);
       }) },
       { id: 'console', nodes: ['portraits', 'gamedoor', 'far'], box: consoleBox, cursor: 'examine', label: 'A console table', onActivate: examine('Dried Roses', 'Roses dried in a blue jar, black at the edges, beside an empty birdcage. In the mirror above, the hall behind you looks a little longer than it should.') },
@@ -879,7 +903,7 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
       scene: root,
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
-      grade: { exposure: 1.85, contrast: 1.12, saturation: 1.05, shadowTint: [0.86, 0.99, 1.1], splitAmount: 0.55, lift: [0.0, 0.004, 0.008], bloomStrength: 0.3, bloomThreshold: 1.35, godRayWeight: 0.35, godRayThreshold: 2.5, vignette: 0.48, aoIntensity: 1.1, aoRadius: 0.4, grain: 0.025 },
+      grade: { exposure: 1.85, contrast: 1.06, saturation: 1.0, shadowTint: [0.86, 0.99, 1.1], splitAmount: 0.55, lift: [0.012, 0.016, 0.026], bloomStrength: 0.22, bloomThreshold: 2.2, godRayWeight: 0.2, godRayThreshold: 2.5, vignette: 0.48, aoIntensity: 1.1, aoRadius: 0.4, grain: 0.025 },
       environment: { position: [0.0, 1.7, 0.4], intensity: 0.8 },
       onEnter() {
         if (!ctx.state.has('gallery.greeted')) {
@@ -895,8 +919,8 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
           // the moonlit end gets its own, harder grade: deeper blacks, neutral-teal shadows
           const cold = ['far', 'attic'].includes(nid);
           ctx.post.set({
-            godRayWeight: ['main', 'far', 'attic'].includes(nid) ? 0.35 : 0.0,
-            exposure: cold ? 1.6 : 1.85, contrast: cold ? 1.2 : 1.12,
+            godRayWeight: ['main', 'far', 'attic'].includes(nid) ? 0.2 : 0.0,
+            exposure: cold ? 1.65 : 1.85, contrast: cold ? 1.1 : 1.06,
             shadowTint: cold ? [0.9, 1.0, 1.04] : [0.86, 0.99, 1.1],
           }, rayNode ? 0.8 : 0);
           rayNode = nid;
@@ -908,7 +932,9 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
           const e = solvedFx * solvedFx * (3 - 2 * solvedFx);
           atticHinge.rotation.y = -0.55 * e;
           // the eyes kindle in pulses as the face closes up, then hold a steady ember
-          toyMat.userData.eyes.uGlow.value = 0.6 * e + Math.max(0, Math.sin(t * 6)) * 0.5 * (1 - e);
+          // (they wait until the seams have closed, then kindle slowly)
+          const g = THREE.MathUtils.smoothstep(solvedFx, 0.55, 1.0);
+          toyMat.userData.eyes.uGlow.value = 0.32 * g + Math.max(0, Math.sin(t * 6)) * 0.35 * g * (1 - g);
         }
       },
       dispose() { const d = window.__debug; if (d) { delete d.gallery; if (d.solvers) delete d.solvers.gallery; if (d.states) delete d.states.gallery; } },

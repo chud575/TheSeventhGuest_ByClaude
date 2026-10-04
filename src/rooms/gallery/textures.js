@@ -206,23 +206,13 @@ export function treeLine(ctx) {
       float hill = 0.22 + 0.06 * sin(p.x * 3.0 + 1.0) + 0.02 * fbm(vec2(p.x * 3.0, 0.0), vec2(3.0, 1.0), 4);
       // tree crowns: bumpy upper edge, ragged with fine noise
       float crowns = hill + 0.08 + 0.1 * pow(abs(fbm(vec2(p.x * 9.0, 0.5), vec2(9.0, 1.0), 5)), 0.8) + 0.02 * fbm(p * vec2(60.0, 40.0), vec2(60.0, 40.0), 3);
+      // (no thin bare trunks here: at the window's distance they read as hairs on the glass)
       float bare = 0.0;
-      // a few tall bare trees with branching tops
-      for (int i = 0; i < 6; i++) {
-        float fi = float(i);
-        float x0 = 0.08 + fi * 0.17 + 0.03 * sin(fi * 7.1);
-        float h = 0.55 + 0.25 * fract(sin(fi * 3.7) * 43.1);
-        float dx = p.x - x0 - 0.01 * sin(p.y * 30.0 + fi);
-        float trunk = step(abs(dx), 0.004 * (1.2 - p.y)) * step(p.y, h);
-        float twig = smoothstep(0.62, 0.7, fbm(vec2(dx * 30.0, p.y * 18.0 + fi), vec2(30.0, 18.0), 4) * 0.5 + 0.5);
-        float crown = twig * smoothstep(0.12, 0.0, abs(dx)) * step(h - 0.28, p.y) * step(p.y, h + 0.04);
-        bare = max(bare, max(trunk, crown));
-      }
       float spire = step(abs(p.x - 0.78), 0.008 * (1.0 - (p.y - 0.25) * 2.2)) * step(p.y, 0.68);
       float chapel = step(abs(p.x - 0.78), 0.05) * step(p.y, 0.36);
       float a = max(max(step(p.y, crowns), bare), max(spire, chapel));
       float win = step(abs(p.x - 0.765), 0.006) * step(abs(p.y - 0.31), 0.012);
-      s.albedo = mix(vec3(0.01, 0.012, 0.022), vec3(0.03, 0.04, 0.07), smoothstep(0.0, 0.5, p.y)) + vec3(0.9, 0.6, 0.25) * win * 2.0;
+      s.albedo = mix(vec3(0.012, 0.016, 0.03), vec3(0.05, 0.065, 0.11), smoothstep(0.0, 0.5, p.y)) + vec3(0.9, 0.6, 0.25) * win * 0.8;
       s.alpha = a;
       s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
     }`,
@@ -253,8 +243,8 @@ export function branchCard(ctx) {
       d = min(d, seg(p, vec2(0.75, 0.66), vec2(0.82, 0.8), 0.004, 0.001));
       // twig clutter near the tips
       float tw = smoothstep(0.66, 0.72, fbm(p * vec2(26.0, 30.0), vec2(26.0, 30.0), 4) * 0.5 + 0.5) * smoothstep(0.12, 0.0, d) * step(0.3, p.x);
-      float a1 = max(smoothstep(0.0015, -0.0015, d), tw);
-      s.albedo = vec3(0.006, 0.007, 0.012);
+      float a1 = smoothstep(0.007, -0.005, d) * 0.85 + tw * 0.0;
+      s.albedo = vec3(0.025, 0.032, 0.055);
       s.alpha = a1;
       s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
     }`,
