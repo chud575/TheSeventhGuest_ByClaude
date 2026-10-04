@@ -522,13 +522,13 @@ void surface(vec2 uv, inout Surface s) {
   float e = min(min(f.x, 1.0 - f.x) * 0.5, min(f.y, 1.0 - f.y) * 0.25) ;
   float n = fbm(uv * vec2(6.0, 9.0), vec2(6.0, 9.0), 6);
   float fern = abs(fbm(uv * vec2(18.0, 28.0) + n, vec2(18.0, 28.0), 4));
-  float edge = smoothstep(0.07 + 0.05 * n, 0.0, e);
-  float corner = smoothstep(0.16, 0.0, length(min(f, 1.0 - f) * vec2(0.5, 0.25)) - 0.02 * n);
+  float edge = smoothstep(0.035 + 0.03 * n, 0.0, e);
+  float corner = smoothstep(0.09, 0.0, length(min(f, 1.0 - f) * vec2(0.5, 0.25)) - 0.015 * n);
   float a = clamp(max(edge, corner) * (0.55 + 0.6 * smoothstep(0.05, 0.3, fern)), 0.0, 1.0);
   // faint condensation haze over the lower panes
   a = max(a, 0.12 * smoothstep(0.5, 0.0, uv.y) * (0.6 + 0.4 * n));
   s.albedo = vec3(0.85, 0.9, 1.0);
-  s.alpha = a * 0.75;
+  s.alpha = a * 0.55;
   s.height = 0.5; s.rough = 0.6; s.metal = 0.0; s.ao = 1.0;
 }`,
   });
@@ -607,10 +607,12 @@ void surface(vec2 uv, inout Surface s) {
   vec3 sky = mix(vec3(0.07, 0.09, 0.15), vec3(0.2, 0.25, 0.36), smoothstep(0.1, 0.95, p.y));
   sky = mix(vec3(0.17, 0.2, 0.28), sky, smoothstep(0.0, 0.35, p.y));          // brighter haze toward the horizon
   sky += vec3(0.55, 0.6, 0.72) * exp(-md * 6.0) * 0.7 + vec3(0.3, 0.34, 0.42) * exp(-md * 2.2) * 0.25;
-  float cl = fbm(p * vec2(1.3, 3.6) + vec2(0.3, 0.1) + vec2(0.1 * fbm(p * vec2(2.0, 5.0), vec2(16.0), 2), 0.0), vec2(16.0, 16.0), 4);
-  float cov = smoothstep(-0.05, 0.35, cl) * smoothstep(0.2, 0.55, p.y);
-  sky = mix(sky, sky * 0.55 + vec3(0.025, 0.03, 0.045), cov * 0.75);
-  sky += vec3(0.7, 0.74, 0.82) * smoothstep(0.14, 0.0, abs(cl - 0.04)) * exp(-md * 3.2) * 0.55;   // silver linings
+  // soft stratocumulus: value-noise fbm stretched along the horizon, thin enough near the moon to glow through
+  float cl = fbmv(p + vec2(0.0, 0.08 * fbmv(p, vec2(2.0, 4.0), 3)), vec2(3.0, 9.0), 5);
+  float cov = smoothstep(0.42, 0.72, cl) * smoothstep(0.18, 0.5, p.y);
+  float glow = exp(-md * 3.0);
+  vec3 cloud = mix(vec3(0.05, 0.06, 0.09), vec3(0.55, 0.6, 0.7), glow * (0.4 + 0.6 * smoothstep(0.72, 0.45, cl)));
+  sky = mix(sky, cloud, cov * 0.8);
   vec2 g = p * vec2(140.0, 116.0); vec2 id = floor(g); vec2 f = fract(g) - 0.5;
   float st = smoothstep(0.12, 0.0, length(f - (hash22(id) - 0.5) * 0.6)) * step(0.93, hash12(id + 1.7)) * (1.0 - cov) * smoothstep(0.35, 0.7, p.y);
   sky += vec3(0.8, 0.85, 1.0) * st * 0.5;
@@ -627,16 +629,12 @@ export function treelineTexture(forge) {
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   float x = uv.x;
-  float ridge = 0.42 + 0.12 * fbmv(vec2(x * 3.0, 0.0), vec2(64.0), 4);
-  // individual crowns: spiky conifers and rounded bare crowns along the ridge
-  // lumpy canopy of bare crowns, a few taller dark firs standing out of it
-  float cr = 0.1 * fbmv(vec2(x * 28.0, 0.5), vec2(1024.0), 4) + 0.05 * fbmv(vec2(x * 90.0, 2.5), vec2(1024.0), 3);
-  vec2 g = vec2(x * 22.0, 0.0); float c = fract(g.x) - 0.5; float pick = step(0.72, hash12(vec2(floor(g.x), 3.0)));
-  float fir = pick * max(0.0, 0.16 * (1.0 - abs(c) * 7.0 * (1.0 + 0.6 * (1.0 - smoothstep(0.0, 1.0, abs(c) * 7.0)))));
-  float top = ridge + cr * 1.6 + 0.012 * fbm(vec2(x * 260.0, uv.y * 40.0), vec2(1024.0), 3);
-  float a = smoothstep(0.004, -0.006, uv.y - top);
-  float mist = smoothstep(0.42, 0.0, uv.y);                 // ground mist eats the foot of the woods
-  s.albedo = mix(vec3(0.06, 0.075, 0.11), vec3(0.2, 0.23, 0.31), mist);
+  float ridge = 0.34 + 0.1 * fbmv(vec2(x, 0.0), vec2(3.0, 1.0), 4);
+  // rounded canopy of bare crowns (a few per metre of card), no pixel-scale spikes
+  float top = ridge + 0.13 * fbmv(vec2(x, 0.5), vec2(60.0, 1.0), 4) + 0.04 * fbmv(vec2(x, 0.25), vec2(170.0, 1.0), 2);
+  float a = smoothstep(0.006, -0.01, uv.y - top) * (0.85 + 0.15 * smoothstep(0.0, 0.03, top - uv.y));
+  float mist = smoothstep(0.3, 0.0, uv.y);                  // ground mist eats the foot of the woods
+  s.albedo = mix(vec3(0.045, 0.055, 0.08), vec3(0.16, 0.19, 0.26), mist);
   s.alpha = a;
   s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
 }`,
@@ -705,8 +703,8 @@ export function snowFieldTexture(forge) {
     size: 1024, normalStrength: 0.8,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
-  float rip = fbmv(uv * vec2(3.0, 9.0), vec2(3.0, 9.0), 5);
-  float st = fbmv(uv * vec2(1.5, 30.0) + rip, vec2(1.5, 30.0), 3);
+  float rip = fbmv(uv, vec2(3.0, 9.0), 5);
+  float st = fbmv(uv + vec2(rip * 0.05, 0.0), vec2(2.0, 30.0), 3);
   vec2 g = uv * 260.0; vec2 id = floor(g); vec2 f = fract(g) - 0.5;
   float glint = smoothstep(0.16, 0.0, length(f - (hash22(id) - 0.5) * 0.6)) * step(0.965, hash12(id + 5.3));
   s.albedo = vec3(0.78, 0.82, 0.9) * (0.86 + 0.14 * rip) + glint * 0.5;
@@ -812,14 +810,14 @@ void surface(vec2 uv, inout Surface s) {
   float top = smoothstep(0.92, 0.935, p.y) * (1.0 - 0.5 * smoothstep(0.96, 1.0, p.y));
   float H = max(max(h, ed), max(br, top));
   float raised = smoothstep(0.02, 0.12, H);
-  float wear = fbm(uv * 30.0, vec2(30.0 * ASP, 30.0), 4);
+  float wear = fbm(uv, vec2(34.0, 30.0), 4);
   vec3 gold = mix(vec3(0.7, 0.52, 0.24), vec3(0.95, 0.76, 0.42), smoothstep(0.3, 1.0, H)) * (0.9 + 0.15 * wear);
-  vec3 ground = vec3(0.05, 0.065, 0.12) * (0.85 + 0.3 * wear);
+  vec3 ground = vec3(0.13, 0.11, 0.075) * (0.85 + 0.3 * wear);
   float cav = max(sh, eds) * (1.0 - raised);
   s.albedo = mix(ground * (1.0 - 0.5 * cav), gold * (0.8 + 0.2 * H), raised);
   s.height = 0.25 + 0.6 * H;
-  s.metal = raised;
-  s.rough = mix(0.8, 0.32 + 0.2 * (1.0 - H), raised);
+  s.metal = mix(0.6, 1.0, raised);
+  s.rough = mix(0.6, 0.3 + 0.2 * (1.0 - H), raised);
   s.ao = mix(1.0 - 0.6 * cav, 0.65 + 0.35 * H, raised);
 }`,
   });

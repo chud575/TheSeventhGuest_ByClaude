@@ -200,7 +200,7 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
     m.castShadow = true; m.receiveShadow = true;
     m.userData.cell = c.i;
     // cream bead piping along rim edges + a few along the base
-    const beads = [], drips = [], rosettes = [];
+    const beads = [], drips = [], rosettes = [], lips = [];
     c.outer.forEach((o, k) => {
       if (!o) return;
       const a = P[k], b = P[(k + 1) % 3];
@@ -234,11 +234,16 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
       const n = Math.max(2, Math.round(a.distanceTo(b) / 0.021));
       for (let i = 0; i < n; i++) {
         const t = (i + 0.5) / n;
-        const rg = rosRimG.clone(); rg.rotateY(i * 1.3 + c.i); rg.scale(0.95, 0.85 + 0.15 * ((i + c.i) % 2), 0.95);
+        const rg = rosRimG.clone(); rg.rotateY(i * 1.3 + c.i); rg.scale(1.3, 1.15 + 0.15 * ((i + c.i) % 2), 1.3);
         const ix = a.x + (b.x - a.x) * t, iz = a.y + (b.y - a.y) * t;
-        rg.translate(ix * 0.86, height - 0.002, iz * 0.86);
+        rg.translate(ix * 0.8, height + 0.004, iz * 0.8);
         rosettes.push(rg);
       }
+      // rolled ganache lip softening the top edge
+      const lip = new THREE.CylinderGeometry(0.0075, 0.0075, a.distanceTo(b) * 1.01, 10, 1);
+      lip.rotateZ(Math.PI / 2); lip.rotateY(-Math.atan2(b.y - a.y, b.x - a.x));
+      lip.translate((a.x + b.x) / 2, height - 0.003, (a.y + b.y) / 2);
+      lips.push(lip);
     });
     // rosettes at the six outer corners of the hexagon
     for (let k = 0; k < 3; k++) {
@@ -253,7 +258,7 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
       const bm = new THREE.Mesh(G.mergeGeometries(clean([...beads, ...rosettes])), mats.cream);
       bm.castShadow = true; m.add(bm);
     }
-    if (drips.length) { const dm = new THREE.Mesh(G.mergeGeometries(clean(drips)), mats.ganacheDrip || mats.ganache); m.add(dm); }
+    if (drips.length || lips.length) { const dm = new THREE.Mesh(G.mergeGeometries(clean([...drips, ...lips])), mats.ganacheDrip || mats.ganache); m.add(dm); }
     // decorations
     const mk = MARKS[c.i];
     if (mk === 1) {
@@ -274,7 +279,7 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
     const og = new THREE.BufferGeometry();
     const ring = [0.985, 0.86, 0.0];
     const vpos = [], vcol = [];
-    const hot = [2.2, 1.1, 0.34], dim = [0.12, 0.06, 0.02];
+    const hot = [2.2, 1.1, 0.34], dim = [0.05, 0.025, 0.008];
     for (const k of ring) for (let q = 0; q < 3; q++) { vpos.push(P[q].x * k, 0, P[q].y * k); vcol.push(...(k > 0.5 ? hot : dim)); }
     vcol.splice(3 * 3, 9, ...hot.map((v) => v * 0.55), ...hot.map((v) => v * 0.55), ...hot.map((v) => v * 0.55));
     og.setAttribute('position', new THREE.Float32BufferAttribute(vpos, 3));

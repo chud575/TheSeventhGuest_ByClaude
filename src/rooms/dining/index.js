@@ -70,8 +70,8 @@ export default {
 
     // ================================================================ materials
     const mat = {
-      wall: M.create('damask', { base: [0.1, 0.17, 0.33], motif: [0.2, 0.3, 0.5], sheen: 0.5, aging: 0.45, variant: 0, repeat: [1 / 0.26, 1 / 0.26], macro: 0.4, size: 1024, normalScale: 0.45 }),
-      paint: M.create('plaster', { color: [0.1, 0.16, 0.3], cracks: 0.15, stains: 0.35, roughness: 0.7, repeat: [0.7, 0.7] }),
+      wall: M.create('damask', { base: [0.08, 0.19, 0.37], motif: [0.17, 0.33, 0.54], sheen: 0.5, aging: 0.45, variant: 0, repeat: [1 / 0.26, 1 / 0.26], macro: 0.4, size: 1024, normalScale: 0.45 }),
+      paint: M.create('plaster', { color: [0.08, 0.17, 0.31], cracks: 0.15, stains: 0.35, roughness: 0.7, repeat: [0.7, 0.7] }),
       niche: M.create('plaster', { color: [0.035, 0.045, 0.1], cracks: 0.25, stains: 0.5, repeat: [1, 1] }),
       ceiling: M.create('plaster', { color: [0.12, 0.16, 0.34], cracks: 0.3, stains: 0.45, repeat: [0.45, 0.45] }),
       beam: M.create('plaster', { color: [0.34, 0.07, 0.06], cracks: 0.1, stains: 0.4, roughness: 0.6, repeat: [1, 1] }),
@@ -110,11 +110,11 @@ export default {
       const ln = linenTexture(ctx.textures);
       mat.linen = new THREE.MeshPhysicalMaterial({ map: ln.map, normalMap: ln.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), roughnessMap: ln.ormMap, aoMap: ln.ormMap, color: 0xf0ebe0, roughness: 1, metalness: 0, sheen: 0.7, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.95, 0.93, 0.9), side: THREE.DoubleSide, envMapIntensity: 0.6, name: 'linen' });
       // flatware: brushed old silver; broad soft highlights from the room, never a hot slab in the bloom
-      mat.flatware = new THREE.MeshPhysicalMaterial({ color: 0xc0c0c4, metalness: 1, roughness: 0.38, envMapIntensity: 0.7, name: 'flatware' });
+      mat.flatware = new THREE.MeshPhysicalMaterial({ color: 0x9c9ca2, metalness: 1, roughness: 0.5, envMapIntensity: 0.65, name: 'flatware' });
     }
     {
       const pf = palmetteFriezeTexture(ctx.textures).withRepeat(1 / 0.46, 1);
-      mat.frieze = new THREE.MeshPhysicalMaterial({ map: pf.map, normalMap: pf.normalMap, normalScale: new THREE.Vector2(1.6, 1.6), roughnessMap: pf.ormMap, metalnessMap: pf.ormMap, aoMap: pf.ormMap, aoMapIntensity: 1.0, roughness: 1, metalness: 1, envMapIntensity: 1.1, name: 'palmetteFrieze' });
+      mat.frieze = new THREE.MeshPhysicalMaterial({ map: pf.map, normalMap: pf.normalMap, normalScale: new THREE.Vector2(1.6, 1.6), roughnessMap: pf.ormMap, metalnessMap: pf.ormMap, aoMap: pf.ormMap, aoMapIntensity: 1.0, roughness: 1, metalness: 1, envMapIntensity: 1.7, name: 'palmetteFrieze' });
     }
     mat.rosePlaster = M.create('plaster', { color: [0.22, 0.24, 0.3], cracks: 0.2, stains: 0.5, roughness: 0.9, repeat: [3, 3] });
     mat.tassel = M.create('velvet', { color: [0.5, 0.36, 0.16], crush: 0.2, repeat: [6, 6], sheen: 1, sheenColor: [0.9, 0.7, 0.35] });
@@ -148,7 +148,7 @@ export default {
       crumb: new THREE.MeshStandardMaterial({ color: 0x4a2010, roughness: 0.85, name: 'crumb' }),
       ganacheDrip: new THREE.MeshPhysicalMaterial({ color: 0x4a2414, roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.15, name: 'ganacheDrip' }),
       socket: new THREE.MeshStandardMaterial({ color: 0x0b0503, roughness: 0.6, name: 'socket' }),
-      stone: (() => { const t = tombTexture(ctx.textures); return new THREE.MeshStandardMaterial({ map: t.map, normalMap: t.normalMap, roughnessMap: t.ormMap, roughness: 1, metalness: 0, color: 0xb0b0b4, name: 'tombstone' }); })(),
+      stone: (() => { const t = tombTexture(ctx.textures); return new THREE.MeshStandardMaterial({ map: t.map, normalMap: t.normalMap, roughnessMap: t.ormMap, roughness: 1, metalness: 0, color: 0xe4e2e0, name: 'tombstone' }); })(),
     };
 
     const cornerG = cartoucheGeometry(G, 'corner'), centreG = cartoucheGeometry(G, 'centre');
@@ -382,7 +382,7 @@ export default {
       const skyCard = new THREE.Mesh(new THREE.PlaneGeometry(44, 30), basic(sky.map, [2.4, 2.4, 2.4], { name: 'sky' }));
       skyCard.position.set(1.0, 6.0, -26); outside.add(skyCard);
       const tline = treelineTexture(ctx.textures);
-      const tl = new THREE.Mesh(new THREE.PlaneGeometry(40, 10), basic(tline.map, [1.5, 1.55, 1.7], { alphaTest: 0.4, name: 'treeline' }));
+      const tl = new THREE.Mesh(new THREE.PlaneGeometry(40, 10), basic(tline.map, [1.2, 1.25, 1.35], { alphaTest: 0.4, name: 'treeline' }));
       tl.position.set(0, 3.2, -19); outside.add(tl);
       const cards = [[3, -12.5, 13, [2.1, 2.2, 2.5], -1.4], [2, -8.2, 8.5, [1.0, 1.06, 1.22], 1.9], [1, -4.9, 6.2, [0.7, 0.75, 0.9], -1.15]];
       for (const [seed, z, size, col, x] of cards) {
@@ -428,7 +428,7 @@ export default {
         snowG.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
       }
       const snowMat = new THREE.MeshBasicMaterial({ map: sf.map, vertexColors: true, toneMapped: false, fog: false, name: 'snow' });
-      snowMat.color.setScalar(1.6);
+      snowMat.color.setScalar(1.15);
       const snow = new THREE.Mesh(snowG, snowMat); snow.rotation.x = -Math.PI / 2; snow.position.set(0, 0, -13.2); snow.userData.noShadow = true; outside.add(snow);
       // frost creeping in from the corners of the panes
       const fr = frostPaneTexture(ctx.textures);
@@ -750,7 +750,7 @@ export default {
     };
     const oil = async (name) => {
       const [map, bump] = await Promise.all([loadTex(`${name}.jpg`), loadTex(`${name}_bump.png`, false)]);
-      return new THREE.MeshPhysicalMaterial({ map, bumpMap: bump, bumpScale: 1.6, roughness: 0.5, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.3, envMapIntensity: 0.5, name: `oil:${name}` });
+      return new THREE.MeshPhysicalMaterial({ map, bumpMap: bump, bumpScale: 1.6, roughness: 0.5, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.5, envMapIntensity: 0.5, name: `oil:${name}` });
     };
     const oils = Object.fromEntries(await Promise.all(['lady', 'abbey', 'gent', 'youth', 'vale'].map(async (n) => [n, await oil(n)])));
     const hang = (s, x, y, w, h, opts) => {
@@ -798,16 +798,16 @@ export default {
     moon.shadow.camera.near = 2; moon.shadow.camera.far = 20;
     moon.map = fx.windowCookie({ cols: 2, rows: 4 });
     root.add(moon, moon.target);
-    root.add(new THREE.HemisphereLight(0x5a78c0, 0x1a120c, 1.25));
+    root.add(new THREE.HemisphereLight(0x5a84c4, 0x1a120c, 1.35));
     // broad cool fill: the moonlit room must read as a blue room, not a black box with three lights.
     // Large, soft, unshadowed panels wash the long walls from the window end and from behind the camera.
     const fills = [
-      fx.areaLight({ center: [X0 + 0.9, 2.4, -2.2], normal: [-1, -0.15, 0.25], width: 3.0, height: 1.6, color: 0x7896c8, intensity: 0.55 }),
-      fx.areaLight({ center: [X1 - 0.9, 2.4, -2.2], normal: [1, -0.15, 0.25], width: 3.0, height: 1.6, color: 0x7896c8, intensity: 0.55 }),
-      fx.areaLight({ center: [0.0, 2.6, Z1 - 0.6], normal: [0, -0.25, -1], width: 4.2, height: 1.8, color: 0x7896c8, intensity: 0.5 }),
-      fx.areaLight({ center: [0.0, 2.2, Z0 + 1.6], normal: [0, 0.1, -1], width: 3.6, height: 1.4, color: 0x7896c8, intensity: 0.35 }),
-      fx.areaLight({ center: [X1 - 0.6, 1.8, 1.4], normal: [1, 0, -0.1], width: 3.4, height: 1.6, color: 0x7896c8, intensity: 0.4 }),
-      fx.areaLight({ center: [X0 + 0.6, 1.8, 1.4], normal: [-1, 0, -0.1], width: 3.4, height: 1.6, color: 0x7896c8, intensity: 0.35 }),
+      fx.areaLight({ center: [X0 + 0.9, 2.4, -2.2], normal: [-1, -0.15, 0.25], width: 3.0, height: 1.6, color: 0x78a0cc, intensity: 0.55 }),
+      fx.areaLight({ center: [X1 - 0.9, 2.4, -2.2], normal: [1, -0.15, 0.25], width: 3.0, height: 1.6, color: 0x78a0cc, intensity: 0.55 }),
+      fx.areaLight({ center: [0.0, 2.6, Z1 - 0.6], normal: [0, -0.25, -1], width: 4.2, height: 1.8, color: 0x78a0cc, intensity: 0.5 }),
+      fx.areaLight({ center: [0.0, 2.2, Z0 + 1.6], normal: [0, 0.1, -1], width: 3.6, height: 1.4, color: 0x78a0cc, intensity: 0.35 }),
+      fx.areaLight({ center: [X1 - 0.6, 1.8, 1.4], normal: [1, 0, -0.1], width: 3.4, height: 1.6, color: 0x78a0cc, intensity: 0.4 }),
+      fx.areaLight({ center: [X0 + 0.6, 1.8, 1.4], normal: [-1, 0, -0.1], width: 3.4, height: 1.6, color: 0x78a0cc, intensity: 0.35 }),
     ];
     for (const f of fills) root.add(f);
     root.add(fx.areaLight({ center: [0, WIN.sill + WIN.h / 2, Z0 + 0.06], normal: [0, -0.3, 1], width: WIN.w - 0.1, height: WIN.h - 0.1, color: 0x8ea6ff, intensity: 2.5 }));
@@ -834,7 +834,7 @@ export default {
     const sbLight = new THREE.PointLight(0xffa04a, 2.0, 3.2, 2); sbLight.position.set(X0 + 0.78, 1.62, SB_Z - 0.3); root.add(sbLight);
     // table candle glow (no shadow)
     let tBase = 1.2;
-    const tLight = new THREE.PointLight(0xffa04a, 1.2, 3, 2); tLight.position.set(T.x, TABLE_H + 0.45, T.z + 0.2); root.add(tLight);
+    const tLight = new THREE.PointLight(0xffa04a, 1.2, 3, 2); tLight.position.set(T.x, TABLE_H + 0.7, T.z - 0.15); root.add(tLight);
     ctx.onUpdate((dt, t) => {
       const f = 0.96 + 0.025 * Math.sin(t * 7.3) * Math.sin(t * 2.9) + 0.015 * Math.sin(t * 13.1);
       chandLight.intensity = chandBase * f; upLight.intensity = 0.6 * f; chandSpot.intensity = chandBase * spotK * f;

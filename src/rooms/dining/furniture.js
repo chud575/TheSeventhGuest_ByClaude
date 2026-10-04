@@ -468,13 +468,14 @@ export function napkinGeometry(G) {
   const pos = [], uv = [], idx = [];
   for (let i = 0; i <= NX; i++) {
     const x = -L / 2 + (i / NX) * L, e = Math.abs(x) / (L / 2);
-    const flare = Math.pow(Math.max(0, (e - 0.45) / 0.55), 1.8);
+    const flare = Math.pow(Math.max(0, (e - 0.3) / 0.7), 1.5);
     for (let j = 0; j <= NA; j++) {
       const a = (j / NA) * Math.PI * 2;
       // the rolled spiral's lap line, then the flutes opening toward the ends
-      let r = R0 * (1 + 0.06 * Math.max(0, Math.sin(a - x * 18)) ** 8) + 0.016 * flare;
-      r *= 1 + (0.18 + 0.1 * Math.sin(x * 40)) * flare * Math.sin(a * 7 + x * 30);
-      const y = Math.sin(a) * r, z = Math.cos(a) * r;
+      let r = R0 * (1 + 0.06 * Math.max(0, Math.sin(a - x * 18)) ** 8) + 0.024 * flare;
+      // deep, uneven flutes so the ends read as fanned cloth, not a smooth knob
+      r *= 1 + (0.34 + 0.12 * Math.sin(x * 40 + a)) * flare * Math.sin(a * 9 + x * 30 + 0.6 * Math.sin(a * 3));
+      const y = Math.sin(a) * r * (1 - 0.3 * flare), z = Math.cos(a) * r;
       pos.push(x, y + R0 * 0.92 + 0.004 * flare * flare, z);
       uv.push(x * 50, (a / (Math.PI * 2)) * 2 * Math.PI * R0 * 50);
     }
