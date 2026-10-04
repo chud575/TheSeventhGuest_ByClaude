@@ -86,7 +86,11 @@ float gSmudgeV() {
     vec4 sm = gSmudge[i];
     if (gSmudgeS[i] <= 0.0) continue;
     vec3 d = (vGW - sm.xyz) / sm.w;
-    m += gSmudgeS[i] * exp(-dot(d, d) * 2.2);
+    // grease runs down from where it is handled: below the centre the smudge stretches into streaks
+    float below = step(vGW.y, sm.y);
+    d.y *= mix(1.0, 0.4, below);
+    float streak = mix(1.0, 0.35 + 1.1 * smoothstep(0.45, 0.8, gN(vec3(vGW.x * 45.0, vGW.y * 1.5, vGW.z * 45.0))), below);
+    m += gSmudgeS[i] * exp(-dot(d, d) * 2.2) * streak;
   }
   return m * (0.4 + 0.9 * smoothstep(0.35, 0.75, gN(vGW * 38.0)));
 }
@@ -134,7 +138,7 @@ material.clearcoat *= 1.0 - clamp(gFloorV * 0.8 + gSootV * 0.6, 0.0, 0.85);
 ${T ? 'normal = normalize(normal + (vec3(gTh.w, fract(gTh.w * 7.13), 0.0) - 0.5) * gTP.w);' : ''}`);
   };
   const key = material.customProgramCacheKey?.bind(material);
-  material.customProgramCacheKey = () => (key ? key() : '') + `|kgrime3:${tag}:${nPath}:${T ? 1 : 0}`;
+  material.customProgramCacheKey = () => (key ? key() : '') + `|kgrime4:${tag}:${nPath}:${T ? 1 : 0}`;
   material.needsUpdate = true;
   return material;
 }

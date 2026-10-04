@@ -95,7 +95,7 @@ export default {
     const mat = {
       flags: grime(matFrom(quarryTileTexture(forge, 2048), { repeat: [1 / 2.4, 1 / 2.4], physical: true, clearcoat: 0.12, clearcoatRoughness: 0.45, name: 'quarry' }),
         { tiles: { grid: [8, 8], amp: 0.05, hue: 0.015, rough: 0.25, tilt: 0.03 }, ceiling: [9, 0.1, 0], floor: [0, 0], path: [[(CH.ax0 + CH.ax1) / 2, Z0 + 0.9], [BLOCK.x - 0.3, BLOCK.z - 0.55], [BLOCK.x - 0.9, BLOCK.z + 0.6], [0.55, Z1 - 0.3]], pathWidth: 0.42, pathStrength: 0.55, noise: 0.35, tag: 'floor' }),
-      tile: applyGrime(matFrom(wallTileTexture(forge, 2048), { repeat: [1 / 1.2, 1 / 1.2], physical: true, clearcoat: 0.45, clearcoatRoughness: 0.16, name: 'walltile' }), { plumes: TILE_GREASE, tiles: { grid: [8, 16], offset: 1, amp: 0.05, hue: 0.02, rough: 0.5, tilt: 0.07 }, floor: [0.35, 0.45], tide: [0.15, 0.85], hgrad: [0.55, 1.25, 0.14], smudges: [[X1, 0.95, DUMB.z - 0.37, 0.13, 0.75], [X1, 0.92, DUMB.z + 0.37, 0.13, 0.65], [X1, 1.3, DUMB.z + 0.4, 0.1, 0.45], [WIN.x, 0.98, Z0, 0.32, 0.4]], noise: 0.3, sootTint: [0.85, 0.66, 0.38], sootTintAmt: 0.85, tag: 'tile' }),
+      tile: applyGrime(matFrom(wallTileTexture(forge, 2048), { repeat: [1 / 1.2, 1 / 1.2], physical: true, clearcoat: 0.45, clearcoatRoughness: 0.16, name: 'walltile' }), { plumes: TILE_GREASE, tiles: { grid: [8, 16], offset: 1, amp: 0.05, hue: 0.02, rough: 0.5, tilt: 0.07 }, floor: [0.35, 0.45], tide: [0.15, 0.85], hgrad: [0.5, 1.25, 0.2], smudges: [[X1, 0.95, DUMB.z - 0.37, 0.14, 0.85], [X1, 0.9, DUMB.z + 0.37, 0.14, 0.75], [X1, 0.82, DUMB.z, 0.22, 0.6], [WIN.x, 0.98, Z0, 0.32, 0.45]], noise: 0.4, sootTint: [0.85, 0.66, 0.38], sootTintAmt: 0.85, tag: 'tile' }),
       border: grime(matFrom(borderTileTexture(forge, 512), { repeat: [1 / 0.15, 1 / 0.15], physical: true, clearcoat: 0.8, clearcoatRoughness: 0.1, name: 'bordertile' }), { tiles: { grid: [1, 1], amp: 0.25, hue: 0.08, rough: 0.5, tilt: 0.06 }, tag: 'border' }),
       glazeGreen: new THREE.MeshPhysicalMaterial({ color: 0x0d2a22, roughness: 0.2, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.08, name: 'glazeGreen' }),
       plaster: grime(matFrom(limewashTexture(forge, { color: [0.284, 0.326, 0.368], stain: 1, size: 2048, key: 'wall' }), { repeat: [0.5, 0.5], name: 'limewash' }), { ceiling: [H, 0.95, 0.6], noise: 0.35, sootTint: [0.85, 0.8, 0.72], sootTintAmt: 0.7, smudges: [[WIN.x - 0.85, 1.75, Z0, 0.45, 0.55], [WIN.x + 0.8, 1.6, Z0, 0.35, 0.45], [X1, 2.9, -2.6, 0.6, 0.35], [X0, 2.6, 2.4, 0.55, 0.3]], tag: 'plaster' }),
@@ -128,7 +128,7 @@ export default {
     mat.tinLiningV = mat.tinLining.clone(); mat.tinLiningV.vertexColors = true; mat.tinLiningV.name = 'tinLiningBurn';
     mat.butcher = matFrom(butcherBlockTexture(forge, { aspect: 1.5 / 0.78, size: 2048 }), { name: 'butcher' });
     mat.blockSide = matFrom(blockSideTexture(forge, 1024), { name: 'blockSide' });
-    mat.blockBase = grime(matFrom(scrubbedPineTexture(forge, 1024), { repeat: [1, 1], name: 'blockBase' }), { floor: [0.3, 0.45], noise: 0.3, tag: 'blockbase' });
+    mat.blockBase = grime(matFrom(scrubbedPineTexture(forge, 1024), { repeat: [1, 1], name: 'blockBase', color: new THREE.Color(0.78, 0.72, 0.66) }), { floor: [0.3, 0.55], noise: 0.35, tag: 'blockbase' });
     mat.counter = matFrom(sycamoreTexture(forge, 1024), { repeat: [1, 1], name: 'sycamore' });
     mat.boarding = matFrom(boardingTexture(forge, { color: [0.1, 0.17, 0.2] }), { repeat: [1 / 0.6, 1 / 0.6], name: 'boarding' });
     mat.dresserBack = matFrom(boardingTexture(forge, { color: [0.17, 0.25, 0.28] }), { repeat: [1 / 0.6, 1 / 0.6], name: 'dresserBack' });
@@ -2079,12 +2079,16 @@ export default {
         lamp.group.position.set(2.98, 0.82, Z1 - 0.3);
         add(lamp.group);
         // the focal warm pool at this end of the room: shadowed, so the table, cupboard and door throw shapes
-        const ll = new THREE.PointLight(0xffa456, 2.6, 3.6, 2);
+        const ll = new THREE.PointLight(0xffa456, 1.4, 3.2, 2);
         ll.position.set(2.98, 0.82 + lamp.flameY + 0.05, Z1 - 0.36);
-        ll.castShadow = Q.shadows; ll.shadow.mapSize.set(512, 512); ll.shadow.bias = -0.002; ll.shadow.normalBias = 0.03; ll.shadow.radius = 3; ll.shadow.camera.near = 0.1; ll.shadow.camera.far = 4;
         add(ll);
+        // one shadowed spot from the flame out into the room (cheaper than a cube shadow): table, cupboard and door cast shapes
+        const ls = new THREE.SpotLight(0xffa456, 3.2, 4.2, 1.15, 0.8, 2);
+        ls.position.copy(ll.position); ls.target.position.set(1.4, 0.2, Z1 - 1.6);
+        ls.castShadow = Q.shadows; ls.shadow.mapSize.set(1024, 1024); ls.shadow.bias = -0.0008; ls.shadow.normalBias = 0.03; ls.shadow.radius = 3; ls.shadow.camera.near = 0.12; ls.shadow.camera.far = 5;
+        add(ls); add(ls.target);
         lamp.group.traverse((o) => { if (o.isMesh) o.userData.noShadow = true; });
-        ctx.onUpdate((dt, t) => { ll.intensity = 2.6 * (0.95 + 0.05 * Math.sin(t * 4.3 + 1) * Math.sin(t * 2.1)); });
+        ctx.onUpdate((dt, t) => { const f = 0.95 + 0.05 * Math.sin(t * 4.3 + 1) * Math.sin(t * 2.1); ll.intensity = 1.4 * f; ls.intensity = 3.2 * f; });
       }
       // utensil rail with hanging tools
       const rx0 = 2.35, rx1 = 3.05, ry = 1.78, rz = Z1 - 0.05;
@@ -2255,8 +2259,8 @@ export default {
       const globeMat = new THREE.MeshPhysicalMaterial({ color: 0xf4ece0, emissive: new THREE.Color(1.0, 0.74, 0.46), emissiveMap: CV.mantle, emissiveIntensity: 0.14, roughness: 0.35, transparent: true, opacity: 0.38, depthWrite: false, side: THREE.DoubleSide, clearcoat: 1, clearcoatRoughness: 0.1, name: 'gasGlobe' });
       const spots = [
         { p: V3(X0, 1.98, 0.15), ry: Math.PI / 2, i: 2.4 },          // left wall, beyond the dresser
-        { p: V3(X1, 1.98, -0.42), ry: -Math.PI / 2, i: 2.4 },        // right wall, by the dumbwaiter
-        { p: V3(CH.x1, 1.95, Z0 + 0.25), ry: Math.PI / 2, i: 2.2 },    // on the breast return, beside the range
+        { p: V3(X1, 1.98, -0.42), ry: -Math.PI / 2, i: 1.7 },        // right wall, by the dumbwaiter
+        { p: V3(CH.x1, 1.95, Z0 + 0.25), ry: Math.PI / 2, i: 1.5 },    // on the breast return, beside the range
         { p: V3(2.7, 2.15, Z1), ry: Math.PI, i: 2.4 },                // front wall above the utensil rail
       ];
       spots.forEach((s, si) => {
@@ -2317,6 +2321,11 @@ export default {
     rangeRim.position.set(CH.x1 + 0.25, 2.1, Z0 + 0.75);
     rangeRim.target.position.set((CH.ax0 + CH.ax1) / 2, 0.6, Z0 + 0.5);
     add(rangeRim); add(rangeRim.target);
+    // the same bracket grazing the hob: picks out the raised lids, their chamfers and the lifting notches
+    const hobLight = new THREE.SpotLight(0xffa860, 2.4, 3.0, 0.5, 0.7, 2);
+    hobLight.position.set(CH.x1 - 0.1, 1.9, Z0 + 0.62);
+    hobLight.target.position.set((CH.ax0 + CH.ax1) / 2, 0.82, Z0 + 0.3);
+    add(hobLight); add(hobLight.target);
     // fake bounce: candle- and lamp-light thrown up off the floured block onto the beams
     const bounce = new THREE.PointLight(0xd89a5c, 0.8, 3.0, 2);
     bounce.position.set(BLOCK.x, 2.75, BLOCK.z + 0.2);

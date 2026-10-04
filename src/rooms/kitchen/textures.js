@@ -72,7 +72,7 @@ export function flagstoneTexture(forge, size = 2048) {
 
 /** Glazed cream tiles in running bond (0.15 x 0.075 m): per-tile glaze drift, crackle crazing, chips, odd replaced tiles. 1 tile = 1.2 x 1.2 m. */
 export function wallTileTexture(forge, size = 2048) {
-  return forge.generate('kitchen:walltile8', {
+  return forge.generate('kitchen:walltile9', {
     size, normalStrength: 1.8,
     glsl: /* glsl */ `
     void surface(vec2 uv, inout Surface s) {
@@ -93,7 +93,7 @@ export function wallTileTexture(forge, size = 2048) {
       // per-tile glaze: each firing came out a little different. Continuous variation only (value +-8 %,
       // hue +-3 %), no odd white tiles
       vec3 cream = vec3(0.71, 0.65, 0.53);         // yellowed by a century of smoke
-      float val = 1.0 + (h3.x - 0.5) * 0.16;
+      float val = 1.0 + (h3.x - 0.5) * 0.2;
       vec3 hue = vec3(1.0 + (h4.x - 0.5) * 0.06, 1.0, 1.0 - (h4.x - 0.5) * 0.06);
       vec3 col = cream * val * hue;
       col = mix(col, col * vec3(0.97, 0.98, 0.94), h3.y * 0.4);
@@ -110,6 +110,9 @@ export function wallTileTexture(forge, size = 2048) {
       float tc = cracked * (1.0 - smoothstep(0.0, 0.03, abs(f.y - 0.5 - 0.3 * sin(f.x * 4.0 + h4.z * 6.0) * (f.x - 0.3))));
       float grime = smoothstep(0.42, 0.9, fbm(uv + 5.0, vec2(6.0), 5) * 0.5 + 0.5);
       col = mix(col, col * vec3(0.72, 0.64, 0.5), grime * 0.45);
+      // a few tiles carry an old brown stain (tea, gravy, rust from a nail) soaked into the crazing
+      float stainT = step(0.86, h4.z) * smoothstep(0.55, 0.2, length((f - vec2(0.3 + 0.4 * h3.y, 0.3 + 0.4 * h3.z)) * vec2(1.0, 0.5)) + (vnoise(uv * 90.0 + h3.xy * 7.0, vec2(90.0)) - 0.5) * 0.25);
+      col = mix(col, col * vec3(0.62, 0.5, 0.36), stainT * 0.5);
       col = mix(col, col * vec3(0.6, 0.52, 0.4), craze * 0.35);
       col = mix(col, vec3(0.3, 0.26, 0.2), tc * 0.8);
       // chipped arrises revealing the biscuit
@@ -754,7 +757,7 @@ const FOOT_GLSL = /* glsl */ `
  */
 export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 7.2], block = [0.2, -0.6], blockHalf = [0.7, 0.34], kerb = [-1.97, -0.63, -3.1], sack = [-1.1, -1.45], sacks = [], tile = [-3.2, 3.4, 0.3], trail = [[0.05, -0.62], [2.95, -1.2]] } = {}) {
   const S = sacks.slice(0, 4); while (S.length < 4) S.push([99, 99, 0.01]);
-  return forge.generate('kitchen:flour15', {
+  return forge.generate('kitchen:flour18', {
     size, aspect: rect[2] / rect[3], tile: false, normalStrength: 0.7,
     uniforms: { uRect: rect, uBlock: [...block, ...blockHalf], uKerb: kerb, uSack: sack, uS0: S[0], uS1: S[1], uS2: S[2], uS3: S[3], uTile: tile, uP0: trail[0], uP1: trail[1] },
     glsl: /* glsl */ `
@@ -804,6 +807,12 @@ export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 
       // tracked thin dusting over the working half of the room
       float dust = smoothstep(0.5, 0.95, n1) * 0.22 * smoothstep(1.2, -1.6, w.y + w.x * 0.2) * (0.6 + 0.4 * n3);
       a = max(a, dust);
+      // flour tracked along the traffic routes, block to the foyer passage and to the service door, thinning with distance
+      vec2 rA = vec2(0.2, -0.3), rB = vec2(0.55, 3.3), rC = vec2(3.2, 2.25);
+      vec2 pa = w - rA, ba = rB - rA; float hA = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+      vec2 pc = w - rA, bc2 = rC - rA; float hC = clamp(dot(pc, bc2) / dot(bc2, bc2), 0.0, 1.0);
+      float route = max(exp(-pow(length(pa - ba * hA) / 0.3, 2.0)) * (1.0 - hA * 0.95), exp(-pow(length(pc - bc2 * hC) / 0.26, 2.0)) * (1.0 - hC * 0.9));
+      a = max(a, route * 0.3 * (0.4 + 0.8 * n3) * smoothstep(0.3, 0.7, n2 + 0.2));
       // broom: soft arcs that thin the spill, a drag mark from the sack to the pantry
       vec2 bc = w - vec2(-0.6, 0.3);
       float br = length(bc);
@@ -831,18 +840,19 @@ export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 
       // isolated grains and specks on the flags (never a veil), density builds to an opaque core only at the
       // spill source (the split sack); everywhere else the flags show through at 30-60 %.
       float n5 = fbm(uv + 23.0, vec2(110.0), 3) * 0.5 + 0.5;    // ~5 cm clumping
-      float g = grain * 0.3 + grain2 * 0.5 + n5 * 0.2;
-      float dens = clamp(a + (n5 - 0.5) * 0.12, 0.0, 1.6);
-      float thr = 1.0 - clamp(dens, 0.0, 1.0) * 0.92;           // grain threshold falls as density rises
-      float scatter = smoothstep(thr - 0.05, thr + 0.05, g);
-      float core = smoothstep(0.18, 1.15, dens);                // a wide, soft gradient to the core
+      float g = grain * 0.6 + n5 * 0.28 + grain2 * 0.12;
+      float gu = clamp((g - 0.5) * 3.0 + 0.5, 0.0, 1.0);          // spread to ~uniform so density = grain fraction
+      float dens = clamp(a / 0.62 + (n5 - 0.5) * 0.15, 0.0, 1.6);
+      float thr = 1.0 - clamp(dens, 0.0, 1.0);                     // grain threshold falls as density rises
+      float scatter = smoothstep(thr - 0.06, thr + 0.06, gu);
+      float core = smoothstep(0.3, 1.15, dens);                    // a wide, soft gradient to the core
       vec2 cs2 = w - uSack;
       float source = max(exp(-dot(cs2, cs2) / 0.05), fan * smoothstep(0.55, 0.0, along) * 0.9);
-      float peak = mix(0.66, 0.92, source);                      // flags show through except at the spill source
-      float cov = max(core * peak, scatter * mix(0.5, 0.8, core));
+      float peak = mix(0.62, 0.82, source);                      // flags show through except at the spill source
+      float cov = max(core * peak, scatter * mix(0.55, 0.8, core));
       cov = max(cov, dust * 1.6 * scatter);
       float thin = 1.0 - core;
-      cov += joint * smoothstep(0.08, 0.5, dens) * thin * 0.18;
+      cov += joint * smoothstep(0.1, 0.6, dens) * thin * 0.22;
       float alpha = clamp(cov, 0.0, 1.0);
       // first footprints pressed out of the spill
       vec2 dir = normalize(uP1 - uP0);
