@@ -109,6 +109,8 @@ float gPathMask() {
       .replace('#include <map_fragment>', `#include <map_fragment>
 float gn = gFbm(vGW * 1.3);
 float gn2 = gFbm(vGW * 4.0 + 11.0);
+// very large scale (2-3 m) world-space mottling: no two stretches of wall age alike, so texture tiling never lines up
+float gnL = gFbm(vGW * 0.42 + 3.0);
 float gSootV = clamp(gSoot() * (0.7 + 0.6 * gn), 0.0, 0.85);
 float gCeilV = gCeil.z * smoothstep(gCeil.x - gCeil.y, gCeil.x, vGW.y) * (0.75 + 0.5 * gn);
 float gFloorV = gFloor.y * smoothstep(gFloor.x, 0.0, vGW.y) * (0.6 + 0.8 * gn2);
@@ -119,12 +121,14 @@ float gTideV = gTide.y * (smoothstep(0.02, -0.06, gTl) * (0.35 + 0.3 * gn2) + ex
 float gSmV = clamp(gSmudgeV(), 0.0, 0.7);
 float gHG = gHGrad.z * smoothstep(gHGrad.x, gHGrad.y, vGW.y) * (0.6 + 0.8 * gn);
 float gDark = 1.0 - clamp(gSootV + gCeilV + gFloorV + gTideV * 0.6 + gSmV * 0.55 + gHG, 0.0, 0.88);
-diffuseColor.rgb *= gDark * (1.0 + (gn - 0.5) * gNoise);
+diffuseColor.rgb *= gDark * (1.0 + (gn - 0.5) * gNoise) * (1.0 + (gnL - 0.5) * gNoise * 0.9);
 diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.78, 0.74, 0.72), gPathV);
 diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * gSootTint.rgb, clamp(gSootV * 1.6 + gHG, 0.0, 1.0) * gSootTint.a);
 diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.82, 0.7, 0.52), clamp(gTideV + gSmV, 0.0, 1.0) * 0.6);
 ${T ? `vec4 gTh = gTileH(vMapUv);
 diffuseColor.rgb *= 1.0 + (gTh.x - 0.5) * gTP.x;
+// the odd tile sits in a greasier patch than its neighbours (per world tile, so it never repeats)
+diffuseColor.rgb *= 1.0 - step(0.82, gTh.w) * (0.08 + 0.1 * gn2) * smoothstep(0.3, 0.7, gnL);
 diffuseColor.rgb *= 1.0 + (vec3(gTh.y, 0.5, 1.0 - gTh.y) - 0.5) * gTP.y;` : ''}`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
 roughnessFactor = clamp(roughnessFactor * (1.0 - gPathV * 0.55) + gSootV * 0.15 + gTideV * 0.25 - gSmV * 0.1, 0.04, 1.0);
@@ -138,7 +142,7 @@ material.clearcoat *= 1.0 - clamp(gFloorV * 0.8 + gSootV * 0.6, 0.0, 0.85);
 ${T ? 'normal = normalize(normal + (vec3(gTh.w, fract(gTh.w * 7.13), 0.0) - 0.5) * gTP.w);' : ''}`);
   };
   const key = material.customProgramCacheKey?.bind(material);
-  material.customProgramCacheKey = () => (key ? key() : '') + `|kgrime4:${tag}:${nPath}:${T ? 1 : 0}`;
+  material.customProgramCacheKey = () => (key ? key() : '') + `|kgrime5:${tag}:${nPath}:${T ? 1 : 0}`;
   material.needsUpdate = true;
   return material;
 }

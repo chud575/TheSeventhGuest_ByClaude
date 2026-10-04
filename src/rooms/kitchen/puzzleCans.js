@@ -84,6 +84,37 @@ function tinGeometry(G, F) {
     col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = Math.max(0.35, ao);
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  // v = height up the tin (drives the rim/body roughness map); u stays the angle
+  const uv = g.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setY(i, Math.min(1, Math.max(0, p.getY(i) / h)));
+  return g;
+}
+
+/** The initial's decal: a curved patch over the label's field, mapped to its own cell of the letter atlas. */
+function letterGeometry(patch, rect, F, fam, seed, dentAmt) {
+  const [y0, y1] = labelSpan(F, fam);
+  const unitY = (y1 - y0) / patch.H, unitX = (2 * Math.PI * F.r) / 768;
+  const hy = patch.half * unitY, ang = (patch.half * unitX) / F.r;
+  const yc = y1 - patch.ry * unitY;
+  const bead = fam === 3 ? () => 0 : beadFn(F);
+  const lift = (fam === 3 ? 0.0006 : 0.0002) + 0.0003;
+  const NX = 28, NY = 28, pos = [], uvs = [], idx = [];
+  for (let j = 0; j <= NY; j++) for (let i = 0; i <= NX; i++) {
+    const a = -ang + (2 * ang * i) / NX, y = yc - hy + (2 * hy * j) / NY;
+    const rad = F.r + lift - bead(y);
+    pos.push(Math.sin(a) * rad, y, Math.cos(a) * rad);
+    uvs.push(rect.u0 + (i / NX) * (rect.u1 - rect.u0), rect.v0 + (j / NY) * (rect.v1 - rect.v0));
+  }
+  for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+    const a = j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1;
+    idx.push(a, b, c, b, d, c);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  g.setIndex(idx);
+  dent(g.attributes.position, seed, dentAmt, F.h);
+  g.computeVertexNormals();
   return g;
 }
 
@@ -140,17 +171,48 @@ export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, o
   const letters = SOLUTION.split('');
   const families = [...letters.map((_, i) => familyOf(i)), 0];
   const heights = [...letters.map((_, i) => labelUnits(FORMATS[formatOf(i)], familyOf(i))), labelUnits(FORMATS[0])];
-  const atlas = await buildLabelAtlas(letters, { extras: ['7'], heights, families });
+  // tinplate is cold silver-grey; only a few brands wore a thin gold lacquer
+  const GOLD = new Set([2, 9, 15, 20]);
+  const isGold = (i) => GOLD.has(i);
+  const metals = [...letters.map((_, i) => (isGold(i) ? 'gold' : 'silver')), 'silver'];
+  const atlas = await buildLabelAtlas(letters, { extras: ['7'], heights, families, metals });
+  const letterMat = new THREE.MeshPhysicalMaterial({
+    map: atlas.letterMap, transparent: true, alphaTest: 0.04, depthWrite: false, roughness: 0.42, metalness: 0,
+    clearcoat: 0.5, clearcoatRoughness: 0.35, envMapIntensity: 0.4, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, name: 'canLetter',
+  });
   const labelMat = new THREE.MeshPhysicalMaterial({
     map: atlas.map, roughnessMap: atlas.orm, metalnessMap: atlas.orm, roughness: 1, metalness: 1,
     clearcoat: 0.4, clearcoatRoughness: 1, clearcoatRoughnessMap: atlas.orm, envMapIntensity: 0.55, name: 'canLabel',
   });
   // tinplate: bright silver tin on most, a gold lacquer on others (both carry AO + rust in the vertex colour)
-  const tinSilver = tinMat.clone(); tinSilver.vertexColors = true; tinSilver.name = 'tinPlateSilver'; tinSilver.envMapIntensity = 0.6; tinSilver.roughness = 0.85; tinSilver.color = new THREE.Color(1.08, 1.08, 1.1);
-  const tinGold = tinMat.clone(); tinGold.vertexColors = true; tinGold.name = 'tinPlateGold'; tinGold.envMapIntensity = 0.55; tinGold.roughness = 0.9;
-  const solder = new THREE.MeshStandardMaterial({ color: 0x77736a, metalness: 0.75, roughness: 0.6, envMapIntensity: 0.5, name: 'canSolder' }); tinGold.color = new THREE.Color(1.0, 0.74, 0.4);
-  const tinMatV = tinGold;
-  const isGold = (i) => [1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0][i % 11] === 1;
+  // roughness along the tin (v = y / h): polished rolled rims & beads take thin specular lines, the body is duller,
+  // with a little circumferential streaking from handling
+  const tinRough = (() => {
+    const c = document.createElement('canvas'); c.width = 128; c.height = 256;
+    const g2 = c.getContext('2d');
+    const img = g2.createImageData(128, 256);
+    for (let y = 0; y < 256; y++) {
+      const v = 1 - y / 255;
+      const rim = Math.max(Math.exp(-((v - 0.04) ** 2) / 0.0012), Math.exp(-((v - 0.96) ** 2) / 0.0012));
+      for (let x = 0; x < 128; x++) {
+        const n = Math.sin(x * 0.31 + y * 0.07) * 0.5 + Math.sin(x * 1.7 + y * 0.9) * 0.25 + Math.sin(y * 2.3) * 0.2;
+        const r = (0.68 + n * 0.08) * (1 - rim) + (0.33 + n * 0.03) * rim;
+        const o = (y * 128 + x) * 4;
+        img.data[o] = img.data[o + 1] = img.data[o + 2] = Math.round(Math.min(1, Math.max(0, r)) * 255); img.data[o + 3] = 255;
+      }
+    }
+    g2.putImageData(img, 0, 0);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.NoColorSpace; t.wrapS = THREE.RepeatWrapping; return t;
+  })();
+  const coolRim = (m, sheen) => { m.sheen = sheen; m.sheenRoughness = 0.35; m.sheenColor = new THREE.Color(0.32, 0.38, 0.48); };
+  const tinSilver = new THREE.MeshPhysicalMaterial({
+    map: tinMat.map, normalMap: tinMat.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), roughnessMap: tinRough, roughness: 1, metalness: 1,
+    color: new THREE.Color(0.8, 0.85, 0.93), envMapIntensity: 0.75, vertexColors: true, name: 'tinPlateSilver',
+  });
+  coolRim(tinSilver, 0.6);
+  const tinGold = tinSilver.clone(); tinGold.name = 'tinPlateGold'; tinGold.color = new THREE.Color(0.92, 0.82, 0.62); tinGold.envMapIntensity = 0.6; coolRim(tinGold, 0.25);
+  const solder = new THREE.MeshStandardMaterial({ color: 0x77736a, metalness: 0.75, roughness: 0.6, envMapIntensity: 0.5, name: 'canSolder' });
+  const tinMatV = tinSilver;
   const tinGeos = FORMATS.map((F) => tinGeometry(G, F));
   const tinGeosPlain = FORMATS.map((F) => tinGeometry(G, { ...F, beads: 0 }));
   // a faint layer of pantry dust on each lid, thicker toward the edge where the cloth never reaches
@@ -215,6 +277,8 @@ export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, o
     const fam = familyOf(i);
     const dentAmt = [0, 0.6, 1.0, 0.3, 0.8, 0, 0.5][i % 7];
     const label = new THREE.Mesh(labelGeometry(atlas.uvRect(i), i + 1, dentAmt, F, fam), labelMat);
+    const glyph = new THREE.Mesh(letterGeometry(atlas.letterPatch(i), atlas.letterRect(i), F, fam, i + 1, dentAmt), letterMat);
+    glyph.renderOrder = 3; glyph.castShadow = false; glyph.userData.noShadow = true;
     const tg = (fam === 3 ? tinGeosPlain : tinGeos)[formatOf(i)].clone();
     if (dentAmt > 0) dent(tg.attributes.position, i + 1, dentAmt, F.h);
     const seamAng = fam === 3 ? Math.PI : (i % 2 ? 1 : -1) * 0.4 * Math.PI;   // matches the bare seam band printed on the label
@@ -223,7 +287,7 @@ export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, o
     const tin = new THREE.Mesh(tg, isGold(i) ? tinGold : tinSilver);
     label.castShadow = tin.castShadow = true;
     label.receiveShadow = tin.receiveShadow = true;
-    g.add(tin, label);
+    g.add(tin, label, glyph);
     // soldered side seam: a narrow lapped strip down the back
     const [sy0, sy1] = labelSpan(F, fam);
     const seam = new THREE.Mesh(new THREE.BoxGeometry(0.0034, sy1 - sy0 + (fam === 3 ? 0.012 : 0.004), 0.0011), solder);
@@ -234,7 +298,8 @@ export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, o
     g.add(dust);
     g.userData.canIndex = i;
     g.userData.letter = L;
-    g.userData.yaw = ((i * 7919) % 13 - 6) * 0.0115;            // up to +-4 degrees
+    g.userData.jitter = ((i * 7919) % 13 - 6) * 0.007;            // up to +-2.5 degrees of hand-placed slop
+    g.userData.yaw = g.userData.jitter;
     g.userData.off = new THREE.Vector3((((i * 4241) % 9) - 4) * 0.0005, 0, (((i * 6113) % 9) - 4) * 0.0005);
     g.rotation.y = g.userData.yaw;
     parent.add(g);
@@ -243,6 +308,14 @@ export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, o
   const holder = new THREE.Group(); holder.userData.dynamic = true; holder.userData.keep = true;
   parent.add(holder);
   cans.forEach((c) => holder.add(c));
+
+  // each slot turns its tin to face the puzzle camera (so every initial reads square-on, within a few degrees)
+  const camLocal = (() => {
+    if (!camera?.position) return new THREE.Vector3(0, 0, 1.5);
+    parent.updateWorldMatrix(true, false);
+    return parent.worldToLocal(new THREE.Vector3(...camera.position));
+  })();
+  const slotYaw = slots.map((sp) => Math.atan2(camLocal.x - sp.x, camLocal.z - sp.z));
 
   // ---- state
   const saved = ctx.state.get?.('kitchen.cansOrder');
@@ -256,10 +329,11 @@ export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, o
   const place = (instant) => {
     canAt.forEach((c, s) => {
       const target = slots[s].clone().add(cans[c].userData.off);
+      cans[c].userData.yaw = slotYaw[s] + cans[c].userData.jitter;
       if (s === lifted) target.add(LIFT);
       const a = anim[c];
-      if (instant) { cans[c].position.copy(target); a.t = 1; a.to.copy(target); return; }
-      if (!a.to.equals(target)) { a.from.copy(cans[c].position); a.to.copy(target); a.t = 0; }
+      if (instant) { cans[c].position.copy(target); cans[c].rotation.y = cans[c].userData.yaw; a.t = 1; a.to.copy(target); return; }
+      if (!a.to.equals(target)) { a.from.copy(cans[c].position); a.to.copy(target); a.t = 0; a.yawFrom = cans[c].rotation.y; }
     });
   };
   place(true);
@@ -271,11 +345,12 @@ export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, o
       a.t = Math.min(1, a.t + dt / (a.arc ? 0.55 : 0.18));
       const e = a.t < 0.5 ? 2 * a.t * a.t : 1 - (-2 * a.t + 2) ** 2 / 2;
       cans[c].position.lerpVectors(a.from, a.to, e);
+      cans[c].rotation.y = (a.yawFrom ?? cans[c].userData.yaw) + (cans[c].userData.yaw - (a.yawFrom ?? cans[c].userData.yaw)) * e;
       if (a.arc) {
         const s = Math.sin(Math.PI * a.t);
         cans[c].position.y += s * 0.07 * a.arc;
         cans[c].position.z += s * 0.08 * a.arc;
-        cans[c].rotation.y = cans[c].userData.yaw + s * 0.5 * a.arc;
+        cans[c].rotation.y += s * 0.5 * a.arc;
       }
       if (a.t >= 1) { a.arc = 0; cans[c].rotation.y = cans[c].userData.yaw; }
     }
@@ -350,6 +425,8 @@ export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, o
     const lg = tinGeos[0].clone(); dent(lg.attributes.position, 11, 1.6, FORMATS[0].h); lg.computeVertexNormals();
     lure.add(new THREE.Mesh(lg, tinMatV));
     lure.add(new THREE.Mesh(labelGeometry(atlas.uvRect(letters.length), 11, 1.6, FORMATS[0], 0), labelMat));
+    const lg2 = new THREE.Mesh(letterGeometry(atlas.letterPatch(letters.length), atlas.letterRect(letters.length), FORMATS[0], 0, 11, 1.6), letterMat);
+    lg2.renderOrder = 3; lure.add(lg2);
     lure.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   }
   return {

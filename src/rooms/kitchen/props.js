@@ -147,11 +147,17 @@ export function buildRange(ctx, mat) {
   g.add(mk(rbox(G, W + 0.06, 0.04, D + 0.04, 0.012), edge, 0, HOB - 0.02, -D / 2 + 0.005));
   // raised cast-iron hotplate lids: a heavy disc with a chamfered edge, a cast fillet ring, a shallow crown and a
   // lifting-notch recess at the rim; dull black-leaded graphite, never a ring of glowing grooves
-  const lidIron = mat.ironGraphite || edge;
+  // black-leaded and burnished: the crowns and rims of the lids are rubbed to a dull steel polish by pans and the brush
+  const lidIron = (mat.ironGraphite || edge).clone();
+  lidIron.name = 'hobLid'; lidIron.roughness = 0.42; lidIron.metalness = 0.8; lidIron.color = new THREE.Color(1.25, 1.25, 1.3); lidIron.envMapIntensity = 1.2;
+  const polishRing = new THREE.MeshStandardMaterial({ color: 0x8a8a90, metalness: 1, roughness: 0.22, envMapIntensity: 1.1, name: 'hobPolish' });
   const cover = (R) => lathe(G, [[0, 0], [R + 0.004, 0], [R + 0.004, 0.009], [R - 0.002, 0.016], [R * 0.9, 0.0175], [R * 0.86, 0.02], [R * 0.82, 0.0175], [R * 0.55, 0.02], [R * 0.2, 0.0225], [R * 0.08, 0.0235], [0, 0.0235]], 56);
   const lids = [[-0.42, -0.22, 0.12, 0.4], [-0.13, -0.22, 0.1, 1.9], [0.15, -0.22, 0.1, 2.6], [0.43, -0.22, 0.12, -0.7], [-0.28, -0.45, 0.09, 1.1], [0.3, -0.45, 0.09, 0.2]];
   for (const [x, z, R, rot] of lids) {
     g.add(mk(cover(R), lidIron, x, HOB, z));
+    // the rubbed bright rim (pans slide over it) and the polished crown boss
+    g.add(mk(new THREE.TorusGeometry(R - 0.0005, 0.0028, 6, 56), polishRing, x, HOB + 0.0145, z, Math.PI / 2));
+    g.add(mk(new THREE.TorusGeometry(R * 0.86, 0.0018, 5, 48), polishRing, x, HOB + 0.0205, z, Math.PI / 2));
     // the lifting notch: a slot cast into the rim, black with ash
     const nx = Math.cos(rot) * R * 0.8, nz = Math.sin(rot) * R * 0.8;
     g.add(mk(new THREE.BoxGeometry(0.03, 0.012, 0.014), mat.soot, x + nx, HOB + 0.0145, z + nz, 0, -rot, 0));
@@ -201,6 +207,29 @@ export function buildRange(ctx, mat) {
     const pl = new THREE.Mesh(new THREE.PlaneGeometry(HW, HD), am);
     pl.rotation.x = -Math.PI / 2; pl.position.set(0, HOB + 0.0006, hz); pl.renderOrder = 1;
     g.add(pl);
+    // burnished wear: where pans are slid between the hotplates the black lead is rubbed through to a satin steel,
+    // in long streaks running side to side along the front, and a polished arc in front of each cover
+    const ptex = ctx.textures.canvas('kitchen:hobPolish', 1024, 512, (c, w, h) => {
+      c.fillStyle = '#000'; c.fillRect(0, 0, w, h);
+      const toPx = (x, z) => [((x + HW / 2) / HW) * w, ((z - hz + HD / 2) / HD) * h];
+      let a = 21;
+      const R = () => { a = (a * 16807) % 2147483647; return a / 2147483647; };
+      c.lineCap = 'round';
+      for (let k = 0; k < 160; k++) {
+        const y = h * (0.12 + R() * 0.8), x = R() * w, l = 40 + R() * 260;
+        c.strokeStyle = `rgba(255,255,255,${0.05 + R() * 0.16})`; c.lineWidth = 1 + R() * 5;
+        c.beginPath(); c.moveTo(x, y); c.lineTo(x + l, y + (R() - 0.5) * 8); c.stroke();
+      }
+      for (const [x, z, r] of covers) {
+        const [px, py] = toPx(x, z), rp = (r / HW) * w;
+        c.strokeStyle = 'rgba(255,255,255,0.28)'; c.lineWidth = 6;
+        c.beginPath(); c.arc(px, py, rp * 1.12, 0.2, Math.PI - 0.2); c.stroke();
+      }
+    }, { tile: false, srgb: false });
+    const pm = new THREE.MeshStandardMaterial({ color: 0x6c6c72, alphaMap: ptex, transparent: true, depthWrite: false, metalness: 1, roughness: 0.25, envMapIntensity: 1.0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, name: 'hobBurnish' });
+    const pp = new THREE.Mesh(new THREE.PlaneGeometry(HW, HD), pm);
+    pp.rotation.x = -Math.PI / 2; pp.position.set(0, HOB + 0.0008, hz); pp.renderOrder = 2;
+    g.add(pp);
   }
   // brass towel rail on brackets
   g.add(mk(new THREE.CylinderGeometry(0.011, 0.011, W + 0.1, 16), brass, 0, 0.745, 0.11, 0, 0, Math.PI / 2));
@@ -917,6 +946,10 @@ export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0
   const sagBands = [0.5 + rnd(50) * 0.1, 0.64 + rnd(51) * 0.08];
   const tNeck = 1 - neck / h * 1.0;          // where the neck starts
   const tuft = 0.18 + rnd(70) * 0.06;        // the ragged mouth above the tie (small: the neck is twisted shut)
+  // 2-3 big slump folds: broad diagonal valleys where the slack cloth has buckled over the settled flour
+  const bigFolds = Array.from({ length: 2 + (seed % 2) }, (_, k) => ({
+    a: rnd(80 + k) * Math.PI * 2, slope: (rnd(90 + k) - 0.5) * 3.2, t0: 0.18 + rnd(100 + k) * 0.12, t1: 0.55 + rnd(110 + k) * 0.2, d: 0.07 + rnd(120 + k) * 0.05,
+  }));
   for (let j = 0; j <= NV; j++) {
     const t = j / NV;
     for (let i = 0; i <= NU; i++) {
@@ -950,6 +983,13 @@ export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0
       // the tube flattens: shoulders bulge out sideways (x), front and back fall in (z)
       const sideBulge = Math.exp(-((t - 0.5) ** 2) / 0.06);
       let x = ca * rr * (1 + 0.12 * sideBulge), z = sa * rr * (0.9 - 0.12 * sideBulge - 0.06 * slump);
+      // the sack was sewn from a flat tube: across the bottom it is a straight seam, so the base pinches into a lens
+      // with two pointed 'ears' at the seam ends
+      {
+        const eb = 1 - Math.min(1, t / 0.17); const e2 = eb * eb * (3 - 2 * eb);
+        z *= 1 - 0.42 * e2;
+        x *= 1 + 0.16 * e2 * Math.pow(Math.abs(ca), 6);
+      }
       // sharp creases: a narrow V valley with soft ridges either side, deepest just under the neck
       let fold = 0;
       const tc = Math.min(1, t / tNeck);
@@ -979,7 +1019,14 @@ export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0
       // horizontal sag wrinkles where the slack top folds over the full belly
       let sagW = 0;
       for (const b of sagBands) sagW -= 0.04 * Math.exp(-((t - b) ** 2) / 0.001) * (0.6 + 0.4 * Math.sin(a * 2 + seed + b * 9));
-      const k = 1 + (t > 0.03 && t < tNeck ? fold + lump + sagW + seamR * (1 - gath) + belly : 0) + wr + twist;
+      let big = 0;
+      for (const b of bigFolds) {
+        if (t < b.t0 - 0.08 || t > b.t1 + 0.08) continue;
+        const life = Math.sin(Math.min(1, Math.max(0, (t - b.t0 + 0.08) / (b.t1 - b.t0 + 0.16))) * Math.PI);
+        const da = Math.atan2(Math.sin(a - b.a - b.slope * (t - b.t0)), Math.cos(a - b.a - b.slope * (t - b.t0)));
+        big += b.d * life * (-Math.exp(-(da * da) / 0.012) + 0.45 * Math.exp(-((Math.abs(da) - 0.2) ** 2) / 0.01));
+      }
+      const k = 1 + (t > 0.03 && t < tNeck ? fold + lump + sagW + seamR * (1 - gath) + belly + big : 0) + wr + twist;
       x *= k; z *= k;
       x += lean[0] * sag; z += lean[1] * sag;
       y *= 1 - slump * 0.14 * sag;

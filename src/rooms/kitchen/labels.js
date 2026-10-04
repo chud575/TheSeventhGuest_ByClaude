@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import '@fontsource/cinzel/latin-700.css';
+import '@fontsource/cinzel/latin-900.css';
+import '@fontsource/cormorant-garamond/latin-700.css';
 
 /**
  * Lithographed tin labels for "Stauf's Superior Soups" — a full 360-degree wrap per tin,
@@ -34,7 +37,7 @@ const SOUPS = [
 const WEIGHTS = ['NET 1 LB.', 'NET 1 LB.', 'NET 10 OZ.', 'NET 1 LB.', 'NET 2 LB.'];
 
 // ORM encodings (R = ao, G = roughness, B = metalness)
-const ORM = { ink: 'rgb(255,120,40)', gold: 'rgb(255,80,235)', tin: 'rgb(255,70,255)', rust: 'rgb(255,240,0)', paper: 'rgb(255,220,0)' };
+const ORM = { ink: 'rgb(255,120,40)', gold: 'rgb(255,80,235)', silver: 'rgb(255,72,250)', tin: 'rgb(255,110,255)', rust: 'rgb(255,240,0)', paper: 'rgb(255,220,0)' };
 
 function rng(seed) {
   let a = (seed * 2654435761) >>> 0;
@@ -42,8 +45,15 @@ function rng(seed) {
 }
 
 function goldGrad(g, x0, y0, x1, y1) {
+  // a pale lacquer gold (thin yellow varnish over tinplate), not brass
   const gr = g.createLinearGradient(x0, y0, x1, y1);
-  gr.addColorStop(0, '#6e5019'); gr.addColorStop(0.35, '#d9b35a'); gr.addColorStop(0.5, '#f4dc98'); gr.addColorStop(0.65, '#c49a40'); gr.addColorStop(1, '#634614');
+  gr.addColorStop(0, '#6a5a3a'); gr.addColorStop(0.35, '#c8b78a'); gr.addColorStop(0.5, '#ece0bc'); gr.addColorStop(0.65, '#b6a274'); gr.addColorStop(1, '#5e5034');
+  return gr;
+}
+/** bare / silver-printed tinplate: cold grey with a bright core */
+function silverGrad(g, x0, y0, x1, y1) {
+  const gr = g.createLinearGradient(x0, y0, x1, y1);
+  gr.addColorStop(0, '#4c4e50'); gr.addColorStop(0.35, '#b4b6b8'); gr.addColorStop(0.5, '#e8eaea'); gr.addColorStop(0.65, '#a2a4a6'); gr.addColorStop(1, '#46484a');
   return gr;
 }
 
@@ -85,14 +95,15 @@ function arcText(g, txt, cx, cy, r, a0, spread, inward = false) {
  * (glued over bare tin; drawn as paper, no gilt). The soup name is sized to stay within the front ~100 degrees
  * (<= 220 of 768 units) so it never wraps out of sight; the side seam sits at the back (u = 0 / 1).
  */
-function drawLabel(g, i, letter, mode, H, style, family = 0) {
+function drawLabel(g, i, letter, mode, H, style, family = 0, metal = 'silver') {
   const W = 768;
   const pal = PALETTES[(i * 3 + 1) % PALETTES.length];
   const soup = SOUPS[(i * 5 + 3) % SOUPS.length];
   const C = mode === 'c';
   const paper = family === 3;
   const ink = (css, kind = 'ink') => (C ? css : (paper && kind !== 'rust' && kind !== 'tin' ? ORM.paper : ORM[kind]));
-  const gold = (x0, y0, x1, y1) => (C ? goldGrad(g, x0, y0, x1, y1) : ORM.gold);
+  const gilt = metal === 'gold';
+  const gold = (x0, y0, x1, y1) => (C ? (gilt ? goldGrad : silverGrad)(g, x0, y0, x1, y1) : (gilt ? ORM.gold : ORM.silver));
   const R = rng(i * 97 + 13);
   const cx = W / 2, cy = H / 2;
   const squat = H < 200;
@@ -131,7 +142,7 @@ function drawLabel(g, i, letter, mode, H, style, family = 0) {
   } else {
     for (const y of [0, H - RIM]) {
       g.fillStyle = gold(0, y, 0, y + RIM); g.fillRect(0, y, W, RIM);
-      g.strokeStyle = ink('rgba(60,36,10,0.8)', 'gold'); g.lineWidth = 1.3;
+      g.strokeStyle = C ? (gilt ? 'rgba(60,40,14,0.8)' : 'rgba(30,32,36,0.8)') : (gilt ? ORM.gold : ORM.silver); g.lineWidth = 1.3;
       if (family === 1) { for (let x = 0; x < W + 12; x += 9) { g.beginPath(); g.moveTo(x, y + 3); g.lineTo(x + 4.5, y + RIM - 3); g.stroke(); } }
       else if (family === 2) { g.beginPath(); for (let x = 0; x <= W; x += 4) g.lineTo(x, y + RIM / 2 + Math.sin(x * 0.12) * 4); g.stroke(); }
       else for (let x = 0; x < W + 12; x += 12) { g.beginPath(); g.ellipse(x, y + RIM / 2, 6.5, 3.4, 0, 0, Math.PI * 2); g.stroke(); }
@@ -214,15 +225,15 @@ function drawLabel(g, i, letter, mode, H, style, family = 0) {
   if (family === 0) {
     // banded: ribbon over a gilt roundel over a pill name plate, laurel either side
     if (squat) {
-      rr = Math.min(44, avail * 0.38); ry = top + rr + 2;
+      rr = Math.min(50, avail * 0.42); ry = top + rr + 2;
       ribbon(cx - 112, cy - 4, 104, 'STAUF’S', 17);
       g.fillStyle = ink(pal.panel); g.font = 'italic 18px "IM Fell English", Georgia, serif'; g.fillText('superior', cx + 112, cy - 10); g.fillText('soup', cx + 112, cy + 10);
       namePlate(cx, bot - 11, 176, 21);
     } else {
-      rr = Math.min(66, avail * 0.23); ry = cy - 4;
-      ribbon(cx, ry - rr - 22, 200, 'STAUF’S', 24);
-      namePlate(cx, ry + rr + 24, 196, 30);
-      if (H > 300) { g.fillStyle = ink(pal.panel); g.font = 'italic 16px "IM Fell English", Georgia, serif'; g.fillText('superior soup · condensed', cx, ry + rr + 52); }
+      rr = Math.min(80, (avail - 78) / 2); ry = top + 38 + rr;
+      ribbon(cx, top + 21, 200, 'STAUF’S', 22);
+      namePlate(cx, ry + rr + 19, 196, 28);
+      if (bot - (ry + rr + 33) > 26) { g.fillStyle = ink(pal.panel); g.font = 'italic 16px "IM Fell English", Georgia, serif'; g.fillText('superior soup · condensed', cx, ry + rr + 48); }
       for (const sd of [-1, 1]) for (let k = 0; k < 7; k++) {
         const a = (k / 6) * 1.9 - 0.95;
         const px = cx + sd * (rr + 14 + Math.cos(a) * 8), py = ry + Math.sin(a) * (rr * 0.95);
@@ -233,7 +244,7 @@ function drawLabel(g, i, letter, mode, H, style, family = 0) {
     }
   } else if (family === 1) {
     // oval cartouche: a tall cream oval framed in gilt; name arched round its top, the maker below the initial
-    const ow = squat ? 128 : 150, oh = avail * 0.5;
+    const ow = squat ? 140 : 190, oh = avail * 0.5;
     ry = cy + (squat ? 0 : 6);
     g.beginPath(); g.ellipse(cx, cy, ow / 2 + 7, oh + 6, 0, 0, Math.PI * 2); g.fillStyle = gold(cx - ow, cy - oh, cx + ow, cy + oh); g.fill();
     g.beginPath(); g.ellipse(cx, cy, ow / 2, oh - 1, 0, 0, Math.PI * 2); g.fillStyle = ink(pal.panel); g.fill();
@@ -250,7 +261,7 @@ function drawLabel(g, i, letter, mode, H, style, family = 0) {
     g.fillRect(cx - ow * 0.25, cy - oh * 0.6 + (squat ? 9 : 12), ow * 0.5, 1.2);
     g.fillStyle = ink(pal.ink); g.font = `italic ${squat ? 12 : 16}px "IM Fell English", Georgia, serif`;
     fitText(g, 'Stauf’s Superior', cx, cy + oh * 0.66, ow * 0.7);
-    rr = Math.min(ow * 0.36, oh * 0.44); ry = cy + oh * 0.02;
+    rr = Math.min(ow * 0.42, oh * 0.56); ry = cy + oh * 0.02;
     shapeKind = -1; letterCol = pal.ground;
   } else if (family === 2) {
     // art-nouveau frame: an arched panel with whiplash corners, the name in a straight IM Fell banner below
@@ -274,8 +285,8 @@ function drawLabel(g, i, letter, mode, H, style, family = 0) {
     g.strokeStyle = gold(cx - pw, by, cx + pw, by); g.lineWidth = 2; g.strokeRect(cx - pw / 2 - 18, by - bh / 2, pw + 36, bh);
     g.fillStyle = ink(pal.panel); g.font = `italic ${bh * 0.78}px "IM Fell English", Georgia, serif`;
     fitText(g, soup.charAt(0) + soup.slice(1).toLowerCase(), cx, by + 1, pw + 20);
-    rr = Math.min(pw * 0.36, (ph - bh - (squat ? 26 : 40)) * 0.5); ry = y0 + (squat ? 26 : 36) + rr;
-    shapeKind = 3; letterFont = 'cormorant';
+    rr = Math.min(pw * 0.42, (ph - bh - (squat ? 26 : 40)) * 0.5); ry = y0 + (squat ? 26 : 36) + rr;
+    shapeKind = 2; letterFont = 'cormorant';
   } else {
     // printed paper label: letterpress in black and red, the initial in a red-ruled circle
     rr = Math.min(squat ? 40 : 58, avail * 0.3); ry = cy - (squat ? 2 : 8);
@@ -313,7 +324,7 @@ function drawLabel(g, i, letter, mode, H, style, family = 0) {
   if (shapeKind >= 0) {
     shape(rr); g.fillStyle = gold(cx - rr, ry - rr, cx + rr, ry + rr); g.fill();
     shape(rr * 0.9); g.fillStyle = ink(pal.ground); g.fill();
-    if (shapeKind !== 3) { g.fillStyle = ink(pal.panel, 'gold'); for (let k = 0; k < 36; k++) { const a = (k / 36) * Math.PI * 2; g.beginPath(); g.arc(cx + Math.cos(a) * rr * 0.85, ry + Math.sin(a) * rr * 0.85, 1.5, 0, Math.PI * 2); g.fill(); } }
+    if (shapeKind !== 3) { g.fillStyle = C ? ink(pal.panel) : (gilt ? ORM.gold : ORM.silver); for (let k = 0; k < 36; k++) { const a = (k / 36) * Math.PI * 2; g.beginPath(); g.arc(cx + Math.cos(a) * rr * 0.85, ry + Math.sin(a) * rr * 0.85, 1.5, 0, Math.PI * 2); g.fill(); } }
     shape(rr * 0.79); g.fillStyle = gold(cx, ry - rr, cx, ry + rr); g.fill();
     shape(rr * 0.75);
     if (C) { const fg = g.createRadialGradient(cx - rr * 0.25, ry - rr * 0.3, rr * 0.1, cx, ry, rr * 0.8); fg.addColorStop(0, pal.panel); fg.addColorStop(1, pal.field); g.fillStyle = fg; } else g.fillStyle = ORM.ink;
@@ -322,21 +333,10 @@ function drawLabel(g, i, letter, mode, H, style, family = 0) {
   }
   g.restore();   // colour pass done
 
-  // the initial: drop shadow, colour fill, then the black keyline (unshifted, so it misregisters a hair)
-  const fs = rr * (letterFont === 'fell' ? 1.5 : letterFont === 'cormorant' ? 1.55 : 1.38);
-  g.font = letterFont === 'fell' ? `400 ${fs}px "IM Fell English SC", Georgia, serif` : letterFont === 'cormorant' ? `500 ${fs}px "Cormorant Garamond", Georgia, serif` : `700 ${fs}px Cinzel, Georgia, serif`;
-  const ly = ry + fs * (letterFont === 'cinzel' ? 0.06 : 0.04);
-  if (C && !paper) { g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillText(letter, cx + 2.5, ly + 3); }
-  g.fillStyle = ink(letterCol); g.fillText(letter, cx + mis[0], ly + mis[1]);
-  if (C && !paper) {
-    g.strokeStyle = 'rgba(15,8,4,0.85)'; g.lineWidth = 1.2; g.strokeText(letter, cx, ly);
-    g.strokeStyle = 'rgba(255,240,200,0.4)'; g.lineWidth = 0.8; g.strokeText(letter, cx - 1.2, ly - 1.2);
-    if (shapeKind >= 0) { g.strokeStyle = 'rgba(15,8,4,0.6)'; g.lineWidth = 1; shape(rr + 0.5); g.stroke(); }
-  }
-  if (C && paper) {   // letterpress: ink squeezed darker at the edges of the letter, a little uneven
-    g.strokeStyle = 'rgba(10,6,4,0.5)'; g.lineWidth = 1.4; g.strokeText(letter, cx, ly);
-  }
-
+  // the initial itself is NOT printed here: it lives in its own high-resolution letter atlas (buildLetterAtlas),
+  // laid over the field as a separate decal so it stays crisp at puzzle distance. A faint ink ghost keeps the
+  // field from reading empty at a glance in the low mips.
+  const info = { ry, rr, font: letterFont, paper };
   // ---------------------------------------------------------------- print & age
   if (C) {
     if (!paper) {
@@ -416,6 +416,7 @@ function drawLabel(g, i, letter, mode, H, style, family = 0) {
     if (C) { const x = sx + (R() - 0.5) * 6; const gr = g.createLinearGradient(0, RIM, 0, RIM + 40 + R() * 40); gr.addColorStop(0, 'rgba(110,48,16,0.6)'); gr.addColorStop(1, 'rgba(110,48,16,0)'); g.fillStyle = gr; g.fillRect(x - 1.5, RIM, 3, 80); }
   }
   g.restore();
+  return info;
 }
 
 /** Age a few labels in place (colour atlas only): sun-faded and desaturated on one side, and the colour plates
@@ -452,17 +453,19 @@ function ageCell(g, x0, y0, w, h, i) {
  * Build both atlases. heights[i] = authored label height (units, width 768) for tin i.
  * Returns { map, orm, uvRect(i) } (uv rect covers exactly that label's area).
  */
-export async function buildLabelAtlas(letters, { extras = [], heights = [], families = [] } = {}) {
+export async function buildLabelAtlas(letters, { extras = [], heights = [], families = [], metals = [] } = {}) {
   try {
     await Promise.all([
       document.fonts.load('700 112px Cinzel'), document.fonts.load('600 30px Cinzel'),
       document.fonts.load('italic 31px "IM Fell English"'), document.fonts.load('31px "IM Fell English"'),
       document.fonts.load('400 60px "IM Fell English SC"'), document.fonts.load('500 60px "Cormorant Garamond"'),
+      document.fonts.load('700 200px Cinzel'), document.fonts.load('900 200px Cinzel'), document.fonts.load('700 200px "Cormorant Garamond"'),
     ]);
   } catch { /* fall back to Georgia */ }
   const W = CELL_W * COLS, H = CELL_H * ROWS;
   const all = [...letters, ...extras];
   const hOf = (i) => Math.min(CELL_H / S, heights[i] || 270);
+  const infos = [];
   const mk = (mode) => {
     const c = document.createElement('canvas');
     c.width = W; c.height = H;
@@ -472,7 +475,7 @@ export async function buildLabelAtlas(letters, { extras = [], heights = [], fami
       g.save(); g.translate(col * CELL_W, row * CELL_H);
       g.beginPath(); g.rect(0, 0, CELL_W, hOf(i) * S); g.clip();
       g.scale(S, S);
-      drawLabel(g, i, L, mode, hOf(i), i >= letters.length ? 0 : (i * 7) % 3, families[i] || 0);
+      infos[i] = drawLabel(g, i, L, mode, hOf(i), i >= letters.length ? 0 : (i * 7) % 3, families[i] || 0, metals[i] || 'silver');
       g.restore();
       if (mode === 'c' && (families[i] || 0) !== 3) ageCell(g, col * CELL_W, row * CELL_H, CELL_W, Math.ceil(hOf(i) * S), i);
     });
@@ -490,5 +493,63 @@ export async function buildLabelAtlas(letters, { extras = [], heights = [], fami
     // flipY = true: v = 1 at canvas top
     return { u0: col / COLS, u1: (col + 1) / COLS, v0: 1 - (row * CELL_H + hp) / H, v1: 1 - (row * CELL_H) / H };
   };
-  return { map, orm, uvRect };
+  const letterAtlas = buildLetterAtlas(all, infos);
+  // letterPatch(i): where the initial sits on the wrap, in authored units (x centre is always the front, u = 0.5)
+  const letterPatch = (i) => ({ ...infos[i], H: hOf(i), half: infos[i].rr * 0.86 });
+  return { map, orm, uvRect, letterMap: letterAtlas.map, letterRect: letterAtlas.rect, letterPatch };
+}
+
+/**
+ * The initials, each in its own 512 px cell: near-black ink (#1a1410) with a pale keyline so they hold contrast on
+ * cream fields, gilt rings and under a hot lamp alike; a hair of press wear. Transparent elsewhere (a decal).
+ */
+const LCELL = 512, LCOLS = 5;
+function buildLetterAtlas(all, infos) {
+  const rows = Math.ceil(all.length / LCOLS);
+  const c = document.createElement('canvas');
+  c.width = LCELL * LCOLS; c.height = LCELL * rows;
+  const g = c.getContext('2d');
+  all.forEach((L, i) => {
+    const info = infos[i] || { font: 'cinzel' };
+    const x0 = (i % LCOLS) * LCELL, y0 = Math.floor(i / LCOLS) * LCELL;
+    const cx = x0 + LCELL / 2, cy = y0 + LCELL / 2;
+    const fam = info.font;
+    // cap height ~ 78% of the cell (the cell spans the field's inner diameter)
+    const capK = fam === 'fell' ? 0.66 : fam === 'cormorant' ? 0.64 : 0.7;
+    const fs = (LCELL * 0.74) / capK;
+    g.save();
+    g.beginPath(); g.rect(x0, y0, LCELL, LCELL); g.clip();
+    g.font = fam === 'fell' ? `400 ${fs}px "IM Fell English SC", Georgia, serif` : fam === 'cormorant' ? `700 ${fs}px "Cormorant Garamond", Georgia, serif` : `700 ${fs}px Cinzel, Georgia, serif`;
+    g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+    const m = g.measureText(L);
+    const asc = m.actualBoundingBoxAscent || fs * capK, desc = m.actualBoundingBoxDescent || 0;
+    const w = (m.actualBoundingBoxRight + m.actualBoundingBoxLeft) || m.width;
+    const k = Math.min(1, (LCELL * 0.84) / w);
+    const base = cy + (asc - desc) / 2;
+    g.translate(cx, base); g.scale(k, 1);
+    g.lineJoin = 'round';
+    // pale keyline (printed cream under-plate, a touch wider than the ink)
+    g.strokeStyle = 'rgba(246,236,206,0.95)'; g.lineWidth = 16; g.strokeText(L, 0, 0);
+    // engraved shadow line offset down-right, then the ink
+    g.fillStyle = 'rgba(26,20,16,0.35)'; g.fillText(L, 5, 5);
+    g.fillStyle = '#1a1410'; g.fillText(L, 0, 0);
+    // a fine highlight hairline inside the top-left edge (the embossed lip catching light)
+    g.strokeStyle = 'rgba(120,96,70,0.5)'; g.lineWidth = 2; g.strokeText(L, -2, -2);
+    g.restore();
+    // press wear: a few rubbed specks through the ink (alpha only)
+    g.save(); g.beginPath(); g.rect(x0, y0, LCELL, LCELL); g.clip();
+    g.globalCompositeOperation = 'destination-out';
+    let a = (i + 7) * 7919;
+    const R = () => { a = (a * 16807) % 2147483647; return a / 2147483647; };
+    for (let q = 0; q < 70; q++) { g.fillStyle = `rgba(0,0,0,${0.25 + R() * 0.5})`; g.beginPath(); g.ellipse(x0 + R() * LCELL, y0 + R() * LCELL, 1 + R() * 4, 0.6 + R() * 1.6, R() * 3, 0, Math.PI * 2); g.fill(); }
+    g.restore();
+  });
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.flipY = true;
+  t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter;
+  const rect = (i) => {
+    const col = i % LCOLS, row = Math.floor(i / LCOLS);
+    return { u0: col / LCOLS, u1: (col + 1) / LCOLS, v0: 1 - (row + 1) / rows, v1: 1 - row / rows };
+  };
+  return { map: t, rect };
 }
