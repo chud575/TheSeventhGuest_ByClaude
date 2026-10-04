@@ -28,6 +28,52 @@ export function beam(G, w, h, len, ch = 0.012) {
   return bevelBox(G, w, h, len, ch);
 }
 
+/**
+ * Hand-hewn timber along local Z (length), local Y = depth. Irregular chamfers per arris, faces that
+ * undulate where the adze went, a little twist and roll, and a sag over the span. Flat-shaded facets.
+ * UVs in metres: grain runs along the length on every long face (u = z), with a per-beam random offset
+ * so neighbouring rafters never show the same figure.
+ */
+export function hewnBeam(G, w, h, len, { ch = 0.026, seed = 1, sag = 0, wobble = 0.0035, twist = 0.02, roll = 0.015 } = {}) {
+  let sd = (Math.abs(Math.floor(seed * 7919)) % 2147483646) + 1;
+  const rnd = () => { sd = (sd * 16807) % 2147483647; return (sd - 1) / 2147483646; };
+  const c = [0, 1, 2, 3].map(() => Math.min(ch * (0.45 + 0.9 * rnd()), w / 3, h / 3));
+  const x0 = -w / 2, x1 = w / 2, y0 = -h / 2, y1 = h / 2;
+  const s = new THREE.Shape();
+  s.moveTo(x0 + c[0], y0); s.lineTo(x1 - c[1], y0); s.lineTo(x1, y0 + c[1]); s.lineTo(x1, y1 - c[2]); s.lineTo(x1 - c[2], y1); s.lineTo(x0 + c[3], y1); s.lineTo(x0, y1 - c[3]); s.lineTo(x0, y0 + c[0]); s.lineTo(x0 + c[0], y0);
+  const steps = Math.max(3, Math.round(len / 0.18));
+  let g = new THREE.ExtrudeGeometry(s, { depth: len, bevelEnabled: false, steps, curveSegments: 1 });
+  g.translate(0, 0, -len / 2);
+  if (g.index) g = g.toNonIndexed();
+  const p = g.attributes.position;
+  const ph = [rnd() * 6.28, rnd() * 6.28, rnd() * 6.28, rnd() * 6.28];
+  const tw = (rnd() - 0.5) * 2 * twist, rl = (rnd() - 0.5) * 2 * roll;
+  for (let i = 0; i < p.count; i++) {
+    let x = p.getX(i), y = p.getY(i); const z = p.getZ(i);
+    const t = z / len + 0.5;
+    // adze undulation: each face wanders in and out along the length
+    x += Math.sign(x) * wobble * (Math.sin(z * 7.1 + ph[0]) * 0.6 + Math.sin(z * 17.3 + ph[1]) * 0.4);
+    y += Math.sign(y) * wobble * (Math.sin(z * 5.3 + ph[2]) * 0.6 + Math.sin(z * 13.7 + ph[3]) * 0.4);
+    const a = rl + tw * (t - 0.5);
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const xr = x * ca - y * sa, yr = x * sa + y * ca;
+    p.setXYZ(i, xr, yr - sag * Math.sin(Math.PI * t), z);
+  }
+  g.computeVertexNormals();
+  const nor = g.attributes.normal;
+  const uv = new Float32Array(p.count * 2);
+  const ou = rnd() * 7.0, ov = rnd() * 0.6;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const nx = Math.abs(nor.getX(i)), ny = Math.abs(nor.getY(i)), nz = Math.abs(nor.getZ(i));
+    if (nz > nx && nz > ny) { uv[i * 2] = x + ou; uv[i * 2 + 1] = y + ov; }          // end grain
+    else if (nx >= ny) { uv[i * 2] = z + ou; uv[i * 2 + 1] = y + ov; }
+    else { uv[i * 2] = z + ou + 0.37; uv[i * 2 + 1] = x + ov + 0.11; }
+  }
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  return g;
+}
+
 /** lathe helper taking [r, y] pairs */
 const lathe = (G, pts, seg = 24) => G.latheFromProfile(pts, seg);
 
@@ -284,13 +330,13 @@ export function buildHangingLamp(ctx, m, { drop = 0.7 } = {}) {
     for (let i = 0; i < pp.count; i++) {
       const x = pp.getX(i), y = pp.getY(i), z = pp.getZ(i); const a = Math.atan2(z, x); const r = Math.hypot(x, z);
       const k = THREE.MathUtils.smoothstep(r, 0.05, 0.17);
-      const dent = -0.012 * Math.exp(-((a - 0.9) ** 2) / 0.05) * k - 0.008 * Math.exp(-((a + 2.1) ** 2) / 0.03) * k + 0.006 * Math.sin(a * 7) * k * k;
+      const dent = -0.01 * Math.exp(-((a - 0.9) ** 2) / 0.05) * k - 0.006 * Math.exp(-((a + 2.1) ** 2) / 0.03) * k + 0.0015 * Math.sin(a * 5 + 1.0) * k * k;
       pp.setY(i, y + dent);
     }
     sg.computeVertexNormals();
     const shade = mesh(sg, m.tin); shade.position.y = y0 + 0.02; g.add(shade);
     // enamelled underside, a dull cream that throws the light down
-    const under = mesh(sg, new THREE.MeshStandardMaterial({ color: 0x8a8070, roughness: 0.5, side: THREE.BackSide, name: 'shadeEnamel' })); under.position.y = y0 + 0.018; under.scale.setScalar(0.995); g.add(under);
+    const under = mesh(sg, new THREE.MeshStandardMaterial({ color: 0x4e4a42, roughness: 0.65, side: THREE.BackSide, name: 'shadeEnamel' })); under.position.y = y0 + 0.018; under.scale.setScalar(0.995); g.add(under);
   }
   // three hanging rods
   for (let k = 0; k < 3; k++) { const a = (k / 3) * Math.PI * 2; const r = mesh(new THREE.CylinderGeometry(0.0025, 0.0025, 0.3, 5), m.brass); at(r, Math.cos(a) * 0.06, y0 - 0.17, Math.sin(a) * 0.06); g.add(r); }
@@ -419,7 +465,7 @@ export function dustSheetGeometry({ hw, hd, topH, seg = 72, seed = 1, flare = 0.
     const ex = ux * (hw + 0.6) - cx, ez = uz * (hd + 0.6) - cz;
     const top = topH(cx, cz);
     const hemWave = 0.05 * Math.sin(Math.atan2(ez, ex) * 7 + seed) + 0.03 * Math.sin(Math.atan2(ez, ex) * 17 + seed * 3.1);
-    let e = Math.min(Math.hypot(ex, ez) * (maxH / 0.6), hemY > 0 ? Math.max(0.02, top - hemY + hemWave) : top + 0.1 + hemWave);
+    let e = Math.min(Math.hypot(ex, ez) * (maxH / 0.6), hemY > 0 ? Math.max(0.02, top - hemY + hemWave) : top + 0.2 + hemWave * 1.6);
     let y = top - e;
     const dirx = e > 0 ? ex / Math.hypot(ex, ez) : 0, dirz = e > 0 ? ez / Math.hypot(ex, ez) : 0;
     const per = Math.atan2(cz + dirz, cx + dirx);
@@ -431,9 +477,17 @@ export function dustSheetGeometry({ hw, hd, topH, seg = 72, seed = 1, flare = 0.
       fold += (foldAmp - 1) * Math.exp(-dc * 3.0) * Math.sin(Math.atan2(cz - ccz, cx - ccx) * 6 + seed) * 1.2;
       fold *= 1 + (foldAmp - 1) * 0.35;
     }
+    // swags: between the corners the cloth's own weight pulls the upper skirt in and down a little
+    if (e > 0) {
+      const ccx2 = Math.sign(cx || 1) * hw, ccz2 = Math.sign(cz || 1) * hd;
+      const near = Math.max(1 - Math.abs(cx - ccx2) / (2 * hw), 1 - Math.abs(cz - ccz2) / (2 * hd));
+      const mid = 1 - THREE.MathUtils.smoothstep(near, 0.55, 1.0);
+      y -= 0.035 * mid * THREE.MathUtils.smoothstep(e, 0.0, 0.25) * (1 - THREE.MathUtils.smoothstep(e, 0.4, 1.2));
+      fold += 0.6 * Math.sin(per * 3 + seed * 1.3) * THREE.MathUtils.smoothstep(e, 0.1, 0.8);
+    }
     const hemK = Math.min(1, e / Math.max(top, 0.01));
     let out = Math.min(e, 0.25) * 0.08 + flare * hemK * (1 + 1.1 * fold) + hemK * hemK * 0.03 * (1 + fold) + 0.03 * fold * THREE.MathUtils.smoothstep(e, 0.0, 0.45);
-    if (y < 0.004) { out += (0.004 - y) * 0.9; y = 0.004 + Math.abs(fold) * 0.014 * Math.min(1, (0.004 - y) * 6); }
+    if (y < 0.004) { const pool = 0.004 - y; out += pool * 1.1; y = 0.004 + Math.abs(fold) * 0.022 * Math.min(1, pool * 6) + 0.008 * Math.max(0, Math.sin(per * 9 + seed)) * Math.min(1, pool * 8); }
     const nx = cx + dirx * out + (e > 0 ? -dirz : 0) * fold * 0.03 * hemK;
     const nz = cz + dirz * out + (e > 0 ? dirx : 0) * fold * 0.03 * hemK;
     const yy = y + (e > 0 ? 0 : Math.sin(cx * 13 + seed) * Math.sin(cz * 11) * 0.006 + Math.sin(cx * 31 + cz * 7 + seed) * 0.003);

@@ -91,14 +91,15 @@ export function cornerWebTexture(forge, seed = 1) {
     const n = 9 + Math.floor(rnd() * 4);
     const spokes = [];
     for (let i = 0; i < n; i++) {
-      const a = 0.04 + (i / (n - 1)) * (Math.PI / 2 - 0.08) + (rnd() - 0.5) * 0.06;
+      const a = 0.04 + (i / (n - 1)) * (Math.PI / 2 - 0.08) + (rnd() - 0.5) * 0.22;
       const L = w * (0.75 + rnd() * 0.25) * (0.85 + 0.15 * Math.sin(a * 2));
-      spokes.push({ a, L, bow: (rnd() - 0.3) * 0.06 });
+      spokes.push({ a, L: L * (rnd() < 0.25 ? 0.5 + rnd() * 0.3 : 1), bow: (rnd() - 0.3) * 0.18 });
     }
+    spokes.sort((p2, q2) => p2.a - q2.a);
     const spokePt = (sp, r) => {
       const t = r / sp.L;
       const a = sp.a + sp.bow * Math.sin(t * Math.PI);
-      return [cx + Math.cos(a) * r, cy + Math.sin(a) * r + t * t * 18];
+      return [cx + Math.cos(a) * r, cy + Math.sin(a) * r + t * t * (30 + 20 * Math.sin(sp.a * 7))];
     };
     for (const sp of spokes) {
       g.strokeStyle = `rgba(255,255,255,${0.55 + rnd() * 0.35})`; g.lineWidth = 1.5 + rnd() * 0.8;
@@ -108,16 +109,17 @@ export function cornerWebTexture(forge, seed = 1) {
     }
     // a torn bay: capture threads missing between two spokes in a radial band
     const tearI = 2 + Math.floor(rnd() * (n - 5)), tearR0 = w * (0.25 + rnd() * 0.25), tearR1 = tearR0 + w * (0.15 + rnd() * 0.2);
+    const tear2 = Math.floor(rnd() * (n - 2)), t2R0 = w * (0.5 + rnd() * 0.3), t2R1 = t2R0 + w * 0.2;
     // capture spiral: catenaries between adjacent spokes, sagging away from the corner
     let r = 26;
     while (r < w * 0.95) {
-      r += 11 + r * 0.035 + rnd() * 6;
+      r += 9 + r * 0.035 + rnd() * rnd() * 22;
       g.lineWidth = 0.8 + rnd() * 0.7;
       for (let i = 0; i < n - 1; i++) {
         const A = spokes[i], B = spokes[i + 1];
         if (r > A.L * 0.98 || r > B.L * 0.98) continue;
-        const torn = i >= tearI && i <= tearI + 1 && r > tearR0 && r < tearR1;
-        if (rnd() < 0.06) continue;
+        const torn = (i >= tearI && i <= tearI + 1 && r > tearR0 && r < tearR1) || (i === tear2 && r > t2R0 && r < t2R1);
+        if (rnd() < 0.18) continue;
         const [x0, y0] = spokePt(A, r), [x1, y1] = spokePt(B, r * (0.97 + rnd() * 0.06));
         const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
         const len = Math.hypot(x1 - x0, y1 - y0);
@@ -140,6 +142,12 @@ export function cornerWebTexture(forge, seed = 1) {
       const a = rnd() * Math.PI / 2, rr = w * Math.pow(rnd(), 1.6) * 0.85;
       g.fillStyle = `rgba(255,255,255,${0.2 + rnd() * 0.45})`;
       g.beginPath(); g.ellipse(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, 1 + rnd() * 3.5, 1 + rnd() * 2, rnd() * 3, 0, Math.PI * 2); g.fill();
+    }
+    // matted dust balls snagged in the silk: soft grey tufts
+    for (let i = 0; i < 18; i++) {
+      const a = rnd() * Math.PI / 2, rr = w * (0.1 + Math.pow(rnd(), 1.3) * 0.7), x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr, sz = 5 + rnd() * 14;
+      const gr = g.createRadialGradient(x, y, 0, x, y, sz); gr.addColorStop(0, 'rgba(255,255,255,0.55)'); gr.addColorStop(0.6, 'rgba(255,255,255,0.2)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, sz, sz * (0.5 + rnd() * 0.5), rnd() * 3, 0, Math.PI * 2); g.fill();
     }
     // a few long sagging bridge lines across the mouth of the web
     for (let i = 0; i < 4; i++) {

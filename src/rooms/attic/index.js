@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { LightShaft } from '../../engine/fx/index.js';
 import { mergeStatic } from '../../engine/lib/contrib/foyer-merge.js';
+import { sarkBoardTexture, addBrickVariation, fabricStainTexture, cloudWispTexture } from './textures.js';
 import { timberTexture, sarkingTexture, floorTexture, lathPlasterTexture, linenTexture, moonSkyTexture, cobwebTexture, hellGlowTexture, brickTexture, addGrime, dappleTexture, dollFaceTexture } from './textures.js';
 import {
-  bevelBox, beam, buildWorkbench, buildTrain, buildToolRack, buildSoldiers, buildTop, buildDrum,
+  bevelBox, beam, hewnBeam, buildWorkbench, buildTrain, buildToolRack, buildSoldiers, buildTop, buildDrum,
   buildBlocks, buildPuzzleBox, buildLabTable, buildMicroscope, buildGlassware, buildBellJar,
   buildHangingLamp, buildToyChest, buildChair, buildTrunk, buildCrate, buildDressForm, buildBirdCage, dustSheetGeometry, buildFrameStack, hangingCoatGeometry, buildMicroscopeVictorian, buildStool, buildMicroscopeGreat, buildSuitcase, buildHatBox, buildRolledRug, buildBookBundle, buildGramophone,
 } from './props.js';
@@ -50,6 +51,7 @@ const TABLE_H = 0.86;
 const PLATE = new THREE.Vector3(0.6, TABLE_H + 0.06, -1.38);
 const PLATE_R = 0.25;
 const BENCH = new THREE.Vector3(-1.35, 0, Z0 + 0.42);
+const BT_Y = 0.9;
 const ROOM_GRADE = {
   exposure: 2.5, contrast: 1.1, saturation: 0.96, toneMapping: 'aces',
   shadowTint: [0.78, 0.92, 1.22], highlightTint: [1.14, 1.0, 0.82], splitAmount: 0.6,
@@ -110,7 +112,7 @@ export default {
     // ================================================================ materials
     const pbr = (set, opts = {}, Phys = false) => new (Phys ? THREE.MeshPhysicalMaterial : THREE.MeshStandardMaterial)({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, metalnessMap: set.ormMap, aoMap: set.ormMap, roughness: 1, metalness: 1, ...opts });
     const timber = timberTexture(ctx.textures);
-    const timberDark = timberTexture(ctx.textures, { key: 'timberDark', base: [0.17, 0.11, 0.068] });
+    const timberDark = timberTexture(ctx.textures, { key: 'timberDark', base: [0.29, 0.21, 0.15] });
     const linen = linenTexture(ctx.textures);
     const brickTex = brickTexture(ctx.textures, { missing: 0.02 });
     const brickDarkTex = brickTexture(ctx.textures, { key: 'brickDark', base: [0.3, 0.15, 0.11], mortar: [0.28, 0.26, 0.24], bloom: 0.25, missing: 0.012 });
@@ -128,7 +130,7 @@ export default {
         floor: 0.55, macro: 0.5, roof: { knee: KNEE, ridge: RIDGE, half: HALF },
         streaks: [[OCULUS.x, OCULUS.y - OCULUS.r - 0.04, 0.36, 1.0], [-1.92, 2.6, 0.16, 0.8], [1.92, 2.6, 0.16, 0.7], [0.0, 4.25, 0.22, 0.9], [-2.95, 1.45, 0.12, 0.6], [(DOOR.x0 + DOOR.x1) / 2, DOOR.h + 0.12, 0.5, 0.55]],
       }),
-      brickDark: addGrime(pbr(brickDarkTex.withRepeat(1 / 1.8, 1 / 1.8), { name: 'brickDark', envMapIntensity: 0.2 }), { floor: 0.5, macro: 0.6, floorDark: 0.6 }),
+      brickDark: addBrickVariation(addGrime(pbr(brickDarkTex.withRepeat(1 / 1.8, 1 / 1.8), { name: 'brickDark', envMapIntensity: 0.2 }), { floor: 0.5, macro: 0.6, floorDark: 0.6 }), { bloom: 0.25 }),
       stone: M.create('stone', { rows: 2, cols: 3, moss: 0.15, damp: 0.1, repeat: [2.4, 2.4], color: [0.42, 0.4, 0.38], roughness: 2.2, envMapIntensity: 0.15 }),
       benchTop: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 3, polish: 0.15, wear: 0.9, repeat: [2.6, 2.6], macro: 0.6, color: [0.66, 0.54, 0.43] }),
       benchFrame: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 0, polish: 0.12, wear: 0.95, repeat: [3.6, 3.6], color: [0.36, 0.26, 0.19] }),
@@ -142,7 +144,7 @@ export default {
       trunk: M.create('leather', { color: [0.16, 0.08, 0.045], wear: 0.8, repeat: [2.5, 2.5] }),
       leatherStrap: M.create('leather', { color: [0.1, 0.05, 0.03], wear: 0.5, repeat: [6, 6] }),
       painting: M.create('painting', { subject: 1, seed: 7, aspect: 0.65 / 0.85, varnish: 0.8, cracks: 0.8, size: 512 }),
-      linen: pbr(linen.withRepeat(2, 2), { name: 'linen', side: THREE.DoubleSide, envMapIntensity: 0.25 }),
+      linen: pbr(linen.withRepeat(1.6, 1.6), { name: 'linen', side: THREE.DoubleSide, envMapIntensity: 0.25, sheen: 0.45, sheenRoughness: 0.8, sheenColor: new THREE.Color(0.75, 0.75, 0.78), metalness: 0 }, true),
       iron: M.basic('iron'),
       castIron: new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.55, metalness: 0.7, name: 'castIron' }),
       strapIron: new THREE.MeshStandardMaterial({ color: 0x1c1a19, roughness: 0.7, metalness: 0.75, name: 'strapIron' }),
@@ -188,8 +190,8 @@ export default {
       lace: new THREE.MeshStandardMaterial({ color: 0xd8d0bc, roughness: 0.85, name: 'lace', side: THREE.DoubleSide }),
       stocking: new THREE.MeshStandardMaterial({ color: 0xcfc8b8, roughness: 0.8, name: 'stocking' }),
       sash: paint(0x6a0e14, { roughness: 0.6, clearcoat: 0.1, sheen: 0.8, sheenColor: new THREE.Color(0.8, 0.4, 0.4), name: 'sash' }),
-      dressBlue: new THREE.MeshPhysicalMaterial({ color: 0x1c2c5e, roughness: 0.8, sheen: 1, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.45, 0.55, 0.8), side: THREE.DoubleSide, name: 'dressBlue' }),
-      dressRed: new THREE.MeshPhysicalMaterial({ color: 0x5e1014, roughness: 0.8, sheen: 1, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.8, 0.45, 0.4), side: THREE.DoubleSide, name: 'dressRed' }),
+      dressBlue: new THREE.MeshPhysicalMaterial({ color: 0x3a4660, map: fabricStainTexture(ctx.textures).map, roughness: 0.9, sheen: 0.5, sheenRoughness: 0.7, sheenColor: new THREE.Color(0.4, 0.42, 0.48), side: THREE.DoubleSide, name: 'dressBlue' }),
+      dressRed: new THREE.MeshPhysicalMaterial({ color: 0x6a3430, map: fabricStainTexture(ctx.textures).map, roughness: 0.9, sheen: 0.5, sheenRoughness: 0.7, sheenColor: new THREE.Color(0.5, 0.4, 0.38), side: THREE.DoubleSide, name: 'dressRed' }),
       hairBlonde: new THREE.MeshStandardMaterial({ color: 0x7a5a2a, roughness: 0.6, name: 'hairBlonde' }),
       bookLeather: M.create('leather', { color: [0.2, 0.07, 0.05], wear: 0.9, repeat: [8, 8] }),
       pageEdge: new THREE.MeshStandardMaterial({ color: 0xb8a888, roughness: 0.9, name: 'pageEdge' }),
@@ -203,18 +205,19 @@ export default {
       fringe: new THREE.MeshStandardMaterial({ color: 0xb0a688, roughness: 0.95, name: 'fringe' }),
       rugEdge: new THREE.MeshStandardMaterial({ color: 0x2a1410, roughness: 0.95, name: 'rugEdge' }),
     };
+    addBrickVariation(mat.brick, { damp: [OCULUS.x, OCULUS.y - OCULUS.r - 0.3, 0.55], bloom: 0.45, soot: [[-1.92, BT_Y + 0.25, 0.12, 0.5], [-2.2, 0.62, 0.15, 0.35], [(DOOR.x0 + DOOR.x1) / 2, DOOR.h + 0.1, 0.35, 0.3], [1.98, 1.3, 0.1, 0.4]] });
     // dust settles on everything that faces up; wiped where Stauf works and walks
     addDust(mat.benchTop, { amount: 0.5, scale: 0.35, threshold: 0.7, clean: [[-1.3, BENCH.z + 0.15, 0.5], [-0.5, BENCH.z + 0.1, 0.35]] });
     addDust(mat.labTop, { amount: 0.45, scale: 0.3, threshold: 0.7, clean: [[PLATE.x, PLATE.z, 0.42], [TABLE.x + 0.1, TABLE.z + 0.26, 0.25]] });
     addDust(mat.benchFrame, { amount: 0.6, scale: 0.4, threshold: 0.7 });
-    addDust(mat.timber, { amount: 0.7, scale: 0.8, threshold: 0.45 });
-    addDust(mat.timberDark, { amount: 0.65, scale: 0.8, threshold: 0.45 });
+    addDust(mat.timber, { amount: 0.9, scale: 0.8, threshold: 0.35, color: [0.42, 0.4, 0.37] });
+    addDust(mat.timberDark, { amount: 0.85, scale: 0.8, threshold: 0.35, color: [0.42, 0.4, 0.37] });
     addDust(mat.crate, { amount: 0.6, scale: 0.3, threshold: 0.7 });
     addDust(mat.trunk, { amount: 0.55, scale: 0.3, threshold: 0.6 });
     addDust(mat.labFrame, { amount: 0.4, scale: 0.3, threshold: 0.7 });
     addDust(mat.floor, { amount: 0.42, scale: 1.1, threshold: 0.6, color: [0.3, 0.28, 0.25], clean: [[TABLE.x, TABLE.z + 0.4, 1.5], [-1.4, 0.4, 1.2], [-1.3, BENCH.z + 0.9, 0.9], [0.4, 2.4, 1.2]] });
     mat.floor.color.setScalar(1.3);
-    mat.linen.vertexColors = true; mat.linen.color.setRGB(0.74, 0.72, 0.68);
+    mat.linen.vertexColors = true; mat.linen.color.setRGB(0.74, 0.72, 0.68); mat.linen.metalnessMap = null;
     mat.horse = mat.horseWood;
     // notebook pages: Stauf's notes on the game, a hex lattice sketched in ink
     mat.pages = new THREE.MeshStandardMaterial({ roughness: 0.85, name: 'pages', side: THREE.DoubleSide, map: ctx.textures.canvas('attic:pages', 1024, 768, (g2, w, h) => {
@@ -291,45 +294,109 @@ export default {
     const sideU = (s) => V3(-s * Math.cos(SLOPE), Math.sin(SLOPE), 0);             // eave -> ridge, s = -1 left, +1 right
     const sideN = (s) => V3(s * Math.sin(SLOPE) * -1, -Math.cos(SLOPE), 0).multiplyScalar(1);   // inward (down into the room)
     {
-      // sarking on both slopes
-      for (const s of [-1, 1]) {
-        const e0 = V3(s * HALF, KNEE, Z0), e1 = V3(s * HALF, KNEE, Z1), r0 = V3(0, RIDGE, Z0), r1 = V3(0, RIDGE, Z1);
-        const g = s < 0 ? quad(e1, e0, r0, r1) : quad(e0, e1, r1, r0);
-        const m = add(new THREE.Mesh(g, mat.sarking)); m.name = 'sarking';
-        m.userData.noShadow = true;
+      // sarking: individual sawn boards laid across the rafters, each its own tone and grain, with gaps
+      // between them; above the boards a dim backing where the slates have slipped lets thin lines of
+      // night through, so the underside of the roof is never a flat dark plane
+      const boardTex = sarkBoardTexture(ctx.textures);
+      mat.sarkBoard = pbr(boardTex.withRepeat(1 / 2.4, 1 / 0.2), { name: 'sarkBoard', envMapIntensity: 0.15, vertexColors: true });
+      mat.sarkBoard.metalnessMap = null; mat.sarkBoard.metalness = 0;
+      addDust(mat.sarkBoard, { amount: 0.25, scale: 0.6, threshold: -0.95, color: [0.3, 0.29, 0.27] });
+      {
+        let sd = 11; const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+        const geos = [];
+        const nailPos = [];
+        const zsR = []; for (let z = Z0 + 0.12; z <= Z1 - 0.1; z += RAFTER.step) zsR.push(z + RAFTER.w / 2);
+        for (const s2 of [-1, 1]) {
+          const u = sideU(s2), n = sideN(s2);
+          let along = 0.0;
+          while (along < SLOPE_LEN - 0.02) {
+            const bw = Math.min(0.15 + rnd() * 0.07, SLOPE_LEN - along);
+            const gap = 0.004 + rnd() * rnd() * 0.012;
+            // boards run in 2-3 lengths with butt joints on rafter lines
+            const joints = [Z0]; let zc = Z0; while (true) { zc += RAFTER.step * (4 + Math.floor(rnd() * 8)); if (zc > Z1 - 0.8) break; joints.push(zc + 0.12 + RAFTER.w / 2); } joints.push(Z1);
+            for (let j = 0; j < joints.length - 1; j++) {
+              const za = joints[j] + 0.002, zb = joints[j + 1] - 0.002, L = zb - za;
+              const th = 0.019 + rnd() * 0.004;
+              const bg = new THREE.BoxGeometry(bw - gap, th, L, 1, 1, 1);
+              // uv: u along the board (metres, random offset), v across (0..bw)
+              const pp = bg.attributes.position, uvA = bg.attributes.uv;
+              const ou = rnd() * 2.4, ov = rnd() * 0.03;
+              for (let i = 0; i < pp.count; i++) uvA.setXY(i, pp.getZ(i) + L / 2 + ou, (pp.getX(i) + bw / 2) + ov);
+              const tone = 0.75 + rnd() * 0.45, warm = 0.95 + rnd() * 0.1;
+              const colA = new Float32Array(pp.count * 3); for (let i = 0; i < pp.count; i++) { colA[i * 3] = tone * warm; colA[i * 3 + 1] = tone; colA[i * 3 + 2] = tone * (2 - warm); }
+              bg.setAttribute('color', new THREE.BufferAttribute(colA, 3));
+              // slight cupping/tilt per board
+              bg.rotateZ((rnd() - 0.5) * 0.04);
+              const ctr = V3(s2 * HALF, KNEE, (za + zb) / 2).addScaledVector(u, along + bw / 2).addScaledVector(n, -th / 2 + 0.002);
+              const X = u.clone(), Y = n.clone().negate(), Z = new THREE.Vector3().crossVectors(X, Y);
+              const m4 = new THREE.Matrix4().makeBasis(X, Y, Z).setPosition(ctr);
+              bg.applyMatrix4(m4);
+              geos.push(bg);
+              // two cut nails into every rafter the board crosses
+              for (const zr of zsR) if (zr > za + 0.03 && zr < zb - 0.03) for (const f of [0.28, 0.72]) nailPos.push(V3(s2 * HALF, KNEE, zr + (rnd() - 0.5) * 0.02).addScaledVector(u, along + bw * f).addScaledVector(n, 0.003));
+            }
+            along += bw;
+          }
+        }
+        const merged = G.mergeGeometries(geos.map((q) => q.index ? q.toNonIndexed() : q), false);
+        const sk = add(new THREE.Mesh(merged, mat.sarkBoard)); sk.name = 'sarking';
+        // nail heads
+        const nailG = new THREE.CylinderGeometry(0.006, 0.0065, 0.004, 6);
+        const nails = new THREE.InstancedMesh(nailG, new THREE.MeshStandardMaterial({ color: 0x2a1a12, roughness: 0.8, metalness: 0.4, name: 'sarkNail' }), nailPos.length);
+        const mm = new THREE.Matrix4(), qq = new THREE.Quaternion();
+        nailPos.forEach((q, i) => { const s2 = q.x < 0 ? -1 : 1; qq.setFromUnitVectors(V3(0, 1, 0), sideN(s2).negate()); mm.compose(q, qq, V3(1, 1, 1)); nails.setMatrixAt(i, mm); });
+        nails.userData.noShadow = true; add(nails);
+        // the backing: slate undersides, almost black, with a few places where the night shows through
+        const leakTex = ctx.textures.canvas('attic:roofleak', 512, 256, (g2, w, h) => {
+          g2.fillStyle = '#000'; g2.fillRect(0, 0, w, h);
+          let sd2 = 5; const r2 = () => { sd2 = (sd2 * 16807) % 2147483647; return sd2 / 2147483647; };
+          for (let i = 0; i < 70; i++) { const x = r2() * w, y = r2() * h, rr = 6 + r2() * 40; const gr = g2.createRadialGradient(x, y, 0, x, y, rr); const k = 0.15 + r2() * r2() * 0.85; gr.addColorStop(0, `rgba(255,255,255,${k})`); gr.addColorStop(1, 'rgba(255,255,255,0)'); g2.fillStyle = gr; g2.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
+        }, { tile: true });
+        const leakMat = new THREE.MeshBasicMaterial({ map: leakTex, color: new THREE.Color(0.1, 0.13, 0.24), name: 'roofLeak', side: THREE.DoubleSide });
+        for (const s2 of [-1, 1]) {
+          const lift = sideN(s2).multiplyScalar(-0.03);
+          const e0 = V3(s2 * HALF, KNEE, Z0 + 0.2).add(lift), e1 = V3(s2 * HALF, KNEE, Z1 - 0.2).add(lift), r0 = V3(0, RIDGE, Z0 + 0.2).add(lift), r1 = V3(0, RIDGE, Z1 - 0.2).add(lift);
+          const lg = s2 < 0 ? quad(e1, e0, r0, r1, 0.3, 0.6) : quad(e0, e1, r1, r0, 0.3, 0.6);
+          const lm = add(new THREE.Mesh(lg, leakMat)); lm.userData.noShadow = true; lm.name = 'roofLeak';
+          // a solid outer skin behind it so the moon spot can never leak in
+          const og = s2 < 0 ? quad(e1, e0, r0, r1) : quad(e0, e1, r1, r0);
+          const outer = add(new THREE.Mesh(og, new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide, colorWrite: false, name: 'roofSkin' })));
+          outer.position.addScaledVector(sideN(s2), -0.06); outer.name = 'sarking';
+        }
       }
-      // common rafters
+      // common rafters: hewn, each with its own chamfers, sag and roll
       const zs = [];
       for (let z = Z0 + 0.12; z <= Z1 - 0.1; z += RAFTER.step) zs.push(z);
+      let bseed = 1;
       for (const s of [-1, 1]) {
         const u = sideU(s), n = sideN(s);
         for (const z of zs) {
           const len = SLOPE_LEN + 0.05;
           const mid = V3(s * HALF / 2, KNEE + RISE / 2, z).addScaledVector(n, RAFTER.d / 2);
           const k = Math.round(z * 10);
-          add(new THREE.Mesh(orient(beam(G, RAFTER.w, RAFTER.d, len, 0.016), mid, u, n.clone().negate()), k % 3 === 0 ? mat.timberDark : mat.timber));
+          add(new THREE.Mesh(orient(hewnBeam(G, RAFTER.w, RAFTER.d, len, { seed: bseed++, sag: 0.006 + (k % 4) * 0.004, ch: 0.02 }), mid, u, n.clone().negate()), k % 3 === 0 ? mat.timberDark : mat.timber));
         }
         // purlin under the rafters at mid-slope
         const pm = V3(s * HALF * 0.52, KNEE + RISE * 0.48, (Z0 + Z1) / 2).addScaledVector(n, RAFTER.d + 0.1);
-        add(new THREE.Mesh(orient(beam(G, 0.16, 0.2, Z1 - Z0, 0.024), pm, V3(0, 0, 1), n.clone().negate()), mat.timberDark));
+        add(new THREE.Mesh(orient(hewnBeam(G, 0.16, 0.2, Z1 - Z0, { seed: 100 + s, sag: 0.03, ch: 0.032, wobble: 0.006 }), pm, V3(0, 0, 1), n.clone().negate()), mat.timberDark));
         // wall plate on the knee wall
-        add(new THREE.Mesh(orient(beam(G, 0.16, 0.12, Z1 - Z0, 0.012), V3(s * (HALF - 0.08), KNEE - 0.06, (Z0 + Z1) / 2), V3(0, 0, 1), V3(0, 1, 0)), mat.timberDark));
+        add(new THREE.Mesh(orient(hewnBeam(G, 0.16, 0.12, Z1 - Z0, { seed: 110 + s, ch: 0.02 }), V3(s * (HALF - 0.08), KNEE - 0.06, (Z0 + Z1) / 2), V3(0, 0, 1), V3(0, 1, 0)), mat.timberDark));
       }
       // ridge beam
-      add(new THREE.Mesh(orient(beam(G, 0.12, 0.26, Z1 - Z0, 0.022), V3(0, RIDGE - 0.15, (Z0 + Z1) / 2), V3(0, 0, 1), V3(0, 1, 0)), mat.timberDark));
+      add(new THREE.Mesh(orient(hewnBeam(G, 0.12, 0.26, Z1 - Z0, { seed: 120, sag: 0.025, ch: 0.03, wobble: 0.005 }), V3(0, RIDGE - 0.15, (Z0 + Z1) / 2), V3(0, 0, 1), V3(0, 1, 0)), mat.timberDark));
       // king-post trusses: principal rafters, collar, king post, struts
       for (const z of TRUSS_Z) {
         for (const s of [-1, 1]) {
           const u = sideU(s), n = sideN(s);
           const mid = V3(s * HALF / 2, KNEE + RISE / 2, z + 0.11).addScaledVector(n, RAFTER.d + 0.1);
-          add(new THREE.Mesh(orient(beam(G, 0.14, 0.2, SLOPE_LEN - 0.3, 0.026), mid, u, n.clone().negate()), mat.timberDark));
+          add(new THREE.Mesh(orient(hewnBeam(G, 0.14, 0.2, SLOPE_LEN - 0.3, { seed: 130 + z * 10 + s, sag: 0.012, ch: 0.032, wobble: 0.005 }), mid, u, n.clone().negate()), mat.timberDark));
           // strut from king post foot to principal
           const a = V3(0, COLLAR_Y + 0.1, z + 0.11), b = V3(s * 1.15, roofY(1.15) - 0.55, z + 0.11);
-          add(new THREE.Mesh(orient(beam(G, 0.1, 0.1, a.distanceTo(b), 0.02), a.clone().add(b).multiplyScalar(0.5), b.clone().sub(a), V3(0, 0, 1).cross(b.clone().sub(a)).normalize()), mat.timber));
+          add(new THREE.Mesh(orient(hewnBeam(G, 0.1, 0.1, a.distanceTo(b), { seed: 140 + z * 10 + s, ch: 0.022 }), a.clone().add(b).multiplyScalar(0.5), b.clone().sub(a), V3(0, 0, 1).cross(b.clone().sub(a)).normalize()), mat.timber));
         }
         const cw = 2 * (HALF * (1 - (COLLAR_Y - KNEE) / RISE)) - 0.35;
-        add(new THREE.Mesh(orient(beam(G, 0.14, 0.22, cw, 0.026), V3(0, COLLAR_Y, z + 0.11), V3(1, 0, 0), V3(0, 1, 0)), mat.timberDark));
-        add(new THREE.Mesh(orient(beam(G, 0.14, 0.14, RIDGE - COLLAR_Y - 0.25, 0.024), V3(0, (RIDGE + COLLAR_Y) / 2 - 0.12, z + 0.11), V3(0, 1, 0), V3(0, 0, 1)), mat.timber));
+        add(new THREE.Mesh(orient(hewnBeam(G, 0.14, 0.22, cw, { seed: 150 + z * 10, sag: 0.02, ch: 0.032, wobble: 0.005 }), V3(0, COLLAR_Y, z + 0.11), V3(1, 0, 0), V3(0, 1, 0)), mat.timberDark));
+        add(new THREE.Mesh(orient(hewnBeam(G, 0.14, 0.14, RIDGE - COLLAR_Y - 0.25, { seed: 160 + z * 10, ch: 0.03 }), V3(0, (RIDGE + COLLAR_Y) / 2 - 0.12, z + 0.11), V3(0, 1, 0), V3(0, 0, 1)), mat.timber));
         // wrought-iron stirrup strap round the king-post foot, bolted through, and oak pegs through every mortice
         {
           const zc = z + 0.11;
@@ -355,7 +422,7 @@ export default {
         if (TRUSS_Z.some((t) => Math.abs(t - z) < 0.5) || Math.round((z - Z0) / RAFTER.step) % 2 || z < Z0 + 0.6 || z > Z1 - 0.6) continue;
         const y = 3.05;
         const w = 2 * (HALF * (1 - (y - KNEE) / RISE)) - 0.25;
-        add(new THREE.Mesh(orient(beam(G, 0.06, 0.14, w, 0.014), V3(0, y, z + RAFTER.w / 2 + 0.03), V3(1, 0, 0), V3(0, 1, 0)), mat.timber));
+        add(new THREE.Mesh(orient(hewnBeam(G, 0.06, 0.14, w, { seed: 170 + z * 10, sag: 0.015, ch: 0.016 }), V3(0, y, z + RAFTER.w / 2 + 0.03), V3(1, 0, 0), V3(0, 1, 0)), mat.timber));
       }
       // knee walls: vertical boards
       for (const s of [-1, 1]) {
@@ -470,6 +537,21 @@ export default {
     const haloTex = ctx.textures.canvas('attic:moonhalo', 256, 256, (g2, w, h) => { const rg = g2.createRadialGradient(w / 2, h / 2, w * 0.17, w / 2, h / 2, w / 2); rg.addColorStop(0, 'rgba(255,255,255,0.55)'); rg.addColorStop(0.3, 'rgba(255,255,255,0.14)'); rg.addColorStop(1, 'rgba(255,255,255,0)'); g2.fillStyle = rg; g2.fillRect(0, 0, w, h); }, { tile: false });
     const halo = add(new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: new THREE.Color(0.4, 0.46, 0.66), toneMapped: false, name: 'moonHalo' })));
     halo.position.copy(moonDisc.position).add(V3(0, 0, -0.02)); halo.quaternion.copy(moonDisc.quaternion); halo.userData.noShadow = true; halo.renderOrder = -3;
+    moonMat.color.setRGB(0.9, 0.93, 1.0);
+    // two thin cloud layers drifting across the moon at different speeds, their edges silvered where they cross it
+    {
+      const layers = [[1, 0.9, 0.012, 0.25], [2, 0.55, -0.007, 0.18]];
+      for (const [sd, op, speed, dz] of layers) {
+        const ct = cloudWispTexture(ctx.textures, sd).map.clone(); ct.needsUpdate = true; ct.wrapS = THREE.RepeatWrapping;
+        const cm = new THREE.MeshBasicMaterial({ map: ct, alphaMap: null, transparent: true, depthWrite: false, opacity: op, toneMapped: false, fog: false, color: new THREE.Color(0.16, 0.19, 0.28), name: `cloudLayer${sd}` });
+        cm.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+          { vec2 cuv = vMapUv; float md = length((cuv - vec2(0.5)) * vec2(2.0, 1.0)); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.75, 0.8, 0.95), exp(-md * 3.5) * (1.0 - sampledDiffuseColor.a) * 1.2 + exp(-md * 6.0) * 0.5); diffuseColor.a = sampledDiffuseColor.a * opacity; }`); };
+        const cl = add(new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.8), cm));
+        cl.position.copy(moonDisc.position).addScaledVector(V3(-0.46, 2.99, Z0 - WALL_T * 0.55 - 0.5).sub(V3(-0.5, 1.55, 0)).normalize(), -0.0).add(V3(0.02, -0.04, dz));
+        cl.quaternion.copy(moonDisc.quaternion); cl.userData.noShadow = true; cl.renderOrder = -1;
+        ctx.onUpdate((dt, t) => { ct.offset.x = 0.31 * sd + t * speed; });
+      }
+    }
 
     // ---------------------------------------------------------------- the door, ajar on a glowing stair
     const doorPivot = dyn(new THREE.Group());
@@ -497,18 +579,39 @@ export default {
           ros.rotation.x = Math.PI / 2; ros.position.set(x, DOOR.h + 0.0625, Z0 + 0.036 + 0.012);
         }
       }
-      // leaf: ledged and braced planks, strap hinges, ring handle
+      // leaf: a four-panel door, stiles and rails with a centre muntin, raised and fielded panels, a brass
+      // escutcheon with its keyhole, a drop ring pull, three iron butt hinges; the paint long gone to bare oak
       const leaf = new THREE.Group();
-      const lw = W - 0.02, lh = DOOR.h - 0.03;
-      for (let i = 0; i < 5; i++) leaf.add(at(new THREE.Mesh(bevelBox(G, lw / 5 - 0.004, lh, 0.04, 0.006), mat.door), -lw + (i + 0.5) * (lw / 5), lh / 2 + 0.01, 0));
-      for (const y of [0.25, lh / 2, lh - 0.25]) leaf.add(at(new THREE.Mesh(bevelBox(G, lw - 0.06, 0.14, 0.03, 0.006), mat.door), -lw / 2, y, 0.035));
-      const br = new THREE.Mesh(bevelBox(G, 0.11, Math.hypot(lw - 0.1, lh / 2 - 0.3), 0.026, 0.006), mat.door); br.position.set(-lw / 2, (0.25 + lh / 2) / 2 + 0.06, 0.035); br.rotation.z = Math.atan2(lw - 0.1, lh / 2 - 0.3); leaf.add(br);
-      for (const y of [0.25, lh - 0.25]) {
-        leaf.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.035, 0.008), mat.iron), -0.26, y, 0.054));
-        leaf.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.1, 10), mat.iron), 0, y, 0.0));
+      const lw = W - 0.02, lh = DOOR.h - 0.03, T = 0.042;
+      const SW = 0.11, TR = 0.11, LR = 0.17, BR = 0.2, MU = 0.085, LY = 0.95;
+      const part = (w2, h2, x, y, z = 0, d = T) => leaf.add(at(new THREE.Mesh(bevelBox(G, w2, h2, d, 0.005), mat.door), x, y, z));
+      part(SW, lh, -lw + SW / 2, lh / 2 + 0.01); part(SW, lh, -SW / 2, lh / 2 + 0.01);
+      part(lw - 2 * SW, TR, -lw / 2, lh - TR / 2 + 0.01); part(lw - 2 * SW, LR, -lw / 2, LY); part(lw - 2 * SW, BR, -lw / 2, BR / 2 + 0.01);
+      const cells = [[LY + LR / 2, lh - TR + 0.01], [BR + 0.01, LY - LR / 2]];
+      const pw2 = (lw - 2 * SW - MU) / 2;
+      for (const [y0, y1] of cells) for (const side of [0, 1]) {
+        const ph = y1 - y0;
+        const pg = G.raisedPanel(pw2 + 0.01, ph + 0.01, { border: 0.018, fieldDepth: 0.008, frameDepth: 0.012, bevel: 0.035 });
+        const pm2 = new THREE.Mesh(pg, mat.door);
+        pm2.position.set(-lw + SW + pw2 / 2 + side * (pw2 + MU), (y0 + y1) / 2, -0.012);
+        leaf.add(pm2);
       }
-      const ringH = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.007, 8, 20), mat.iron); ringH.position.set(-lw + 0.12, 1.0, 0.07); leaf.add(ringH);
-      leaf.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.02, 12).rotateX(Math.PI / 2), mat.iron), -lw + 0.12, 1.05, 0.06));
+      for (const [y0, y1] of cells) leaf.add(at(new THREE.Mesh(bevelBox(G, MU, y1 - y0, T * 0.9, 0.005), mat.door), -lw / 2, (y0 + y1) / 2, 0));
+      // escutcheon + keyhole, ring pull on a rose
+      const escX = -lw + SW / 2, escY = LY - 0.02;
+      const esc = new THREE.Shape(); esc.moveTo(0, 0.045); esc.quadraticCurveTo(0.022, 0.04, 0.02, 0.0); esc.quadraticCurveTo(0.018, -0.04, 0, -0.05); esc.quadraticCurveTo(-0.018, -0.04, -0.02, 0.0); esc.quadraticCurveTo(-0.022, 0.04, 0, 0.045);
+      const kh = new THREE.Path(); kh.absarc(0, 0.008, 0.006, 0, Math.PI * 2, true); esc.holes.push(kh);
+      const kh2 = new THREE.Path(); kh2.moveTo(-0.003, 0.004); kh2.lineTo(-0.0045, -0.02); kh2.lineTo(0.0045, -0.02); kh2.lineTo(0.003, 0.004); kh2.lineTo(-0.003, 0.004); esc.holes.push(kh2);
+      const eg = new THREE.ExtrudeGeometry(esc, { depth: 0.003, bevelEnabled: true, bevelThickness: 0.0015, bevelSize: 0.0015, bevelSegments: 2 });
+      leaf.add(at(new THREE.Mesh(eg, mat.brass), escX, escY, T / 2 + 0.001));
+      leaf.add(at(new THREE.Mesh(new THREE.PlaneGeometry(0.012, 0.03), new THREE.MeshBasicMaterial({ color: 0x0a0402, name: 'keyholeDark' })), escX, escY - 0.004, T / 2 - 0.002));
+      leaf.add(at(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.026, 0], [0.026, 0.004], [0.016, 0.01], [0.008, 0.016], [0, 0.018]], 20).rotateX(Math.PI / 2), mat.iron), escX, escY + 0.09, T / 2));
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.038, 0.0055, 8, 28), mat.iron); ring.position.set(escX, escY + 0.09 - 0.036, T / 2 + 0.014); ring.rotation.x = -0.12; leaf.add(ring);
+      for (const y of [0.24, lh / 2, lh - 0.24]) {
+        leaf.add(at(new THREE.Mesh(bevelBox(G, 0.05, 0.11, 0.004, 0.001), mat.iron), -0.012, y, T / 2 + 0.002));
+        leaf.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.115, 10), mat.iron), 0.004, y, T / 2));
+      }
+      leaf.userData.lockPos = V3(escX, escY, T / 2);
       doorPivot.add(leaf);
       doorPivot.position.set(DOOR.x1 - 0.01, 0, Z0 + 0.0);
       doorPivot.rotation.y = DOOR.open;
@@ -554,8 +657,29 @@ export default {
         add(crumbs);
         const stubC = add(new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.012, 0.05, 14).rotateZ(Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: 0xd8ccb0, roughness: 0.6, sheen: 0.3, name: 'waxStub' }))); stubC.position.set(cx + 0.16, 0.18 * 2 + 0.012, PZ - LAND - 0.15 - 0.26 + 0.05); stubC.rotation.y = 0.5;
       }
-      const hell = new THREE.MeshBasicMaterial({ map: hellGlowTexture(ctx.textures).map, color: new THREE.Color(1, 1, 1).multiplyScalar(3.4), toneMapped: false, name: 'hellglow' });
-      const hg = add(new THREE.Mesh(new THREE.PlaneGeometry(pw, 3.2), hell)); hg.position.set(cx, 1.5, PZ - PL + 0.02); hg.userData.noShadow = true;
+      // the top of the stair: a brick end wall and a landing; the stair turns left out of sight toward the
+      // furnace (its glow pours round the corner), and an iron brazier of coals burns on the landing
+      add(new THREE.Mesh(quad(V3(cx + pw / 2, 0, PZ - PL), V3(cx - pw / 2, 0, PZ - PL), V3(cx - pw / 2, 3, PZ - PL), V3(cx + pw / 2, 3, PZ - PL)), mat.brickDark));
+      const topY = 0.18 * 8, landZ0 = PZ - LAND - 0.15 - 7 * 0.26 - 0.15;
+      add(at(new THREE.Mesh(bevelBox(G, pw, 0.028, landZ0 - (PZ - PL), 0.004), treadMat), cx, topY - 0.014, (landZ0 + PZ - PL) / 2));
+      const hell = new THREE.MeshBasicMaterial({ map: hellGlowTexture(ctx.textures).map, color: new THREE.Color(1, 1, 1).multiplyScalar(2.6), toneMapped: false, name: 'hellglow' });
+      const turnW = 0.5, turnH = 1.5;
+      const hg = add(new THREE.Mesh(new THREE.PlaneGeometry(turnW, turnH), hell)); hg.rotation.y = Math.PI / 2; hg.position.set(cx - pw / 2 + 0.004, topY + turnH / 2, PZ - PL + turnW / 2 + 0.02); hg.userData.noShadow = true;
+      // the reveal of that opening: a dark brick jamb catching the light edge-on
+      add(at(new THREE.Mesh(bevelBox(G, 0.06, turnH + 0.05, 0.06, 0.008), mat.brickDark), cx - pw / 2 + 0.03, topY + turnH / 2, PZ - PL + turnW + 0.05));
+      add(at(new THREE.Mesh(bevelBox(G, 0.06, 0.08, turnW + 0.06, 0.008), mat.brickDark), cx - pw / 2 + 0.03, topY + turnH + 0.04, PZ - PL + turnW / 2 + 0.02));
+      // brazier: a hammered iron bowl on three splayed legs, a heap of coals, flames licking over the rim
+      {
+        const bz = new THREE.Group(); bz.position.set(cx + 0.12, topY, PZ - PL + 0.2); add(bz);
+        bz.add(at(new THREE.Mesh(G.latheFromProfile([[0.0, 0.0], [0.05, 0.0], [0.12, 0.03], [0.16, 0.08], [0.17, 0.1], [0.165, 0.105], [0.15, 0.085], [0.11, 0.04], [0.0, 0.02]], 28), mat.castIron), 0, 0.3, 0));
+        for (let k = 0; k < 3; k++) { const a2 = (k / 3) * Math.PI * 2; const lg = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.34, 6), mat.castIron); lg.position.set(Math.cos(a2) * 0.1, 0.16, Math.sin(a2) * 0.1); lg.rotation.set(Math.sin(a2) * 0.35, 0, -Math.cos(a2) * 0.35); bz.add(lg); }
+        const coalMat = new THREE.MeshStandardMaterial({ color: 0x120806, roughness: 0.9, emissive: new THREE.Color(1.0, 0.28, 0.05), emissiveIntensity: 2.2, name: 'coals' });
+        let cs = 3; const cr = () => { cs = (cs * 16807) % 2147483647; return cs / 2147483647; };
+        for (let k = 0; k < 26; k++) { const a2 = cr() * Math.PI * 2, rr2 = Math.sqrt(cr()) * 0.13; const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.02 + cr() * 0.02, 0), coalMat); c.position.set(Math.cos(a2) * rr2, 0.37 + (0.13 - rr2) * 0.4 + cr() * 0.02, Math.sin(a2) * rr2); c.rotation.set(cr() * 3, cr() * 3, 0); bz.add(c); }
+        for (let k = 0; k < 4; k++) { const f = fx.flame({ height: 0.14 + 0.08 * (k % 2), width: 0.05, intensity: 4.0, seed: 40 + k }); f.position.set(Math.cos(k * 1.7) * 0.05, 0.4, Math.sin(k * 1.7) * 0.05); bz.add(f); }
+        const bl = new THREE.PointLight(0xff6a24, 9, 3.2, 2); bl.position.set(cx + 0.12, topY + 0.6, PZ - PL + 0.25); root.add(bl);
+        ctx.onUpdate((dt, t) => { const fl = 0.8 + 0.12 * Math.sin(t * 13.1) * Math.sin(t * 7.7 + 1.0) + 0.08 * Math.sin(t * 23.3 + 2.0); bl.intensity = 9 * fl * (1 + 0.6 * climaxK); });
+      }
       // furnace smoke hanging in the stairwell, so the glow has volume instead of ending on a card
       add(fx.fog({ box: new THREE.Box3(V3(cx - pw / 2 + 0.02, 0.0, PZ - PL + 0.05), V3(cx + pw / 2 - 0.02, 2.9, PZ - 0.05)), color: 0x1a0603, litColor: 0x8a2a0c, density: 0.9, heightFalloff: 0.6 }));
       // someone waits on the landing: a tall, gaunt silhouette against the glow, beckoning
@@ -571,6 +695,13 @@ export default {
       fig.position.copy(FIG.rest); fig.rotation.y = 0.12; fig.scale.setScalar(0.94);
       FIG.obj = fig;
       add(dyn(fig));
+      // the embers in his sockets and grin breathe slowly; they flare as the furnace takes the room
+      const gl = fig.userData.glow;
+      ctx.onUpdate((dt, t) => {
+        const pulse = 0.78 + 0.22 * Math.sin(t * 1.7) * Math.sin(t * 0.63 + 1.1) + 0.06 * Math.sin(t * 9.1);
+        const k = (0.85 + 0.6 * climaxK) * pulse;
+        gl.mats.forEach((m2, i) => m2.color.copy(gl.base[i]).multiplyScalar(k));
+      });
     }
 
     // ================================================================ front gable (stair end), chimney stack
@@ -687,8 +818,8 @@ export default {
       const scr = buildScrews(ctx, mat, 16, 7); scr.position.set(-0.75, BT, BENCH.z + 0.24); add(scr);
       const scr2 = buildScrews(ctx, mat, 9, 13); scr2.position.set(-1.65, BT, BENCH.z + 0.25); add(scr2);
       // toys on the shelves
-      const doll = buildDoll(ctx, mat, { dress: mat.dressBlue, seed: 1, eye: '#2a4a7a' }); doll.position.set(-2.2, 1.565, Z0 + 0.13); doll.rotation.y = 0.2; add(doll);
-      const doll2 = buildDoll(ctx, mat, { dress: mat.dressRed, seed: 2, eye: '#3a2a1a', hair: mat.hairBlonde, sash: mat.lace }); doll2.position.set(-1.75, 1.565, Z0 + 0.14); doll2.rotation.y = -0.4; doll2.rotation.z = 0.3; add(doll2);
+      const doll = buildDoll(ctx, mat, { dress: mat.dressBlue, seed: 1, eye: '#4a6a8a', slump: 0.32, tilt: 0.62, turn: 0.15, missingEye: 1, chip: 1 }); doll.position.set(-2.2, 1.565, Z0 + 0.13); doll.rotation.y = 0.2; add(doll);
+      const doll2 = buildDoll(ctx, mat, { dress: mat.dressRed, seed: 2, eye: '#4a3a24', hair: mat.hairBlonde, sash: mat.lace, slump: 0.18, tilt: -0.85, turn: -0.3, chip: -1 }); doll2.position.set(-1.75, 1.565, Z0 + 0.14); doll2.rotation.y = -0.4; doll2.rotation.z = 0.12; add(doll2);
       const drum = buildDrum(ctx, mat); drum.position.set(-1.35, 1.565, Z0 + 0.15); add(drum);
       const s2 = buildSoldiers(ctx, mat, 5, 1); s2.position.set(-1.95, 1.965, Z0 + 0.1); add(s2);
       const top2 = buildTop(ctx, mat); top2.rotation.z = 0; top2.position.set(-1.45, 1.965, Z0 + 0.14); add(top2);
@@ -791,12 +922,12 @@ export default {
         for (const sx of [-1, 1]) for (const sz of [-1, 1]) grp.add(at(new THREE.Mesh(legGeo, mat.labFrame), sx * (opts.hw - legInset), 0, sz * (opts.hd - legInset)));
         grp.position.set(...pos); grp.rotation.y = rotY; return add(grp);
       };
-      sheeted({ hw: 0.42, hd: 0.42, topH: chairTop, seed: 2, seg: 110, hem: 0.17, foldAmp: 1.8 }, turnedLeg, 0.06, [2.85, 0, 2.8], -Math.PI / 2 - 0.4);
+      sheeted({ hw: 0.42, hd: 0.42, topH: chairTop, seed: 2, seg: 130, hem: 0.0, foldAmp: 2.6, flare: 0.09 }, turnedLeg, 0.06, [2.85, 0, 2.8], -Math.PI / 2 - 0.4);
       // a wardrobe with a cornice: crisp top edge, the sheet hanging straight, bun feet
       const wardTop = (x, z) => 1.86 + 0.04 * THREE.MathUtils.smoothstep(Math.max(Math.abs(x) / 0.42, Math.abs(z) / 0.24), 0.85, 1.0) + Math.sin(x * 9 + z * 5) * 0.006;
-      sheeted({ hw: 0.42, hd: 0.24, topH: wardTop, seed: 5, seg: 120, flare: 0.07, hem: 0.08, foldAmp: 2.4 }, bunFoot, 0.05, [2.75, 0, -3.45], -Math.PI / 2 + 0.2);
+      sheeted({ hw: 0.42, hd: 0.24, topH: wardTop, seed: 5, seg: 150, flare: 0.1, hem: 0.0, foldAmp: 3.0 }, bunFoot, 0.05, [2.75, 0, -3.45], -Math.PI / 2 + 0.2);
       const sofaTop = (x, z) => 0.42 + THREE.MathUtils.smoothstep(-z, 0.1, 0.35) * 0.35 + THREE.MathUtils.smoothstep(Math.abs(x), 0.75, 0.9) * 0.15;
-      sheeted({ hw: 0.95, hd: 0.4, topH: sofaTop, seed: 9, seg: 130, hem: 0.15, foldAmp: 1.8 }, turnedLeg, 0.07, [-3.0, 0, 1.9], Math.PI / 2);
+      sheeted({ hw: 0.95, hd: 0.4, topH: sofaTop, seed: 9, seg: 150, hem: 0.1, foldAmp: 2.4, flare: 0.08 }, turnedLeg, 0.07, [-3.0, 0, 1.9], Math.PI / 2);
       // crates
       const c1 = buildCrate(ctx, mat, { w: 0.6, h: 0.45, d: 0.5, seed: 0 }); c1.position.set(-3.1, 0, -3.6); c1.rotation.y = 0.2; add(c1);
       const c2 = buildCrate(ctx, mat, { w: 0.5, h: 0.38, d: 0.42, seed: 1 }); c2.position.set(-3.05, 0.465, -3.55); c2.rotation.y = -0.15; add(c2);
@@ -867,9 +998,9 @@ export default {
         add(strandLine(V3(2.15, 1.65 + 0.48, -2.9), V3(1.95, roofY(1.95) - 0.25, -2.9))); }
       // two more dust-sheeted pieces with heavy corner folds: a chest of drawers (right) and a pile of chairs (left)
       const chestTop = (x, z) => 0.95 + 0.012 * THREE.MathUtils.smoothstep(Math.max(Math.abs(x) / 0.5, Math.abs(z) / 0.26), 0.9, 1.0) + Math.sin(x * 11 + z * 7) * 0.005;
-      sheeted({ hw: 0.5, hd: 0.26, topH: chestTop, seed: 13, seg: 110, flare: 0.07, hem: 0.1, foldAmp: 2.2 }, bunFoot, 0.06, [3.15, 0, -0.2], -Math.PI / 2 + 0.1);
+      sheeted({ hw: 0.5, hd: 0.26, topH: chestTop, seed: 13, seg: 130, flare: 0.09, hem: 0.0, foldAmp: 2.8 }, bunFoot, 0.06, [3.15, 0, -0.2], -Math.PI / 2 + 0.1);
       const pileTop = (x, z) => 0.5 + 0.55 * Math.exp(-((x + 0.1) ** 2) / 0.05 - ((z - 0.05) ** 2) / 0.06) + 0.3 * Math.exp(-((x - 0.2) ** 2) / 0.04 - ((z + 0.1) ** 2) / 0.03) + 0.04 * Math.sin(x * 13 + z * 9);
-      sheeted({ hw: 0.4, hd: 0.35, topH: pileTop, seed: 21, seg: 110, flare: 0.08, hem: 0.12, foldAmp: 2.6 }, turnedLeg, 0.06, [-3.15, 0, -4.6], 0.3);
+      sheeted({ hw: 0.4, hd: 0.35, topH: pileTop, seed: 21, seg: 130, flare: 0.1, hem: 0.0, foldAmp: 3.0 }, turnedLeg, 0.06, [-3.15, 0, -4.6], 0.3);
     }
 
     // ================================================================ things hung from the timbers: marionettes on the front collar, a toy biplane
@@ -942,7 +1073,7 @@ export default {
       // an extra collar tie near the gable, its strands sagging and dangling into the moonbeam
       const cy = 3.08, cz = Z0 + 0.72;
       const cw = 2 * (HALF * (1 - (cy - KNEE) / RISE)) - 0.25;
-      add(new THREE.Mesh(orient(beam(G, 0.06, 0.14, cw, 0.01), V3(0, cy, cz), V3(1, 0, 0), V3(0, 1, 0)), mat.timberDark));
+      add(new THREE.Mesh(orient(hewnBeam(G, 0.06, 0.14, cw, { seed: 181, sag: 0.02, ch: 0.016 }), V3(0, cy, cz), V3(1, 0, 0), V3(0, 1, 0)), mat.timberDark));
       add(cornerWeb(V3(-0.9, cy - 0.07, cz), V3(0.55, 0, 0), V3(0, 0, -0.66), wm[0]));
       const strands = [
         [[-0.75, cy - 0.06, cz], [-0.7, 2.98, Z0 + 0.03], 0.09], [[-0.42, cy - 0.06, cz], [-0.35, 3.0, Z0 + 0.03], 0.12], [[0.05, cy - 0.06, cz], [0.12, 3.05, Z0 + 0.03], 0.07],
@@ -976,6 +1107,12 @@ export default {
     const ridgeFill = new THREE.PointLight(0x5868a0, 7, 7, 2); ridgeFill.position.set(0.0, 3.3, -2.6); root.add(ridgeFill);
     const ridgeFill2 = new THREE.PointLight(0x6a5a50, 3.5, 6, 2); ridgeFill2.position.set(0.3, 3.2, 1.6); root.add(ridgeFill2);
     root.add(new THREE.HemisphereLight(0x34446e, 0x3e3c4c, 0.85));
+    // the whole floor gives back a little of the moon: a broad, very dim cool bounce that keeps the
+    // rafter sides and the sarking readable (a few percent) instead of crushing them to black
+    const roofBounce = fx.areaLight({ center: [0, 0.4, (Z0 + Z1) / 2 - 0.5], normal: [0, 1, 0], width: 6.4, height: 8.5, color: 0x5d6c96, intensity: 1.3 });
+    root.add(roofBounce);
+    const ridgeWash = fx.areaLight({ center: [0, 3.9, -1.0], normal: [0, -1, 0.15], width: 1.2, height: 6.5, color: 0x4a5878, intensity: 1.1 });
+    root.add(ridgeWash);
     // moon bounce washing up the near (west) slope by the stairs, so the rafters there are not a black void
     const westFill = new THREE.PointLight(0x5a6aa8, 1.2, 4.2, 2); westFill.position.set(-1.5, 2.2, 0.2); root.add(westFill);
     root.add(fx.areaLight({ center: [OCULUS.x, OCULUS.y, Z0 - 0.05], normal: [0, -0.25, 1], width: 1.0, height: 1.0, color: 0x8ea6ff, intensity: 4 }));
@@ -1111,7 +1248,7 @@ export default {
       const camB = new THREE.Vector3();
       const beams = shafts.map((sh) => ({ sh, i0: sh.material.uniforms.uIntensity.value }));
       // per-viewpoint haze: from the table the beam is seen down its length and would veil the bench behind it
-      const NODE_BEAM = { table: 0.5, back: 0.22 };   // looking back down the room the beams would veil everything in blue
+      const NODE_BEAM = { table: 0.5, back: 0.22, window: 0.55 };   // looking back down the room the beams would veil everything in blue
       let nodeMul = 1;
       ctx.onUpdate((dt) => {
         if (puzzleActive) return;
@@ -1134,6 +1271,8 @@ export default {
     });
     add(dust);
     add(fx.fog({ box: new THREE.Box3(V3(X0 + 0.1, 0, Z0 + 0.1), V3(X1 - 0.1, 0.5, Z1 - 0.2)), color: 0x07090f, litColor: 0x2c3a58, density: 0.28, heightFalloff: 4 }));
+    // a faint cold dust haze hanging just inside the oculus, so the beam is born at the glass
+    add(fx.fog({ box: new THREE.Box3(V3(OCULUS.x - 0.75, OCULUS.y - 0.8, Z0 + 0.02), V3(OCULUS.x + 0.75, OCULUS.y + 0.7, Z0 + 0.55)), color: 0x0a0e18, litColor: 0x4a5a88, density: 0.35, heightFalloff: 0.3 }));
     add(fx.fog({ box: new THREE.Box3(V3(-2.5, 1.0, Z0 + 0.2), V3(2.5, 3.8, 1.0)), color: 0x0c1018, litColor: 0x232a3e, density: 0.06, heightFalloff: 0.5 }));
 
     // ================================================================ the infection puzzle
@@ -1175,11 +1314,13 @@ export default {
     });
     // the finale: the door swings wide, the furnace roars redder, and the figure comes down the stair to the threshold
     const hellCol0 = hellSpot.color.clone(), hellCol1 = new THREE.Color(0xff2a0c), passCol0 = passage.color.clone();
+    let doorBase = DOOR.open;
+    ctx.onUpdate((dt, t) => { if (climaxK > 0) doorPivot.rotation.y = doorBase + climaxK * (0.025 * Math.sin(t * 0.7) + 0.01 * Math.sin(t * 2.3 + 1.0)); });
     const doorOpen = (k) => {
-      doorPivot.rotation.y = DOOR.open + k * 0.65; hellBoost = 1 + k * 1.1; climaxK = k; doorSpill.intensity = 0.9 * (1 + 3.0 * k); hellSpot.angle = 0.3 + 0.04 * k; plateRim.intensity = 9 * k;
+      doorBase = DOOR.open + k * 0.65; doorPivot.rotation.y = doorBase; hellBoost = 1 + k * 1.1; climaxK = k; doorSpill.intensity = 0.9 * (1 + 3.0 * k); hellSpot.angle = 0.3 + 0.04 * k; plateRim.intensity = 9 * k;
       moonK = 1 - 0.45 * k; moon.intensity = moonBase * moonK; moonMat.color.setRGB(0.82, 0.86, 0.95).multiplyScalar(0.45 + 0.55 * moonK); skyMat.color.setScalar(0.4 + 0.6 * moonK);
       hellSpot.color.copy(hellCol0).lerp(hellCol1, k); passage.color.copy(passCol0).lerp(hellCol1, k);
-      if (FIG.obj) { FIG.obj.position.lerpVectors(FIG.rest, FIG.fore, k); FIG.obj.rotation.y = 0.12 - 0.25 * k; FIG.obj.scale.setScalar(0.94 + 0.02 * k); ghostMat.uniforms.uRimGain.value = 1.5 + 0.5 * k; }
+      if (FIG.obj) { FIG.obj.position.lerpVectors(FIG.rest, FIG.fore, k); FIG.obj.rotation.y = 0.12 - 0.25 * k; FIG.obj.scale.setScalar(0.94 + 0.02 * k); ghostMat.uniforms.uRimGain.value = 1.5 + 1.3 * k; FIG.obj.userData.faceMat.uniforms.uKey.value = 1.0 + 0.6 * k; }
     };
     // lightning behind the oculus: the moon flares, threads in the beam blaze
     let flashT = -1;
@@ -1205,7 +1346,7 @@ export default {
       bench: { position: [-1.25, 1.52, -2.85], target: [-1.35, 1.12, -5.2], fov: 56, label: 'Stauf\'s workbench', look: { yaw: [-60, 60], pitch: [-35, 35] } },
       window: { position: [-1.3, 1.5, -3.15], target: [-0.3, 2.7, -5.2], fov: 55, label: 'The round window', look: { yaw: [-50, 50], pitch: [-30, 40] } },
       door: { position: [0.95, 1.52, -2.3], target: [1.85, 1.12, -5.2], fov: 56, label: 'The glowing door', grade: { bloomStrength: 0.12, bloomThreshold: 3.2 }, look: { yaw: [-50, 50], pitch: [-30, 25] } },
-      back: { position: [1.1, 1.62, -3.3], target: [-0.9, 1.2, 4.6], fov: 60, label: 'Looking back', look: { yaw: [-60, 60], pitch: [-30, 30] } },
+      back: { position: [1.1, 1.62, -3.3], target: [-0.9, 1.2, 4.6], fov: 60, label: 'Looking back', grade: { bloomStrength: 0.1, bloomThreshold: 3.2 }, look: { yaw: [-60, 60], pitch: [-30, 30] } },
     };
     const edges = [
       ['stairs', 'stairs_down'],

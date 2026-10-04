@@ -7,48 +7,117 @@
 import * as THREE from 'three';
 import { CELLS, RADIUS } from './hexx.js';
 
-/** Hand-hewn roof timber: grain along U (1 tile = 1.2 m x 0.3 m), adze facets, drying checks, dust in the pores. */
-export function timberTexture(forge, { key = 'timber', base = [0.27, 0.18, 0.115] } = {}) {
-  return forge.generate(`attic:${key}`, {
-    size: 1024, aspect: 2, normalStrength: 3.6,
+/**
+ * Hand-hewn roof timber, 1 tile = 1.2 m (U, along the grain) x 0.3 m (V). Old oak gone silver-brown:
+ * flowing growth rings with medullary flecks, adze scallops across the faces, long drying checks with
+ * dark, soft-edged interiors, tannin streaks bled along the grain from old nail holes, woodworm flight
+ * holes, scattered dark knots, and grey dust packed into the open grain.
+ */
+export function timberTexture(forge, { key = 'timber', base = [0.4, 0.31, 0.22] } = {}) {
+  return forge.generate(`attic:${key}:v5`, {
+    size: 1024, aspect: 2, normalStrength: 3.2,
     uniforms: { uBase: base },
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   vec2 p = uv;
-  float warp = fbm(p + 0.3, vec2(2.0, 4.0), 4);
-  float rings = 0.5 + 0.5 * sin((p.y * 26.0 + warp * 3.2) * 3.14159);
-  rings = pow(rings, 3.0);
-  float fib = vnoise(p * vec2(30.0, 700.0), vec2(30.0, 700.0));
-  float fib2 = vnoise(p * vec2(8.0, 260.0) + 3.1, vec2(8.0, 260.0));
-  // adze facets: shallow scallops across the grain
-  float sc = fract(p.x * 9.0 + fbm(p, vec2(3.0, 2.0), 2) * 0.6);
-  float adze = smoothstep(0.0, 0.5, sc) * smoothstep(1.0, 0.6, sc);
-  // drying checks: thin dark splits running with the grain
+  float warp = fbm(p * vec2(1.0, 1.0) + 0.3, vec2(2.0, 4.0), 5);
+  float ringCoord = p.y * 22.0 + warp * 4.0 + 1.5 * sin(p.x * 6.2831 + warp * 2.0);
+  float rings = 0.5 + 0.5 * sin(ringCoord * 3.14159);
+  float late = pow(rings, 4.0);
+  float fib = vnoise(p * vec2(24.0, 520.0), vec2(24.0, 520.0));
+  float fib2 = vnoise(p * vec2(6.0, 160.0) + 3.1, vec2(6.0, 160.0));
+  // medullary flecks (oak silver grain)
+  vec4 fl = voronoi(p * vec2(40.0, 120.0), vec2(40.0, 120.0), 0.9);
+  float fleck = smoothstep(0.12, 0.0, fl.x) * step(0.6, hash12(fl.zw));
+  // adze scallops: shallow dished cuts across the grain, each a bit different
+  float sx = p.x * 11.0 + fbm(p * vec2(2.0, 3.0), vec2(2.0, 3.0), 2) * 0.8;
+  float sc = fract(sx);
+  float scId = hash11(floor(sx) + 3.0);
+  float adze = pow(4.0 * sc * (1.0 - sc), 0.6) * (0.6 + 0.4 * scId);
+  float adzeEdge = smoothstep(0.06, 0.0, sc) + smoothstep(0.94, 1.0, sc);
+  // drying checks: long splits with the grain, soft dark interiors
   float ck = 1e3;
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 6; i++) {
     float fi = float(i);
-    float y0 = 0.15 + 0.22 * fi + 0.05 * hash11(fi + 2.0);
-    float x0 = hash11(fi * 3.1) , len = 0.25 + 0.35 * hash11(fi + 7.0);
+    float y0 = 0.08 + 0.15 * fi + 0.05 * hash11(fi + 2.0);
+    float x0 = hash11(fi * 3.1), len = 0.3 + 0.45 * hash11(fi + 7.0);
     float dx = fract(p.x - x0);
-    float on = step(dx, len);
-    float wob = fbm(vec2(p.x * 2.0, fi), vec2(2.0, 4.0), 3) * 0.02;
-    float w = 0.004 * sin(clamp(dx / len, 0.0, 1.0) * 3.14159);
-    ck = min(ck, on > 0.5 ? abs(p.y - y0 - wob) - w : 1e3);
+    float wob = (fbm(vec2(p.x * 3.0, fi), vec2(3.0, 4.0), 3) - 0.5) * 0.03;
+    float w = (0.003 + 0.004 * hash11(fi + 11.0)) * pow(sin(clamp(dx / len, 0.0, 1.0) * 3.14159), 0.7);
+    ck = min(ck, dx < len ? abs(p.y - y0 - wob) - w : 1e3);
   }
-  float crack = smoothstep(0.003, 0.0, ck);
-  float knots = 0.0;
+  float crack = smoothstep(0.002, -0.001, ck);
+  float crackHalo = smoothstep(0.012, 0.0, ck);
+  // knots
   vec4 v = voronoi(p * vec2(3.0, 1.0), vec2(3.0, 1.0), 0.8);
-  knots = smoothstep(0.09, 0.0, v.x) * step(0.72, hash12(v.zw));
-  vec3 c = uBase * (0.75 + 0.45 * fib2) * (0.85 + 0.25 * rings);
-  c = mix(c, uBase * 0.45, knots * 0.8);
+  float knotOn = step(0.7, hash12(v.zw));
+  float knots = smoothstep(0.08, 0.0, v.x) * knotOn;
+  float knotRing = smoothstep(0.2, 0.06, v.x) * knotOn * (0.5 + 0.5 * sin(v.x * 140.0));
+  // tannin streaks: dark bleeds trailing along the grain from nail holes
+  float tan = 0.0;
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    vec2 c0 = vec2(hash11(fi * 5.3 + 1.0), 0.2 + 0.6 * hash11(fi * 2.9 + 4.0));
+    vec2 d = vec2(fract(p.x - c0.x + 0.5) - 0.5, p.y - c0.y);
+    float trail = exp(-abs(d.y) * 90.0) * exp(-max(d.x, 0.0) * 6.0) * step(-0.01, d.x);
+    float hole = smoothstep(0.012, 0.006, length(d * vec2(1.0, 1.0)));
+    tan = max(tan, trail * 0.7 + hole);
+  }
+  // woodworm flight holes
+  vec4 ww = voronoi(p * vec2(60.0, 15.0), vec2(60.0, 15.0), 1.0);
+  float worm = smoothstep(0.08, 0.04, ww.x) * step(0.93, hash12(ww.zw)) * step(0.55, fbm(p * 2.0 + 5.0, vec2(4.0), 3));
+  vec3 c = uBase * (0.78 + 0.32 * fib2) * (1.06 - 0.32 * late);
+  c *= 0.92 + 0.12 * fib;
+  c = mix(c, uBase * 1.25 + 0.03, fleck * 0.35);
+  c = mix(c, uBase * 0.42, knots * 0.85 + knotRing * 0.25);
+  c = mix(c, c * vec3(0.55, 0.45, 0.38), tan);
+  // silvering: weathered grey on the high spots, warmer brown down in the scallops
+  float silver = smoothstep(0.35, 0.8, fbm(p * vec2(1.5, 4.0) + 9.0, vec2(3.0, 4.0), 5));
+  c = mix(c, vec3(dot(c, vec3(0.333))) * vec3(1.02, 1.0, 0.97), silver * 0.35);
+  c *= 0.9 + 0.12 * adze;
+  // grey dust caught in the open grain and the scallop edges
   float grime = fbmv(p * vec2(1.0, 3.0) + 9.0, vec2(4.0, 6.0), 5);
-  c = mix(c, vec3(0.27, 0.25, 0.22), smoothstep(0.45, 0.8, grime) * 0.35);   // grey dust
-  c *= 1.0 - crack * 0.8;
+  c = mix(c, vec3(0.34, 0.32, 0.29), (smoothstep(0.45, 0.8, grime) * 0.3 + adzeEdge * 0.12) * (1.0 - crack));
+  c = mix(c, c * 0.35, crackHalo * 0.45);
+  c *= 1.0 - crack * 0.85 - worm * 0.8;
   s.albedo = c;
-  s.height = 0.55 + 0.12 * adze + 0.08 * fib + 0.06 * rings - crack * 0.5 - knots * 0.05;
-  s.rough = 0.88 - rings * 0.06;
+  s.height = 0.55 + 0.1 * adze - 0.04 * adzeEdge + 0.05 * fib + 0.03 * late - crack * 0.4 - crackHalo * 0.05 - worm * 0.2 - knots * 0.03;
+  s.rough = clamp(0.86 + 0.06 * fib - fleck * 0.1, 0.8, 0.98);
   s.metal = 0.0;
-  s.ao = 1.0 - crack * 0.6;
+  s.ao = 1.0 - crack * 0.7 - crackHalo * 0.15 - worm * 0.5;
+}`,
+  });
+}
+
+/**
+ * One sarking board, grain along U. 1 tile = 2.4 m (U) x 0.2 m (V). Sawn softwood gone dark with age:
+ * kiln-saw marks, a water tide where a slate leaked, dark heart, a resin pocket or two.
+ */
+export function sarkBoardTexture(forge) {
+  return forge.generate('attic:sarkboard', {
+    size: 1024, aspect: 4, normalStrength: 2.0,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 p = uv;
+  float warp = fbm(p * vec2(2.0, 1.0) + 0.7, vec2(4.0, 2.0), 4);
+  float rings = 0.5 + 0.5 * sin((p.y * 7.0 + warp * 2.5 + 0.6 * sin(p.x * 12.566)) * 6.2831);
+  rings = pow(rings, 3.0);
+  float fib = vnoise(p * vec2(60.0, 400.0), vec2(60.0, 400.0));
+  // circular-saw marks: faint arcs across the board
+  float saw = 0.5 + 0.5 * sin((p.x * 140.0 + sin(p.y * 3.0) * 1.5) * 6.2831);
+  vec3 c = mix(vec3(0.3, 0.21, 0.13), vec3(0.42, 0.31, 0.2), fbm(p * vec2(3.0, 1.0) + 2.0, vec2(6.0, 2.0), 4));
+  c *= (0.84 + 0.24 * fib) * (1.05 - 0.28 * rings) * (0.97 + 0.04 * saw);
+  float tide = fbm(p * vec2(3.0, 1.0) + 0.37, vec2(6.0, 2.0), 5);
+  float tl = smoothstep(0.02, 0.0, abs(tide - 0.62)) * 0.6 + smoothstep(0.62, 0.8, tide) * 0.5;
+  c = mix(c, c * vec3(0.5, 0.44, 0.38), tl);
+  vec4 v = voronoi(p * vec2(8.0, 1.0), vec2(8.0, 1.0), 0.8);
+  float knot = smoothstep(0.1, 0.0, v.x) * step(0.8, hash12(v.zw));
+  c = mix(c, vec3(0.12, 0.07, 0.04), knot * 0.8);
+  float edge = smoothstep(0.0, 0.05, p.y) * smoothstep(1.0, 0.95, p.y);
+  c *= mix(0.6, 1.0, edge);
+  s.albedo = c;
+  s.height = 0.5 + 0.06 * fib + 0.03 * saw - 0.05 * rings + 0.2 * edge;
+  s.rough = 0.9; s.metal = 0.0; s.ao = mix(0.6, 1.0, edge);
 }`,
   });
 }
@@ -195,23 +264,65 @@ void surface(vec2 uv, inout Surface s) {
   });
 }
 
-/** Coarse linen dust sheet with weave, slubs and grime. 1 tile = 0.5 m. */
+/**
+ * Old linen dust sheet, 1 tile = 0.5 m. No high-frequency checker in the colour (that is what moired):
+ * the weave lives only as a faint, band-limited ripple in the height (well under Nyquist), while the
+ * albedo carries what reads at distance: slubby yarn streaks, yellowed fold lines, tide-mark stains,
+ * grey dust, mildew freckles.
+ */
 export function linenTexture(forge) {
-  return forge.generate('attic:linen', {
-    size: 512, normalStrength: 0.8,
+  return forge.generate('attic:linen:v3', {
+    size: 1024, normalStrength: 0.9,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
-  float wx = 0.5 + 0.5 * sin(uv.x * 3.14159 * 360.0);
-  float wy = 0.5 + 0.5 * sin(uv.y * 3.14159 * 360.0);
-  float slub = vnoise(vec2(uv.x * 20.0, uv.y * 360.0), vec2(20.0, 360.0));
-  float slub2 = vnoise(vec2(uv.x * 360.0, uv.y * 20.0), vec2(360.0, 20.0));
-  float weave = mix(wx * (0.7 + 0.3 * slub), wy * (0.7 + 0.3 * slub2), step(0.5, fract((floor(uv.x * 360.0) + floor(uv.y * 360.0)) * 0.5)));
-  float grime = fbm(uv + 0.2, vec2(1.0), 4);
-  vec3 c = vec3(0.62, 0.6, 0.55) * (0.88 + 0.12 * weave);
-  c = mix(c, vec3(0.5, 0.47, 0.42), smoothstep(-0.2, 0.6, grime) * 0.22);
+  // weave: 96 threads per tile (~5 mm), soft sinusoid, in height only
+  float wx = sin(uv.x * 6.2831 * 96.0), wy = sin(uv.y * 6.2831 * 96.0);
+  float weave = 0.5 + 0.25 * wx * sign(wy) * 0.6 + 0.25 * wy * 0.4;
+  // slubs: thicker threads, long streaks in warp and weft
+  float slubU = vnoise(vec2(uv.x * 3.0, uv.y * 96.0), vec2(3.0, 96.0));
+  float slubV = vnoise(vec2(uv.x * 96.0, uv.y * 3.0), vec2(96.0, 3.0));
+  float slub = smoothstep(0.62, 0.9, slubU) * 0.5 + smoothstep(0.62, 0.9, slubV) * 0.5;
+  float mott = fbm(uv * 2.0 + 0.2, vec2(2.0), 5);
+  vec3 c = vec3(0.66, 0.63, 0.57) * (0.9 + 0.16 * mott) * (1.0 + 0.06 * slub);
+  // yellowed stains with darker tide edges
+  float st = fbm(uv + 3.7, vec2(1.0), 5);
+  float stain = smoothstep(0.58, 0.68, st);
+  float tide = smoothstep(0.015, 0.0, abs(st - 0.6));
+  c = mix(c, c * vec3(0.93, 0.85, 0.68), stain * 0.6);
+  c = mix(c, c * vec3(0.7, 0.62, 0.5), tide * 0.5);
+  // dust: grey film in soft patches
+  float dust = smoothstep(0.4, 0.8, fbm(uv * 1.0 + 8.1, vec2(1.0), 5));
+  c = mix(c, vec3(0.5, 0.49, 0.47), dust * 0.35);
+  // mildew freckles
+  vec4 v = voronoi(uv * 40.0, vec2(40.0), 1.0);
+  float mil = smoothstep(0.1, 0.03, v.x) * step(0.9, hash12(v.zw)) * smoothstep(0.55, 0.75, fbm(uv * 2.0 + 1.3, vec2(2.0), 3));
+  c = mix(c, vec3(0.28, 0.3, 0.24), mil * 0.6);
   s.albedo = c;
-  s.height = 0.5 + 0.3 * weave;
-  s.rough = 0.95; s.metal = 0.0; s.ao = 0.9 + 0.1 * weave;
+  s.height = 0.5 + 0.12 * weave + 0.12 * slub + 0.05 * mott;
+  s.rough = 0.93; s.metal = 0.0; s.ao = 0.94 + 0.06 * weave;
+}`,
+  });
+}
+
+/** multiplier map for old doll dresses: sun-faded patches, water stains with tide edges, dust in the pleats */
+export function fabricStainTexture(forge) {
+  return forge.generate('attic:fabricStain', {
+    size: 512, normalStrength: 0.6,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  float fade = smoothstep(0.35, 0.8, fbm(uv * 2.0 + 1.0, vec2(2.0), 5));
+  float st = fbm(uv * 3.0 + 4.0, vec2(3.0), 5);
+  float stain = smoothstep(0.55, 0.62, st), tide = smoothstep(0.012, 0.0, abs(st - 0.56));
+  float dust = smoothstep(0.3, 0.9, fbm(uv * 6.0 + 2.0, vec2(6.0), 4));
+  float thr = 0.5 + 0.5 * sin(uv.x * 6.2831 * 160.0) * sin(uv.y * 6.2831 * 160.0);
+  vec3 c = vec3(1.0);
+  c = mix(c, vec3(1.25, 1.2, 1.12), fade * 0.5);
+  c = mix(c, vec3(0.75, 0.66, 0.5), stain * 0.55);
+  c = mix(c, vec3(0.5, 0.42, 0.32), tide * 0.6);
+  c = mix(c, vec3(1.3, 1.28, 1.22), dust * 0.35);
+  s.albedo = c * 0.78;
+  s.height = 0.5 + 0.06 * thr;
+  s.rough = 0.9; s.metal = 0.0; s.ao = 1.0;
 }`,
   });
 }
@@ -225,7 +336,7 @@ void surface(vec2 uv, inout Surface s) {
   vec2 p = uv;
   vec2 moon = vec2(0.5, 0.52);
   float md = length(p - moon);
-  vec3 sky = mix(vec3(0.02, 0.035, 0.08), vec3(0.12, 0.17, 0.32), smoothstep(0.0, 1.0, p.y));
+  vec3 sky = mix(vec3(0.012, 0.02, 0.05), vec3(0.07, 0.1, 0.2), smoothstep(0.0, 1.0, p.y));
   sky += vec3(0.5, 0.6, 0.85) * exp(-md * 4.0) * 0.55;
   float cl = fbm(p * vec2(1.0, 1.6) + vec2(0.2, 0.7), vec2(2.0, 3.0), 6);
   float cl2 = fbm(p + 0.3, vec2(5.0, 8.0), 4);
@@ -237,7 +348,8 @@ void surface(vec2 uv, inout Surface s) {
   vec3 col = mix(sky, moonC * 1.6, disc);
   // clouds drift across the lower part of the moon
   col = mix(col, col * 0.35 + vec3(0.02, 0.025, 0.045), cloud * (0.65 + 0.35 * (1.0 - disc)) * smoothstep(0.75, 0.3, p.y));
-  col += vec3(0.75, 0.8, 0.95) * smoothstep(0.16, 0.0, abs(cl - 0.05)) * exp(-md * 3.0) * 0.6;
+  col += vec3(0.75, 0.8, 0.95) * smoothstep(0.16, 0.0, abs(cl - 0.05)) * exp(-md * 2.5) * 0.9;
+  col += vec3(0.5, 0.56, 0.72) * smoothstep(0.1, 0.0, abs(cl + cl2 * 0.3 - 0.12)) * exp(-md * 1.6) * 0.35;
   vec2 g = p * vec2(80.0); vec2 id = floor(g); vec2 f = fract(g) - 0.5;
   float st = smoothstep(0.07, 0.0, length(f - (hash22(id) - 0.5) * 0.7)) * step(0.94, hash12(id + 1.7));
   col += vec3(0.7, 0.75, 0.9) * st * 0.7 * (1.0 - cloud) * smoothstep(0.15, 0.25, md);
@@ -396,7 +508,7 @@ void surface(vec2 uv, inout Surface s) {
  */
 export function brickTexture(forge, { key = 'brick', base = [0.42, 0.235, 0.175], mortar = [0.55, 0.5, 0.43], bloom = 0.7, missing = 0.012, size = 2048 } = {}) {
   return forge.generate(`attic:${key}`, {
-    size, normalStrength: 2.2,
+    size, normalStrength: 1.45,
     uniforms: { uBase: base, uMortar: mortar, uBloom: bloom, uMissing: missing },
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
@@ -423,7 +535,7 @@ void surface(vec2 uv, inout Surface s) {
   e -= chip + corner;
   float mortarM = 1.0 - smoothstep(0.0, 0.0012, e);
   float arris = smoothstep(-0.001, 0.014, e);
-  float hM = 1.0 - smoothstep(-0.0015, 0.0045, e);   // a softer step for the height: a bedded, rounded joint, not a cliff
+  float hM = 1.0 - smoothstep(-0.003, 0.007, e);   // a softer step for the height: a bedded, rounded joint, not a cliff
   // brick body colour: three clays + clinkers, ±15% value
   vec3 clayA = uBase, clayB = uBase * vec3(1.18, 1.1, 1.0), clayC = uBase * vec3(0.85, 0.72, 0.68);
   vec3 bc = mix(mix(clayA, clayB, step(0.45, h1)), clayC, step(0.78, h2));
@@ -467,9 +579,90 @@ void surface(vec2 uv, inout Surface s) {
   s.height = mix(0.7 + proud + mott * 0.08 - pit * 0.06 - (1.0 - arris) * 0.05, mdepth + md * 0.05, hM) - gone * 0.55 * (1.0 - mortarM);
   s.rough = mix(mix(0.78 + 0.14 * h2, 0.66, clinker) + bloom * 0.1, 0.96, mortarM);
   s.metal = 0.0;
-  s.ao = mix(mix(1.0, 0.93, 1.0 - arris), 0.72, mortarM) * (1.0 - gone * 0.6);
+  s.ao = mix(mix(1.0, 0.96, 1.0 - arris), 0.8, mortarM) * (1.0 - gone * 0.6);
 }`,
   });
+}
+
+/**
+ * Kills the visible repeat of the brick tile: recomputes each brick's id from the map uv exactly as the
+ * forge did, then re-tints it with a hash keyed by brick id AND tile repetition (hue, value, roughness),
+ * so the same chipped brick never comes back with the same face. Adds world-space weathering on top:
+ * white salt efflorescence rising from the floor, damp darkening under an opening, soot plumes above
+ * flames. cfg: { damp: [x, yTop, width], soot: [[x, y, width, strength]...] }
+ */
+export function addBrickVariation(mat, cfg = {}) {
+  const { damp = [0, -10, 0.1], soot = [], bloom = 0.5, floorY = 0 } = cfg;
+  const S = soot.slice(0, 4); while (S.length < 4) S.push([0, -10, 0.1, 0]);
+  const prev = mat.onBeforeCompile;
+  const prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
+  mat.onBeforeCompile = (sh, r) => {
+    prev?.(sh, r);
+    sh.uniforms.uBvSoot = { value: S.map((q) => new THREE.Vector4(...q)) };
+    sh.uniforms.uBvDamp = { value: new THREE.Vector3(...damp) };
+    if (!sh.vertexShader.includes('varying vec3 vBvW;')) sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vBvW;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvBvW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vBvW;
+uniform vec4 uBvSoot[4];
+uniform vec3 uBvDamp;
+float bvH11(float p) { p = fract(p * .1031); p *= p + 33.33; p *= p + p; return fract(p); }
+float bvH12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+float bvN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(bvH12(i), bvH12(i + vec2(1, 0)), f.x), mix(bvH12(i + vec2(0, 1)), bvH12(i + vec2(1, 1)), f.x), f.y); }
+float bvF(vec2 p) { return 0.5 * bvN(p) + 0.25 * bvN(p * 2.03 + 1.7) + 0.125 * bvN(p * 4.01 + 3.1) + 0.0625 * bvN(p * 8.1 + 5.3); }
+float gBvRough = 1.0;`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+  {
+    vec2 buv = vMapUv;
+    vec2 tile = floor(buv);
+    vec2 u = fract(buv);
+    const float ROWS = 24.0, COLS = 8.0;
+    float ry = u.y * ROWS; float rr = floor(ry);
+    float off = mod(rr, 2.0) * 0.5 + (bvH11(rr * 1.37 + 2.0) - 0.5) * 0.18;
+    float gx = u.x * COLS + off;
+    gx += 0.09 * sin(u.x * 6.2831853 * 3.0 + bvH11(rr + 9.0) * 6.28) + 0.05 * sin(u.x * 6.2831853 * 5.0 + bvH11(rr + 3.0) * 6.28);
+    vec2 id = vec2(mod(floor(gx), COLS), rr);
+    vec2 ff = vec2(fract(gx), fract(ry));
+    float inBrick = smoothstep(0.02, 0.06, min(ff.x, 1.0 - ff.x)) * smoothstep(0.05, 0.14, min(ff.y, 1.0 - ff.y));
+    vec2 key = id + tile * vec2(17.31, 29.77);
+    float j1 = bvH12(key + 0.7), j2 = bvH12(key * 1.3 + 4.1), j3 = bvH12(key * 0.7 + 9.3);
+    vec3 tint = vec3(1.0);
+    tint *= 0.8 + 0.42 * j1;                                            // value
+    tint *= mix(vec3(1.0), vec3(1.08, 0.94, 0.86), step(0.6, j2));      // warmer clay
+    tint *= mix(vec3(1.0), vec3(0.86, 0.9, 1.0), step(0.85, j2));       // a cooler, harder-fired brick
+    tint = mix(tint, vec3(0.45, 0.42, 0.42), step(0.93, j3) * 0.7);    // soot-blackened or clinker
+    tint = mix(tint, vec3(1.25, 1.18, 1.08), step(0.965, j1) * 0.6);   // a pale replacement brick
+    diffuseColor.rgb *= mix(vec3(1.0), tint, inBrick);
+    gBvRough = mix(1.0, 0.85 + 0.3 * j3, inBrick);
+    // second, non-integer-scale detail (world space) breaks the remaining tile rhythm
+    vec2 wp = vec2(vBvW.x + vBvW.z, vBvW.y);
+    diffuseColor.rgb *= 0.86 + 0.28 * bvF(wp * 1.37 + 3.3);
+    // salt efflorescence wicking up from the floor: white, crystalline, patchy, fading up the wall
+    float eff = (1.0 - smoothstep(0.0, 0.55 + 0.35 * bvF(wp * 2.1), vBvW.y - ${floorY.toFixed(3)})) * smoothstep(0.35, 0.75, bvF(wp * 3.7 + 1.1) + 0.15 * bvN(wp * 60.0));
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.62, 0.6, 0.56), eff * ${bloom.toFixed(3)});
+    // damp under the opening: darker, spreading downward
+    float dx = abs(vBvW.x - uBvDamp.x) / uBvDamp.z;
+    float dmp = (1.0 - smoothstep(0.4, 1.0 + 0.4 * bvF(wp * 3.0), dx)) * step(vBvW.y, uBvDamp.y) * smoothstep(uBvDamp.y - 2.2, uBvDamp.y - 0.2, vBvW.y);
+    diffuseColor.rgb *= 1.0 - 0.38 * dmp * (0.6 + 0.4 * bvF(wp * 8.0));
+    gBvRough *= 1.0 - 0.3 * dmp;
+    // soot plumes above flames: dense low, feathering out as they rise
+    for (int i = 0; i < 4; i++) {
+      vec4 q = uBvSoot[i];
+      float h = vBvW.y - q.y;
+      float w = q.z * (0.6 + h * 0.8);
+      float plume = step(0.0, h) * exp(-h * 1.4) * (1.0 - smoothstep(0.2 * w, w, abs(vBvW.x - q.x + (bvN(vec2(h * 3.0, float(i))) - 0.5) * 0.12)));
+      diffuseColor.rgb *= 1.0 - q.w * plume * (0.7 + 0.3 * bvF(wp * 6.0 + float(i)));
+    }
+  }`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+  roughnessFactor = clamp(roughnessFactor * gBvRough, 0.3, 1.0);`);
+  };
+  mat.customProgramCacheKey = () => `${prevKey()}|brickvar:${JSON.stringify(cfg)}`;
+  mat.needsUpdate = true;
+  return mat;
 }
 
 /**
@@ -689,41 +882,82 @@ export function cobwebTangleTexture(forge, seed = 4) {
 
 /** The full moon: limb darkening, maria, rayed craters, a torn wisp of cloud across the lower limb. Alpha = disc. */
 export function moonDiscTexture(forge) {
-  return forge.generate('attic:moondisc', {
+  // the near side as seen from the northern hemisphere: Oceanus Procellarum sprawling down the left limb,
+  // Imbrium's great round basin upper left, Serenitatis and Tranquillitatis joined across the middle,
+  // Crisium an isolated oval on the right limb, Nubium and Humorum below; bright cratered highlands to the
+  // south with Tycho's ray system splashed across them. Maria edges are warped by noise, never round blobs.
+  return forge.generate('attic:moondisc:v2', {
     size: 1024, tile: false, normalStrength: 0.0,
     glsl: /* glsl */ `
+float mare(vec2 p, vec2 c, vec2 r, float rot) { vec2 d = p - c; float cs = cos(rot), sn = sin(rot); d = vec2(cs * d.x - sn * d.y, sn * d.x + cs * d.y) / r; return 1.0 - length(d); }
 void surface(vec2 uv, inout Surface s) {
   vec2 p = (uv - 0.5) * 2.0;
   float r = length(p);
-  float disc = smoothstep(0.985, 0.965, r);
+  float disc = smoothstep(0.992, 0.978, r);
   float mu = sqrt(max(0.0, 1.0 - r * r));
-  // maria: broad smooth dark basins (fixed blobs + soft noise edges)
-  float m1 = fbm(p * 0.7 + vec2(3.1, 1.7), vec2(8.0), 4);
-  float basins = 0.55 * exp(-dot(p - vec2(-0.28, 0.32), p - vec2(-0.28, 0.32)) * 4.0) + 0.45 * exp(-dot(p - vec2(0.3, 0.12), p - vec2(0.3, 0.12)) * 6.0) + 0.35 * exp(-dot(p - vec2(-0.05, -0.12), p - vec2(-0.05, -0.12)) * 9.0) + 0.3 * exp(-dot(p - vec2(-0.55, -0.15), p - vec2(-0.55, -0.15)) * 10.0);
-  float maria = smoothstep(0.35, 0.6, basins + (m1 - 0.5) * 0.5);
-  vec3 c = mix(vec3(0.9, 0.9, 0.88), vec3(0.5, 0.52, 0.55), maria * 0.85);
-  // small craters: faint dark floors with a bright rim on the lit side
-  vec4 v = voronoi(p * 9.0 + 2.3, vec2(64.0), 0.9);
-  float on = step(0.82, hash12(v.zw));
-  float rr = 0.2 + 0.15 * hash12(v.zw * 1.7);
-  float dd = v.x / rr;
-  c *= 1.0 - smoothstep(1.0, 0.5, dd) * on * 0.12;
-  c += vec3(0.07) * smoothstep(0.8, 1.0, dd) * smoothstep(1.3, 1.0, dd) * on;
-  vec2 ty = p - vec2(-0.12, -0.55);
-  float tycho = exp(-dot(ty, ty) * 120.0);
-  float rays = pow(abs(sin(atan(ty.y, ty.x) * 9.0 + fbm(p * 3.0, vec2(4.0), 3) * 3.0)), 18.0) * exp(-length(ty) * 2.2);
-  c += vec3(0.5) * tycho + vec3(0.16) * rays;
-  float speck = vnoise(p * 140.0, vec2(140.0));
-  c *= 0.95 + 0.06 * speck;
-  // limb darkening + a cold rim tint
-  c *= 0.55 + 0.45 * pow(mu, 0.45);
-  c *= vec3(0.97, 0.98, 1.02);
-  // torn cloud wisp across the lower limb
-  float cl = fbm(vec2(p.x * 1.2, p.y * 3.0) + vec2(0.3, 1.9), vec2(4.0, 8.0), 5);
-  float band = smoothstep(0.2, 0.0, abs(p.y + 0.48 + (cl - 0.5) * 0.5)) * smoothstep(0.35, 0.65, cl);
-  c = mix(c, c * 0.35 + vec3(0.06, 0.07, 0.1), band * 0.8);
+  // sphere-projected coords so features foreshorten toward the limb
+  vec2 q = p / max(0.35, pow(mu, 0.15));
+  vec2 w = q + (vec2(fbm(q * 1.6 + 3.0, vec2(8.0), 5), fbm(q * 1.6 + 7.0, vec2(8.0), 5)) - 0.5) * 0.22;
+  float m = -1.0;
+  m = max(m, mare(w, vec2(-0.3, 0.38), vec2(0.3, 0.27), 0.2));        // Imbrium
+  m = max(m, mare(w, vec2(-0.62, 0.05), vec2(0.26, 0.55), -0.15));    // Procellarum
+  m = max(m, mare(w, vec2(0.12, 0.32), vec2(0.17, 0.16), 0.0));       // Serenitatis
+  m = max(m, mare(w, vec2(0.28, 0.08), vec2(0.22, 0.17), 0.4));       // Tranquillitatis
+  m = max(m, mare(w, vec2(0.66, 0.24), vec2(0.12, 0.09), 0.3));       // Crisium
+  m = max(m, mare(w, vec2(0.45, -0.18), vec2(0.13, 0.17), -0.3));     // Fecunditatis
+  m = max(m, mare(w, vec2(-0.2, -0.3), vec2(0.18, 0.13), 0.2));       // Nubium
+  m = max(m, mare(w, vec2(-0.5, -0.36), vec2(0.1, 0.09), 0.0));       // Humorum
+  m = max(m, mare(w, vec2(0.05, 0.62), vec2(0.3, 0.06), 0.05));       // Frigoris
+  float mariaM = smoothstep(-0.05, 0.12, m + (fbm(w * 6.0, vec2(16.0), 4) - 0.5) * 0.25);
+  float mTone = fbm(w * 3.0 + 1.0, vec2(8.0), 4);
+  vec3 high = vec3(0.86, 0.85, 0.82) * (0.88 + 0.2 * fbm(q * 9.0 + 5.0, vec2(32.0), 4));
+  vec3 low = vec3(0.42, 0.44, 0.47) * (0.85 + 0.3 * mTone);
+  vec3 c = mix(high, low, mariaM * 0.92);
+  // craters: two scales, much denser on the highlands; dark floors, a bright rim on the sun side
+  for (int k = 0; k < 2; k++) {
+    float sc = k == 0 ? 7.0 : 18.0;
+    vec4 v = voronoi(q * sc + float(k) * 3.3, vec2(64.0), 0.95);
+    float on = step(mix(0.55, 0.88, mariaM), hash12(v.zw + float(k)));
+    float rr2 = 0.18 + 0.2 * hash12(v.zw * 1.7);
+    float dd = v.x / rr2;
+    float floorD = smoothstep(1.0, 0.6, dd);
+    float rimB = smoothstep(0.75, 1.0, dd) * smoothstep(1.35, 1.0, dd);
+    c *= 1.0 - floorD * on * (k == 0 ? 0.16 : 0.1);
+    c += vec3(0.09) * rimB * on;
+  }
+  // Tycho and Copernicus with ray systems
+  vec2 ty = q - vec2(-0.12, -0.58);
+  float tycho = exp(-dot(ty, ty) * 260.0);
+  float rays = pow(abs(sin(atan(ty.y, ty.x) * 11.0 + fbm(q * 4.0, vec2(8.0), 3) * 3.0)), 24.0) * exp(-length(ty) * 1.8);
+  vec2 co = q - vec2(-0.32, 0.12);
+  float cop = exp(-dot(co, co) * 500.0);
+  float rays2 = pow(abs(sin(atan(co.y, co.x) * 8.0 + fbm(q * 5.0, vec2(8.0), 3) * 3.0)), 20.0) * exp(-length(co) * 4.0);
+  c += vec3(0.55) * tycho + vec3(0.2) * rays + vec3(0.35) * cop + vec3(0.12) * rays2;
+  c *= 0.95 + 0.06 * vnoise(p * 180.0, vec2(180.0));
+  // limb darkening (the full moon is nearly flat, but the very edge falls off) and a faint cold rim
+  c *= 0.62 + 0.38 * pow(mu, 0.35);
+  c *= vec3(0.96, 0.98, 1.03);
   s.albedo = c;
   s.alpha = disc;
+  s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+}
+
+/** drifting cloud wisps for the layer in front of the moon: alpha in the albedo's alpha, tiles horizontally */
+export function cloudWispTexture(forge, seed = 1) {
+  return forge.generate(`attic:cloudwisp${seed}`, {
+    size: 512, aspect: 2, normalStrength: 0.0, seed,
+    uniforms: { uS: seed },
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 p = uv * vec2(2.0, 1.0);
+  float n = fbm(p * vec2(1.5, 3.0) + vec2(uS * 3.1, uS), vec2(3.0, 3.0), 6);
+  float streak = fbm(vec2(p.x * 4.0, p.y * 14.0) + uS * 7.0, vec2(8.0, 14.0), 4);
+  float band = smoothstep(0.0, 0.25, uv.y) * smoothstep(1.0, 0.75, uv.y);
+  float a = smoothstep(0.42, 0.75, n * 0.8 + streak * 0.35) * band;
+  s.albedo = vec3(0.5 + 0.5 * n);
+  s.alpha = a;
   s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
 }`,
   });
@@ -771,6 +1005,13 @@ export function oculusGrimeTexture(forge) {
       g.strokeStyle = 'rgba(10,10,12,0.5)'; g.lineWidth = 3.5; g.globalCompositeOperation = 'destination-over'; g.stroke(); g.globalCompositeOperation = 'source-over';
     }
     for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(ox, oy, 18 + k * 26 + rnd() * 10, rnd() * 6, rnd() * 6 + 1.2); g.strokeStyle = 'rgba(200,210,235,0.5)'; g.lineWidth = 1.1; g.stroke(); }
+    // two more damaged panes: a long running crack across the upper right, a small stone-strike star upper left
+    const crackRun = (x, y, a, L, wl) => { g.beginPath(); g.moveTo(x, y); for (let d = 0; d < L; d += 10) { a += (rnd() - 0.5) * 0.25; x += Math.cos(a) * 10; y += Math.sin(a) * 10; g.lineTo(x, y); if (rnd() < 0.08) crackRun(x, y, a + (rnd() - 0.5) * 1.6, L * 0.25, wl * 0.7); } g.strokeStyle = 'rgba(10,10,12,0.45)'; g.lineWidth = wl * 2.2; g.stroke(); g.strokeStyle = 'rgba(215,225,245,0.8)'; g.lineWidth = wl; g.stroke(); };
+    crackRun(cx + R * 0.15, cy - R * 0.85, 1.25, 330, 1.4);
+    { const sx = cx - R * 0.45, sy = cy - R * 0.5; for (let k = 0; k < 7; k++) crackRun(sx, sy, k * 0.9 + rnd() * 0.3, 40 + rnd() * 90, 1.1); g.fillStyle = 'rgba(220,230,250,0.6)'; g.beginPath(); g.arc(sx, sy, 5, 0, Math.PI * 2); g.fill(); }
+    // greasy smudges: a palm print where someone leaned to look out, finger drags
+    { const px = cx + R * 0.05, py = cy + R * 0.62; const pg = g.createRadialGradient(px, py, 4, px, py, 46); pg.addColorStop(0, 'rgba(60,55,48,0.22)'); pg.addColorStop(1, 'rgba(60,55,48,0)'); g.fillStyle = pg; g.beginPath(); g.ellipse(px, py, 40, 50, 0.2, 0, Math.PI * 2); g.fill();
+      for (let k = 0; k < 4; k++) { g.strokeStyle = 'rgba(60,55,48,0.16)'; g.lineWidth = 14; g.lineCap = 'round'; g.beginPath(); g.moveTo(px - 30 + k * 20, py - 40); g.lineTo(px - 34 + k * 22, py - 110 - k * 6); g.stroke(); } }
   }, { tile: false });
 }
 
