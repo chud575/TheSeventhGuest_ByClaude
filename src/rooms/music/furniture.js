@@ -145,7 +145,7 @@ export function buildFireplace(ctx, { marble, iron, brass, gilt }) {
   }
   // flames: a few tongue sheets licking up between the logs (+ small licks), leaning back
   const flames = [];
-  for (const [x, z, w, h, sd, k] of [[-0.02, -0.07, 0.46, 0.4, 3, 1.6], [0.07, -0.17, 0.42, 0.46, 9, 1.2], [-0.13, -0.13, 0.24, 0.3, 17, 1.1], [0.15, -0.1, 0.2, 0.26, 23, 1.0]]) {
+  for (const [x, z, w, h, sd, k] of [[-0.02, -0.07, 0.5, 0.48, 3, 1.6], [0.07, -0.17, 0.46, 0.56, 9, 1.25], [-0.13, -0.13, 0.26, 0.36, 17, 1.1], [0.15, -0.1, 0.22, 0.3, 23, 1.0], [0.0, -0.21, 0.52, 0.42, 31, 0.8]]) {
     const f = createFireSheet(ctx, { width: w, height: h, seed: sd, intensity: k, tongues: 4 + (sd % 3) });
     f.position.set(x, 0.1, z); f.rotation.x = -0.12;
     g.add(f); flames.push(f);

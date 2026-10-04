@@ -87,8 +87,8 @@ cx = u
 crown = 0.27 + 0.025 * fbm(14, 2, 4, 301)[0:1, :] + 0.012 * fbm(70, 2, 3, 333)[0:1, :]
 bumps = np.zeros(W, np.float32)
 r2 = np.random.default_rng(7)
-for i in range(60):
-    x0 = r2.random(); w = 0.008 + r2.random() * 0.02; h = 0.01 + r2.random() * 0.03
+for i in range(140):
+    x0 = r2.random(); w = 0.012 + r2.random() * 0.03; h = 0.004 + r2.random() * 0.012
     bumps = np.maximum(bumps, h * np.sqrt(np.clip(1 - ((u[0] - x0) / w) ** 2, 0, 1)))
 top = (crown[0] - 0.03 + bumps)[None, :]
 edge = np.clip((top - v) * H / 2.0, 0, 1)

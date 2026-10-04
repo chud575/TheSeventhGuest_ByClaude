@@ -67,10 +67,10 @@ float wpF(vec2 p) { return 0.5 * wpN(p) + 0.25 * wpN(p * 2.03 + 7.1) + 0.125 * w
     // break the repeat: a second sample of the print, shifted half a drop, blended in by noise
     vec4 alt = texture2D(map, vMapUv + vec2(0.5, 0.37));
     float bm = smoothstep(0.42, 0.62, wpF(wq * 0.6 + 11.0));
-    diffuseColor.rgb = mix(diffuseColor.rgb, alt.rgb * diffuse, bm * 0.5);
+    diffuseColor.rgb = mix(diffuseColor.rgb, alt.rgb * diffuse, bm * 0.7);
     float stain = wpF(wq * 0.9);
     float tide = smoothstep(0.55, 0.75, wpF(wq * vec2(0.7, 0.35) + 3.0));
-    float macro = 0.8 + 0.32 * stain - 0.18 * tide;
+    float macro = 0.72 + 0.5 * stain - 0.22 * tide;
     // corners: under the frieze and just above the chair rail
     macro *= mix(1.0, 0.62, smoothstep(${(H - CROWN - FRIEZE - 0.55).toFixed(2)}, ${(H - CROWN - FRIEZE).toFixed(2)}, vWpW.y));
     macro *= mix(1.0, 0.75, 1.0 - smoothstep(${(DADO).toFixed(2)}, ${(DADO + 0.3).toFixed(2)}, vWpW.y));
@@ -251,7 +251,7 @@ void surface(vec2 uv, inout Surface s) {
       for (const t of [rmap, rnrm]) { t.anisotropy = 16; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; }
       rugMat.map = rmap; rugMat.normalMap = rnrm; rugMat.normalScale = new THREE.Vector2(0.8, 0.8);
       rugMat.roughnessMap = null; rugMat.metalnessMap = null; rugMat.metalness = 0;
-      rugMat.color.setRGB(0.82, 0.8, 0.8);
+      rugMat.color.setRGB(0.55, 0.52, 0.52);   // held well below the piano and the ghost
       if ('sheen' in rugMat) { rugMat.sheen = 0.5; rugMat.sheenRoughness = 0.6; rugMat.sheenColor = new THREE.Color(0.4, 0.28, 0.24); }
       rugMat.needsUpdate = true;
     } catch (e) { console.warn('music rug', e); }
@@ -1079,7 +1079,7 @@ void surface(vec2 uv, inout Surface s) {
     const nodes = {
       main: { position: [1.75, 1.6, 2.35], target: [-1.75, 1.32, -1.8], fov: 56, label: 'The music room', look: { yaw: [-50, 50], pitch: [-25, 30] } },
       piano: { position: pianoToWorld(2.0, 1.66, 0.25).toArray(), target: pianoToWorld(-0.3, 0.98, -0.05).toArray(), fov: 50, label: 'The piano' },
-      harp: { position: [1.35, 1.55, -0.35], target: [1.7, 1.0, -3.8], fov: 54, label: 'The harp, the cello and the windows', look: { yaw: [-60, 60], pitch: [-25, 30] }, grade: { exposure: 0.85, bloomThreshold: 1.4 } },
+      harp: { position: [1.35, 1.55, -0.35], target: [1.7, 1.0, -3.8], fov: 54, label: 'The harp, the cello and the windows', look: { yaw: [-60, 60], pitch: [-25, 30] }, grade: { exposure: 1.0, bloomThreshold: 1.5 } },
       hearth: { position: [0.9, 1.6, 1.4], target: [-4.0, 1.45, 0.45], fov: 54, label: 'The fireplace' },
       door: { position: [0.6, 1.62, 0.9], target: [0.0, 1.45, 5.5], fov: 56, label: 'The doors', grade: { exposure: 1.55 } },
     };
@@ -1183,7 +1183,7 @@ void surface(vec2 uv, inout Surface s) {
       for (const sh of shafts) if (sh.material?.uniforms?.uIntensity) sh.material.uniforms.uIntensity.value = sh.userData.base * veil.k;
       if (fog.material?.uniforms?.uDensity) fog.material.uniforms.uDensity.value = 0.3 * (0.35 + 0.65 * veil.k);
       for (const [i, pl] of sconceLights.entries()) pl.intensity = (i < 2 ? 3.6 : i === 2 ? 2.6 : 2.4) * (0.97 + 0.03 * Math.sin(t * 9.1 + i) * Math.sin(t * 3.7));
-      keyFill.intensity += ((window.__game?.mode === 'puzzle' ? 3.6 : 0.5) - keyFill.intensity) * Math.min(1, dt * 3);
+      keyFill.intensity += ((window.__game?.mode === 'puzzle' ? 5.5 : 0.5) - keyFill.intensity) * Math.min(1, dt * 3);
       torchLight.intensity = 7.0 * (0.94 + 0.06 * Math.sin(t * 8.3) * Math.sin(t * 2.9 + 0.4));
     });
 

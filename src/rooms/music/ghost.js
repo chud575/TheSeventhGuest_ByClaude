@@ -85,6 +85,7 @@ uniform float uIntensity;
 uniform float uDissolveY;
 uniform float uDissolveSoft;
 uniform float uHandBoost;
+uniform float uSolid;
 varying vec3 vN;
 varying vec3 vW;
 varying vec3 vLocal;
@@ -141,20 +142,20 @@ void main() {
   float solid = skin * 0.62 + linen * 0.5 + hair * 0.46 + cloth * 0.1;
   // an inner scattering volume: even the planes facing you hold a milky, cold body (the room only
   // ghosts through faintly), so he reads as a spectre and never as an x-ray of the floor behind him
-  float a = mix(0.72, 0.94, fres) + (0.08 + 0.3 * key) * occ * solid + fill * 0.08 * solid + hands;
+  float a = mix(0.72, 0.94, fres) + uSolid + (0.08 + 0.3 * key) * occ * solid + fill * 0.08 * solid + hands;
   a *= (0.88 + 0.2 * flow) * mix(0.75, 1.0, occ);
   // dissolve below uDissolveY into drifting wisps
   float d = d0 + (mist - 0.5) * 1.8;
   a *= smoothstep(0.0, 1.0, d);
   float vis = smoothstep(0.0, 1.0, d);
-  a = clamp(a, 0.0, 0.95) * uOpacity;
+  a = clamp(a, 0.0, 0.97) * uOpacity;
   // premultiplied output with an additive glow on top: he lights the air around his contours
   // without turning opaque (blend: ONE, ONE_MINUS_SRC_ALPHA)
   vec3 glowAdd = (uRim * fres * 0.32 + uColor * 0.035 * (0.6 + val)) * uOpacity * vis * (0.85 + 0.3 * flow);
   gl_FragColor = vec4(col * uIntensity * a + glowAdd, a);
 }`;
 
-function ghostMaterials(ctx, { dissolveY = -10, dissolveSoft = 0.25, wobble = 0.003, handBoost = 0, localMatrix = new THREE.Matrix4() } = {}) {
+function ghostMaterials(ctx, { dissolveY = -10, dissolveSoft = 0.25, wobble = 0.003, handBoost = 0, solid = 0, localMatrix = new THREE.Matrix4() } = {}) {
   const uniforms = {
     uTime: ctx.time,
     uWobble: { value: wobble },
@@ -170,6 +171,7 @@ function ghostMaterials(ctx, { dissolveY = -10, dissolveSoft = 0.25, wobble = 0.
     uDissolveY: { value: dissolveY },
     uDissolveSoft: { value: dissolveSoft },
     uHandBoost: { value: handBoost },
+    uSolid: { value: solid },
     uLocalMatrix: { value: localMatrix },
   };
   const defs = 'uniform mat4 uLocalMatrix;\n';
@@ -208,7 +210,9 @@ export async function buildGhostPianist(ctx) {
     return holder;
   };
   addPart(parts.body, { dissolveY: 0.6, dissolveSoft: 0.13, wobble: 0.003 }, null, 6);   // the legs dissolve into wisps at the seat
-  const head = addPart(parts.head, { wobble: 0.0012 }, header.head, 8);
+  // (the head is the most solid part of him: it is seen against the bright bay, where any transparency
+  // let the glazing bars and the lit sill draw straight lines through his face)
+  const head = addPart(parts.head, { wobble: 0.0012, solid: 0.22 }, header.head, 8);
   const arms = ['L', 'R'].map((k) => addPart(parts['arm' + k], { wobble: 0.0015, handBoost: 0.3 }, header.shoulders[k], 10));
   // a faint cold aura behind him, and a light that he casts on the keys and music desk
   const glowTex = ctx.textures.canvas('music:ghostglow', 128, 128, (g, w, h) => {

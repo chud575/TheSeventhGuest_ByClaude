@@ -357,7 +357,7 @@ export function bodyTint(x, y, z) {
     if (tie < 0.002) return 0.05;
     const lin = Math.min(collarSdf(x, y, z), collarPoint(x, y, z, -1), collarPoint(x, y, z, 1));
     if (lin < 0.004 && z < 0.5) return 0.8;                     // stock + collar points
-    if (y > 1.15 && backCollar(x, y, z) > 0.004 && Math.min(rcone(x, y, z, [-0.088, 1.075, 0.505], [0, 1.15, 0.54], 0.028, 0.032), rcone(x, y, z, [0.088, 1.075, 0.505], [0, 1.15, 0.54], 0.028, 0.032)) > 0.004) return 1.0;                                    // the neck above the stock
+    if (y > 1.15 && z < 0.47 && backCollar(x, y, z) > 0.004 && Math.min(rcone(x, y, z, [-0.088, 1.075, 0.505], [0, 1.15, 0.54], 0.028, 0.032), rcone(x, y, z, [0.088, 1.075, 0.505], [0, 1.15, 0.54], 0.028, 0.032)) > 0.004) return 1.0;                                    // the neck above the stock
   }
   if (y > 0.96 && y <= 1.055 && z < 0.47 && sdPoly(ax, y, VOPEN) < 0.002) {
     if (ax < 0.016 && y > 0.995) return 0.05;                     // tie ends

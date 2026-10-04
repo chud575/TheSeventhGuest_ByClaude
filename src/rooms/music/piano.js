@@ -338,7 +338,7 @@ void surface(vec2 uv, inout Surface s) {
     for (let i = 0; i < NP; i++) {
       const x = -0.66 + (i / (NP - 1)) * 1.36;
       const row = i % 3;
-      m.compose(new THREE.Vector3(x, 0.892, -(0.105 + row * 0.022)), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
+      m.compose(new THREE.Vector3(x, 0.892, -(0.128 + row * 0.019)), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
       pin.setMatrixAt(i, m);
     }
     pin.castShadow = false;
@@ -461,7 +461,7 @@ void surface(vec2 uv, inout Surface s) {
   desk.name = 'piano-desk';
   {
     const fret = fretworkTexture(ctx.textures);
-    const fm = new THREE.MeshStandardMaterial({ map: fret.map, normalMap: fret.normalMap, alphaTest: 0.5, roughness: 0.55, metalness: 0, side: THREE.DoubleSide, color: 0x6a6a6a });
+    const fm = new THREE.MeshStandardMaterial({ map: fret.map, normalMap: fret.normalMap, alphaTest: 0.5, roughness: 0.55, metalness: 0, side: THREE.DoubleSide, color: 0x484848 });
     const panel = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.3), fm);
     panel.position.y = 0.17; desk.add(panel);
     // the desk is hand-rubbed satin, not mirror: its ledge sat right under the candles and threw two hot
@@ -471,12 +471,12 @@ void surface(vec2 uv, inout Surface s) {
     frameG.position.y = 0.17; desk.add(frameG);
     const ledge = new THREE.Mesh(new G.RoundedBoxGeometry(0.84, 0.014, 0.045, 2, 0.005), satin);
     // dark cloth behind the fretwork: nothing inside the case shows through the desk or between the pages
-    const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.77, 0.29), new THREE.MeshStandardMaterial({ color: 0x0b0706, roughness: 1 }));
-    cloth.position.set(0, 0.17, -0.006); desk.add(cloth);
+    const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.4), new THREE.MeshStandardMaterial({ color: 0x0b0706, roughness: 1 }));
+    cloth.position.set(0, 0.2, -0.006); desk.add(cloth);
     ledge.position.set(0, 0.01, 0.02); desk.add(ledge);
     const sheetMat = (seed, title) => new THREE.MeshStandardMaterial({ map: sheetMusicTexture(ctx.textures, { seed, title }), roughness: 0.85, side: THREE.DoubleSide });
     // the two pages overlap at the spine, so nothing inside the case shows between them
-    for (const [x, seed, ry, title] of [[-0.121, 3, 0.05, 'Nocturne for the Seventh Guest'], [0.121, 4, -0.05, '']]) {
+    for (const [x, seed, ry, title] of [[-0.116, 3, 0.05, 'Nocturne for the Seventh Guest'], [0.116, 4, -0.05, '']]) {
       const page = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 0.33, 6, 1), sheetMat(seed, title));
       const p = page.geometry.attributes.position;
       for (let i = 0; i < p.count; i++) { const u = p.getX(i) / 0.125; p.setZ(i, 0.012 * (1 - u * u) + (x < 0 ? -1 : 1) * u * 0.004); }
