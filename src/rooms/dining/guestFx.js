@@ -61,7 +61,7 @@ void main() {
   vec3 nl = normalize(vNl);
   if (dot(n, v) < 0.0) { n = -n; nl = -nl; }
   float ndv = clamp(dot(n, v), 0.0, 1.0);
-  float fres = pow(1.0 - ndv, 3.0);
+  float fres = pow(1.0 - ndv, 4.0);
   // soft top/front key so brows, noses, cheekbones and shoulders hold a little form
   float key = max(dot(nl, normalize(vec3(0.1, 0.8, 0.6))), 0.0);
   // warm inner rim on the side facing the table (+z local) where the candles are
@@ -73,8 +73,8 @@ void main() {
   float e = fbm(q + 0.5 * vec3(fbm(q * 0.6 + 3.1), 0.0, fbm(q * 0.6 + 9.7)));
   float mask = smoothstep(0.72 - hgt * 0.9, 0.92 - hgt * 0.9, e);
   float mist = fbm(vL * 4.0 + vec3(0.0, -uTime * 0.35, uTime * 0.12));
-  float a = (0.014 + 0.62 * fres + 0.022 * key * key + 0.014 * mist) * mask;
-  vec3 col = uColor * (0.3 + 0.5 * key * key + 0.2 * mist) + uRim * fres * 1.4 + uWarm * warm * 1.1;
+  float a = (0.012 + 0.75 * fres + 0.02 * key * key + 0.012 * mist) * mask;
+  vec3 col = uColor * (0.15 + 0.35 * key * key + 0.12 * mist) + uRim * fres * 1.5 + uWarm * warm * 1.1;
   gl_FragColor = vec4(col * uIntensity * a * uOpacity, 1.0);
 }
 `;

@@ -752,12 +752,12 @@ void surface(vec2 uv, inout Surface s) {
   vec2 r;
   // --- main field: palmette at x = 0.25 tile, lotus at 0.75
   vec2 B = vec2(0.25 * ASP, 0.3);
-  for (int i = 0; i < 9; i++) {
-    float fi = float(i) - 4.0;
-    float a = fi * 0.3;
+  for (int i = 0; i < 7; i++) {
+    float fi = float(i) - 3.0;
+    float a = fi * 0.36;
     vec2 d = vec2(sin(a), cos(a));
-    float L = 0.56 - abs(fi) * 0.045;
-    r = lobe(p, B + d * 0.035, d, L, 0.036 - abs(fi) * 0.0016);
+    float L = 0.58 - abs(fi) * 0.06;
+    r = lobe(p, B + d * 0.035, d, L, 0.062 - abs(fi) * 0.004);
     h = max(h, r.x); sh = max(sh, r.y);
   }
   // heart-shaped base of the palmette
@@ -765,7 +765,7 @@ void surface(vec2 uv, inout Surface s) {
   h = max(h, sqrt(max(0.0, 1.0 - hb * hb)) * 0.9); sh = max(sh, smoothstep(1.8, 1.0, hb));
   // lotus bud
   vec2 Lb = vec2(0.75 * ASP, 0.27);
-  r = lobe(p, Lb, vec2(0.0, 1.0), 0.48, 0.06); h = max(h, r.x); sh = max(sh, r.y);
+  r = lobe(p, Lb, vec2(0.0, 1.0), 0.5, 0.075); h = max(h, r.x); sh = max(sh, r.y);
   r = lobe(p, Lb + vec2(-0.01, 0.0), normalize(vec2(-0.55, 1.0)), 0.3, 0.032); h = max(h, r.x * 0.9); sh = max(sh, r.y);
   r = lobe(p, Lb + vec2(0.01, 0.0), normalize(vec2(0.55, 1.0)), 0.3, 0.032); h = max(h, r.x * 0.9); sh = max(sh, r.y);
   float cb = length((p - Lb) * vec2(1.0, 1.6)) / 0.06;
@@ -812,12 +812,12 @@ void surface(vec2 uv, inout Surface s) {
   float raised = smoothstep(0.02, 0.12, H);
   float wear = fbm(uv, vec2(34.0, 30.0), 4);
   vec3 gold = mix(vec3(0.7, 0.52, 0.24), vec3(0.95, 0.76, 0.42), smoothstep(0.3, 1.0, H)) * (0.9 + 0.15 * wear);
-  vec3 ground = vec3(0.13, 0.11, 0.075) * (0.85 + 0.3 * wear);
+  vec3 ground = vec3(0.24, 0.18, 0.1) * (0.85 + 0.3 * wear);
   float cav = max(sh, eds) * (1.0 - raised);
   s.albedo = mix(ground * (1.0 - 0.5 * cav), gold * (0.8 + 0.2 * H), raised);
   s.height = 0.25 + 0.6 * H;
-  s.metal = mix(0.6, 1.0, raised);
-  s.rough = mix(0.6, 0.3 + 0.2 * (1.0 - H), raised);
+  s.metal = mix(0.25, 0.75, raised);
+  s.rough = mix(0.7, 0.32 + 0.2 * (1.0 - H), raised);
   s.ao = mix(1.0 - 0.6 * cav, 0.65 + 0.35 * H, raised);
 }`,
   });

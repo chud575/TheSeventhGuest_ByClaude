@@ -809,6 +809,12 @@ export default {
       fx.areaLight({ center: [X1 - 0.6, 1.8, 1.4], normal: [1, 0, -0.1], width: 3.4, height: 1.6, color: 0x78a0cc, intensity: 0.4 }),
       fx.areaLight({ center: [X0 + 0.6, 1.8, 1.4], normal: [-1, 0, -0.1], width: 3.4, height: 1.6, color: 0x78a0cc, intensity: 0.35 }),
     ];
+    // gasolier spill reaching the gilt frieze and cornice (warm, soft, from the room's centre line)
+    fills.push(
+      fx.areaLight({ center: [0.2, 2.75, -0.6], normal: [-1, 0.35, 0], width: 5.5, height: 0.5, color: 0xffc890, intensity: 0.9 }),
+      fx.areaLight({ center: [0.2, 2.75, -0.6], normal: [1, 0.35, 0], width: 5.5, height: 0.5, color: 0xffc890, intensity: 0.9 }),
+      fx.areaLight({ center: [0.0, 2.75, 0.4], normal: [0, 0.35, -1], width: 3.5, height: 0.5, color: 0xffc890, intensity: 0.7 }),
+    );
     for (const f of fills) root.add(f);
     root.add(fx.areaLight({ center: [0, WIN.sill + WIN.h / 2, Z0 + 0.06], normal: [0, -0.3, 1], width: WIN.w - 0.1, height: WIN.h - 0.1, color: 0x8ea6ff, intensity: 2.5 }));
     // gasolier: one shadowed warm light at the globe ring + a soft up-light for the ceiling
