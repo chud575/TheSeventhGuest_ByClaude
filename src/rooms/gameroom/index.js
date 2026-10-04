@@ -125,7 +125,7 @@ export default {
       eye: new THREE.MeshPhysicalMaterial({ color: 0x080504, roughness: 0.05, clearcoat: 1, name: 'glassEye' }),
       antler: new THREE.MeshStandardMaterial({ color: 0x8a7458, roughness: 0.6, name: 'antler' }),
       // acid-etched tulip shade: frosted, glowing hottest round the mantle low in the bowl, falling off to a cool rim
-      globe: new THREE.MeshPhysicalMaterial({ color: 0x3a3028, emissive: new THREE.Color(1.0, 0.64, 0.34), emissiveIntensity: 2.0, roughness: 0.55, clearcoat: 0.6, clearcoatRoughness: 0.35, name: 'sconceGlobe',
+      globe: new THREE.MeshPhysicalMaterial({ color: 0x3a3028, emissive: new THREE.Color(1.0, 0.64, 0.34), emissiveIntensity: 1.3, roughness: 0.55, clearcoat: 0.6, clearcoatRoughness: 0.35, name: 'sconceGlobe',
         emissiveMap: ctx.textures.canvas('gameroom:tulipGlow', 4, 128, (c) => { const g = c.createLinearGradient(0, 0, 0, 128); g.addColorStop(0, '#2a2a2a'); g.addColorStop(0.25, '#9a9a9a'); g.addColorStop(0.45, '#c8c8c8'); g.addColorStop(0.7, '#6a6a6a'); g.addColorStop(0.9, '#2e2e2e'); g.addColorStop(1, '#1a1a1a'); c.fillStyle = g; c.fillRect(0, 0, 4, 128); }, { tile: false }) }),
       shadeOuter: new THREE.MeshPhysicalMaterial({ color: 0x0a3618, roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.04, emissive: new THREE.Color(0.1, 0.62, 0.24), emissiveIntensity: 1.3, side: THREE.FrontSide, envMapIntensity: 1.4, name: 'shadeGreen',
         // cased glass glows where it is thin and nearest the bulb: dark at the crown, bright toward the rim
@@ -140,7 +140,7 @@ export default {
       // re-authored nero: wide soft veins + sparse fine ones, white-grey, ~10% cover; three seeded variants so
       // neighbouring slabs do not repeat the same figure
       const neroV = [0, 1, 2].map((k) => marbleNero3Texture(ctx.textures, { key: `gameroom:nero3:${k}`, seed: k * 1.7 }));
-      const mk = (rep, tint = 1, k = 0) => { const t = neroV[k].withRepeat(rep, rep); return new THREE.MeshPhysicalMaterial({ map: t.map, normalMap: t.normalMap, normalScale: new THREE.Vector2(0.5, 0.5), roughnessMap: t.ormMap, roughness: 1, metalness: 0, clearcoat: 0.4, clearcoatRoughness: 0.24, envMapIntensity: 0.7, color: new THREE.Color(tint, tint, tint), name: `nero${k}` }); };
+      const mk = (rep, tint = 1, k = 0) => { const t = neroV[k].withRepeat(rep, rep); return new THREE.MeshPhysicalMaterial({ map: t.map, normalMap: t.normalMap, normalScale: new THREE.Vector2(0.5, 0.5), roughnessMap: t.ormMap, roughness: 1, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.3, envMapIntensity: 0.6, color: new THREE.Color(tint, tint, tint), name: `nero${k}` }); };
       mat.marble = mk(1.4); mat.marbleDark = mk(1.9, 0.85, 1);
       mat.marbleVariants = [mat.marble, mk(1.4, 1, 1), mk(1.4, 1, 2)];
       const logs = logTextures(ctx.textures);
