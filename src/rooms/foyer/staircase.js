@@ -103,7 +103,7 @@ export function buildStaircase(ctx, mats) {
     const samples = inArc ? 6 : 2;
     let offIn = S.half + 0.03, offOut = -S.half - 0.06;    // inner end housed in the closed string
     // curtail: the bottom three steps flare out round the newel, the first in a full bullnose
-    const flare = [0.82, 0.52, 0.26][k] ?? 0;
+    const flare = [0.6, 0.36, 0.16][k] ?? 0;
     const pts = [];
     // outer edge from sA-nose -> sB, then inner edge back
     for (let i = 0; i <= samples; i++) { const s = sA - S.nose + (sB - sA + S.nose) * (i / samples); pts.push(stairXZ(s, offOut)); }
@@ -273,7 +273,7 @@ export function buildStaircase(ctx, mats) {
     }
     group.add(new THREE.Mesh(G.sweepProfile(capProf, capPath, { uvScale: 1 }), mats.rail));
     // applied panel mouldings: two raking beads with stiles between, so the apron reads as framed panels
-    const bead = [[0, -0.014], [0.006, -0.012], [0.011, -0.006], [0.013, 0], [0.011, 0.006], [0.006, 0.012], [0, 0.014]].map(([x, y]) => new THREE.Vector2(y, x));
+    const bead = [[0, -0.022], [0.009, -0.019], [0.016, -0.01], [0.019, 0], [0.016, 0.01], [0.009, 0.019], [0, 0.022]].map(([x, y]) => new THREE.Vector2(y, x));
     const gbead = [[0, -0.005], [0.004, -0.003], [0.005, 0], [0.004, 0.003], [0, 0.005]].map(([x, y]) => new THREE.Vector2(y, x));
     const geos = [];
     const push = (g) => geos.push(g.index ? g.toNonIndexed() : g);
@@ -289,9 +289,18 @@ export function buildStaircase(ctx, mats) {
     }
     void faceN;
     group.add(new THREE.Mesh(G.mergeGeometries(geos), mats.rail));
+    // a carved anthemion frieze running up the middle of the apron, between the panel beads
+    if (mats.frieze) {
+      const fp = [];
+      for (let i = 0; i <= 120; i++) { const sv = sStart + 0.12 + (S.L - sStart - 0.12) * (i / 120); const yc = pitchY(sv) - 0.165; if (yc > 0.12) fp.push(V3(stairXZ(sv, inner + 0.0395), yc)); }
+      const fm = mats.frieze.clone(); fm.side = THREE.DoubleSide;
+      const band = new THREE.Mesh(G.sweepProfile([new THREE.Vector2(0, -0.07), new THREE.Vector2(0, 0.07)], fp, { uvScale: 1 }), fm);
+      band.name = 'stringFrieze';
+      group.add(band);
+    }
     // a fine gilt line inside the frame
     const gl = [];
-    for (let i = 0; i <= 90; i++) { const sv = sStart + (S.L - sStart) * (i / 90); gl.push(V3(stairXZ(sv, inner + 0.036), pitchY(sv) - 0.17)); }
+    for (let i = 0; i <= 90; i++) { const sv = sStart + (S.L - sStart) * (i / 90); gl.push(V3(stairXZ(sv, inner + 0.036), pitchY(sv) - 0.075)); }
     group.add(new THREE.Mesh(G.sweepProfile(gbead, gl, { uvScale: 2 }), mats.gilt));
   }
   // cove moulding tucked under every nosing

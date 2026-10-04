@@ -115,7 +115,7 @@ export default {
       crystal: new THREE.MeshPhysicalMaterial({ color: 0x2a3036, roughness: 0.0, metalness: 0.15, ior: 2.0, specularIntensity: 1, clearcoat: 1, clearcoatRoughness: 0.0, iridescence: 0.35, iridescenceIOR: 1.6, envMapIntensity: 3.2, flatShading: true }),
       iron: M.basic('iron'),
       black: M.basic('black'),
-      rug: M.create('rug', { palette: 'tabriz', aspect: 1.5 / 3.4, knots: 200, wear: 0.45, fringe: 0.04, seed: 11, size: big }),
+      rug: M.create('rug', { palette: 'tabriz', aspect: 1.6 / 4.3, knots: 200, wear: 0.45, fringe: 0.04, seed: 11, size: big }),
       floorboards: M.create('parquet', { species: 'oak', ratio: 5, planksAcross: 2, repeat: [0.9, 0.9], polish: 0.55, wear: 0.4 }),
     };
     {
@@ -171,7 +171,7 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
     mat.rimBrass = mat.brass.clone(); mat.rimBrass.roughness = 0.55; mat.rimBrass.polygonOffset = true; mat.rimBrass.polygonOffsetFactor = -2;
     mat.shade = new THREE.MeshStandardMaterial({ color: 0x2a2116, emissive: new THREE.Color(1.0, 0.6, 0.28), emissiveIntensity: 2.6, roughness: 0.35, transparent: true, opacity: 0.94 });
     // black-widow chitin: near-black, glossy clearcoat; legs a touch rougher; the hourglass is paint, not a light
-    mat.spider = new THREE.MeshPhysicalMaterial({ color: 0x050405, roughness: 0.22, metalness: 0.0, clearcoat: 0.9, clearcoatRoughness: 0.12, specularIntensity: 0.8, envMapIntensity: 0.9 });
+    mat.spider = new THREE.MeshPhysicalMaterial({ color: 0x0c0405, roughness: 0.35, metalness: 0.0, clearcoat: 0.6, clearcoatRoughness: 0.3, specularIntensity: 0.6, sheen: 0.8, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.32, 0.05, 0.05), envMapIntensity: 0.7 });
     mat.spiderLeg = new THREE.MeshPhysicalMaterial({ color: 0x080708, roughness: 0.42, clearcoat: 0.5, clearcoatRoughness: 0.25, sheen: 0.6, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.18, 0.16, 0.18), envMapIntensity: 0.9 });
     mat.mark = new THREE.MeshPhysicalMaterial({ color: 0x6a0805, roughness: 0.3, clearcoat: 0.9, clearcoatRoughness: 0.12, polygonOffset: true, polygonOffsetFactor: -2 });
 
@@ -437,8 +437,8 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
       obj.add(beyond);
       const grp = walls[wall].group;
       grp.updateMatrixWorld(true);
-      const wp = new THREE.Vector3(along, d.h * 0.45, 0.03).applyMatrix4(grp.matrixWorld);
-      const wn = new THREE.Vector3(0, -0.25, 1).applyQuaternion(grp.quaternion);
+      const wp = new THREE.Vector3(along, d.h * 0.62, 0.3).applyMatrix4(grp.matrixWorld);
+      const wn = new THREE.Vector3(0, -0.45, 1).applyQuaternion(grp.quaternion);
       const al = new THREE.RectAreaLight(color, areaI, 0.35, d.h * 0.9);
       al.position.copy(wp); al.lookAt(wp.clone().add(wn)); al.name = 'spill';
       root.add(al);
@@ -670,7 +670,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     add(balcony);
 
     // ================================================================ staircase
-    const stairMats = { tread: mat.stairWood, riser: mat.panel, carpet: mat.carpet, brass: mat.brass, string: mat.stairWood, rail: mat.stairWood, gilt: mat.gilt, soffit: mat.underside, baluster: mat.stairWood, newel: mat.stairWood, bracket: mat.stairWood, panel: mat.panel };
+    const stairMats = { tread: mat.stairWood, riser: mat.panel, carpet: mat.carpet, brass: mat.brass, string: mat.stairWood, rail: mat.stairWood, gilt: mat.gilt, soffit: mat.underside, baluster: mat.stairWood, newel: mat.stairWood, bracket: mat.stairWood, panel: mat.panel, frieze: mat.frieze };
     const stair = buildStaircase(ctx, stairMats);
     add(stair.group);
     // gallery balusters + rail (share the stair's turned baluster)
@@ -691,7 +691,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     }
     // the upstairs gallery: a runner, a demilune console with a candle and two small pictures, a second sconce
     {
-      const rugG = M.create('rug', { palette: 'heriz', aspect: 1.0 / 6.4, knots: 180, wear: 0.5, fringe: 0.03, seed: 23, size: big });
+      const rugG = M.create('rug', { palette: 'kashan', aspect: 1.0 / 6.4, knots: 260, wear: 0.5, fringe: 0.03, seed: 23, size: big });
       const rr = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 6.4), rugG);
       rr.rotation.set(-Math.PI / 2, 0, Math.PI / 2); rr.position.set(-2.55, UF + 0.008, -5.75);
       add(rr, { cast: false });
@@ -835,7 +835,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
       // high and well forward, so the varnish glare reflects down onto the gallery floor, never back at the viewer
       // (no distance decay: a gallery picture light is designed to wash the canvas evenly; the cone's soft edge
       // is centred on the face and falls off towards the frame)
-      const pLight = new THREE.SpotLight(0xffb878, Number(ctx.params.get('plight') || 6.5), 0, 0.36, 0.9, 0);
+      const pLight = new THREE.SpotLight(0xffb878, Number(ctx.params.get('plight') || 6.0), 0, 0.5, 0.95, 0);
       pLight.position.set(DOORS.music.x - 0.25, PY + 1.3, Z0 + 1.6);
       pLight.target.position.set(DOORS.music.x, PY + 0.05, Z0);
       root.add(pLight, pLight.target);
@@ -944,7 +944,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
       // round centre table with an urn of dying roses, between the medallion and the gallery columns
       const ct = centreTable(ctx, { wood: mat.mahogany, gilt: mat.gilt, marble: M.create('marble', { type: 'nero', polish: 0.85 }) });
       ct.position.set(-1.6, 0, -2.75); add(ct);
-      const fu = flowerUrn(ctx, { urnMat: M.create('marble', { type: 'verde', polish: 0.85 }), seed: 4 });
+      const fu = flowerUrn(ctx, { urnMat: mat.gilt, seed: 4 });
       fu.position.set(-1.6, 0.782, -2.75); add(fu);
       // a pair of carved hall chairs flanking the dining-room doors
       for (const dz of [-1.45, 1.45]) {
@@ -1217,8 +1217,8 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
 
     // ================================================================ rug runner from the door
     {
-      const rug = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 3.4), mat.rug);
-      rug.rotation.x = -Math.PI / 2; rug.position.set(0, 0.006, 4.55);
+      const rug = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 4.3), mat.rug);
+      rug.rotation.x = -Math.PI / 2; rug.position.set(0, 0.006, 4.7);
       add(rug, { cast: false });
     }
 
@@ -1327,7 +1327,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
       }
       return sh;
     });
-    const dustFx = fx.dust({ box: new THREE.Box3(V3(-5.6, 0.2, -4), V3(2.6, 7.5, 6.8)), count: 1100, shafts: [shaft, ...westShafts.slice(0, 2)], size: 0.016, intensity: 0.45, ambient: 0.0 });
+    const dustFx = fx.dust({ box: new THREE.Box3(V3(-5.6, 0.2, -4), V3(2.6, 7.5, 6.8)), count: 800, shafts: [shaft, ...westShafts.slice(0, 2)], size: 0.017, intensity: 0.3, ambient: 0.0 });
     root.add(dustFx); puzzleHide.push(dustFx);
     const floorFog = fx.fog({ box: new THREE.Box3(V3(X0 + 0.3, 0, -6.5), V3(X1 - 0.3, 0.6, 6.5)), color: 0x0a0f1c, litColor: 0x2c3a5c, density: 0.14, heightFalloff: 5 });
     root.add(floorFog); puzzleHide.push(floorFog);

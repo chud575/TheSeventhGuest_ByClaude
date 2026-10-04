@@ -471,9 +471,9 @@ export function spiderGeometry(G) {
       const knee = root.clone().addScaledVector(dir, reach * 0.38).add(new THREE.Vector3(0, 0.038, 0));
       const ankle = root.clone().addScaledVector(dir, reach * 0.8).add(new THREE.Vector3(0, 0.022, 0));
       const foot = root.clone().addScaledVector(dir, reach).setY(0.0);
-      seg(root, knee, 0.0034, 0.0028);
-      seg(knee, ankle, 0.0028, 0.0021);
-      seg(ankle, foot, 0.0021, 0.0011);
+      seg(root, knee, 0.0058, 0.0046);
+      seg(knee, ankle, 0.0046, 0.0032);
+      seg(ankle, foot, 0.0032, 0.0014);
     }
     // pedipalps
     const pr = new THREE.Vector3(side * 0.006, 0.02, 0.034);

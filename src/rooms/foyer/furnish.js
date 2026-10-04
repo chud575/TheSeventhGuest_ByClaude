@@ -40,8 +40,10 @@ export function flowerUrn(ctx, { urnMat, seed = 7 }) {
   const urn = G.latheFromProfile([[0, 0], [0.09, 0], [0.09, 0.02], [0.05, 0.04], [0.04, 0.09], [0.06, 0.12], [0.13, 0.17], [0.16, 0.24], [0.15, 0.3], [0.11, 0.34], [0.12, 0.36], [0.15, 0.38], [0.14, 0.39], [0.1, 0.37], [0, 0.36]], 40);
   g.add(new THREE.Mesh(urn, urnMat));
   let sd = seed * 7919 + 13; const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
-  const petal = new THREE.MeshPhysicalMaterial({ color: 0x3a0610, roughness: 0.72, sheen: 0.6, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.5, 0.12, 0.15) });
-  const petal2 = new THREE.MeshPhysicalMaterial({ color: 0x5a3a2a, roughness: 0.85 });   // a few have browned
+  // blush-and-ivory roses gone over: papery, browning at the edges (they read against the dark hall)
+  const petal = new THREE.MeshPhysicalMaterial({ color: 0xb88a7a, roughness: 0.7, sheen: 0.7, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.9, 0.75, 0.7) });
+  const petal2 = new THREE.MeshPhysicalMaterial({ color: 0x8a5a3e, roughness: 0.85 });   // a few have browned
+  const petal3 = new THREE.MeshPhysicalMaterial({ color: 0x6e1018, roughness: 0.7, sheen: 0.6, sheenColor: new THREE.Color(0.6, 0.2, 0.2) });
   const leafM = new THREE.MeshStandardMaterial({ color: 0x14200e, roughness: 0.7, side: THREE.DoubleSide });
   const stemM = new THREE.MeshStandardMaterial({ color: 0x1a2410, roughness: 0.8 });
   // a rose: three nested, slightly crumpled petal cups
@@ -68,7 +70,8 @@ export function flowerUrn(ctx, { urnMat, seed = 7 }) {
     const mid = new THREE.Vector3(tip.x * 0.6, h * 0.75, tip.z * 0.6);
     const end = droop ? new THREE.Vector3(tip.x * 1.25, h - 0.08, tip.z * 1.25) : tip;
     g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(tip.x * 0.15, 0.3, tip.z * 0.15), mid, end]), 8, 0.004, 5), stemM));
-    const rose = new THREE.Mesh(roseGeo, rnd() < 0.2 ? petal2 : petal);
+    const pk = rnd();
+    const rose = new THREE.Mesh(roseGeo, pk < 0.2 ? petal2 : pk < 0.45 ? petal3 : petal);
     rose.position.copy(end); rose.scale.setScalar(0.85 + rnd() * 0.5);
     rose.lookAt(end.clone().add(new THREE.Vector3(end.x, droop ? -0.4 : 0.35, end.z)));
     rose.rotateX(Math.PI / 2);
@@ -139,12 +142,12 @@ export function bustOnPlinth(ctx, { marble, plinthMat }) {
   base.position.y = 1.1; g.add(base);
   // chest + shoulders: a squashed, truncated ellipsoid with a toga drape fold across it
   const chest = new THREE.SphereGeometry(0.2, 32, 20, 0, Math.PI * 2, 0, Math.PI * 0.62);
-  chest.scale(1.05, 0.95, 0.55);
+  chest.scale(1.15, 0.62, 0.58);
   const cp = chest.attributes.position;
   for (let i = 0; i < cp.count; i++) { const x = cp.getX(i), y = cp.getY(i), z = cp.getZ(i); cp.setY(i, y + 0.012 * Math.sin(x * 40 + y * 18) * (z > 0 ? 1 : 0)); }
   chest.computeVertexNormals();
-  const ch = new THREE.Mesh(chest, marble); ch.position.y = 1.16; ch.scale.y = 1.1; g.add(ch);
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.058, 0.13, 20), marble); neck.position.set(0, 1.42, 0.0); g.add(neck);
+  const ch = new THREE.Mesh(chest, marble); ch.position.y = 1.18; g.add(ch);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.062, 0.12, 20), marble); neck.position.set(0, 1.33, 0.0); g.add(neck);
   // head: an egg with a brow ridge, nose and chin, curls on the crown
   const head = new THREE.SphereGeometry(0.09, 36, 28);
   const hp = head.attributes.position;
@@ -164,7 +167,7 @@ export function bustOnPlinth(ctx, { marble, plinthMat }) {
     hp.setXYZ(i, x, y, z);
   }
   head.computeVertexNormals();
-  const hd = new THREE.Mesh(head, marble); hd.position.set(0, 1.56, 0.01); hd.rotation.y = 0.35; hd.rotation.x = 0.06; g.add(hd);
+  const hd = new THREE.Mesh(head, marble); hd.scale.setScalar(1.22); hd.position.set(0, 1.47, 0.015); hd.rotation.y = 0.7; hd.rotation.x = 0.05; g.add(hd);
   return shadowAll(g);
 }
 
@@ -195,7 +198,7 @@ export function porcelainMaterial(ctx) {
     g.strokeStyle = 'rgba(80,70,50,0.18)'; g.lineWidth = 1;
     for (let i = 0; i < 300; i++) { const x = rnd() * w, y = rnd() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - 0.5) * 30, y + (rnd() - 0.5) * 30); g.stroke(); }
   });
-  return new THREE.MeshPhysicalMaterial({ map: tex, color: new THREE.Color(0.7, 0.7, 0.72), roughness: 0.18, clearcoat: 0.8, clearcoatRoughness: 0.12, envMapIntensity: 0.8 });
+  return new THREE.MeshPhysicalMaterial({ map: tex, color: new THREE.Color(0.5, 0.52, 0.56), roughness: 0.18, clearcoat: 0.8, clearcoatRoughness: 0.12, envMapIntensity: 0.8 });
 }
 
 /** small half-moon console for the upstairs gallery */

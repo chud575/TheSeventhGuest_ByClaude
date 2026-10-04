@@ -196,7 +196,7 @@ void surface(vec2 uv, inout Surface s) {
 
 /** Sidelight panes: tall leaded diamonds with a roundel every metre. */
 export function sidelightTexture(forge, aspect, mode = 0) {
-  return forge.generate(`foyer:sidelight2:${mode}`, {
+  return forge.generate(`foyer:sidelight3:${mode}`, {
     size: 1024, aspect, tile: false, uniforms: { uAsp: aspect, uMode: mode }, normalStrength: 2.5,
     glsl: GLASS_COMMON + /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
@@ -218,9 +218,9 @@ void surface(vec2 uv, inout Surface s) {
     vec2 qf = fract(q) - 0.5;
     col = glassPal(5.0);
     id = floor(q);
-    lead = max(lead, leadLine((0.5 - max(abs(qf.x), abs(qf.y))) / 3.2, 0.014));
     float cy = (floor(m.y / 0.9) + 0.5) * 0.9;
     float rc = length(vec2(m.x, m.y - cy));
+    lead = max(lead, leadLine((0.5 - max(abs(qf.x), abs(qf.y))) / 3.2, 0.014) * step(0.22, rc));   // the quarries stop at the roundel
     if (rc < 0.22) {
       float st = sdStar(vec2(m.x, m.y - cy), 0.19, 8.0, 3.0);
       col = rc < 0.1 ? glassPal(0.0) : (st < 0.0 ? glassPal(2.0) : glassPal(1.0));
@@ -243,9 +243,9 @@ void surface(vec2 uv, inout Surface s) {
  * pointsR = radius (normalised) of the eight star points.
  */
 export function medallionTexture(forge, pointsR) {
-  return forge.generate('foyer:medallion3', {
+  return forge.generate('foyer:medallion4', {
     size: 2048, aspect: 1, tile: false, uniforms: { uPR: pointsR },
-    normalStrength: 0.8,
+    normalStrength: 1.5,
     glsl: /* glsl */ `
 vec3 marbleCol(vec2 p, vec3 base, vec3 vein, float k, float sc) {
   vec2 w = vec2(fbm(p * sc + k, vec2(64.0), 5), fbm(p * sc + k + 7.3, vec2(64.0), 5));
@@ -266,16 +266,18 @@ void surface(vec2 uv, inout Surface s) {
   vec2 lw = vec2(fbm(p * 1.3 + 2.0, vec2(64.0), 4), fbm(p * 1.3 + 9.0, vec2(64.0), 4));
   float lc = fbm(p * 1.6 + lw * 0.8, vec2(64.0), 5) * 0.5 + 0.5;
   float lv = 1.0 - smoothstep(0.0, 0.06, abs(fbm(p * 1.1 + lw * 1.2 + 5.0, vec2(64.0), 4)));
-  vec3 nero = mix(vec3(0.02, 0.03, 0.085), vec3(0.06, 0.09, 0.24), smoothstep(0.3, 0.8, lc));
+  vec3 nero = mix(vec3(0.018, 0.024, 0.06), vec3(0.05, 0.07, 0.17), smoothstep(0.3, 0.8, lc));
   nero = mix(nero, vec3(0.32, 0.36, 0.44), lv * 0.35);
   float pyr = smoothstep(0.93, 0.98, vnoise(p * 70.0, vec2(1e4))) * smoothstep(0.45, 0.7, lc);
   nero = mix(nero, vec3(0.7, 0.58, 0.3), pyr * 0.6);
   vec3 rosso = marbleCol(p, vec3(0.24, 0.045, 0.04), vec3(0.55, 0.36, 0.3), 4.0, 1.6);
   // malachite heart: concentric botryoidal banding
   // verde antico: deep bottle-green serpentine breccia, pale veins and milky clasts (no banding to moire)
-  vec3 verde = marbleCol(p, vec3(0.04, 0.13, 0.08), vec3(0.42, 0.52, 0.44), 21.0, 2.6);
-  float clast = smoothstep(0.62, 0.7, fbm(p * 7.0 + 3.0, vec2(64.0), 4) * 0.5 + 0.5);
-  verde = mix(verde, vec3(0.2, 0.26, 0.22), clast * 0.5);
+  // malachite heart: soft concentric botryoidal banding, warped, in deep-to-mid greens (smooth, no grain)
+  float mw = fbm(p * 3.0 + 4.0, vec2(64.0), 4);
+  float bands = 0.5 + 0.5 * sin((r + mw * 0.05) * 160.0 + mw * 6.0);
+  vec3 verde = mix(vec3(0.015, 0.07, 0.04), vec3(0.06, 0.2, 0.11), smoothstep(0.2, 0.9, bands));
+  verde = mix(verde, vec3(0.005, 0.03, 0.02), (1.0 - smoothstep(0.0, 0.08, abs(fract((r + mw * 0.05) * 14.0) - 0.5))) * 0.5);
   // the border ring uses the hall's own aged ivory Carrara (same albedo, veins and polish as the floor)
   vec3 carrara = marbleCol(p, vec3(0.6, 0.58, 0.53), vec3(0.3, 0.31, 0.33), 13.0, 1.4);
   vec3 brassC = vec3(0.86, 0.66, 0.34);
@@ -340,9 +342,9 @@ void surface(vec2 uv, inout Surface s) {
   vec3 b = brassC * (0.75 + 0.35 * wear);
   col = mix(col, b, inl);
   metal = inl;
-  rough = mix(0.2 + 0.08 * wear, 0.3 + 0.12 * wear, inl);
+  rough = mix(0.14 + 0.08 * wear, 0.22 + 0.08 * wear, inl);
   col = mix(col, vec3(0.08, 0.07, 0.06), joint * 0.8);
-  h = 0.6 - joint * 0.3 - inl * 0.03;
+  h = 0.6 - joint * 0.3 + inl * 0.07;   // brass strips stand a hair proud, bevelled by the normal pass
   // scuffs & dull traffic patina
   float scuff = smoothstep(0.55, 0.8, fbm(p * 2.2 + 3.0, vec2(64.0), 5) * 0.5 + 0.5);
   rough = mix(rough, rough + 0.12, scuff);
@@ -932,7 +934,7 @@ vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
  * grout is dark and grimy; the chamfered edges are slightly lifted; light scuffing.
  */
 export function floorTexture(forge, size = 1024) {
-  return forge.generate('foyer:floor3', {
+  return forge.generate('foyer:floor4', {
     size, aspect: 1, tile: true, normalStrength: 1.0,
     glsl: /* glsl */ `
 // domain-warped marble in tile-local space: soft cloudy drifts, a few wandering veins with a crisp core
@@ -968,7 +970,7 @@ void surface(vec2 uv, inout Surface s) {
     col = base * (0.86 + 0.2 * cloud);
     col = mix(col, vec3(0.36, 0.37, 0.39), halo * 0.42);
     col = mix(col, vec3(0.16, 0.17, 0.19), vein * (0.62 + 0.3 * h3));
-    col = mix(col, vec3(0.34, 0.35, 0.36), halo2 * 0.22 + vein2 * 0.42);
+    col = mix(col, vec3(0.34, 0.35, 0.36), halo2 * 0.2 + vein2 * 0.25);
     col = mix(col, col * vec3(0.95, 0.88, 0.74), smoothstep(0.6, 0.95, cloud) * 0.45);
     col = mix(col, vec3(0.5, 0.5, 0.5), crackle * 0.08);
     rough = 0.25 + 0.06 * (h2 - 0.5);
@@ -979,7 +981,7 @@ void surface(vec2 uv, inout Surface s) {
     float strong = step(0.2, h4);
     col = mix(col, vec3(0.16, 0.16, 0.16), halo * 0.18 * strong);
     col = mix(col, vec3(0.62, 0.61, 0.58), vein * (0.45 + 0.4 * h3) * strong);
-    col = mix(col, vec3(0.36, 0.36, 0.35), vein2 * 0.32);
+    col = mix(col, vec3(0.3, 0.3, 0.29), vein2 * 0.1);
     col = mix(col, vec3(0.12, 0.12, 0.12), crackle * 0.12);
     rough = 0.15 + 0.05 * (h2 - 0.5);
   }
