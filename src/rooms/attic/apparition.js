@@ -86,11 +86,13 @@ void main() {
   float fade = smoothstep(fadeT - 0.3, fadeT + 0.25, wisp);
   // the outline itself stays clean: only a faint, soft thinning right at grazing angles low on the coat
   float fray = smoothstep(0.9, 1.0, edge) * (1.0 - smoothstep(0.3, 0.9, hy)) * 0.5 * uFray * smoothstep(0.35, 0.75, s2);
+  // the cut hem itself never shows: the cloth is fully vapour before it reaches the geometric edge
+  fade = clamp(fade * (smoothstep(0.3, 0.62, hy + (wisp - 0.5) * 0.2) + (1.0 - step(0.0, 0.58 - hy))), 0.0, 1.0);
   float a = (1.0 - fray) * fade;
   // vapour glows faintly where it thins, lit from the furnace behind
   col += uRim * 0.03 * (1.0 - fade) * fade * 4.0 * back;
   if (a * uOpacity < 0.02) discard;
-  gl_FragColor = vec4(col, clamp(a * uOpacity, 0.0, 1.0));
+  gl_FragColor = vec4(max(col, vec3(0.0)), clamp(a * uOpacity, 0.0, 1.0));
   #include <colorspace_fragment>
 }`;
 
@@ -602,13 +604,13 @@ export function buildApparition(mat, { shadowTex } = {}) {
       const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
     })();
     const eyeCol = new THREE.Color(1.0, 0.42, 0.12);
-    const glowMat = new THREE.SpriteMaterial({ map: glowTex, color: eyeCol.clone().multiplyScalar(2.2), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false, fog: false, name: 'staufGlow' });
+    const glowMat = new THREE.SpriteMaterial({ map: glowTex, color: eyeCol.clone().multiplyScalar(2.8), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false, fog: false, name: 'staufGlow' });
     const coreMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.75, 0.4).multiplyScalar(5.0), toneMapped: false, name: 'staufEyes' });
     const glows = [];
     for (const e of LM.eyes) {
       const core = new THREE.Mesh(new THREE.SphereGeometry(0.0055, 10, 8).scale(1.3, 0.75, 0.6), coreMat);
       core.position.copy(e).add(V3(0, 0.002, 0.004)); head.add(core); parts.push(core);
-      const sp = new THREE.Sprite(glowMat); sp.scale.setScalar(0.06); sp.position.copy(e).add(V3(0, 0.002, 0.012)); sp.renderOrder = 9; head.add(sp); glows.push(sp);
+      const sp = new THREE.Sprite(glowMat); sp.scale.setScalar(0.085); sp.position.copy(e).add(V3(0, 0.002, 0.012)); sp.renderOrder = 9; head.add(sp); glows.push(sp);
     }
     // the grin seam: a thin bright tube along the slit, behind the teeth
     const mouthMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.38, 0.1).multiplyScalar(2.6), toneMapped: false, name: 'staufMouth' });

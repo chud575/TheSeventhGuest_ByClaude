@@ -74,6 +74,12 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
   // brass bezel: knurled outer ring with a bevelled lip
   const bez = new THREE.Mesh(G.latheFromProfile([[plateRadius - 0.004, 0.0], [plateRadius + 0.002, 0.008], [plateRadius + 0.012, 0.01], [plateRadius + 0.02, 0.006], [plateRadius + 0.022, -0.02], [plateRadius + 0.012, -0.026], [plateRadius - 0.002, -0.026]], 128), mats.brass);
   bez.castShadow = true; bez.receiveShadow = true; group.add(bez);
+  // agar: a thin, faintly amber gel the cultures sit in, climbing the glass in a meniscus at the rim
+  {
+    const agarMat = new THREE.MeshPhysicalMaterial({ color: 0xd8c89a, roughness: 0.08, metalness: 0, transparent: true, opacity: 0.14, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.0, depthWrite: false, name: 'agar' });
+    const agar = new THREE.Mesh(G.latheFromProfile([[0, 0.0055], [plateRadius - 0.03, 0.0055], [plateRadius - 0.014, 0.0062], [plateRadius - 0.007, 0.0085], [plateRadius - 0.004, 0.012], [plateRadius - 0.0035, 0.0]], 128), agarMat);
+    agar.renderOrder = 4; agar.userData.noBake = true; agar.castShadow = false; group.add(agar);
+  }
   // stage clips
   for (const s of [-1, 1]) {
     // spring stage clip: a bevelled, tapering arm with a turned-up toe, on a knurled screw post
@@ -109,12 +115,25 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
     g.putImageData(img, 0, 0);
   }, { tile: false });
   const mkCellMat = (col, glow, rimCol) => {
-    const m = new THREE.MeshPhysicalMaterial({ map: cellTex, emissiveMap: cellTex, color: col.clone().multiplyScalar(0.55), emissive: col.clone().multiplyScalar(0.8), emissiveIntensity: glow, roughness: 0.42, clearcoat: 0.55, clearcoatRoughness: 0.32, sheen: 0.6, sheenRoughness: 0.4, sheenColor: rimCol, envMapIntensity: 0.4, name: 'culture' });
-    // membrane: a translucent fresnel rim, as if light scatters through the edge of the cell
+    // a living culture, not candy: a soft wet surface (thin clearcoat, broad highlight), most of the colour carried
+    // by light scattering through the body (emissive weighted toward the thin rim, a cooler dense core), and a
+    // nucleus that pulses slowly, each cell out of phase with its neighbours
+    const m = new THREE.MeshPhysicalMaterial({ map: cellTex, emissiveMap: cellTex, color: col.clone().multiplyScalar(0.36), emissive: col.clone().multiplyScalar(0.8), emissiveIntensity: glow, roughness: 0.55, clearcoat: 0.22, clearcoatRoughness: 0.5, sheen: 0.5, sheenRoughness: 0.6, sheenColor: rimCol, envMapIntensity: 0.25, name: 'culture' });
     m.onBeforeCompile = (sh) => {
       sh.uniforms.uRimC = { value: rimCol };
-      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uRimC;')
-        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  { float fr = pow(1.0 - clamp(abs(dot(normalize(vNormal), normalize(vViewPosition))), 0.0, 1.0), 2.5); totalEmissiveRadiance += uRimC * fr * 0.9; }');
+      sh.uniforms.uCTime = ctx.time;
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uRimC;\nuniform float uCTime;')
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+  {
+    float ndv = clamp(abs(dot(normalize(vNormal), normalize(vViewPosition))), 0.0, 1.0);
+    float fr = pow(1.0 - ndv, 2.2);
+    totalEmissiveRadiance += uRimC * fr * 1.1;                       // membrane: light through the thin edge
+    totalEmissiveRadiance *= 0.75 + 0.35 * (1.0 - ndv);             // thicker body in the middle scatters less
+    float lum = dot(sampledDiffuseColor.rgb, vec3(0.333));
+    float nuc = smoothstep(0.32, 0.12, lum);
+    float ph = fract(sin(dot(floor(vViewPosition.xz * 60.0), vec2(12.9898, 78.233))) * 43758.5) * 6.2831;
+    totalEmissiveRadiance += uRimC * nuc * (0.25 + 0.25 * sin(uCTime * 1.4 + ph));
+  }`);
     };
     m.customProgramCacheKey = () => `culture${rimCol.getHexString()}`;
     return m;
@@ -246,9 +265,9 @@ export function createInfectionPuzzle(ctx, { parent, center, plateRadius = 0.25,
     bannerEl?.remove(); bannerBack?.remove();
     // a soft dark plate behind the type: dims and blurs the cells under the banner so the score reads
     const bk = document.createElement('div');
-    bk.style.cssText = 'position:absolute; left:50%; top:calc(36vh + 34px); width:min(820px, 92vw); height:220px; transform:translate(-50%, -50%); pointer-events:none; z-index:59;'
+    bk.style.cssText = 'position:absolute; left:50%; top:calc(36vh + 34px); width:min(900px, 94vw); height:270px; transform:translate(-50%, -50%); pointer-events:none; z-index:59;'
       + 'background: radial-gradient(ellipse at center, rgba(4,3,6,0.82) 0%, rgba(4,3,6,0.7) 40%, rgba(4,3,6,0) 70%);'
-      + '-webkit-backdrop-filter: blur(3px) brightness(0.55); backdrop-filter: blur(3px) brightness(0.55);'
+      + '-webkit-backdrop-filter: blur(6px) brightness(0.4); backdrop-filter: blur(6px) brightness(0.4);'
       + '-webkit-mask-image: radial-gradient(ellipse at center, #000 35%, transparent 70%); mask-image: radial-gradient(ellipse at center, #000 35%, transparent 70%);'
       + 'opacity:0; transition: opacity 0.8s ease;';
     (document.querySelector('.t7-ui') || document.body).append(bk);

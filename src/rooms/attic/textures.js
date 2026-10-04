@@ -271,16 +271,15 @@ void surface(vec2 uv, inout Surface s) {
  * grey dust, mildew freckles.
  */
 export function linenTexture(forge) {
-  return forge.generate('attic:linen:v3', {
+  return forge.generate('attic:linen:v4', {
     size: 1024, normalStrength: 0.9,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   // weave: 96 threads per tile (~5 mm), soft sinusoid, in height only
-  float wx = sin(uv.x * 6.2831 * 96.0), wy = sin(uv.y * 6.2831 * 96.0);
-  float weave = 0.5 + 0.25 * wx * sign(wy) * 0.6 + 0.25 * wy * 0.4;
-  // slubs: thicker threads, long streaks in warp and weft
-  float slubU = vnoise(vec2(uv.x * 3.0, uv.y * 96.0), vec2(3.0, 96.0));
-  float slubV = vnoise(vec2(uv.x * 96.0, uv.y * 3.0), vec2(96.0, 3.0));
+  float weave = 0.5 + 0.2 * vnoise(uv * 48.0, vec2(48.0));
+  // slubs: thicker threads, streaks in warp and weft (kept well below pixel frequency at viewing distance)
+  float slubU = vnoise(vec2(uv.x * 3.0, uv.y * 28.0), vec2(3.0, 28.0));
+  float slubV = vnoise(vec2(uv.x * 28.0, uv.y * 3.0), vec2(28.0, 3.0));
   float slub = smoothstep(0.62, 0.9, slubU) * 0.5 + smoothstep(0.62, 0.9, slubV) * 0.5;
   float mott = fbm(uv * 2.0 + 0.2, vec2(2.0), 5);
   vec3 c = vec3(0.66, 0.63, 0.57) * (0.9 + 0.16 * mott) * (1.0 + 0.06 * slub);
@@ -508,7 +507,7 @@ void surface(vec2 uv, inout Surface s) {
  */
 export function brickTexture(forge, { key = 'brick', base = [0.42, 0.235, 0.175], mortar = [0.55, 0.5, 0.43], bloom = 0.7, missing = 0.012, size = 2048 } = {}) {
   return forge.generate(`attic:${key}`, {
-    size, normalStrength: 1.45,
+    size, normalStrength: 0.55,
     uniforms: { uBase: base, uMortar: mortar, uBloom: bloom, uMissing: missing },
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
@@ -535,7 +534,7 @@ void surface(vec2 uv, inout Surface s) {
   e -= chip + corner;
   float mortarM = 1.0 - smoothstep(0.0, 0.0012, e);
   float arris = smoothstep(-0.001, 0.014, e);
-  float hM = 1.0 - smoothstep(-0.003, 0.007, e);   // a softer step for the height: a bedded, rounded joint, not a cliff
+  float hM = 1.0 - smoothstep(-0.005, 0.01, e);   // a softer step for the height: a bedded, rounded joint, not a cliff
   // brick body colour: three clays + clinkers, ±15% value
   vec3 clayA = uBase, clayB = uBase * vec3(1.18, 1.1, 1.0), clayC = uBase * vec3(0.85, 0.72, 0.68);
   vec3 bc = mix(mix(clayA, clayB, step(0.45, h1)), clayC, step(0.78, h2));
@@ -663,6 +662,74 @@ float gBvRough = 1.0;`)
   mat.customProgramCacheKey = () => `${prevKey()}|brickvar:${JSON.stringify(cfg)}`;
   mat.needsUpdate = true;
   return mat;
+}
+
+/**
+ * Wear and grime on a work surface, in world space: oily darkening toward the edges where hands rest,
+ * cup/flask rings, a scorch where a lamp or burner stood, a general desaturation. cfg:
+ * { cx, cz, hw, hd, rings: [[x, z, r]...] (max 6), scorch: [x, z, r], desat }
+ */
+export function addTableWear(mat, cfg = {}) {
+  const { cx = 0, cz = 0, hw = 0.5, hd = 0.5, rings = [], scorch = [0, 0, 0], desat = 0.2 } = cfg;
+  const R = rings.slice(0, 6); while (R.length < 6) R.push([0, 0, 0]);
+  const prev = mat.onBeforeCompile;
+  const prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
+  mat.onBeforeCompile = (sh, r) => {
+    prev?.(sh, r);
+    sh.uniforms.uTwRings = { value: R.map((q) => new THREE.Vector3(...q)) };
+    if (!sh.vertexShader.includes('varying vec3 vTwW;')) sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vTwW;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvTwW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vTwW;
+uniform vec3 uTwRings[6];
+float twH(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+float twN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(twH(i), twH(i + vec2(1, 0)), f.x), mix(twH(i + vec2(0, 1)), twH(i + vec2(1, 1)), f.x), f.y); }
+float twF(vec2 p) { return 0.5 * twN(p) + 0.25 * twN(p * 2.1 + 3.0) + 0.125 * twN(p * 4.3 + 7.0); }
+float gTwGloss = 0.0;`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+  {
+    vec2 q = vTwW.xz - vec2(${cx.toFixed(3)}, ${cz.toFixed(3)});
+    float de = min(${hw.toFixed(3)} - abs(q.x), ${hd.toFixed(3)} - abs(q.y));
+    float n = twF(vTwW.xz * 9.0);
+    float edge = 1.0 - smoothstep(0.0, 0.14 + 0.06 * n, de);
+    float lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(lum), ${desat.toFixed(3)});
+    diffuseColor.rgb *= 1.0 - 0.38 * edge;
+    gTwGloss = edge * 0.3;
+    for (int i = 0; i < 6; i++) {
+      vec3 rg = uTwRings[i];
+      if (rg.z <= 0.0) continue;
+      float d = length(vTwW.xz - rg.xy);
+      float ring = smoothstep(0.004, 0.0, abs(d - rg.z) - 0.0015) * (0.55 + 0.45 * twN(vec2(atan(vTwW.z - rg.y, vTwW.x - rg.x) * 3.0, float(i))));
+      float fill = (1.0 - smoothstep(rg.z * 0.85, rg.z, d)) * 0.12;
+      diffuseColor.rgb *= 1.0 - 0.45 * ring - fill;
+    }
+    float sd = length(vTwW.xz - vec2(${scorch[0].toFixed(3)}, ${scorch[1].toFixed(3)}));
+    float sc = ${scorch[2] > 0 ? '1.0' : '0.0'} * (1.0 - smoothstep(${(scorch[2] * 0.35).toFixed(3)}, ${(scorch[2] || 0.01).toFixed(3)}, sd + (n - 0.5) * 0.03));
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.25, 0.18, 0.13), sc * 0.85);
+  }`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+  roughnessFactor = clamp(roughnessFactor - gTwGloss, 0.15, 1.0);`);
+  };
+  mat.customProgramCacheKey = () => `${prevKey()}|tablewear:${JSON.stringify(cfg)}`;
+  mat.needsUpdate = true;
+  return mat;
+}
+
+/** a single shoe print in dust (alpha = print), heel and sole with tread bars; left foot, toe up */
+export function shoePrintTexture(forge) {
+  return forge.canvas('attic:shoeprint', 128, 256, (g, w, h) => {
+    g.clearRect(0, 0, w, h);
+    g.filter = 'blur(2px)';
+    g.fillStyle = 'rgba(255,255,255,0.9)';
+    g.beginPath(); g.ellipse(w * 0.52, h * 0.3, w * 0.34, h * 0.24, -0.08, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.ellipse(w * 0.46, h * 0.8, w * 0.26, h * 0.13, 0.04, 0, Math.PI * 2); g.fill();
+    g.globalCompositeOperation = 'destination-out'; g.filter = 'none';
+    for (let y = h * 0.1; y < h * 0.5; y += 9) { g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(0, y, w, 3); }
+    g.globalCompositeOperation = 'source-over';
+  }, { tile: false });
 }
 
 /**

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { LightShaft } from '../../engine/fx/index.js';
 import { mergeStatic } from '../../engine/lib/contrib/foyer-merge.js';
-import { sarkBoardTexture, addBrickVariation, fabricStainTexture, cloudWispTexture } from './textures.js';
+import { sarkBoardTexture, addBrickVariation, fabricStainTexture, cloudWispTexture, addTableWear, shoePrintTexture } from './textures.js';
 import { timberTexture, sarkingTexture, floorTexture, lathPlasterTexture, linenTexture, moonSkyTexture, cobwebTexture, hellGlowTexture, brickTexture, addGrime, dappleTexture, dollFaceTexture } from './textures.js';
 import {
   bevelBox, beam, hewnBeam, buildWorkbench, buildTrain, buildToolRack, buildSoldiers, buildTop, buildDrum,
@@ -134,7 +134,7 @@ export default {
       stone: M.create('stone', { rows: 2, cols: 3, moss: 0.15, damp: 0.1, repeat: [2.4, 2.4], color: [0.42, 0.4, 0.38], roughness: 2.2, envMapIntensity: 0.15 }),
       benchTop: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 3, polish: 0.15, wear: 0.9, repeat: [2.6, 2.6], macro: 0.6, color: [0.66, 0.54, 0.43] }),
       benchFrame: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 0, polish: 0.12, wear: 0.95, repeat: [3.6, 3.6], color: [0.36, 0.26, 0.19] }),
-      labTop: M.create('walnut', { boards: 5, wear: 0.85, repeat: [3.2, 1.22], macro: 0.6, color: [0.55, 0.44, 0.38], clearcoat: 0.3, clearcoatRoughness: 0.42, roughness: 1.3 }),
+      labTop: M.create('walnut', { boards: 5, wear: 0.85, repeat: [3.2, 1.22], macro: 0.6, color: [0.46, 0.39, 0.35], clearcoat: 0.2, clearcoatRoughness: 0.5, roughness: 1.3 }),
       labFrame: M.create('walnut', { repeat: [2, 2], color: [0.5, 0.4, 0.34] }),
       door: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 5, boardLength: 3, polish: 0.05, wear: 1.0, repeat: [1.1, 1.1], color: [0.32, 0.24, 0.18] }),
       slat: M.create('wood', { clearcoat: 0.0, species: 'oak', boards: 0, polish: 0.2, wear: 0.8, repeat: [3, 3], color: [0.42, 0.3, 0.2] }),
@@ -208,6 +208,8 @@ export default {
     addBrickVariation(mat.brick, { damp: [OCULUS.x, OCULUS.y - OCULUS.r - 0.3, 0.55], bloom: 0.45, soot: [[-1.92, BT_Y + 0.25, 0.12, 0.5], [-2.2, 0.62, 0.15, 0.35], [(DOOR.x0 + DOOR.x1) / 2, DOOR.h + 0.1, 0.35, 0.3], [1.98, 1.3, 0.1, 0.4]] });
     // dust settles on everything that faces up; wiped where Stauf works and walks
     addDust(mat.benchTop, { amount: 0.5, scale: 0.35, threshold: 0.7, clean: [[-1.3, BENCH.z + 0.15, 0.5], [-0.5, BENCH.z + 0.1, 0.35]] });
+    addTableWear(mat.labTop, { cx: TABLE.x, cz: TABLE.z, hw: 0.775, hd: 0.41, desat: 0.22, scorch: [PLATE.x + 0.06, PLATE.z + 0.02, 0.0], rings: [[TABLE.x - 0.6, TABLE.z + 0.27, 0.035], [TABLE.x - 0.52, TABLE.z + 0.3, 0.03], [TABLE.x + 0.38, TABLE.z - 0.26, 0.045], [TABLE.x + 0.66, TABLE.z - 0.05, 0.028], [TABLE.x - 0.2, TABLE.z + 0.33, 0.033], [TABLE.x + 0.05, TABLE.z - 0.3, 0.04]] });
+    addTableWear(mat.benchTop, { cx: BENCH.x, cz: BENCH.z + 0.06, hw: 1.25, hd: 0.36, desat: 0.15, scorch: [-1.9, BENCH.z + 0.23, 0.09], rings: [[-1.45, BENCH.z + 0.28, 0.04], [-0.5, BENCH.z + 0.3, 0.035]] });
     addDust(mat.labTop, { amount: 0.45, scale: 0.3, threshold: 0.7, clean: [[PLATE.x, PLATE.z, 0.42], [TABLE.x + 0.1, TABLE.z + 0.26, 0.25]] });
     addDust(mat.benchFrame, { amount: 0.6, scale: 0.4, threshold: 0.7 });
     addDust(mat.timber, { amount: 0.9, scale: 0.8, threshold: 0.35, color: [0.42, 0.4, 0.37] });
@@ -216,7 +218,7 @@ export default {
     addDust(mat.trunk, { amount: 0.55, scale: 0.3, threshold: 0.6 });
     addDust(mat.labFrame, { amount: 0.4, scale: 0.3, threshold: 0.7 });
     addDust(mat.floor, { amount: 0.42, scale: 1.1, threshold: 0.6, color: [0.3, 0.28, 0.25], clean: [[TABLE.x, TABLE.z + 0.4, 1.5], [-1.4, 0.4, 1.2], [-1.3, BENCH.z + 0.9, 0.9], [0.4, 2.4, 1.2]] });
-    mat.floor.color.setScalar(1.3);
+    mat.floor.color.setScalar(1.45);
     mat.linen.vertexColors = true; mat.linen.color.setRGB(0.74, 0.72, 0.68); mat.linen.metalnessMap = null;
     mat.horse = mat.horseWood;
     // notebook pages: Stauf's notes on the game, a hex lattice sketched in ink
@@ -359,8 +361,9 @@ export default {
           const lg = s2 < 0 ? quad(e1, e0, r0, r1, 0.3, 0.6) : quad(e0, e1, r1, r0, 0.3, 0.6);
           const lm = add(new THREE.Mesh(lg, leakMat)); lm.userData.noShadow = true; lm.name = 'roofLeak';
           // a solid outer skin behind it so the moon spot can never leak in
-          const og = s2 < 0 ? quad(e1, e0, r0, r1) : quad(e0, e1, r1, r0);
-          const outer = add(new THREE.Mesh(og, new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide, colorWrite: false, name: 'roofSkin' })));
+          const f0 = V3(s2 * HALF, KNEE, Z0 - 0.4), f1 = V3(s2 * HALF, KNEE, Z1 + 0.2), q0 = V3(0, RIDGE + 0.02, Z0 - 0.4), q1 = V3(0, RIDGE + 0.02, Z1 + 0.2);
+          const og = s2 < 0 ? quad(f1, f0, q0, q1) : quad(f0, f1, q1, q0);
+          const outer = add(new THREE.Mesh(og, new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide, name: 'roofSkin' })));
           outer.position.addScaledVector(sideN(s2), -0.06); outer.name = 'sarking';
         }
       }
@@ -537,7 +540,7 @@ export default {
     const haloTex = ctx.textures.canvas('attic:moonhalo', 256, 256, (g2, w, h) => { const rg = g2.createRadialGradient(w / 2, h / 2, w * 0.17, w / 2, h / 2, w / 2); rg.addColorStop(0, 'rgba(255,255,255,0.55)'); rg.addColorStop(0.3, 'rgba(255,255,255,0.14)'); rg.addColorStop(1, 'rgba(255,255,255,0)'); g2.fillStyle = rg; g2.fillRect(0, 0, w, h); }, { tile: false });
     const halo = add(new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: new THREE.Color(0.4, 0.46, 0.66), toneMapped: false, name: 'moonHalo' })));
     halo.position.copy(moonDisc.position).add(V3(0, 0, -0.02)); halo.quaternion.copy(moonDisc.quaternion); halo.userData.noShadow = true; halo.renderOrder = -3;
-    moonMat.color.setRGB(0.9, 0.93, 1.0);
+    moonMat.color.setRGB(0.78, 0.86, 1.08);
     // two thin cloud layers drifting across the moon at different speeds, their edges silvered where they cross it
     {
       const layers = [[1, 0.9, 0.012, 0.25], [2, 0.55, -0.007, 0.18]];
@@ -670,14 +673,14 @@ export default {
       add(at(new THREE.Mesh(bevelBox(G, 0.06, 0.08, turnW + 0.06, 0.008), mat.brickDark), cx - pw / 2 + 0.03, topY + turnH + 0.04, PZ - PL + turnW / 2 + 0.02));
       // brazier: a hammered iron bowl on three splayed legs, a heap of coals, flames licking over the rim
       {
-        const bz = new THREE.Group(); bz.position.set(cx + 0.12, topY, PZ - PL + 0.2); add(bz);
+        const bz = new THREE.Group(); bz.position.set(cx - 0.2, topY, PZ - PL + 0.22); add(bz);
         bz.add(at(new THREE.Mesh(G.latheFromProfile([[0.0, 0.0], [0.05, 0.0], [0.12, 0.03], [0.16, 0.08], [0.17, 0.1], [0.165, 0.105], [0.15, 0.085], [0.11, 0.04], [0.0, 0.02]], 28), mat.castIron), 0, 0.3, 0));
         for (let k = 0; k < 3; k++) { const a2 = (k / 3) * Math.PI * 2; const lg = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.34, 6), mat.castIron); lg.position.set(Math.cos(a2) * 0.1, 0.16, Math.sin(a2) * 0.1); lg.rotation.set(Math.sin(a2) * 0.35, 0, -Math.cos(a2) * 0.35); bz.add(lg); }
         const coalMat = new THREE.MeshStandardMaterial({ color: 0x120806, roughness: 0.9, emissive: new THREE.Color(1.0, 0.28, 0.05), emissiveIntensity: 2.2, name: 'coals' });
         let cs = 3; const cr = () => { cs = (cs * 16807) % 2147483647; return cs / 2147483647; };
         for (let k = 0; k < 26; k++) { const a2 = cr() * Math.PI * 2, rr2 = Math.sqrt(cr()) * 0.13; const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.02 + cr() * 0.02, 0), coalMat); c.position.set(Math.cos(a2) * rr2, 0.37 + (0.13 - rr2) * 0.4 + cr() * 0.02, Math.sin(a2) * rr2); c.rotation.set(cr() * 3, cr() * 3, 0); bz.add(c); }
         for (let k = 0; k < 4; k++) { const f = fx.flame({ height: 0.14 + 0.08 * (k % 2), width: 0.05, intensity: 4.0, seed: 40 + k }); f.position.set(Math.cos(k * 1.7) * 0.05, 0.4, Math.sin(k * 1.7) * 0.05); bz.add(f); }
-        const bl = new THREE.PointLight(0xff6a24, 9, 3.2, 2); bl.position.set(cx + 0.12, topY + 0.6, PZ - PL + 0.25); root.add(bl);
+        const bl = new THREE.PointLight(0xff6a24, 9, 3.2, 2); bl.position.set(cx - 0.2, topY + 0.6, PZ - PL + 0.27); root.add(bl);
         ctx.onUpdate((dt, t) => { const fl = 0.8 + 0.12 * Math.sin(t * 13.1) * Math.sin(t * 7.7 + 1.0) + 0.08 * Math.sin(t * 23.3 + 2.0); bl.intensity = 9 * fl * (1 + 0.6 * climaxK); });
       }
       // furnace smoke hanging in the stairwell, so the glow has volume instead of ending on a card
@@ -879,7 +882,7 @@ export default {
       const rugG = new THREE.Group(); rugG.position.set(TABLE.x - 0.05, 0, TABLE.z + 0.1); rugG.rotation.y = 0.08; add(rugG);
       const rugTop = new THREE.PlaneGeometry(RW, RL, 46, 32).rotateX(-Math.PI / 2);
       { const rp = rugTop.attributes.position; for (let i = 0; i < rp.count; i++) { const x = rp.getX(i), z = rp.getZ(i); const edge = Math.min(RW / 2 - Math.abs(x), RL / 2 - Math.abs(z)); rp.setY(i, RT - 0.004 * (1 - Math.min(1, edge / 0.03)) + 0.0025 * Math.sin(x * 3.1 + 1) * Math.sin(z * 4.3) * Math.min(1, edge / 0.2) + (x < -0.6 && z > 0.2 ? 0.012 * Math.exp(-((x + 0.95) ** 2 + (z - 0.55) ** 2) / 0.02) : 0)); } rugTop.computeVertexNormals(); }
-      const rug = new THREE.Mesh(rugTop, M.create('rug', { palette: 'faded', aspect: RW / RL, knots: 340, wear: 0.8, fringe: 0, seed: 77, size: 2048, color: [0.6, 0.55, 0.55] }));
+      const rug = new THREE.Mesh(rugTop, M.create('rug', { palette: 'faded', aspect: RW / RL, knots: 220, wear: 0.9, fringe: 0, seed: 77, size: 2048, color: [0.52, 0.49, 0.5] }));
       rug.name = 'rug'; rugG.add(rug);
       for (const s2 of [-1, 1]) { rugG.add(at(new THREE.Mesh(new G.RoundedBoxGeometry(RW + 0.004, RT, 0.012, 1, 0.003), mat.rugEdge), 0, RT / 2, s2 * (RL / 2 - 0.004))); rugG.add(at(new THREE.Mesh(new G.RoundedBoxGeometry(0.012, RT, RL, 1, 0.003), mat.rugEdge), s2 * (RW / 2 - 0.004), RT / 2, 0)); }
       // fringe: knotted tassels along both ends
@@ -890,6 +893,51 @@ export default {
       // a stool
       const stool = buildStool(ctx, mat);
       stool.position.set(-0.45, 0, -0.85); add(stool);
+      // narrative clutter on the lab table: prepared slides, a pipette with its rubber bulb, a reading glass,
+      // crumpled pages of failed notes, a slide box with its lid off
+      {
+        const slideMat = new THREE.MeshPhysicalMaterial({ color: 0xdfe8ec, roughness: 0.1, transparent: true, opacity: 0.35, clearcoat: 1, depthWrite: false, name: 'slideGlass' });
+        const smear = [new THREE.MeshStandardMaterial({ color: 0x2a4a9a, roughness: 0.4, emissive: new THREE.Color(0.05, 0.12, 0.4), emissiveIntensity: 0.6, name: 'smearB' }), new THREE.MeshStandardMaterial({ color: 0x5a7a1a, roughness: 0.4, emissive: new THREE.Color(0.12, 0.3, 0.04), emissiveIntensity: 0.6, name: 'smearG' })];
+        const slides = [[0.3, 0.27, 0.4], [0.33, 0.25, 0.9], [0.27, 0.31, 0.2], [-0.12, -0.3, 1.4], [-0.08, -0.27, 1.1]];
+        slides.forEach(([dx, dz, ry], i) => {
+          const sl = add(new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.0012, 0.025), slideMat)); sl.position.set(TABLE.x + dx, TABLE_H + 0.0008 + i * 0.0012, TABLE.z + dz); sl.rotation.y = ry; sl.userData.noShadow = true;
+          const sm2 = add(new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.0005, 12), smear[i % 2])); sm2.position.copy(sl.position).add(V3(0, 0.0009, 0)); sm2.scale.set(1.3, 1, 0.9);
+        });
+        // slide box
+        const sbx = add(new THREE.Mesh(bevelBox(G, 0.1, 0.03, 0.06, 0.003), mat.labFrame)); sbx.position.set(TABLE.x + 0.66, TABLE_H + 0.015, TABLE.z + 0.08); sbx.rotation.y = -0.3;
+        const lidB = add(new THREE.Mesh(bevelBox(G, 0.102, 0.008, 0.062, 0.002), mat.labFrame)); lidB.position.set(TABLE.x + 0.62, TABLE_H + 0.004, TABLE.z + 0.2); lidB.rotation.y = 0.5;
+        // pipette: a long glass tube drawn to a point, a red rubber bulb
+        const pip = new THREE.Group(); pip.position.set(TABLE.x - 0.3, TABLE_H + 0.006, TABLE.z + 0.06); pip.rotation.y = 0.7; add(pip);
+        pip.add(at(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.0012, 0.0], [0.003, 0.03], [0.004, 0.06], [0.004, 0.14], [0, 0.14]], 10).rotateZ(-Math.PI / 2), mat.glass), 0, 0, 0));
+        pip.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.009, 12, 10).scale(1.6, 1, 1), new THREE.MeshPhysicalMaterial({ color: 0x5a1a12, roughness: 0.5, sheen: 0.4, name: 'rubber' })), 0.15, 0, 0));
+        // reading glass: brass rim, horn handle, a glass lens
+        const mg = new THREE.Group(); mg.position.set(TABLE.x - 0.05, TABLE_H + 0.006, TABLE.z + 0.3); mg.rotation.set(0, 2.2, 0); add(mg);
+        mg.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.038, 0.004, 8, 40).rotateX(Math.PI / 2), mat.brass), 0, 0.002, 0));
+        mg.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.003, 32), mat.glass), 0, 0.002, 0));
+        mg.add(at(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.006, 0], [0.007, 0.03], [0.005, 0.08], [0.007, 0.095], [0, 0.1]], 12).rotateZ(-Math.PI / 2), mat.handle), 0.04, 0.003, 0));
+        // crumpled notes: wadded pages, the ink of the failed sketches showing on the creases
+        let cs2 = 9; const cr2 = () => { cs2 = (cs2 * 16807) % 2147483647; return cs2 / 2147483647; };
+        const wadG = new THREE.IcosahedronGeometry(0.03, 2); { const pp = wadG.attributes.position; for (let i = 0; i < pp.count; i++) { const v = V3(pp.getX(i), pp.getY(i), pp.getZ(i)); const k = 0.7 + 0.5 * Math.abs(Math.sin(v.x * 211 + v.y * 157) * Math.cos(v.z * 173)); pp.setXYZ(i, v.x * k, v.y * k * 0.8, v.z * k); } wadG.computeVertexNormals(); }
+        for (const [dx, dz, s3] of [[0.55, -0.3, 1.0], [-0.65, -0.05, 0.8], [0.7, 0.32, 0.9]]) { const w2 = add(new THREE.Mesh(wadG, mat.pages)); w2.position.set(TABLE.x + dx, TABLE_H + 0.022 * s3, TABLE.z + dz); w2.scale.setScalar(s3); w2.rotation.set(cr2() * 3, cr2() * 3, cr2() * 3); }
+        const fl = add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.03, 2), mat.pages)); fl.position.set(0.15, 0.02, -0.6); fl.scale.set(1, 0.7, 1.1); fl.rotation.set(1, 2, 0.5);
+      }
+      // footprints in the dust: a trail from the top of the stairs, round the table, to the burning door
+      {
+        const fpMat = new THREE.MeshStandardMaterial({ color: 0x0e0b09, alphaMap: shoePrintTexture(ctx.textures), transparent: true, opacity: 0.42, depthWrite: false, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4, name: 'footprint' });
+        const path = new THREE.CatmullRomCurve3([V3(-1.7, 0, 1.45), V3(-1.1, 0, 0.6), V3(-0.3, 0, -0.35), V3(0.3, 0, -2.4), V3(1.1, 0, -3.6), V3(1.82, 0, -4.85)]);
+        const L = path.getLength(), stride = 0.36;
+        for (let i = 0, d = 0.1; d < L - 0.1; i++, d += stride) {
+          const t = d / L; const pnt = path.getPointAt(t), tan = path.getTangentAt(t);
+          const side = i % 2 ? 1 : -1; const nrm = V3(-tan.z, 0, tan.x);
+          const fp = add(new THREE.Mesh(new THREE.PlaneGeometry(0.11, 0.27).rotateX(-Math.PI / 2), fpMat));
+          fp.position.copy(pnt).addScaledVector(nrm, side * 0.09).add(V3(0, 0.0012, 0));
+          fp.rotation.y = Math.atan2(tan.x, tan.z) + Math.PI + side * 0.08;
+          if (side > 0) fp.scale.x = -1;
+          fp.userData.noShadow = true; fp.renderOrder = 1;
+          // the rug and the table legs: skip prints that would land on the rug
+          if (Math.abs(pnt.x - (TABLE.x - 0.05)) < 1.2 && Math.abs(pnt.z - (TABLE.z + 0.1)) < 0.85) fp.visible = false;
+        }
+      }
     }
     // hanging lamp over the table (from the collar of the rear truss)
     const LAMP_X = PLATE.x + 0.05, LAMP_Z = TRUSS_Z[0] + 0.11;
@@ -918,7 +966,7 @@ export default {
       const bunFoot = G.latheFromProfile([[0, 0], [0.035, 0], [0.05, 0.03], [0.045, 0.06], [0.03, 0.075], [0.03, 0.1], [0, 0.1]], 14);
       const sheeted = (opts, legGeo, legInset, pos, rotY) => {
         const grp = new THREE.Group();
-        grp.add(new THREE.Mesh(dustSheetGeometry(opts), mat.linen));
+        { const sm = new THREE.Mesh(dustSheetGeometry(opts), mat.linen); sm.userData.noShadow = true; grp.add(sm); }
         for (const sx of [-1, 1]) for (const sz of [-1, 1]) grp.add(at(new THREE.Mesh(legGeo, mat.labFrame), sx * (opts.hw - legInset), 0, sz * (opts.hd - legInset)));
         grp.position.set(...pos); grp.rotation.y = rotY; return add(grp);
       };
@@ -1109,9 +1157,9 @@ export default {
     root.add(new THREE.HemisphereLight(0x34446e, 0x3e3c4c, 0.85));
     // the whole floor gives back a little of the moon: a broad, very dim cool bounce that keeps the
     // rafter sides and the sarking readable (a few percent) instead of crushing them to black
-    const roofBounce = fx.areaLight({ center: [0, 0.4, (Z0 + Z1) / 2 - 0.5], normal: [0, 1, 0], width: 6.4, height: 8.5, color: 0x5d6c96, intensity: 1.3 });
+    const roofBounce = fx.areaLight({ center: [0, 0.4, (Z0 + Z1) / 2 - 0.5], normal: [0, 1, 0], width: 6.4, height: 8.5, color: 0x5d6c96, intensity: 2.4 });
     root.add(roofBounce);
-    const ridgeWash = fx.areaLight({ center: [0, 3.9, -1.0], normal: [0, -1, 0.15], width: 1.2, height: 6.5, color: 0x4a5878, intensity: 1.1 });
+    const ridgeWash = fx.areaLight({ center: [0, 3.9, -1.0], normal: [0, -1, 0.15], width: 1.2, height: 6.5, color: 0x4a5878, intensity: 1.8 });
     root.add(ridgeWash);
     // moon bounce washing up the near (west) slope by the stairs, so the rafters there are not a black void
     const westFill = new THREE.PointLight(0x5a6aa8, 1.2, 4.2, 2); westFill.position.set(-1.5, 2.2, 0.2); root.add(westFill);
@@ -1293,8 +1341,8 @@ export default {
     {
       const pz = inf.puzzle, setup0 = pz.setup, teardown0 = pz.teardown;
       const i0 = shafts.map((s) => s.material.uniforms.uIntensity.value);
-      pz.setup = (p) => { puzzleActive = true; dust.visible = false; if (SCOPE.obj) SCOPE.obj.visible = false; shafts.forEach((s, i) => { s.material.uniforms.uIntensity.value = i0[i] * 0.15; }); ctx.post.set({ exposure: 1.55, bloomStrength: 0.25, godRayWeight: 0.05, vignette: 0.6, dof: null }, ctx.shot ? 0 : 0.8); return setup0(p); };
-      pz.teardown = (p) => { puzzleActive = false; dust.visible = true; if (SCOPE.obj) SCOPE.obj.visible = true; shafts.forEach((s, i) => { s.material.uniforms.uIntensity.value = i0[i]; }); ctx.post.set({ exposure: ROOM_GRADE.exposure, bloomStrength: ROOM_GRADE.bloomStrength, godRayWeight: ROOM_GRADE.godRayWeight, vignette: ROOM_GRADE.vignette }, 0.8); return teardown0(p); };
+      pz.setup = (p) => { puzzleActive = true; moon.intensity = moonBase * moonK * 0.42; moon.penumbra = 0.8; dust.visible = false; if (SCOPE.obj) SCOPE.obj.visible = false; shafts.forEach((s, i) => { s.material.uniforms.uIntensity.value = i0[i] * 0.15; }); ctx.post.set({ exposure: 1.55, bloomStrength: 0.25, godRayWeight: 0.05, vignette: 0.6, dof: null }, ctx.shot ? 0 : 0.8); return setup0(p); };
+      pz.teardown = (p) => { puzzleActive = false; moon.intensity = moonBase * moonK; moon.penumbra = 0.35; dust.visible = true; if (SCOPE.obj) SCOPE.obj.visible = true; shafts.forEach((s, i) => { s.material.uniforms.uIntensity.value = i0[i]; }); ctx.post.set({ exposure: ROOM_GRADE.exposure, bloomStrength: ROOM_GRADE.bloomStrength, godRayWeight: ROOM_GRADE.godRayWeight, vignette: ROOM_GRADE.vignette }, 0.8); return teardown0(p); };
     }
     if (ctx.state.isSolved(INFECTION_ID)) inf.applySolved();
     const hx = ctx.params.get('hexx');
@@ -1318,7 +1366,7 @@ export default {
     ctx.onUpdate((dt, t) => { if (climaxK > 0) doorPivot.rotation.y = doorBase + climaxK * (0.025 * Math.sin(t * 0.7) + 0.01 * Math.sin(t * 2.3 + 1.0)); });
     const doorOpen = (k) => {
       doorBase = DOOR.open + k * 0.65; doorPivot.rotation.y = doorBase; hellBoost = 1 + k * 1.1; climaxK = k; doorSpill.intensity = 0.9 * (1 + 3.0 * k); hellSpot.angle = 0.3 + 0.04 * k; plateRim.intensity = 9 * k;
-      moonK = 1 - 0.45 * k; moon.intensity = moonBase * moonK; moonMat.color.setRGB(0.82, 0.86, 0.95).multiplyScalar(0.45 + 0.55 * moonK); skyMat.color.setScalar(0.4 + 0.6 * moonK);
+      moonK = 1 - 0.45 * k; moon.intensity = moonBase * moonK; moonMat.color.setRGB(0.78, 0.86, 1.08).multiplyScalar(0.45 + 0.55 * moonK); skyMat.color.setScalar(0.4 + 0.6 * moonK);
       hellSpot.color.copy(hellCol0).lerp(hellCol1, k); passage.color.copy(passCol0).lerp(hellCol1, k);
       if (FIG.obj) { FIG.obj.position.lerpVectors(FIG.rest, FIG.fore, k); FIG.obj.rotation.y = 0.12 - 0.25 * k; FIG.obj.scale.setScalar(0.94 + 0.02 * k); ghostMat.uniforms.uRimGain.value = 1.5 + 1.3 * k; FIG.obj.userData.faceMat.uniforms.uKey.value = 1.0 + 0.6 * k; }
     };

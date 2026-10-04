@@ -305,9 +305,24 @@ export function buildBellJar(ctx, m) {
   g.add(mesh(lathe(G, [[0, 0], [0.1, 0], [0.105, 0.01], [0.1, 0.02], [0, 0.02]], 32), m.labFrame));
   g.add(at(mesh(lathe(G, [[0, 0], [0.025, 0], [0.012, 0.01], [0.008, 0.06], [0, 0.06]], 12), m.brass), 0, 0.02, 0));
   // the specimen: a little skull
-  const sk = mesh(new THREE.SphereGeometry(0.03, 18, 14), m.bone); sk.scale.set(0.9, 1, 1.15); at(sk, 0, 0.11, 0); g.add(sk);
-  const jaw = mesh(new THREE.SphereGeometry(0.02, 12, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), m.bone); at(jaw, 0, 0.09, 0.012); g.add(jaw);
-  for (const s of [-1, 1]) g.add(at(mesh(new THREE.SphereGeometry(0.008, 8, 6), m.black), s * 0.011, 0.11, 0.028));
+  // the specimen: a small skull, sculpted: domed cranium, brow ridge over deep orbits, cheekbones,
+  // nasal cavity, the maxilla with a row of teeth, a separate jaw dropped open a little
+  const skG = new THREE.SphereGeometry(0.03, 48, 36);
+  { const pp = skG.attributes.position; const ga = (x, w) => Math.exp(-(x * x) / (w * w));
+    for (let i = 0; i < pp.count; i++) { let x = pp.getX(i) / 0.03, y = pp.getY(i) / 0.03, z = pp.getZ(i) / 0.03; const f = Math.max(0, z), ax = Math.abs(x);
+      x *= 0.86; z *= 1.12; if (y < -0.2) { const k = (-y - 0.2) / 0.8; x *= 1 - 0.35 * k; z *= 1 - 0.15 * k; }
+      z += 0.12 * f * ga(y - 0.2, 0.08);
+      z -= 0.45 * f * ga(y - 0.02, 0.16) * ga(ax - 0.36, 0.17);
+      z -= 0.35 * f * ga(y + 0.3, 0.1) * ga(x, 0.1);
+      x += Math.sign(x) * 0.08 * ga(y + 0.15, 0.1) * ga(z - 0.6, 0.3);
+      pp.setXYZ(i, x * 0.03, y * 0.03, z * 0.03); }
+    skG.computeVertexNormals(); }
+  const sk = mesh(skG, m.bone); at(sk, 0, 0.115, 0); g.add(sk);
+  for (const s of [-1, 1]) g.add(at(mesh(new THREE.SphereGeometry(0.0085, 10, 8), m.black), s * 0.0095, 0.116, 0.019));
+  g.add(at(mesh(new THREE.ConeGeometry(0.004, 0.009, 3), m.black), 0, 0.104, 0.027).rotateX(Math.PI));
+  for (let k = 0; k < 8; k++) { const a = (k / 7 - 0.5) * 1.6; g.add(at(mesh(new THREE.BoxGeometry(0.0032, 0.005, 0.003), m.bone), Math.sin(a) * 0.014, 0.093, 0.016 + Math.cos(a) * 0.009).rotateY(a)); }
+  const jawG = new THREE.TorusGeometry(0.016, 0.0045, 8, 20, Math.PI); jawG.rotateX(Math.PI / 2); jawG.rotateY(Math.PI);
+  const jaw = mesh(jawG, m.bone); at(jaw, 0, 0.087, 0.004); jaw.rotation.x = 0.35; g.add(jaw);
   const jar = mesh(lathe(G, [[0.088, 0.02], [0.09, 0.15], [0.085, 0.2], [0.07, 0.235], [0.04, 0.25], [0.012, 0.255], [0.014, 0.27], [0.022, 0.285], [0.0, 0.29]], 40), m.glass);
   g.add(jar);
   return g;
@@ -336,7 +351,7 @@ export function buildHangingLamp(ctx, m, { drop = 0.7 } = {}) {
     sg.computeVertexNormals();
     const shade = mesh(sg, m.tin); shade.position.y = y0 + 0.02; g.add(shade);
     // enamelled underside, a dull cream that throws the light down
-    const under = mesh(sg, new THREE.MeshStandardMaterial({ color: 0x4e4a42, roughness: 0.65, side: THREE.BackSide, name: 'shadeEnamel' })); under.position.y = y0 + 0.018; under.scale.setScalar(0.995); g.add(under);
+    const under = mesh(sg, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.5, 0.36, 0.22), side: THREE.BackSide, name: 'shadeEnamel' })); under.position.y = y0 + 0.018; under.scale.setScalar(0.995); g.add(under);
   }
   // three hanging rods
   for (let k = 0; k < 3; k++) { const a = (k / 3) * Math.PI * 2; const r = mesh(new THREE.CylinderGeometry(0.0025, 0.0025, 0.3, 5), m.brass); at(r, Math.cos(a) * 0.06, y0 - 0.17, Math.sin(a) * 0.06); g.add(r); }
@@ -387,22 +402,49 @@ export function buildTrunk(ctx, m, { w = 0.9, d = 0.5, h = 0.42, dome = 0.12, op
   return g;
 }
 
-/** slatted packing crate */
+/** slatted packing crate: boards of uneven widths, gaps between, battens at the corners, a brace, a stencilled side */
+const STENCILS = [['H. STAUF', 'TOYMAKER', 'THIS WAY UP'], ['FRAGILE', 'WITH CARE', 'No. 7'], ['DOLLS', 'H.S. & Co.', 'KEEP DRY'], ['GLASS', 'HANDLE WITH CARE', 'TOP'], ['PUZZLES', 'H. STAUF', 'No. 13']];
 export function buildCrate(ctx, m, { w = 0.6, h = 0.45, d = 0.5, seed = 0 } = {}) {
   const { geometry: G } = ctx;
   const g = new THREE.Group(); g.name = 'crate';
-  const t = 0.018, n = 4;
-  const boards = (len, axis, y, z, x, ww) => { const b = mesh(bevelBox(G, axis === 'x' ? len : t, ww, axis === 'x' ? t : len, 0.003), m.crate); at(b, x, y, z); g.add(b); };
+  let sd = seed * 7919 + 17; const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+  const t = 0.018;
+  const n = 3 + Math.floor(rnd() * 3);
+  const ws = Array.from({ length: n }, () => 0.6 + rnd()); const sum = ws.reduce((a2, b2) => a2 + b2, 0);
+  const gap = 0.006 + rnd() * 0.01;
+  let y = 0;
   for (let i = 0; i < n; i++) {
-    const y = (i + 0.5) * (h / n);
-    const bh = h / n - 0.012;
-    boards(w, 'x', y, d / 2 - t / 2, 0, bh); boards(w, 'x', y, -d / 2 + t / 2, 0, bh);
-    boards(d - 2 * t, 'z', y, 0, w / 2 - t / 2, bh); boards(d - 2 * t, 'z', y, 0, -w / 2 + t / 2, bh);
+    const bh = (ws[i] / sum) * h - gap;
+    const yc = y + bh / 2 + gap / 2; y += (ws[i] / sum) * h;
+    const off = (rnd() - 0.5) * 0.008;
+    const board = (len, axis, z, x) => { const b2 = mesh(bevelBox(G, axis === 'x' ? len : t, bh, axis === 'x' ? t : len, 0.0035), m.crate); at(b2, x + (axis === 'x' ? off : 0), yc, z + (axis === 'z' ? off : 0)); b2.rotation.set(0, 0, (rnd() - 0.5) * 0.012); g.add(b2); };
+    board(w, 'x', d / 2 - t / 2, 0); board(w, 'x', -d / 2 + t / 2, 0);
+    board(d - 2 * t, 'z', 0, w / 2 - t / 2); board(d - 2 * t, 'z', 0, -w / 2 + t / 2);
   }
-  for (let i = 0; i < 5; i++) g.add(at(mesh(bevelBox(G, w, t, d / 5 - 0.008, 0.003), m.crate), 0, h + t / 2, -d / 2 + (i + 0.5) * (d / 5)));
+  const nl = 4 + Math.floor(rnd() * 3);
+  for (let i = 0; i < nl; i++) g.add(at(mesh(bevelBox(G, w, t, d / nl - 0.008 - rnd() * 0.01, 0.003), m.crate), 0, h + t / 2, -d / 2 + (i + 0.5) * (d / nl)));
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(at(mesh(bevelBox(G, 0.04, h, 0.04, 0.004), m.crate), sx * (w / 2 - 0.035), h / 2, sz * (d / 2 - 0.035)));
-  // straw poking out
-  if (seed % 2 === 0) for (let i = 0; i < 12; i++) { const s = mesh(new THREE.CylinderGeometry(0.0015, 0.0015, 0.12, 3), m.straw); at(s, -w / 2 + 0.05 + (i * 0.37 % 1) * (w - 0.1), h + 0.03, d / 2 - 0.02); s.rotation.set(0.6 + (i % 3) * 0.2, 0, (i % 5 - 2) * 0.3); g.add(s); }
+  { const L = Math.hypot(w - 0.08, h - 0.04); const br = mesh(bevelBox(G, L, 0.05, 0.014, 0.003), m.crate); br.position.set(0, h / 2, -d / 2 - 0.007); br.rotation.z = Math.atan2(h - 0.04, w - 0.08); g.add(br); }
+  {
+    const si = seed % STENCILS.length, txt = STENCILS[si];
+    const tex = ctx.textures.canvas(`attic:stencil${si}`, 512, 384, (c, cw, ch) => {
+      let s3 = si * 104729 + 3; const r3 = () => { s3 = (s3 * 16807) % 2147483647; return s3 / 2147483647; };
+      c.clearRect(0, 0, cw, ch);
+      c.fillStyle = 'rgba(14,10,8,0.85)'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.font = 'bold 82px "Courier New", monospace'; c.fillText(txt[0], cw / 2, ch * 0.28);
+      c.font = 'bold 46px "Courier New", monospace'; c.fillText(txt[1], cw / 2, ch * 0.56);
+      c.font = 'bold 40px "Courier New", monospace'; c.fillText(txt[2], cw / 2, ch * 0.8);
+      c.strokeStyle = 'rgba(14,10,8,0.8)'; c.lineWidth = 7; c.strokeRect(18, 14, cw - 36, ch - 28);
+      c.globalCompositeOperation = 'destination-out';
+      for (let k = 0; k < 2600; k++) { c.fillStyle = `rgba(0,0,0,${r3() * 0.8})`; const s2 = 2 + r3() * 7; c.fillRect(r3() * cw, r3() * ch, s2, s2 * 0.6); }
+      for (let x = 30; x < cw; x += 44) c.fillRect(x, 0, 3, ch);
+      c.globalCompositeOperation = 'source-over';
+    }, { tile: false });
+    const sm = new THREE.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, name: 'stencil' });
+    const sw = Math.min(w * 0.75, h * 1.2), sh2 = sw * 0.75;
+    const pl = mesh(new THREE.PlaneGeometry(sw, sh2), sm); pl.position.set((rnd() - 0.5) * 0.05, h * 0.5, d / 2 + 0.0015); pl.rotation.z = (rnd() - 0.5) * 0.06; pl.userData.noShadow = true; g.add(pl);
+  }
+  if (seed % 2 === 0) for (let i = 0; i < 12; i++) { const s2 = mesh(new THREE.CylinderGeometry(0.0015, 0.0015, 0.12, 3), m.straw); at(s2, -w / 2 + 0.05 + (i * 0.37 % 1) * (w - 0.1), h + 0.03, d / 2 - 0.02); s2.rotation.set(0.6 + (i % 3) * 0.2, 0, (i % 5 - 2) * 0.3); g.add(s2); }
   return g;
 }
 
@@ -504,16 +546,38 @@ export function dustSheetGeometry({ hw, hd, topH, seg = 72, seed = 1, flare = 0.
   return g;
 }
 
-/** stacked frames leaning against a wall (backs and one face) */
+/** carved moulding: a bead on the sight edge, a cove, a raised ogee with a ribbed (gadrooned) torus, a flat and an outer bead */
+function carvedFrameProfile(width = 0.095, depth = 0.06) {
+  const pts = [[0, 0], [depth * 0.55, 0]];
+  for (let i = 0; i <= 6; i++) { const a = -Math.PI / 2 + (i / 6) * Math.PI; pts.push([depth * 0.55 + Math.cos(a) * depth * 0.1, width * 0.05 + Math.sin(a) * width * 0.04]); }
+  pts.push([depth * 0.62, width * 0.12], [depth * 0.7, width * 0.14]);
+  for (let i = 0; i <= 10; i++) { const t = i / 10; pts.push([depth * (0.7 + 0.3 * Math.sin(t * Math.PI)), width * (0.14 + t * 0.26)]); }
+  pts.push([depth * 0.68, width * 0.42]);
+  for (let i = 0; i <= 8; i++) { const t = i / 8; pts.push([depth * (0.68 - 0.18 * t + 0.12 * Math.sin(t * Math.PI * 2)), width * (0.42 + t * 0.3)]); }
+  for (let i = 0; i <= 6; i++) { const t = i / 6; pts.push([depth * (0.5 - 0.15 * Math.sin(t * Math.PI)), width * (0.72 + t * 0.14)]); }
+  for (let i = 0; i <= 6; i++) { const a = -Math.PI / 2 + (i / 6) * Math.PI; pts.push([depth * 0.42 + Math.cos(a) * depth * 0.08, width * 0.93 + Math.sin(a) * width * 0.05]); }
+  pts.push([depth * 0.3, width], [0.0, width]);
+  return pts.map(([x, y]) => V2(x, y));
+}
+
+/** stacked frames leaning against a wall: carved mouldings, canvas backs with stretcher bars and corner keys */
 export function buildFrameStack(ctx, m) {
   const { geometry: G } = ctx;
   const g = new THREE.Group(); g.name = 'frames';
   const sizes = [[0.9, 0.7], [0.75, 0.95], [0.6, 0.5]];
   sizes.forEach(([w, h], i) => {
     const f = new THREE.Group();
-    f.add(mesh(G.frameGeometry(w, h, { width: 0.07, depth: 0.04 }), i === 1 ? m.gilt : m.frameDark));
-    const back = mesh(new THREE.PlaneGeometry(w - 0.1, h - 0.1), i === 1 ? m.painting : m.canvasBack);
+    const fg = G.frameGeometry(w, h, { width: 0.095, depth: 0.06, profile: carvedFrameProfile(0.095, 0.06) });
+    // ribbing on the torus: gadroons pressed into the moulding
+    { const pp = fg.attributes.position; for (let k = 0; k < pp.count; k++) { const x = pp.getX(k), y = pp.getY(k), z = pp.getZ(k); if (z > 0.045) { const along = Math.abs(x) / (w / 2 + 0.095) > Math.abs(y) / (h / 2 + 0.095) ? y : x; pp.setZ(k, z - 0.004 * Math.max(0, Math.sin(along * 160))); } } fg.computeVertexNormals(); }
+    f.add(mesh(fg, i === 1 ? m.gilt : m.frameDark));
+    const back = mesh(new THREE.PlaneGeometry(w - 0.02, h - 0.02), i === 1 ? m.painting : m.canvasBack);
     back.position.z = 0.01; f.add(back);
+    // stretcher: four bars and a cross bar seen from behind, wedge keys in the corners
+    const bw = 0.045, bt = 0.018;
+    const bars = [[w - 0.02, bw, 0, (h - 0.02) / 2 - bw / 2], [w - 0.02, bw, 0, -(h - 0.02) / 2 + bw / 2], [bw, h - 0.02, (w - 0.02) / 2 - bw / 2, 0], [bw, h - 0.02, -(w - 0.02) / 2 + bw / 2, 0], [w - 0.06, bw * 0.8, 0, 0]];
+    for (const [bx, by, x, y] of bars) f.add(at(mesh(bevelBox(G, bx, by, bt, 0.003), m.crate), x, y, 0.0));
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) { const k = mesh(bevelBox(G, 0.035, 0.022, 0.006, 0.002), m.crate); k.position.set(sx * ((w - 0.02) / 2 - bw - 0.012), sy * ((h - 0.02) / 2 - bw - 0.012), -0.011); k.rotation.z = sx * sy * Math.PI / 4; f.add(k); }
     f.position.set(i * 0.12 - 0.12, h / 2 * Math.cos(0.18), i * 0.07);
     f.rotation.x = -0.18;
     f.rotation.y = (i - 1) * 0.05;
