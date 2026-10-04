@@ -11,7 +11,7 @@ import { nameboardTexture, soundboardTexture, fretworkTexture, sheetMusicTexture
  */
 
 export const KEY = {
-  whiteW: 0.0235, whiteL: 0.148, whiteH: 0.022, gap: 0.0012,
+  whiteW: 0.0235, whiteL: 0.148, whiteH: 0.022, gap: 0.0008,
   blackW: 0.0128, blackL: 0.094, blackH: 0.012,
   top: 0.735,         // height of white key tops
   front: 0.17,        // z of white key fronts
@@ -42,14 +42,14 @@ function wireMaterial(base, U) {
         vec3 c = (im * vec4(0.0, 0.0, 0.0, 1.0)).xyz + T * position.y * L;
         vec4 wc = modelMatrix * vec4(c, 1.0);
         float w = (projectionMatrix * viewMatrix * wc).w;
-        float re = max(r, w * uPx * 0.75);
+        float re = max(r, w * uPx * 0.7);
         vCov = r / re;
         vec4 wp = modelMatrix * vec4(c + rx * (re / r), 1.0);
         vW = wp.xyz; vT = normalize(mat3(modelMatrix) * T);
         gl_Position = projectionMatrix * viewMatrix * wp;
       }`,
     fragmentShader: /* glsl */ `
-      uniform vec3 uBase; uniform vec3 uL1Pos; uniform vec3 uL1Col; uniform vec3 uL2Dir; uniform vec3 uL2Col; uniform float uOpacity;
+      uniform vec3 uBase; uniform vec3 uAmb; uniform vec3 uL1Pos; uniform vec3 uL1Col; uniform vec3 uL2Dir; uniform vec3 uL2Col; uniform float uOpacity;
       varying vec3 vT; varying vec3 vW; varying float vCov;
       float kk(vec3 T, vec3 H, float p) { float th = dot(T, H); return pow(sqrt(max(0.0, 1.0 - th * th)), p); }
       void main() {
@@ -58,9 +58,9 @@ function wireMaterial(base, U) {
         vec3 d1 = uL1Pos - vW; float a1 = 1.6 / (0.3 + dot(d1, d1)); vec3 L1 = normalize(d1);
         vec3 H1 = normalize(L1 + V), H2 = normalize(uL2Dir + V);
         float dif1 = sqrt(max(0.0, 1.0 - pow(dot(T, L1), 2.0)));
-        vec3 col = uBase * (0.03 + 0.12 * dif1 * a1 * uL1Col * 0.4 + 0.04 * uL2Col);
-        col += uBase * (kk(T, H1, 320.0) * uL1Col * a1 * 0.75 + kk(T, H2, 320.0) * uL2Col * 0.35);
-        gl_FragColor = vec4(col, clamp(vCov, 0.0, 1.0) * uOpacity * 0.9);
+        vec3 col = uBase * (0.025 + 0.1 * dif1 * a1 * uL1Col * 0.4 + 0.04 * uL2Col + 0.025 * uAmb);
+        col += uBase * (kk(T, H1, 90.0) * uL1Col * a1 * 0.8 + kk(T, H2, 140.0) * uL2Col * 0.4);
+        gl_FragColor = vec4(col, clamp(vCov, 0.0, 1.0) * 0.8 * uOpacity);
       }`,
   });
 }
@@ -144,7 +144,7 @@ function backAt(pts, x) {
 
 export function buildPiano(ctx, { ebony, brass, gold }) {
   const wireU = {
-    uPx: { value: 0.001 }, uOpacity: { value: 1 },
+    uPx: { value: 0.001 }, uOpacity: { value: 1 }, uAmb: { value: new THREE.Color(0.9, 0.8, 0.7) },
     uL1Pos: { value: new THREE.Vector3(0, 1.7, 0) }, uL1Col: { value: new THREE.Color(1.0, 0.62, 0.3).multiplyScalar(2.2) },
     uL2Dir: { value: new THREE.Vector3(0.45, 0.42, -0.79).normalize() }, uL2Col: { value: new THREE.Color(0.55, 0.66, 1.0).multiplyScalar(0.9) },
   };
@@ -172,7 +172,7 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
   add(new THREE.Mesh(flatExtrude(shapeOf(inner), 0.02, CASE.rimBottom + 0.02), ebony));
   // soundboard
   const sbTex = soundboardTexture(ctx.textures);
-  const sbMat = new THREE.MeshStandardMaterial({ map: sbTex.map, normalMap: sbTex.normalMap, roughness: 0.45, metalness: 0, envMapIntensity: 0.6, color: new THREE.Color(1.25, 1.15, 0.95), emissive: new THREE.Color(0.11, 0.075, 0.04) });   // faint bounce under the plate
+  const sbMat = new THREE.MeshStandardMaterial({ map: sbTex.map, normalMap: sbTex.normalMap, roughness: 0.45, metalness: 0, envMapIntensity: 0.6, color: new THREE.Color(1.25, 1.15, 0.95), emissive: new THREE.Color(0.17, 0.115, 0.06) });   // faint bounce under the plate
   const sbGeo = flatExtrude(shapeOf(clipBelow(inner, 0.2)), 0.01, 0.8);
   {
     // planar UVs in metres for the soundboard grain
@@ -181,31 +181,86 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
   }
   add(new THREE.Mesh(sbGeo, sbMat));
 
-  // cast-iron plate, gilt-bronze lacquer, with lightening holes
+  // cast-iron plate: a gilt-bronze casting with a sand-cast pitted skin, a raised flange round its
+  // edge, bevelled lightening holes with rolled rims (the spruce soundboard glowing through them) and
+  // heavy struts radiating from the pin block toward the tail
   {
+    const cast = ctx.textures.generate('music:castplate', {
+      size: 1024, normalStrength: 0.55,
+      glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  float sand = fbm(uv * 90.0, vec2(90.0), 3) * 0.5 + 0.5;
+  float pit = smoothstep(0.62, 0.8, fbmv(uv * 160.0, vec2(160.0), 2));
+  float mott = fbm(uv * 7.0, vec2(7.0), 4) * 0.5 + 0.5;
+  float wear = smoothstep(0.55, 0.85, fbm(uv * 3.0 + 5.0, vec2(3.0), 4) * 0.5 + 0.5);
+  vec3 gilt = mix(vec3(0.55, 0.38, 0.15), vec3(0.78, 0.6, 0.3), mott);
+  gilt = mix(gilt, vec3(0.36, 0.25, 0.11), pit * 0.7);
+  gilt = mix(gilt, gilt * 1.15 + vec3(0.03, 0.02, 0.0), wear * 0.5);
+  s.albedo = gilt;
+  s.height = 0.5 + 0.18 * sand - 0.25 * pit;
+  s.rough = 0.3 + 0.16 * (1.0 - mott) + 0.2 * pit - 0.08 * wear;
+  s.metal = 1.0; s.ao = 1.0 - 0.35 * pit;
+}`,
+    });
+    for (const t of [cast.map, cast.normalMap, cast.roughnessMap]) { t.repeat.set(1.2, 1.2); t.anisotropy = 8; }
+    gold.map = cast.map; gold.normalMap = cast.normalMap; gold.roughnessMap = cast.roughnessMap;
+    gold.normalScale = new THREE.Vector2(0.9, 0.9);
+    // a bronze-powder gold lacquer rather than solid metal: it keeps its colour inside the dark case,
+    // where a pure metal would only mirror the black lid
+    gold.color.set(0xd09a38); gold.metalness = 0.55; gold.roughness = 1.0; gold.clearcoat = 0.4; gold.clearcoatRoughness = 0.25; gold.envMapIntensity = 0.8; gold.needsUpdate = true;
     const plateOuter = clipBelow(offsetPoly(pts, 0.06), 0.06);
     const s = shapeOf(plateOuter);
     const holes = [
-      [-0.42, 0.66, 0.07, 0.14], [-0.12, 0.64, 0.065, 0.12], [0.2, 0.58, 0.06, 0.1], [0.46, 0.5, 0.04, 0.07],
-      [-0.42, 1.2, 0.08, 0.17], [-0.12, 1.1, 0.06, 0.13], [-0.45, 1.66, 0.06, 0.1],
+      [-0.43, 0.7, 0.075, 0.15], [-0.13, 0.66, 0.068, 0.13], [0.19, 0.6, 0.06, 0.105], [0.45, 0.52, 0.04, 0.07],
+      [-0.43, 1.24, 0.08, 0.17], [-0.13, 1.12, 0.06, 0.13], [-0.45, 1.68, 0.06, 0.1],
     ];
+    const ellPts = (x, y, rx, ry, n = 40) => { const o = []; for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; o.push(new THREE.Vector2(x + Math.cos(a) * rx, y + Math.sin(a) * ry)); } return o; };
     for (const [x, y, rx, ry] of holes) {   // lightening holes: the pale spruce soundboard shows through
       const h = new THREE.Path();
       h.absellipse(x, y, rx, ry, 0, Math.PI * 2, true, 0);
       s.holes.push(h);
     }
-    const plate = add(new THREE.Mesh(flatExtrude(s, 0.018, 0.84, 0.006), gold));
+    const plateGeo = flatExtrude(s, 0.016, 0.842, 0.007);
+    { // planar UVs in metres so the cast skin keeps a constant scale
+      const p = plateGeo.attributes.position, uv = plateGeo.attributes.uv;
+      for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) * 0.8, -p.getZ(i) * 0.8);
+    }
+    const plate = add(new THREE.Mesh(plateGeo, gold));
     plate.name = 'piano-plate';
-    // struts over the holes (radiating bars)
-    const strutMat = gold;
-    const bars = [[-0.6, 0.18, -0.55, 1.75], [-0.3, 0.18, -0.25, 1.5], [0.0, 0.18, -0.05, 1.25], [0.32, 0.18, 0.28, 0.85]];
+    // rolled rims round each hole: a raised oval ring, bevelled both sides
+    for (const [x, y, rx, ry] of holes) {
+      const ring = shapeOf(ellPts(x, y, rx + 0.016, ry + 0.016));
+      const inner = pathOf(ellPts(x, y, rx, ry).reverse());
+      ring.holes.push(inner);
+      const rg = flatExtrude(ring, 0.006, 0.858, 0.004);
+      const p = rg.attributes.position, uv = rg.attributes.uv;
+      for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) * 0.8, -p.getZ(i) * 0.8);
+      add(new THREE.Mesh(rg, gold));
+    }
+    // the raised flange running round the outer edge of the casting
+    {
+      const outer = plateOuter, inn = offsetPoly(plateOuter, 0.022);
+      const fl = shapeOf(outer); fl.holes.push(pathOf(inn.slice().reverse()));
+      const fg = flatExtrude(fl, 0.012, 0.852, 0.004);
+      const p = fg.attributes.position, uv = fg.attributes.uv;
+      for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) * 0.8, -p.getZ(i) * 0.8);
+      add(new THREE.Mesh(fg, gold));
+    }
+    // struts: tapered ribs with a rounded crown, from the pin-block bar toward the tail
+    const bars = [[-0.6, 0.2, -0.56, 1.78], [-0.29, 0.2, -0.27, 1.52], [0.02, 0.2, -0.04, 1.27], [0.33, 0.2, 0.29, 0.86]];
     for (const [x0, y0, x1, y1] of bars) {
       const len = Math.hypot(x1 - x0, y1 - y0);
-      const b = new THREE.Mesh(new G.RoundedBoxGeometry(0.035, 0.03, len, 2, 0.008), strutMat);
-      b.position.set((x0 + x1) / 2, 0.875, -(y0 + y1) / 2);
+      const b = new THREE.Mesh(new G.RoundedBoxGeometry(0.042, 0.036, len, 3, 0.012), gold);
+      b.position.set((x0 + x1) / 2, 0.874, -(y0 + y1) / 2);
       b.rotation.y = Math.atan2(-(x1 - x0), -(y1 - y0)) + Math.PI;
       add(b);
     }
+    // the heavy cross bar over the pin block (the strings pass under its capo d'astro edge)
+    const capo = add(new THREE.Mesh(new G.RoundedBoxGeometry(1.36, 0.03, 0.06, 3, 0.01), gold));
+    capo.position.set(0.02, 0.884, -0.2);
+    // the maker's cast lettering on the bar
+    const pinField = add(new THREE.Mesh(new G.RoundedBoxGeometry(1.4, 0.012, 0.11, 2, 0.004), gold));
+    pinField.position.set(0.02, 0.862, -0.115);
   }
 
   // strings: drawn into one mip-mapped texture on a plane above the plate, so the
@@ -238,8 +293,8 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
       for (let k = 0; k < n; k++) { const o = (k - (n - 1) / 2) * 0.0042; wires.push([x0 + o, y0, x1 + o, y1, 0.0016 - 0.0005 * (n - 1), 1]); }
     }
     const wireGeo = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
-    const steelW = wireMaterial(new THREE.Color(0.5, 0.5, 0.49), wireU);
-    const copperW = wireMaterial(new THREE.Color(0.55, 0.28, 0.12), wireU);
+    const steelW = wireMaterial(new THREE.Color(0.62, 0.62, 0.6), wireU);
+    const copperW = wireMaterial(new THREE.Color(0.75, 0.38, 0.16), wireU);
     const nSteel = wires.filter((w) => !w[5]).length;
     const imS = new THREE.InstancedMesh(wireGeo, steelW, nSteel);
     const imC = new THREE.InstancedMesh(wireGeo, copperW, wires.length - nSteel);
@@ -375,7 +430,9 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
     // one moulded board, swept along the keyboard: a vertical lacquered face carrying the decal, a
     // rounded top edge and a small bead at its foot. A satin rather than mirror coat, so the candle
     // highlights spread into soft bands instead of streaking along every edge
-    const lacquer = new THREE.MeshPhysicalMaterial({ color: 0x060505, roughness: 0.42, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.26, envMapIntensity: 0.45, side: THREE.DoubleSide });
+    // (a softer, hand-rubbed coat: a near-mirror clearcoat turned the candelabrum flames into hot rectangular
+    // flares and mirrored the score above as a row of garbled smudges along the top edge)
+    const lacquer = new THREE.MeshPhysicalMaterial({ color: 0x060505, roughness: 0.55, metalness: 0, clearcoat: 0.4, clearcoatRoughness: 0.42, envMapIntensity: 0.3, specularIntensity: 0.6, side: THREE.DoubleSide });
     const prof = [[-0.045, 0.06], [-0.006, 0.06], [0.002, 0.058], [0.0065, 0.053], [0.008, 0.046], [0.008, 0.011], [0.0105, 0.008], [0.0105, 0.003], [0.007, 0.0], [-0.045, 0.0], [-0.045, 0.06]].map(([x, y]) => new THREE.Vector2(x, y));
     const fb = add(new THREE.Mesh(G.sweepProfile(prof, [new THREE.Vector3(-0.655, 0, 0), new THREE.Vector3(0.655, 0, 0)], { uvScale: 2 }), lacquer));
     fb.position.set(0, KEY.top + 0.016, 0.0);   // the key backs pass under it, clear of the black keys
@@ -410,7 +467,8 @@ export function buildPiano(ctx, { ebony, brass, gold }) {
     const ledge = new THREE.Mesh(new G.RoundedBoxGeometry(0.84, 0.014, 0.045, 2, 0.005), ebony);
     ledge.position.set(0, 0.01, 0.02); desk.add(ledge);
     const sheetMat = (seed, title) => new THREE.MeshStandardMaterial({ map: sheetMusicTexture(ctx.textures, { seed, title }), roughness: 0.85, side: THREE.DoubleSide });
-    for (const [x, seed, ry, title] of [[-0.135, 3, 0.05, 'Nocturne for the Seventh Guest'], [0.135, 4, -0.05, '']]) {
+    // the two pages overlap at the spine, so nothing inside the case shows between them
+    for (const [x, seed, ry, title] of [[-0.121, 3, 0.05, 'Nocturne for the Seventh Guest'], [0.121, 4, -0.05, '']]) {
       const page = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 0.33, 6, 1), sheetMat(seed, title));
       const p = page.geometry.attributes.position;
       for (let i = 0; i < p.count; i++) { const u = p.getX(i) / 0.125; p.setZ(i, 0.012 * (1 - u * u) + (x < 0 ? -1 : 1) * u * 0.004); }
@@ -513,11 +571,25 @@ function buildKeys(ctx, piano) {
 void surface(vec2 uv, inout Surface s) {
   float n = fbm(vec2(uv.x * 2.0, uv.y * 24.0), vec2(2.0, 24.0), 4);
   float lines = sin((uv.y * 60.0 + n * 2.0) * 6.2831) * 0.5 + 0.5;
-  vec3 c = mix(vec3(0.93, 0.89, 0.8), vec3(0.88, 0.82, 0.7), 0.35 * lines + 0.4 * (fbm(uv * 3.0, vec2(3.0), 3) * 0.5 + 0.5));
+  vec3 c = mix(vec3(0.95, 0.93, 0.87), vec3(0.9, 0.87, 0.79), 0.35 * lines + 0.4 * (fbm(uv * 3.0, vec2(3.0), 3) * 0.5 + 0.5));
   s.albedo = c; s.height = 0.5 + 0.05 * lines; s.rough = 0.33 + 0.06 * lines; s.metal = 0.0; s.ao = 1.0;
 }`,
   });
-  const ivory = new THREE.MeshPhysicalMaterial({ map: ivTex.map, normalMap: ivTex.normalMap, roughnessMap: ivTex.roughnessMap, color: 0xf6eedc, roughness: 1.0, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.25, sheen: 0.1, sheenColor: new THREE.Color(0.95, 0.95, 1.0), emissive: new THREE.Color(0x000000) });
+  const ivory = new THREE.MeshPhysicalMaterial({ map: ivTex.map, normalMap: ivTex.normalMap, roughnessMap: ivTex.roughnessMap, color: 0xefe6d2, roughness: 1.0, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.25, sheen: 0.1, sheenColor: new THREE.Color(0.95, 0.95, 1.0), emissive: new THREE.Color(0x000000) });
+  // contact shadow down both sides of every ivory (the 0.8 mm gaps read as dark seams) and a little
+  // darkening toward the back where the key slides under the fallboard
+  {
+    const hw = (KEY.whiteW - KEY.gap) / 2, L = KEY.whiteL + 0.25;
+    ivory.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vKeyP;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvKeyP = position;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vKeyP;').replace('#include <map_fragment>', `#include <map_fragment>
+        float kEx = abs(vKeyP.x) / ${hw.toFixed(5)};
+        float kAo = mix(1.0, 0.5, smoothstep(0.82, 1.0, kEx));
+        kAo *= mix(1.0, 0.55, 1.0 - smoothstep(${(-L + 0.235).toFixed(4)}, ${(-L + 0.255).toFixed(4)}, vKeyP.z));
+        kAo *= mix(1.0, 0.7, 1.0 - smoothstep(-0.02, -0.006, vKeyP.y));
+        diffuseColor.rgb *= kAo;`);
+    };
+  }
   const jet = new THREE.MeshPhysicalMaterial({ color: 0x0b0a0a, roughness: 0.28, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.12 });
   const white = new THREE.InstancedMesh(wg, ivory, whiteMidi.length);
   const black = new THREE.InstancedMesh(bgeo, jet, blackMidi.length);

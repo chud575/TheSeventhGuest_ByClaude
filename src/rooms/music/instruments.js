@@ -243,7 +243,7 @@ function halfWidthAt(half, y) {
 }
 function celloTextures(ctx) {
   // spruce top under an amber-red oil varnish: straight fine grain along the body, wider toward the flanks
-  const top = ctx.textures.generate('music:cellotop2', {
+  const top = ctx.textures.generate('music:cellotop3', {
     size: 1024, normalStrength: 0.12, tile: false,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
@@ -252,12 +252,15 @@ void surface(vec2 uv, inout Surface s) {
   float g = abs(x) + w;
   float spacing = mix(0.0045, 0.009, smoothstep(0.0, 0.5, abs(x)));
   float line = smoothstep(0.55, 1.0, sin(g / spacing * 6.2831) * 0.5 + 0.5);
-  vec3 varnish = mix(vec3(0.42, 0.15, 0.05), vec3(0.58, 0.27, 0.09), 0.5 + 0.5 * fbm(uv * vec2(2.0, 3.0), vec2(2.0, 3.0), 4));
+  vec3 varnish = mix(vec3(0.36, 0.13, 0.045), vec3(0.52, 0.23, 0.075), 0.5 + 0.5 * fbm(uv * vec2(2.0, 3.0), vec2(2.0, 3.0), 4));
   // worn / burnished centre where the player's knees and bow have rubbed through to the amber ground
   float wear = smoothstep(0.24, 0.0, length((uv - vec2(0.42, 0.5)) * vec2(1.0, 1.4)));
   varnish = mix(varnish, vec3(0.66, 0.38, 0.14), wear * 0.35);
-  vec3 col = varnish * (1.0 - 0.28 * line);
-  s.albedo = col; s.height = 0.5 - 0.15 * line; s.rough = 0.32 + 0.12 * line; s.metal = 0.0; s.ao = 1.0;
+  // antiqued: the varnish pools darker toward the edges and the C-bouts, a little patchy
+  float edgeD = smoothstep(0.18, 0.5, abs(x)) * 0.45 + 0.25 * smoothstep(0.3, 0.0, abs(uv.x - 0.5)) * smoothstep(0.25, 0.45, abs(x));
+  varnish *= (1.0 - edgeD) * (0.88 + 0.2 * fbm(uv * vec2(5.0, 9.0) + 2.0, vec2(5.0, 9.0), 3));
+  vec3 col = varnish * (1.0 - 0.12 * line);
+  s.albedo = col; s.height = 0.5 - 0.08 * line; s.rough = 0.3 + 0.08 * line; s.metal = 0.0; s.ao = 1.0;
 }`,
   });
   // one-piece flamed maple back + ribs: grain along the body, tiger flames sweeping across it
@@ -314,7 +317,8 @@ export function buildCello(ctx, { wood, ebony, giltPlain }) {
   const half = celloHalfOutline();
   const hw = (y) => halfWidthAt(half, y);
   const tex = celloTextures(ctx);
-  const varnishOpts = { roughness: 1, metalness: 0, clearcoat: 0.55, clearcoatRoughness: 0.28, envMapIntensity: 0.35, sheen: 0.0 };
+  // oil varnish: a deep glassy coat over the wood, so the arching carries a moving highlight
+  const varnishOpts = { roughness: 1, metalness: 0, clearcoat: 0.85, clearcoatRoughness: 0.14, envMapIntensity: 0.6, sheen: 0.0 };
   const topMat = new THREE.MeshPhysicalMaterial({ map: tex.top.map, normalMap: tex.top.normalMap, roughnessMap: tex.top.roughnessMap, alphaMap: tex.mask, alphaTest: 0.5, side: THREE.DoubleSide, ...varnishOpts });
   const backMat = new THREE.MeshPhysicalMaterial({ map: tex.back.map, normalMap: tex.back.normalMap, roughnessMap: tex.back.roughnessMap, side: THREE.DoubleSide, ...varnishOpts });
   const arch = (u, y) => 0.021 * Math.pow(Math.max(0, Math.sin(Math.PI * u)), 0.85) * Math.pow(Math.max(0, Math.sin(Math.PI * Math.min(1, Math.max(0, y / L)))), 0.45);
@@ -376,7 +380,7 @@ export function buildCello(ctx, { wood, ebony, giltPlain }) {
   }
   const topZ = (y) => RIB / 2 + arch(0.5, y);
   // ---- neck, fingerboard (ebony, dead centre), nut
-  const ebonyMat = new THREE.MeshPhysicalMaterial({ color: 0x0c0a09, roughness: 0.35, clearcoat: 0.3, clearcoatRoughness: 0.3 });
+  const ebonyMat = new THREE.MeshPhysicalMaterial({ color: 0x0c0a09, roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.12, envMapIntensity: 0.8 });
   const neckLen = 0.28, nutY = L + neckLen;
   {
     const neck = new THREE.Mesh(new G.RoundedBoxGeometry(0.034, neckLen + 0.03, 0.04, 3, 0.014), backMat);
@@ -477,7 +481,7 @@ export function buildCello(ctx, { wood, ebony, giltPlain }) {
   button.rotation.x = Math.PI; button.position.set(0, 0.012, 0); g.add(button);
   // ---- strings: tailpiece -> bridge crown -> nut, then into the pegbox (A D G C)
   {
-    const strMat = new THREE.MeshStandardMaterial({ color: 0xd2ccc0, roughness: 0.3, metalness: 0.85 });
+    const strMat = new THREE.MeshStandardMaterial({ color: 0xe0d8c8, roughness: 0.22, metalness: 0.9, envMapIntensity: 1.6 });
     const bridgeTop = topZ(bridgeY) + 0.094;
     for (let i = 0; i < 4; i++) {
       const o = (i - 1.5);

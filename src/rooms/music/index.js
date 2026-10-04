@@ -24,7 +24,7 @@ const CROWN = 0.3, FRIEZE = 0.22;
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 const PIANO_POS = V3(-0.95, 0, -1.2), PIANO_ROT = -0.93;
 const FIRE = { z: -0.2 };
-const GHOST_IDLE = 0.55;
+const GHOST_IDLE = 0.85;
 
 const pianoToWorldEarly = (piano, x, y, z) => { piano.updateMatrixWorld(true); return piano.localToWorld(new THREE.Vector3(x, y, z)); };
 
@@ -48,6 +48,42 @@ export default {
     // ================================================================ materials
     const wpSet = wallpaperTexture(ctx.textures).withRepeat(1 / 0.42, 1 / 0.42);
     const wallpaper = new THREE.MeshPhysicalMaterial({ map: wpSet.map, normalMap: wpSet.normalMap, roughnessMap: wpSet.roughnessMap, metalnessMap: wpSet.metalnessMap, roughness: 1, metalness: 1, normalScale: new THREE.Vector2(1.2, 1.2), sheen: 0.7, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.32, 0.4, 0.75), envMapIntensity: 0.6 });
+    // age the damask: a macro mask in world space -- low-frequency water staining and grime, the paper
+    // sun-faded paler around the bay windows, darkened in the corners under the cornice and above the
+    // dado and in the room corners -- and a second, offset sample of the print
+    // blended in by noise so the repeat never lines up
+    wallpaper.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWpW;')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWpW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+varying vec3 vWpW;
+float wpH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float wpN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(wpH(i), wpH(i + vec2(1, 0)), f.x), mix(wpH(i + vec2(0, 1)), wpH(i + vec2(1, 1)), f.x), f.y); }
+float wpF(vec2 p) { return 0.5 * wpN(p) + 0.25 * wpN(p * 2.03 + 7.1) + 0.125 * wpN(p * 4.1 + 3.3) + 0.0625 * wpN(p * 8.3); }`)
+        .replace('#include <map_fragment>', `#include <map_fragment>
+  {
+    vec2 wq = vec2(vWpW.x + vWpW.z, vWpW.y);
+    // break the repeat: a second sample of the print, shifted half a drop, blended in by noise
+    vec4 alt = texture2D(map, vMapUv + vec2(0.5, 0.37));
+    float bm = smoothstep(0.42, 0.62, wpF(wq * 0.6 + 11.0));
+    diffuseColor.rgb = mix(diffuseColor.rgb, alt.rgb * diffuse, bm * 0.5);
+    float stain = wpF(wq * 0.9);
+    float tide = smoothstep(0.55, 0.75, wpF(wq * vec2(0.7, 0.35) + 3.0));
+    float macro = 0.8 + 0.32 * stain - 0.18 * tide;
+    // corners: under the frieze and just above the chair rail
+    macro *= mix(1.0, 0.62, smoothstep(${(H - CROWN - FRIEZE - 0.55).toFixed(2)}, ${(H - CROWN - FRIEZE).toFixed(2)}, vWpW.y));
+    macro *= mix(1.0, 0.75, 1.0 - smoothstep(${(DADO).toFixed(2)}, ${(DADO + 0.3).toFixed(2)}, vWpW.y));
+    // the vertical room corners
+    float cx = min(vWpW.x - (${X0.toFixed(2)}), ${X1.toFixed(2)} - vWpW.x), cz = min(vWpW.z - (${Z0.toFixed(2)}), ${Z1.toFixed(2)} - vWpW.z);
+    macro *= mix(0.7, 1.0, smoothstep(0.0, 0.5, min(cx, cz)));
+    // sun-faded near the bay
+    float fade = smoothstep(2.2, 0.0, vWpW.z - (${Z0.toFixed(2)})) * 0.5;
+    vec3 faded = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.33))) * vec3(0.95, 0.98, 1.08), 0.5) * 1.15;
+    diffuseColor.rgb = mix(diffuseColor.rgb, faded, fade);
+    diffuseColor.rgb *= macro;
+  }`);
+    };
     const parquet = M.create('parquet', { species: 'walnut', ratio: 5, planksAcross: 2, repeat: [0.9, 0.9], polish: 0.7, wear: 0.35 });
     const ebony = M.create('ebony', { repeat: [2, 2], color: [0.55, 0.55, 0.6], clearcoat: 1.0, clearcoatRoughness: 0.06, roughness: 0.6 });
     const mahogany = M.create('mahogany', { repeat: [1.2, 1.2] });
@@ -67,16 +103,51 @@ export default {
     const plateGold = new THREE.MeshPhysicalMaterial({ color: 0xa8742a, metalness: 0.9, roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.3, envMapIntensity: 0.75 });
     // mirror-black piano lacquer: crisp streaks of the windows and candles in the room probe
     const pianoLacquer = new THREE.MeshPhysicalMaterial({ color: 0x050505, roughness: 0.08, metalness: 0, clearcoat: 1.0, clearcoatRoughness: 0.03, envMapIntensity: 1.25 });
-    const doorWoodV = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], rotation: Math.PI / 2, clearcoat: 0.35, clearcoatRoughness: 0.45, envMapIntensity: 0.35, color: [0.6, 0.6, 0.64] });
-    const doorWoodH = M.create('wood', { species: 'mahogany', boards: 0, polish: 0.85, figure: 0.6, wear: 0.15, repeat: [0.9, 0.9], clearcoat: 0.35, clearcoatRoughness: 0.45, envMapIntensity: 0.35, color: [0.6, 0.6, 0.64] });
+    // quarter-sawn Cuban mahogany for the doors: dead-straight grain lines with fine pore dashes, the
+    // soft ribbon stripe of quarter-sawn stock and small medullary flecks across it. The texture
+    // carries its grain along v; one tile = 0.5 m, ~0.5 mm per texel. Rails get it turned 90 degrees.
+    const qsTex = ctx.textures.generate('music:quartersawn', {
+      size: hq ? 2048 : 1024, normalStrength: 0.35,
+      glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  float wav = fbm(vec2(uv.x * 3.0, uv.y * 1.0), vec2(3.0, 1.0), 3) * 0.006;
+  float x = uv.x + wav;
+  // growth lines: several superimposed frequencies so the spacing is irregular
+  float g1 = sin(x * 6.2831 * 140.0 + fbm(vec2(uv.x * 20.0, uv.y * 2.0), vec2(20.0, 2.0), 3) * 2.5);
+  float g2 = sin(x * 6.2831 * 330.0 + fbm(vec2(uv.x * 40.0, uv.y * 3.0), vec2(40.0, 3.0), 2) * 3.0);
+  float lines = smoothstep(0.55, 1.0, g1) * 0.6 + smoothstep(0.7, 1.0, g2) * 0.4;
+  // ribbon stripe: broad light/dark bands along the grain that change with the light
+  float ribbon = sin(x * 6.2831 * 14.0 + fbm(vec2(uv.x * 4.0, uv.y * 1.0), vec2(4.0, 1.0), 3) * 1.6);
+  // pores: short dark dashes along the grain
+  float pore = smoothstep(0.78, 0.95, vnoise(vec2(uv.x * 900.0, uv.y * 60.0), vec2(900.0, 60.0)));
+  // medullary flecks: small lens-shaped flecks lying across the grain
+  float fl = smoothstep(0.86, 0.97, vnoise(vec2(uv.x * 70.0, uv.y * 260.0), vec2(70.0, 260.0)));
+  vec3 dark = vec3(0.21, 0.075, 0.04), mid = vec3(0.33, 0.13, 0.07), light = vec3(0.42, 0.18, 0.1);
+  vec3 c = mix(mid, light, 0.5 + 0.35 * ribbon);
+  c = mix(c, dark, lines * 0.55);
+  c = mix(c, dark * 0.7, pore * 0.5);
+  c = mix(c, light * 1.12, fl * 0.35);
+  c *= 0.9 + 0.12 * fbm(uv * 2.0, vec2(2.0), 3);
+  s.albedo = c;
+  s.height = 0.5 - 0.04 * lines - 0.12 * pore + 0.03 * fl;
+  s.rough = 0.38 + 0.12 * lines + 0.2 * pore - 0.08 * fl;
+  s.metal = 0.0; s.ao = 1.0;
+}`,
+    });
+    const doorWoodOf = (rot) => {
+      const t = qsTex.withRepeat(2, 2, rot);
+      return new THREE.MeshPhysicalMaterial({ map: t.map, normalMap: t.normalMap, roughnessMap: t.roughnessMap, roughness: 1.0, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.35, envMapIntensity: 0.4, normalScale: new THREE.Vector2(0.6, 0.6) });
+    };
+    const doorWoodV = doorWoodOf(0);
+    const doorWoodH = doorWoodOf(Math.PI / 2);
     // deep navy silk velvet: almost black where it faces you, a saturated blue-violet sheen
     // rolling over the fold crests (no grey specular: that is what made it read as plastic)
     // deep wine silk velvet: near-black in the hollows, a saturated crimson sheen rolling over every fold crest
     // (M.create ignores array colours for its material multiplier, so tint the woods directly: a deep,
     // desaturated mahogany toward #4a2216 rather than the raw orange-red of the generator)
-    panelWood.color.setRGB(0.5, 0.46, 0.46); doorWoodV.color.setRGB(0.62, 0.56, 0.56); doorWoodH.color.copy(doorWoodV.color);
+    panelWood.color.setRGB(0.5, 0.46, 0.46);
     const velvet = M.create('velvet', { color: [0.05, 0.004, 0.009], crush: 0.45, repeat: [2, 2], side: THREE.DoubleSide });
-    velvet.sheen = 1.0; velvet.sheenRoughness = 0.4; velvet.sheenColor = new THREE.Color().setRGB(0.5, 0.035, 0.06);
+    velvet.sheen = 1.0; velvet.sheenRoughness = 0.4; velvet.sheenColor = new THREE.Color().setRGB(0.78, 0.07, 0.1);
     // velvet has almost no specular: the pile scatters it into the sheen. (With the texture's roughness map
     // and a dielectric F0 the folds mirrored the bright bay as pale blue-grey satin.)
     velvet.roughnessMap = null; velvet.roughness = 1.0; velvet.metalnessMap = null; velvet.metalness = 0; velvet.envMapIntensity = 0.06; velvet.specularIntensity = 0.04;
@@ -85,6 +156,17 @@ export default {
     seatVelvet.sheen = 0.8; seatVelvet.sheenRoughness = 0.5; seatVelvet.sheenColor = new THREE.Color().setRGB(0.42, 0.04, 0.06); seatVelvet.specularIntensity = 0.06; seatVelvet.envMapIntensity = 0.1; seatVelvet.roughnessMap = null; seatVelvet.roughness = 1; seatVelvet.metalnessMap = null; seatVelvet.metalness = 0;
     const brass = M.create('brass', { tarnish: 0.35, polish: 0.7, repeat: [2, 2] });
     const glassMat = M.create('glass', { dirt: 0.5, transparent: true, opacity: 0.12 });
+    // old crown glass in the sashes: faint horizontal waviness (drawn-glass ripple) so the room's
+    // candles and the gasolier swim across the panes as soft reflections
+    const ripple = ctx.textures.generate('music:oldglass', {
+      size: 512, normalStrength: 0.6,
+      glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  float h = fbm(vec2(uv.x * 2.0, uv.y * 14.0), vec2(2.0, 14.0), 4) * 0.7 + fbm(uv * 6.0, vec2(6.0), 3) * 0.3;
+  s.albedo = vec3(1.0); s.height = 0.5 + 0.5 * h; s.rough = 0.05; s.metal = 0.0; s.ao = 1.0;
+}`,
+    });
+    const winGlass = new THREE.MeshPhysicalMaterial({ color: 0xdfe6f0, transparent: true, opacity: 0.1, roughness: 0.04, metalness: 0, envMapIntensity: 1.6, specularIntensity: 1, normalMap: ripple.normalMap, normalScale: new THREE.Vector2(0.35, 0.35), depthWrite: false });
     // Nero Marquina: thin, directional, low-contrast veins in a deep black, polished to catch the fire
     const marble = M.create('marble', { type: 'nero', vein: [0.55, 0.52, 0.47], vein2: [0.16, 0.15, 0.14], scale: 2.6, polish: 0.92, repeat: [1.2, 1.2] });
     if (marble.isMeshPhysicalMaterial) { marble.clearcoat = 0.8; marble.clearcoatRoughness = 0.08; }
@@ -135,19 +217,26 @@ export default {
     // the view in three parallax layers: sky (far), lawn + folly + treeline (mid), a bare tree (near)
     const night = nightLayers(ctx.textures);
     for (const t of [night.sky.map, night.mid.map, night.near.map]) t.anisotropy = 8;
-    const skyMat = new THREE.MeshBasicMaterial({ map: night.sky.map, color: new THREE.Color(1, 1, 1).multiplyScalar(3.0), toneMapped: false });
+    // the sky is an offline plate (tools/genSky.py, 4096 x 2560): back-lit cloud banks with silver
+    // linings, a large moon with a soft halo; the procedural one is the fallback
+    let skyTex = night.sky.map;
+    try {
+      skyTex = await new THREE.TextureLoader().loadAsync(ctx.assetUrl('sky.jpg'));
+      skyTex.colorSpace = THREE.SRGBColorSpace; skyTex.anisotropy = 8;
+    } catch (e) { console.warn('music sky plate', e); }
+    const skyMat = new THREE.MeshBasicMaterial({ map: skyTex, color: new THREE.Color(1, 1, 1).multiplyScalar(2.6), toneMapped: false });
     const sky = new THREE.Mesh(new THREE.PlaneGeometry(18, 11.25), skyMat);
     sky.position.set(-0.5, 3.2, Z0 - 7.0);
     add(sky);
     const midMat = new THREE.MeshBasicMaterial({ map: night.mid.map, color: new THREE.Color(1, 1, 1).multiplyScalar(2.6), transparent: true, alphaTest: 0.02, depthWrite: false, toneMapped: false });
     const midL = new THREE.Mesh(new THREE.PlaneGeometry(13, 5.9), midMat);
     midL.position.set(-0.2, -0.85 + 5.9 / 2, Z0 - 3.4); midL.renderOrder = 1;
-    add(midL);
+    void midL;   // (the treeline + lawn now live in the sky plate; the old card's pine cones read as grey pyramids)
     const nearMat = new THREE.MeshBasicMaterial({ map: night.near.map, color: new THREE.Color(1, 1, 1), transparent: true, alphaTest: 0.05, depthWrite: false, toneMapped: false });
     const nearL = new THREE.Mesh(new THREE.PlaneGeometry(7.6, 5.4), nearMat);
     nearL.position.set(0.0, 2.3, Z0 - 1.3); nearL.renderOrder = 2;
     add(nearL);
-    const sashMat = M.basic('black', { color: 0x0e0b0a, roughness: 0.5 });
+    const sashMat = M.basic('black', { color: 0x15110f, roughness: 0.38 });
     const frostTex = ctx.textures.canvas('music:frost', 512, 1096, (g2, w, h) => {
       g2.clearRect(0, 0, w, h);
       const X = (x) => ((x + WIN.w / 2) / WIN.w) * w, Y = (y) => (1 - y / WIN.h) * h;
@@ -172,7 +261,7 @@ export default {
       }
     }, { tile: false });
     frostTex.repeat.set(1 / WIN.w, 1 / WIN.h); frostTex.offset.set(0.5, 0);
-    const frostMat = new THREE.MeshStandardMaterial({ map: frostTex, transparent: true, depthWrite: false, roughness: 0.7, metalness: 0, color: 0xdfe8ff, emissive: new THREE.Color(0.25, 0.3, 0.45), emissiveMap: frostTex });
+    const frostMat = new THREE.MeshStandardMaterial({ map: frostTex, transparent: true, opacity: 0.6, depthWrite: false, roughness: 0.7, metalness: 0, color: 0xdfe8ff, emissive: new THREE.Color(0.08, 0.1, 0.15), emissiveMap: frostTex });
     for (const wx of WIN.xs) {
       const r = WIN.w / 2;
       const shape = new THREE.Shape();
@@ -196,24 +285,25 @@ export default {
       // sash frame
       const win = new THREE.Group();
       win.position.set(wx, WIN.sill, Z0 - WIN.depth * 0.6);
-      const bar = (w, h, x, y) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.05), sashMat); m.position.set(x, y, 0); win.add(m); };
-      bar(WIN.w, 0.07, 0, 0.035);
-      bar(0.045, WIN.h - r, 0, (WIN.h - r) / 2);
-      for (const y of [0.7, 1.4, 1.48, 2.1 - 0.0]) bar(WIN.w, y === 1.48 ? 0.06 : 0.035, 0, y);
+      // slim glazing bars with a rounded (lamb's-tongue) bevel, painted
+      const bar = (w, h, x, y) => { const m = new THREE.Mesh(new G.RoundedBoxGeometry(w, h, 0.045, 2, Math.min(w, h) * 0.35), sashMat); m.position.set(x, y, 0); win.add(m); };
+      bar(WIN.w, 0.06, 0, 0.03);
+      bar(0.026, WIN.h - r, 0, (WIN.h - r) / 2);
+      for (const y of [0.7, 1.4, 1.48, 2.1 - 0.0]) bar(WIN.w, y === 1.48 ? 0.05 : 0.022, 0, y);
       bar(0.06, WIN.h - r, -r + 0.03, (WIN.h - r) / 2);
       bar(0.06, WIN.h - r, r - 0.03, (WIN.h - r) / 2);
       for (let i = 1; i < 4; i++) {
         const a = Math.PI * (i / 4);
-        const m = new THREE.Mesh(new THREE.BoxGeometry(0.03, r, 0.04), sashMat);
+        const m = new THREE.Mesh(new G.RoundedBoxGeometry(0.02, r, 0.035, 2, 0.007), sashMat);
         m.position.set(Math.cos(a) * r * 0.5, WIN.h - r + Math.sin(a) * r * 0.5, 0); m.rotation.z = a - Math.PI / 2; win.add(m);
       }
       const arc = new THREE.Mesh(new THREE.TorusGeometry(r - 0.03, 0.03, 6, 32, Math.PI), sashMat);
       arc.position.set(0, WIN.h - r, 0); win.add(arc);
-      const arc2 = new THREE.Mesh(new THREE.TorusGeometry(r * 0.45, 0.02, 6, 24, Math.PI), sashMat);
+      const arc2 = new THREE.Mesh(new THREE.TorusGeometry(r * 0.45, 0.013, 8, 24, Math.PI), sashMat);
       arc2.position.set(0, WIN.h - r, 0); win.add(arc2);
       const gs = new THREE.Shape();
       gs.moveTo(-r, 0); gs.lineTo(-r, WIN.h - r); gs.absarc(0, WIN.h - r, r, Math.PI, 0, true); gs.lineTo(r, 0); gs.closePath();
-      const glass = new THREE.Mesh(new THREE.ShapeGeometry(gs, 32), glassMat);
+      const glass = new THREE.Mesh(new THREE.ShapeGeometry(gs, 32), winGlass);
       glass.position.z = 0.012; glass.userData.noShadow = true; win.add(glass);
       // hoar frost creeping in from the bottom corners of each pane (catches the moon, dims the view)
       const frost = new THREE.Mesh(new THREE.ShapeGeometry(gs, 32), frostMat);
@@ -354,15 +444,30 @@ export default {
           p.position.set(0, cy, -0.006); leaf.add(p);
           const bol = new THREE.Mesh(G.frameGeometry(iw - 0.01, ph - 0.01, { width: 0.062, depth: 0.046, uvScale: 1 }), doorWoodH);   // deep bolection
           bol.position.set(0, cy, T / 2 - 0.012); leaf.add(bol);
-          const bead = new THREE.Mesh(G.frameGeometry(iw - 0.1, ph - 0.1, { width: 0.009, depth: 0.012, uvScale: 2 }), giltPlain);
-          bead.position.set(0, cy, T / 2 - 0.004); leaf.add(bead);
+          // a fine quirk bead inside the bolection, in the same mahogany (no gilt: it read as a glowing outline)
+          const bead = new THREE.Mesh(G.frameGeometry(iw - 0.1, ph - 0.1, { width: 0.009, depth: 0.008, uvScale: 2 }), doorWoodH);
+          bead.position.set(0, cy, T / 2 - 0.006); leaf.add(bead);
         }
-        // hinges on the outer edge
+        // hinges on the outer edge: cast-brass butt hinges, a barrel of five knuckles (alternate ones on the
+        // frame and the leaf, hairline gaps between), the leaf plate let into the stile with three screws,
+        // a steeple finial at each end of the pin
         for (const y of [0.32, 1.45, 2.6]) {
-          const kn = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.012, 0], [0.012, 0.14], [0.008, 0.15], [0.0, 0.16]], 14), brass);
-          kn.position.set(s * (lw / 2 + 0.004) * 1 - s * lw / 2 + s * lw / 2, y - 0.08, T / 2 + 0.004); kn.position.x = s * lw / 2; leaf.add(kn);
-          const fin1 = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.012, 0], [0.006, 0.012], [0, 0.016]], 12), brass);
-          fin1.position.set(s * lw / 2, y + 0.08, T / 2 + 0.004); leaf.add(fin1);
+          const hx = s * (lw / 2 + 0.006), hz = T / 2 + 0.002;
+          const KN = 5, KH = 0.026, GAP = 0.0015;
+          for (let k = 0; k < KN; k++) {
+            const kn = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.0085, 0], [0.0095, 0.002], [0.0095, KH - 0.002], [0.0085, KH], [0, KH]], 16), brass);
+            kn.position.set(hx, y - (KN * (KH + GAP)) / 2 + k * (KH + GAP), hz); leaf.add(kn);
+          }
+          for (const e of [-1, 1]) {
+            const fin = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.0075, 0], [0.006, 0.004], [0.0035, 0.009], [0.002, 0.014], [0, 0.017]], 12), brass);
+            fin.position.set(hx, y + e * (KN * (KH + GAP)) / 2, hz); if (e < 0) fin.rotation.x = Math.PI; leaf.add(fin);
+          }
+          const leafPl = new THREE.Mesh(new G.RoundedBoxGeometry(0.05, KN * (KH + GAP) - 0.004, 0.003, 2, 0.001), brass);
+          leafPl.position.set(hx - s * 0.03, y, T / 2 + 0.0005); leaf.add(leafPl);
+          for (let k = -1; k <= 1; k++) {
+            const sc = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.002, 10), brass);
+            sc.rotation.x = Math.PI / 2; sc.position.set(hx - s * 0.035, y + k * 0.04, T / 2 + 0.0025); leaf.add(sc);
+          }
         }
         // meeting edge: escutcheon plate, lever handle, keyhole
         const ex = -s * (lw / 2 - 0.065);
@@ -400,6 +505,10 @@ export default {
       door.rotation.y = Math.PI;
       door.name = 'door';
       add(door);
+      // a low warm fill off the threshold (the sconces' bounce off the boards): the herringbone in
+      // front of the doors reads instead of crushing to black
+      const sill = new THREE.PointLight(0xffa868, 1.3, 4.0, 2);
+      sill.position.set(0, 0.6, Z1 - 1.5); add(sill);
     }
 
     // ================================================================ curtains
@@ -430,24 +539,91 @@ export default {
       g.computeVertexNormals();
       return g;
     };
+    /*
+     * A heavy velvet drape, built as a tailor would hang it: a pinch-pleated heading (a pleat every
+     * ~8 cm) relaxes within ~30 cm into 5-7 deep, irregular folds of random width and depth; the
+     * weight pulls them a little wider toward the hem, and the last few cm break onto the boards.
+     * Optional tieback at ~1/3 height gathers the GLASS-side of the cloth toward the outer edge
+     * (u = 0 stays a straight plumb line, so two drapes meeting on a pier never pinch into an
+     * hourglass), the cloth blousing over the cord and flaring out again below it.
+     * The top of the drape is at y = 0; the floor at y = -height.
+     */
+    const drapeGeometry = ({ width, height, seed = 1, folds = 6, depth = 0.11, tie = 0, tieV = 0.66, brk = 0.07, segX = 120, segY = 90 }) => {
+      let sd = Math.floor(Math.abs(seed) * 7919) % 2147483646 + 1;
+      const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+      // irregular fold widths (normalised cumulative) and per-fold depth
+      const ws = [], amps = [];
+      for (let i = 0; i < folds; i++) { ws.push(0.55 + rnd() * 0.9); amps.push(0.65 + rnd() * 0.55); }
+      const tot = ws.reduce((a, b) => a + b, 0);
+      const edges = [0]; for (const w of ws) edges.push(edges[edges.length - 1] + w / tot);
+      const foldAt = (u) => {
+        let i = 0; while (i < folds - 1 && u > edges[i + 1]) i++;
+        const f = (u - edges[i]) / (edges[i + 1] - edges[i]);
+        // a fold is a rounded crest and a deeper, narrower valley (cloth hangs in catenary loops)
+        const sgn = i % 2 ? -1 : 1;
+        return sgn * amps[i] * Math.sin(f * Math.PI) * (sgn > 0 ? 1.0 : 0.85);
+      };
+      const len = height + brk;
+      const g = new THREE.PlaneGeometry(1, 1, segX, segY);
+      const p = g.attributes.position, uv = g.attributes.uv;
+      const pleatN = Math.max(4, Math.round(width / 0.08));
+      const ph0 = rnd() * 6.28, ph1 = rnd() * 6.28;
+      for (let i = 0; i < p.count; i++) {
+        const u = p.getX(i) + 0.5, v = 0.5 - p.getY(i);       // u 0 outer edge .. 1 glass edge, v 0 top .. 1 hem
+        const yDrop = v * len;                                   // metres below the heading
+        // heading: crisp pinch pleats blending into the body folds over the first ~0.3 m
+        const pleat = (Math.pow(Math.abs(Math.sin(u * pleatN * Math.PI)), 0.5) - 0.6) * 0.03;
+        const hb = Math.min(1, yDrop / 0.32); const blend = hb * hb * (3 - 2 * hb);
+        // the folds widen slightly toward the hem (u is remapped about the centre) and wander a little
+        const uu = 0.5 + (u - 0.5) * (1 - 0.06 * v) + 0.012 * Math.sin(v * 5.0 + ph0 + u * 3.0);
+        const body = foldAt(Math.min(1, Math.max(0, uu))) * depth * (0.8 + 0.35 * v) + 0.006 * Math.sin(u * 37.0 + v * 9.0 + ph1);
+        let z = pleat * (1 - blend) + body * blend;
+        let x = (u - 0.5) * width * (1 - 0.12 * (1 - blend));    // the heading is gathered narrower
+        let y = -yDrop;
+        if (tie > 0) {
+          const t = v < tieV ? Math.pow(v / tieV, 1.4) : 1 - 0.62 * Math.pow((v - tieV) / (1 - tieV), 0.8);
+          const pull = tie * t * (v < tieV ? 1 : 1);
+          // gather toward the outer edge (x = -width/2): the glass edge sweeps, the outer edge stays plumb
+          x = -width / 2 + (x + width / 2) * (1 - 0.62 * pull);
+          z *= 1 + 0.7 * pull;
+          // the cloth blouses forward just above the cord
+          const bl = Math.exp(-((v - (tieV - 0.06)) ** 2) / 0.004);
+          z += 0.05 * tie * bl * Math.sin(Math.PI * Math.min(1, u * 1.1));
+        }
+        if (y < -height) {   // the break: the last few cm fold forward onto the floor
+          const over = -height - y;
+          y = -height + 0.004 + over * 0.08;
+          z += over * 0.9;
+        }
+        p.setXYZ(i, x, y, z);
+        uv.setXY(i, u * width * 0.55, (1 - v) * len * 0.55);
+      }
+      g.computeVertexNormals();
+      return g;
+    };
     const fringeMat = new THREE.MeshStandardMaterial({ color: 0x8a6a2c, roughness: 0.6, metalness: 0.4 });
     const fringeGeo = new THREE.CylinderGeometry(0.0035, 0.003, 1, 4); fringeGeo.translate(0, -0.5, 0);
     for (const wx of WIN.xs) {
       for (const side of [-1, 1]) {
         // full drapes hanging straight beside the glass (deep folds, pooled hems)
         // drawn back to a tasselled cord at two-thirds height, the hem pooling on the boards
-        const CH = 3.3, CW = 0.78;
-        const cg = curtain({ width: CW, height: CH, folds: 7, depth: 0.15, tieback: 0.6, pool: 0.16, seed: wx * 3 + side + 5, segX: 96, segY: 72 });
+        const CW = 0.78, cy = WIN.sill + WIN.h + 0.28, CH = cy;
+        const TIE_V = 0.66;
+        // only the two drapes at the ends of the bay are tied back (toward the side walls); the pairs
+        // meeting on the piers hang straight in heavy columns, so no pier ever pinches into an hourglass
+        const tied = Math.abs(wx) > 1 && Math.sign(wx) === side;
+        const cg = drapeGeometry({ width: CW, height: CH, folds: 5 + ((wx * 3 + side + 7) % 3 + 3) % 3, depth: 0.12, tie: tied ? 1 : 0, tieV: TIE_V, seed: wx * 3 + side * 1.7 + 5 });
         const c = new THREE.Mesh(cg, velvet);
-        const cx = wx + side * (WIN.w / 2 + 0.22), cy = WIN.sill + WIN.h + 0.28;
+        const cx = wx + side * (WIN.w / 2 + 0.22);
         c.position.set(cx, cy, Z0 + 0.15);
         if (side > 0) c.scale.x = -1;   // outer edge (u = 0) away from the glass
         c.name = 'curtain';
         add(c);
+        if (!tied) continue;
         // the tie: a twisted gold cord round the gathered drape, a brass rosette hook on the wall,
         // and a heavy bullion tassel hanging from it
-        const ty = cy - 0.62 * CH;
-        const gx = cx + side * (0.22 * CW * 0.85);         // where the tieback gathers the cloth
+        const ty = cy - TIE_V * (CH + 0.07);
+        const gx = cx + side * (0.33 * CW);                // where the tieback gathers the cloth
         const cord = [];
         for (let k = 0; k <= 20; k++) { const a = (k / 20) * Math.PI; cord.push(V3(gx + side * Math.cos(a) * 0.11 - side * 0.02, ty + Math.sin(a * 2) * 0.012, Z0 + 0.15 + Math.sin(a) * 0.15)); }
         add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cord), 40, 0.009, 8), fringeMat));
@@ -578,9 +754,16 @@ export default {
     // the cello leans against the pier beside the centre window, in the hero view between the
     // candelabrum and the bay: moonlight on its shoulder, a warm candle rim down its varnish
     const cello = buildCello(ctx, { wood: celloWood, ebony, giltPlain });
-    cello.position.set(0.95, 0.1, -4.18); cello.rotation.set(-0.2, -0.25, 0.04);
+    // (stood clear of the drapes now they hang to the floor: it leans back against their folds)
+    cello.position.set(0.98, 0.1, -3.93); cello.rotation.set(-0.19, -0.3, 0.05);
     cello.userData.dynamic = true;
     add(cello);
+    // a small warm bounce off the parquet and the chair, from the candelabrum side, so the cello's
+    // arching and varnish catch a highlight instead of reading as a flat cut-out
+    const celloKey = new THREE.SpotLight(0xffa860, 2.2, 3.2, 0.5, 0.9, 2);
+    celloKey.position.set(0.05, 1.45, -2.75);
+    celloKey.target.position.set(0.98, 0.55, -3.95);
+    add(celloKey); add(celloKey.target);
     const stand = buildMusicStand(ctx, { brass, seed: 12 });
     stand.position.set(1.95, 0, -3.55); stand.rotation.y = -0.52;
     add(stand);
@@ -772,7 +955,9 @@ export default {
       const c0 = V3(wx, WIN.sill + WIN.h * 0.47, Z0 - 0.02).addScaledVector(beamDir, 0.45 / Math.max(0.2, beamDir.z));
       const shaft = fx.shaft({
         center: c0, right: V3(WIN.w / 2, 0, 0), up: V3(0, WIN.h * 0.5, 0),
-        direction: beamDir, length: 3.9, color: 0xaebfee, intensity: 0.22, softness: 0.24, falloff: 1.0, panes: [2, 4], mullion: 0.035, noise: 1.0,
+        // (the left beam is cut short of the fireplace wall: where the beam volume pierced the wall its
+        // clipped face drew a ruler-straight seam down the damask)
+        direction: beamDir, length: wx < -1 ? 2.25 : 3.9, color: 0xaebfee, intensity: 0.22, softness: wx < -1 ? 0.42 : 0.3, falloff: wx < -1 ? 0.7 : 1.0, panes: [2, 4], mullion: 0.035, noise: 1.0,
       });
       // the left beam (beside the ghost) carries the composition; the centre and right beams are seen
       // end-on from most nodes, so they are kept thin or they veil the bay, the cello and the drapes

@@ -11,7 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const out = path.resolve(here, '../../../../public/assets/music/ghost.bin');
+const out = process.env.GHOST_OUT || path.resolve(here, '../../../../public/assets/music/ghost.bin');
 
 // ------------------------------------------------------------------ SDF kit
 const len3 = (x, y, z) => Math.sqrt(x * x + y * y + z * z);
@@ -34,7 +34,7 @@ function rcone(px, py, pz, a, b, r1, r2) { // round cone between a (r1) and b (r
 const sph = (px, py, pz, c, r) => len3(px - c[0], py - c[1], pz - c[2]) - r;
 
 export { ell, rcone, sph, smin, smax };
-export const HEAD = [0, 1.31, 0.43];
+export const HEAD = [0, 1.27, 0.44];
 export const SHOULDER = { L: [-0.205, 1.045, 0.5], R: [0.205, 1.045, 0.5] };
 
 // ------------------------------------------------------------------ sculpt helpers
@@ -220,10 +220,10 @@ export function head(x, y, z) {
   for (const s of [-1, 1]) hr = smin(hr, ell(x, y, z, [s * 0.062, -0.01, 0.03], [0.024, 0.055, 0.06]), 0.02);
   hr = smin(hr, ell(x, y, z, [0, -0.025, 0.06], [0.07, 0.08, 0.05]), 0.02);
   // the locks melt into one another (soft, shallow partings) instead of reading as separate ropes
-  hr = smin(hr, lockField(HAIR_LOCKS, x, y, z, 0.009), 0.008);
+  hr = smin(hr, lockField(HAIR_LOCKS, x, y, z, 0.013), 0.011);
   let br = ell(x, y, z, [0, -0.082, -0.042], [0.068, 0.058, 0.062]);                       // beard mass under the clumps
   br = smax(br, -(-(y + 0.025) + Math.abs(x) * 0.15 - Math.max(0, -z - 0.075) * 0.5), 0.01);
-  br = smin(br, lockField(BEARD_LOCKS, x, y, z, 0.005), 0.007);
+  br = smin(br, lockField(BEARD_LOCKS, x, y, z, 0.008), 0.009);
   br = smax(br, -ell(x, y, z, [0, -0.064, -0.103], [0.016, 0.007, 0.02]), 0.003);     // lower lip shows through
   const mo = lockField(MOUSTACHE, x, y, z, 0.003);
   const bw = lockField(BROWS, x, y, z, 0.002);
@@ -281,14 +281,19 @@ export function body(x, y, z) {
     d -= 0.002 * Math.max(0, Math.min(1, -lp / 0.02)) * (ax > 0.06 ? 1 : 0.5) * (lp < 0 ? 1 : 0);
   }
   // ---- neck, coat collar, shirt collar, stock and tie
-  d = smin(d, rcone(x, y, z, [0, 1.03, 0.49], [0, 1.22, 0.45], 0.05, 0.043), 0.03);
-  const collarBand = rcone(x, y, z, [0, 1.065, 0.482], [0, 1.135, 0.466], 0.058, 0.054);   // white stock round the neck
+  // a short, thick neck (the head sits ~3 cm lower than it used to), the trapezius sloping broad
+  // and muscular from under the ears out to the shoulder seams
+  d = smin(d, rcone(x, y, z, [0, 1.03, 0.492], [0, 1.2, 0.455], 0.056, 0.049), 0.03);
+  for (const s of [-1, 1]) d = smin(d, rcone(x, y, z, [s * 0.03, 1.13, 0.49], [s * 0.15, 1.05, 0.505], 0.04, 0.034), 0.035);
+  const collarBand = collarSdf(x, y, z);   // white stock round the neck, a rolled hem at its top
   d = smin(d, collarBand, 0.006);
   // shirt collar points standing up against the jaw
-  for (const s of [-1, 1]) d = smin(d, panel(x, y, z, [s * 0.03, 1.1, 0.42], [s * 0.05, 1.155, 0.425], 0.012, 0.006, 3.0), 0.004);
+  for (const s of [-1, 1]) d = smin(d, collarPoint(x, y, z, s), 0.004);
   // the coat collar rolling round the back of the neck
-  d = smin(d, rcone(x, y, z, [-0.085, 1.075, 0.505], [0, 1.115, 0.535], 0.026, 0.03), 0.02);
-  d = smin(d, rcone(x, y, z, [0.085, 1.075, 0.505], [0, 1.115, 0.535], 0.026, 0.03), 0.02);
+  // (a high Victorian coat collar standing up the back of the neck, so no bare stalk of neck shows)
+  d = smin(d, rcone(x, y, z, [-0.088, 1.075, 0.505], [0, 1.15, 0.54], 0.028, 0.032), 0.02);
+  d = smin(d, rcone(x, y, z, [0.088, 1.075, 0.505], [0, 1.15, 0.54], 0.028, 0.032), 0.02);
+  d = smin(d, backCollar(x, y, z), 0.015);
   // black silk tie: a small knot and two short ends falling over the shirt
   const knot = ell(x, y, z, [0, 1.075, 0.418], [0.016, 0.012, 0.009]);
   let tie = knot;
@@ -335,13 +340,24 @@ export function body(x, y, z) {
   body.region = region;
   return d;
 }
-// value regions: 0.1 coat cloth, 0.05 black silk tie, 0.8 linen (shirt, stock, collar points)
+function collarSdf(x, y, z) {
+  let d = rcone(x, y, z, [0, 1.065, 0.484], [0, 1.15, 0.468], 0.06, 0.056);
+  // the rolled hem: a smooth torus-like bead round the top edge instead of a cut-off cone rim
+  const r = Math.hypot(x, (z - 0.47) * 1.04);
+  d = smin(d, Math.hypot(r - 0.056, y - 1.152) - 0.0045, 0.004);
+  return d;
+}
+function backCollar(x, y, z) { return panel(x, y, z, [0, 1.1, 0.548], [0, 1.175, 0.54], 0.05, 0.046, 1.6); }
+function collarPoint(x, y, z, s) { return panel(x, y, z, [s * 0.03, 1.1, 0.42], [s * 0.05, 1.155, 0.425], 0.012, 0.006, 3.0); }
+// value regions: 0.1 coat cloth, 0.05 black silk tie, 0.8 linen (shirt, stock, collar points), 1 skin
 export function bodyTint(x, y, z) {
   const ax = Math.abs(x);
-  if (y > 1.055 && y < 1.16 && z < 0.5) {
+  if (y > 1.04 && y < 1.2 && z < 0.56) {
     const tie = ell(x, y, z, [0, 1.075, 0.418], [0.02, 0.016, 0.014]);
     if (tie < 0.002) return 0.05;
-    return 0.8;                                                   // stock + collar points
+    const lin = Math.min(collarSdf(x, y, z), collarPoint(x, y, z, -1), collarPoint(x, y, z, 1));
+    if (lin < 0.004 && z < 0.5) return 0.8;                     // stock + collar points
+    if (y > 1.15 && backCollar(x, y, z) > 0.004 && Math.min(rcone(x, y, z, [-0.088, 1.075, 0.505], [0, 1.15, 0.54], 0.028, 0.032), rcone(x, y, z, [0.088, 1.075, 0.505], [0, 1.15, 0.54], 0.028, 0.032)) > 0.004) return 1.0;                                    // the neck above the stock
   }
   if (y > 0.96 && y <= 1.055 && z < 0.47 && sdPoly(ax, y, VOPEN) < 0.002) {
     if (ax < 0.016 && y > 0.995) return 0.05;                     // tie ends
@@ -475,7 +491,7 @@ import { pathToFileURL } from 'node:url';
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
 function main() {
 const parts = [
-  { name: 'body', f: body, tint: bodyTint, min: [-0.3, 0.0, 0.2 - 0.1], max: [0.3, 1.24, 0.9], h: 0.0055 },
+  { name: 'body', f: body, tint: bodyTint, min: [-0.3, 0.0, 0.2 - 0.1], max: [0.3, 1.24, 0.9], h: 0.0045 },
   { name: 'head', f: head, tint: headTint, min: [-0.13, -0.22, -0.15], max: [0.13, 0.16, 0.17], h: 0.0026 },
   { name: 'armL', f: makeArm(-1), tint: armTint(-1), min: [-0.12, -0.36, -0.56], max: [0.12, 0.08, 0.08], h: 0.003 },
   { name: 'armR', f: makeArm(1), tint: armTint(1), min: [-0.12, -0.36, -0.56], max: [0.12, 0.08, 0.08], h: 0.003 },

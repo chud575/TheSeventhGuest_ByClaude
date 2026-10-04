@@ -76,6 +76,7 @@ uniform float uTime;
 uniform vec3 uColor;
 uniform vec3 uShadow;
 uniform vec3 uRim;
+uniform vec3 uFog;
 uniform vec3 uKey;
 uniform vec3 uFillPos;
 uniform vec3 uFillColor;
@@ -104,10 +105,10 @@ void main() {
   vec3 q = vLocal;
   float e = 0.0015;
   float fs = mix(mix(mix(55.0, 70.0, hair), 90.0, skin), 60.0, linen);
-  vec3 sc = mix(vec3(1.0), vec3(4.0, 0.5, 4.0), hair);   // strands: stretched along the fall of the hair
+  vec3 sc = mix(vec3(1.0), vec3(6.0, 0.35, 6.0), hair);   // strands: stretched along the fall of the hair
   float h0 = fxNoise(q * fs * sc);
   vec3 grad = vec3(fxNoise((q + vec3(e, 0.0, 0.0)) * fs * sc) - h0, fxNoise((q + vec3(0.0, e, 0.0)) * fs * sc) - h0, fxNoise((q + vec3(0.0, 0.0, e)) * fs * sc) - h0) / e;
-  float bump = mix(mix(0.0005, 0.0026, hair), 0.0004, skin);
+  float bump = mix(mix(0.0003, 0.0007, hair), 0.00015, skin);
   n = normalize(n - (grad - n * dot(grad, n)) * bump);
   float ndv = clamp(dot(n, v), 0.0, 1.0);
   float fres = pow(1.0 - ndv, 2.4);
@@ -127,22 +128,26 @@ void main() {
   vec3 body = mix(uShadow, uColor * val, lit * occ) + uFillColor * fill * val * occ * 0.55;
   // a soft specular sheen on skin and silk (wet-looking cold light on the brow, nose, cheekbones)
   vec3 hv = normalize(uKey + v);
-  float spec = pow(clamp(dot(n, hv), 0.0, 1.0), mix(18.0, 40.0, skin)) * (0.15 + 0.35 * skin) * occ;
+  float spec = pow(clamp(dot(n, hv), 0.0, 1.0), mix(14.0, 30.0, skin)) * (0.06 + 0.22 * skin) * occ * (1.0 - hair);
   vec3 col = body * (0.6 + 0.4 * occ) + uRim * fres * (1.0 + 0.3 * (linen + skin)) + uColor * spec;
   col += uColor * 0.05 * (0.5 + val);   // a faint inner glow, so he never goes dead grey against the light
+  // the volume itself: a desaturated moonlit haze thickest through the middle of the figure
+  col = mix(col, uFog * (0.7 + 0.5 * flow), (1.0 - fres) * 0.3);
   col *= 0.88 + 0.24 * flow;
   // hands nearest the keys are among the most solid parts of him
   float hands = uHandBoost * smoothstep(0.3, 0.17, vLocal.z) * step(vLocal.y, 0.86);
-  // facing planes are nearly clear (the room shows through him); grazing ones glow; the lit planes of
-  // the face, the linen and the hands gain body so the features model in the cold key light
+  // grazing planes glow; the lit planes of the face, the linen and the hands gain body so the
+  // features model in the cold key light
   float solid = skin * 0.62 + linen * 0.5 + hair * 0.46 + cloth * 0.1;
-  float a = mix(0.05, 0.78, fres) + (0.2 + 0.8 * key) * occ * solid + fill * 0.12 * solid + hands;
-  a *= (0.82 + 0.3 * flow) * mix(0.55, 1.0, occ);
+  // an inner scattering volume: even the planes facing you hold a milky, cold body (the room only
+  // ghosts through faintly), so he reads as a spectre and never as an x-ray of the floor behind him
+  float a = mix(0.72, 0.94, fres) + (0.08 + 0.3 * key) * occ * solid + fill * 0.08 * solid + hands;
+  a *= (0.88 + 0.2 * flow) * mix(0.75, 1.0, occ);
   // dissolve below uDissolveY into drifting wisps
   float d = d0 + (mist - 0.5) * 1.8;
   a *= smoothstep(0.0, 1.0, d);
   float vis = smoothstep(0.0, 1.0, d);
-  a = clamp(a, 0.0, 0.92) * uOpacity;
+  a = clamp(a, 0.0, 0.95) * uOpacity;
   // premultiplied output with an additive glow on top: he lights the air around his contours
   // without turning opaque (blend: ONE, ONE_MINUS_SRC_ALPHA)
   vec3 glowAdd = (uRim * fres * 0.32 + uColor * 0.035 * (0.6 + val)) * uOpacity * vis * (0.85 + 0.3 * flow);
@@ -156,6 +161,7 @@ function ghostMaterials(ctx, { dissolveY = -10, dissolveSoft = 0.25, wobble = 0.
     uColor: { value: new THREE.Color(0xd6e2ff) },
     uShadow: { value: new THREE.Color(0x26345f) },
     uRim: { value: new THREE.Color(0x9fb8ff) },
+    uFog: { value: new THREE.Color(0x3a4a78) },
     uKey: { value: new THREE.Vector3(0.45, 0.5, -0.74).normalize() },
     uFillPos: { value: new THREE.Vector3(0, 1.7, 0) },
     uFillColor: { value: new THREE.Color(1.0, 0.62, 0.32) },
@@ -232,9 +238,9 @@ export async function buildGhostPianist(ctx) {
     group, arms, head, light,
     setOpacity(v) {
       for (const m of mats) m.uniforms.uOpacity.value = v;
-      glowMat.opacity = 0.55 * v;
-      haloMat.opacity = 0.45 * v;
-      light.intensity = LIGHT * v / 0.55;
+      glowMat.opacity = 0.4 * v;
+      haloMat.opacity = 0.32 * v;
+      light.intensity = LIGHT * v / 0.85;
     },
     want: null,
     setFill(p) { for (const m of mats) m.uniforms.uFillPos.value.copy(p); },   // set by the room: (opacity) => void, eases toward it

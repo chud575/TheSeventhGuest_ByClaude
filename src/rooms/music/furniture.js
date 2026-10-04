@@ -40,6 +40,9 @@ export function buildFireplace(ctx, { marble, iron, brass, gilt }) {
   shelf.position.set(0, H + 0.03, (D + 0.1) / 2); g.add(shelf);
   const shelfEdge = new THREE.Mesh(G.sweepProfile(shelfProf, [new THREE.Vector3(-W / 2 - 0.1, H - 0.05, 0), new THREE.Vector3(-W / 2 - 0.1, H - 0.05, D + 0.1), new THREE.Vector3(W / 2 + 0.1, H - 0.05, D + 0.1), new THREE.Vector3(W / 2 + 0.1, H - 0.05, 0)], { uvScale: 1 }), marble);
   g.add(shelfEdge);
+  // the tablet's ormolu is its own darker, satin fire-gilt: lit only by the scene (the bright gilt
+  // turned it into a glowing orange sign over the fire)
+  gilt = new THREE.MeshStandardMaterial({ color: 0x9a7432, metalness: 1.0, roughness: 0.48, envMapIntensity: 0.35 });
   // frieze tablet: a carved marble panel with a gilt bead frame and a small gilt lyre
   const tablet = new THREE.Mesh(new G.RoundedBoxGeometry(0.42, 0.17, 0.03, 2, 0.008), marble);
   tablet.position.set(0, openH + 0.2, D * 0.55 + 0.012); g.add(tablet);
@@ -151,9 +154,39 @@ export function buildFireplace(ctx, { marble, iron, brass, gilt }) {
   const fender = new THREE.Mesh(G.sweepProfile([[0, 0], [0.01, 0], [0.012, 0.04], [0.006, 0.07], [0.012, 0.08], [0, 0.085]].map(([x, y]) => new THREE.Vector2(x, y)),
     [new THREE.Vector3(-0.62, 0.05, 0.0), new THREE.Vector3(-0.62, 0.05, 0.52), new THREE.Vector3(0.62, 0.05, 0.52), new THREE.Vector3(0.62, 0.05, 0.0)], { uvScale: 2 }), brass);
   g.add(fender);
-  for (let i = 0; i < 3; i++) {
-    const tool = new THREE.Mesh(G.latheFromProfile([[0.006, 0], [0.006, 0.6], [0.014, 0.62], [0.01, 0.66], [0.016, 0.7], [0.0, 0.72]], 10), brass);
-    tool.position.set(0.72 + i * 0.03, 0.05, 0.42); tool.rotation.z = 0.08 - i * 0.05; g.add(tool);
+  // companion set: a weighted stand (round foot, turned stem, a crossbar with hooks) holding a poker,
+  // a shovel and tongs; blackened iron shafts, turned brass handles with ball finials
+  {
+    const set = new THREE.Group();
+    const blk = new THREE.MeshStandardMaterial({ color: 0x141210, roughness: 0.55, metalness: 0.7 });
+    set.add(new THREE.Mesh(G.latheFromProfile([[0, 0], [0.09, 0], [0.095, 0.01], [0.08, 0.02], [0.03, 0.035], [0.014, 0.05], [0, 0.05]], 24), brass));
+    const stem = new THREE.Mesh(G.latheFromProfile([[0.009, 0], [0.009, 0.55], [0.016, 0.57], [0.01, 0.6], [0.014, 0.62], [0, 0.66]], 12), brass);
+    stem.position.y = 0.04; set.add(stem);
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.16, 8), brass); bar.rotation.z = Math.PI / 2; bar.position.y = 0.6; set.add(bar);
+    const tools = [];
+    const handle = () => G.latheFromProfile([[0.0, 0], [0.008, 0], [0.012, 0.02], [0.009, 0.05], [0.013, 0.08], [0.011, 0.1], [0.018, 0.115], [0.0, 0.135]], 12);
+    for (const [k, x] of [[0, -0.06], [1, 0.0], [2, 0.06]]) {
+      const t = new THREE.Group();
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.5, 8), blk); shaft.position.y = 0.3; t.add(shaft);
+      const h = new THREE.Mesh(handle(), brass); h.position.y = 0.55; t.add(h);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.009, 0.0025, 6, 12), brass); ring.position.y = 0.56; t.add(ring);
+      if (k === 0) {   // poker: a point and a side hook
+        const tip = new THREE.Mesh(new THREE.ConeGeometry(0.007, 0.05, 8), blk); tip.rotation.x = Math.PI; tip.position.y = 0.03; t.add(tip);
+        const hook = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.004, 6, 12, Math.PI), blk); hook.position.set(0.018, 0.08, 0); hook.rotation.z = Math.PI; t.add(hook);
+      } else if (k === 1) {   // shovel: a dished blade
+        const blade = new THREE.Mesh(new G.RoundedBoxGeometry(0.1, 0.12, 0.006, 2, 0.003), blk); blade.position.y = 0.0; blade.rotation.x = 0.15; t.add(blade);
+        const lip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.004, 0.025), blk); lip.position.set(0, -0.055, 0.012); t.add(lip);
+      } else {   // tongs: two legs hinged under the handle, claw tips
+        for (const sx of [-1, 1]) {
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.48, 6), blk); leg.position.set(sx * 0.012, 0.29, 0); leg.rotation.z = sx * 0.03; t.add(leg);
+          const claw = new THREE.Mesh(new G.RoundedBoxGeometry(0.022, 0.03, 0.008, 2, 0.003), blk); claw.position.set(sx * 0.02, 0.04, 0); t.add(claw);
+        }
+      }
+      t.position.set(x, 0.06, 0.02); t.rotation.z = -x * 0.25;
+      set.add(t); tools.push(t);
+    }
+    set.position.set(0.78, 0.05, 0.4); set.rotation.y = -0.4;
+    g.add(set);
   }
   g.userData = { flames, coals, coalMat, bedMat, logMat, backMat, opening: { w: openW, h: openH } };
   return g;
