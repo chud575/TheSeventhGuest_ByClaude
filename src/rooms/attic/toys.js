@@ -580,3 +580,22 @@ export function buildNotebook(ctx, m, pageTex) {
   pen.position.y = 0.0045;
   return g;
 }
+
+/** a painted toy biplane, hung from the rafters on threads (origin = centre of gravity, nose +x) */
+export function buildBiplane(ctx, m) {
+  const { geometry: G } = ctx;
+  const g = new THREE.Group(); g.name = 'biplane';
+  const fus = mesh(lathe([[0, 0], [0.018, 0.0], [0.03, 0.03], [0.034, 0.08], [0.03, 0.2], [0.018, 0.3], [0.006, 0.34], [0, 0.345]], 18), m.toyRed);
+  fus.rotation.z = Math.PI / 2; fus.position.x = 0.12; g.add(fus);
+  for (const y of [-0.035, 0.06]) g.add(at(mesh(new G.RoundedBoxGeometry(0.11, 0.008, 0.5, 2, 0.003), m.toyGold), 0.06, y, 0));
+  for (const z of [-0.18, 0.18]) for (const x of [0.03, 0.09]) g.add(at(mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.095, 6), m.toyBlack), x, 0.012, z));
+  g.add(at(mesh(new G.RoundedBoxGeometry(0.06, 0.006, 0.18, 2, 0.002), m.toyGold), -0.19, 0.0, 0));
+  g.add(at(mesh(new G.RoundedBoxGeometry(0.06, 0.07, 0.006, 2, 0.002), m.toyRed), -0.2, 0.035, 0));
+  const prop = mesh(new G.RoundedBoxGeometry(0.006, 0.16, 0.014, 1, 0.003), m.handle); prop.position.x = 0.125; prop.rotation.x = 0.6; g.add(prop);
+  g.add(at(mesh(new THREE.SphereGeometry(0.008, 8, 6), m.brass), 0.127, 0, 0));
+  // wheels + struts
+  for (const z of [-0.05, 0.05]) { const w = mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.008, 14).rotateX(Math.PI / 2), m.toyBlack); w.position.set(0.07, -0.08, z); g.add(w); g.add(at(mesh(new THREE.CylinderGeometry(0.0025, 0.0025, 0.05, 5), m.toyBlack), 0.07, -0.058, z)); }
+  // roundels
+  for (const z of [-0.18, 0.18]) g.add(at(mesh(new THREE.CircleGeometry(0.025, 18).rotateX(-Math.PI / 2), m.toyBlue), 0.06, 0.0645, z));
+  return g;
+}

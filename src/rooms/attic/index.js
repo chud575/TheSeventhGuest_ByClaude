@@ -11,7 +11,7 @@ import { moonDiscTexture, oculusGrimeTexture, addDust, decalAtlasTexture, sootPl
 import { webMaterial, cornerWebTexture, cornerWeb, strand, dangle, buildMotes, sheetWeb, hammockWeb, hammockWebTexture } from './webs.js';
 import { createInfectionPuzzle, infectionMeta, INFECTION_ID } from './puzzleInfection.js';
 import { apparitionMaterial, buildApparition } from './apparition.js';
-import { buildDoll, buildRockingHorse, buildModelHouse, buildMarionette, buildJackInBox, buildMusicBox, buildBurr, buildPaintPots, buildScrews, buildNotebook, taperTube } from './toys.js';
+import { buildBiplane, buildDoll, buildRockingHorse, buildModelHouse, buildMarionette, buildJackInBox, buildMusicBox, buildBurr, buildPaintPots, buildScrews, buildNotebook, taperTube } from './toys.js';
 
 /**
  * Stauf's Attic — the finale.
@@ -764,7 +764,7 @@ export default {
     const LAMP_X = PLATE.x + 0.05, LAMP_Z = TRUSS_Z[0] + 0.11;
     const lamp = dyn(buildHangingLamp(ctx, mat, { drop: COLLAR_Y - 0.11 - 2.05 }));
     lamp.position.set(LAMP_X, COLLAR_Y - 0.11, LAMP_Z); add(lamp);
-    const lampFlame = fx.flame({ height: 0.045, width: 0.014, intensity: 4, seed: 11 });
+    const lampFlame = fx.flame({ height: 0.045, width: 0.014, intensity: 2.6, seed: 11 });
     lampFlame.position.set(0, lamp.userData.flameY, 0); lamp.add(lampFlame);
     const LAMP_Y = COLLAR_Y - 0.11 + lamp.userData.flameY + 0.04;
 
@@ -872,6 +872,18 @@ export default {
       sheeted({ hw: 0.4, hd: 0.35, topH: pileTop, seed: 21, seg: 110, flare: 0.08, hem: 0.12, foldAmp: 2.6 }, turnedLeg, 0.06, [-3.15, 0, -4.6], 0.3);
     }
 
+    // ================================================================ things hung from the timbers: marionettes on the front collar, a toy biplane
+    {
+      const yC = COLLAR_Y - 0.11;
+      [[-0.95, 0.3, 0.1], [-0.6, -0.4, -0.06], [1.15, 0.9, 0.08]].forEach(([x, ry, rz], i) => {
+        const mr = buildMarionette(ctx, mat); mr.position.set(x, yC - 0.18 - i * 0.05, TRUSS_Z[1] + 0.11); mr.rotation.set(0, ry, rz); add(dyn(mr));
+        add(strandLine(V3(x, yC, TRUSS_Z[1] + 0.11), V3(x, yC - 0.18 - i * 0.05, TRUSS_Z[1] + 0.11)));
+      });
+      const bp = buildBiplane(ctx, mat); bp.position.set(-1.05, 2.12, TRUSS_Z[0] + 0.11); bp.rotation.set(0.05, 0.6, -0.12); add(dyn(bp));
+      for (const dz of [-0.18, 0.18]) add(strandLine(V3(-1.05 + dz * 0.55, yC, TRUSS_Z[0] + 0.11 + dz * 0.6), V3(-1.05 + 0.06 * 0.8 + dz * 0.55, 2.12 + 0.065, TRUSS_Z[0] + 0.11 + dz * 0.8)));
+      ctx.onUpdate((dt, t) => { bp.rotation.y = 0.6 + Math.sin(t * 0.25) * 0.15; });
+    }
+
     // ================================================================ cobwebs
     const ocC = V3(OCULUS.x, OCULUS.y, Z0 - WALL_T / 2);
     const moonAim = V3(PLATE.x + 0.15, 0.0, -0.4);
@@ -898,6 +910,20 @@ export default {
         const za = z + RAFTER.w / 2, zb = z + RAFTER.step - RAFTER.w / 2;
         add(hammockWeb(rafterUnder(s2, xa, za), rafterUnder(s2, xb, za), V3(0, 0, zb - za), sag, hm[i % 2]));
       });
+      // silk strung between the lamp chain and the rear collar, glowing amber in the lamp light
+      add(sheetWeb(V3(LAMP_X + 0.01, COLLAR_Y - 0.11, LAMP_Z), V3(0.62, 0, 0), V3(0, -0.5, 0), 0.08, wm[1], { down: V3(0, 0, 1) }));
+      add(sheetWeb(V3(LAMP_X - 0.01, COLLAR_Y - 0.11, LAMP_Z), V3(-0.45, 0, 0), V3(0, -0.36, 0), 0.06, wm[3], { down: V3(0, 0, -1) }));
+      // webs at the rafter feet and under the low eaves, picked out by the lanterns set down there
+      const lanternWeb = (pos, k) => webMaterial({ map: webTex[k], beam: beamSpec, beamK, opacity: 0.6, time: ctx.time, base: 0x3a404c, warm: { pos, radius: 1.5, color: new THREE.Color(1.0, 0.6, 0.28).multiplyScalar(0.55) } });
+      const lwL = lanternWeb(V3(-2.85, 0.35, -1.95), 0), lwR = lanternWeb(V3(2.58, 0.2, -1.2), 2), lwF = lanternWeb(V3(-2.92, 0.62, 0.45), 3);
+      for (const [z, m2, k] of [[-2.68, lwL, 0], [-1.48, lwL, 1], [0.32, lwF, 2], [-0.88, lwF, 3]]) {
+        const za = z + RAFTER.w / 2, zb = z + RAFTER.step - RAFTER.w / 2;
+        add(sheetWeb(rafterUnder(-1, -(HALF - 0.12), za), V3(0, 0, zb - za), sideU(-1).multiplyScalar(0.5 + 0.1 * k), 0.14, m2, { down: V3(0.3, -1, 0).normalize() }));
+      }
+      for (const [z, k] of [[-1.48, 0], [-0.28, 1], [-2.08, 2]]) {
+        const za = z + RAFTER.w / 2, zb = z + RAFTER.step - RAFTER.w / 2;
+        add(sheetWeb(rafterUnder(1, HALF - 0.12, za), V3(0, 0, zb - za), sideU(1).multiplyScalar(0.55 + 0.1 * k), 0.14, lwR, { down: V3(-0.3, -1, 0).normalize() }));
+      }
       // a great sheet under the gable collar tie, strung back to the brickwork: right in the moonbeam
       {
         const cy2 = 3.08 - 0.07, cz2 = Z0 + 0.72;

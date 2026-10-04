@@ -396,7 +396,7 @@ void surface(vec2 uv, inout Surface s) {
  */
 export function brickTexture(forge, { key = 'brick', base = [0.42, 0.235, 0.175], mortar = [0.55, 0.5, 0.43], bloom = 0.7, missing = 0.012, size = 2048 } = {}) {
   return forge.generate(`attic:${key}`, {
-    size, normalStrength: 3.2,
+    size, normalStrength: 2.2,
     uniforms: { uBase: base, uMortar: mortar, uBloom: bloom, uMissing: missing },
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
@@ -418,11 +418,12 @@ void surface(vec2 uv, inout Surface s) {
   vec2 dm = min(f, 1.0 - f) * bs - inset;
   float e = min(dm.x, dm.y) + rag;
   // chipped arrises / corners
-  float chip = smoothstep(0.55, 0.85, fbmv(uv, vec2(140.0), 3)) * 0.006;
+  float chip = smoothstep(0.6, 0.9, fbmv(uv, vec2(140.0), 3)) * 0.004;
   float corner = length(max(vec2(0.012) - min(f, 1.0 - f) * bs, 0.0)) * step(0.6, h5) * 0.6;
   e -= chip + corner;
   float mortarM = 1.0 - smoothstep(0.0, 0.0012, e);
-  float arris = smoothstep(0.0, 0.007, e);
+  float arris = smoothstep(-0.001, 0.014, e);
+  float hM = 1.0 - smoothstep(-0.0015, 0.0045, e);   // a softer step for the height: a bedded, rounded joint, not a cliff
   // brick body colour: three clays + clinkers, ±15% value
   vec3 clayA = uBase, clayB = uBase * vec3(1.18, 1.1, 1.0), clayC = uBase * vec3(0.85, 0.72, 0.68);
   vec3 bc = mix(mix(clayA, clayB, step(0.45, h1)), clayC, step(0.78, h2));
@@ -463,10 +464,10 @@ void surface(vec2 uv, inout Surface s) {
   s.albedo = col;
   float proud = (h1 - 0.5) * 0.08;
   float mdepth = 0.22 + 0.12 * hash12(id + 41.0);          // mortar raked to different depths
-  s.height = mix(0.7 + proud + mott * 0.08 - pit * 0.06 - (1.0 - arris) * 0.12, mdepth + md * 0.05, mortarM) - gone * 0.55 * (1.0 - mortarM);
+  s.height = mix(0.7 + proud + mott * 0.08 - pit * 0.06 - (1.0 - arris) * 0.05, mdepth + md * 0.05, hM) - gone * 0.55 * (1.0 - mortarM);
   s.rough = mix(mix(0.78 + 0.14 * h2, 0.66, clinker) + bloom * 0.1, 0.96, mortarM);
   s.metal = 0.0;
-  s.ao = mix(mix(1.0, 0.85, 1.0 - arris), 0.62, mortarM) * (1.0 - gone * 0.6);
+  s.ao = mix(mix(1.0, 0.93, 1.0 - arris), 0.72, mortarM) * (1.0 - gone * 0.6);
 }`,
   });
 }
