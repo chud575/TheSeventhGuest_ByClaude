@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { baizeTexture, chessboardTexture, furTexture, nightSkyTexture, ballAtlas, cardAtlas, CARD_FACES, marbleNeroTexture, logTextures, sootTexture, antlerTexture, cofferTexture, huntPaintingTexture, ivoryTexture, persianRugTexture, castIronTexture, majolicaTileTexture } from './textures.js';
 import { buildStag2, buildBoar2 } from './trophy2.js';
 import { trophyMaterials } from './trophyMats.js';
+import { marblePortoroTexture, flockDamask4Texture, boxwood2Texture, rainGlassTexture, herringboneTexture } from './textures3.js';
 import { flockDamaskTexture, hairStrandTexture, glassEyeTexture, boxwoodTexture, marbleNero3Texture, oilPortraitTexture, engravingTexture, clubLeatherTexture, treeSilhouetteTexture } from './textures2.js';
 import { clippedShaft, hazeCone } from './fx.js';
 import {
@@ -42,7 +43,7 @@ const STAG_Z = -2.62;
 const BOAR_Y = 2.47;                               // 0.25 m clear of the frieze
 const CARD = new THREE.Vector3(2.05, 0, 2.55);
 const BOARD = 0.6, FIELD = BOARD * 0.76;
-const ROOM_GRADE = { exposure: 2.1, contrast: 1.1, saturation: 0.84, shadowTint: [0.92, 1.0, 1.01], highlightTint: [1.07, 1.0, 0.88], splitAmount: 0.5, bloomStrength: 0.24, bloomThreshold: 1.75, godRayWeight: 0.24, godRayThreshold: 3.0, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4 };
+const ROOM_GRADE = { exposure: 2.8, contrast: 1.06, saturation: 0.86, shadowTint: [0.86, 1.04, 1.0], highlightTint: [1.09, 1.0, 0.84], splitAmount: 0.6, lift: [0.007, 0.011, 0.01], gamma: [1.04, 1.05, 1.04], bloomStrength: 0.24, bloomThreshold: 1.75, godRayWeight: 0.24, godRayThreshold: 3.0, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4 };
 
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 const V2 = (x, y) => new THREE.Vector2(x, y);
@@ -82,13 +83,19 @@ export default {
     const mkBaize = (set, tint = 1) => new THREE.MeshPhysicalMaterial({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, aoMap: set.ormMap, roughness: 1, metalness: 0, sheen: 0.5, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.25, 0.62, 0.36), color: new THREE.Color(tint, tint, tint), envMapIntensity: 0.3, name: 'baize' });
     const mat = {
       wall: (() => {
-        // dense flock damask, bottle green: velvet flock motif on a satin ground, 0.35 m repeat
-        const t = flockDamaskTexture(ctx.textures).withRepeat(1 / 0.35, 1 / 0.35);
-        return new THREE.MeshPhysicalMaterial({ map: t.map, normalMap: t.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), roughnessMap: t.ormMap, aoMap: t.ormMap, roughness: 1, metalness: 0,
-          sheen: 0.6, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.1, 0.17, 0.11), envMapIntensity: 0.35, color: new THREE.Color(1.25, 1.2, 1.15), name: 'flockDamask' });
+        // small pomegranate flock damask in an ogee lattice, bottle green on green (0.21 x 0.3 m cell); the flock is
+        // velvet (rough, dark-green sheen through a motif mask) so the pattern reads mostly at grazing angles
+        const t = flockDamask4Texture(ctx.textures).withRepeat(1 / 0.21, 1 / 0.3);
+        const mk = flockDamask4Texture(ctx.textures, { mask: true }).withRepeat(1 / 0.21, 1 / 0.3);
+        return new THREE.MeshPhysicalMaterial({ map: t.map, normalMap: t.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: t.ormMap, aoMap: t.ormMap, roughness: 1, metalness: 0,
+          sheen: 0.5, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.1, 0.24, 0.13), sheenColorMap: mk.map, envMapIntensity: 0.35, color: new THREE.Color(1.3, 1.26, 1.2), name: 'flockDamask' });
       })(),
       ceiling: M.create('plaster', { color: [0.06, 0.08, 0.15], cracks: 0.25, stains: 0.45, repeat: [0.5, 0.5] }),
-      floor: M.create('parquet', { species: 'oak', ratio: 5, planksAcross: 2, repeat: [1.0, 1.0], polish: 0.2, wear: 0.85, tint: [0.86, 0.85, 0.97], color: [0.54, 0.48, 0.46], clearcoat: 0.12, clearcoatRoughness: 0.5, macro: 0.6, macroScale: 1.4 }),
+      floor: (() => {
+        // oak herringbone, 70 x 350 mm blocks, per-block tint / grain / wax, 1 mm joints, under a thin worn wax coat
+        const t = herringboneTexture(ctx.textures).withRepeat(1 / 0.7, 1 / 0.7);
+        return new THREE.MeshPhysicalMaterial({ map: t.map, normalMap: t.normalMap, normalScale: new THREE.Vector2(0.8, 0.8), roughnessMap: t.ormMap, aoMap: t.ormMap, roughness: 1, metalness: 0, clearcoat: 0.18, clearcoatRoughness: 0.42, envMapIntensity: 0.5, color: new THREE.Color(0.78, 0.72, 0.7), name: 'herringbone' });
+      })(),
       wood: M.create('mahogany', { repeat: [1.4, 1.4], color: [0.6, 0.4, 0.34] }),
       panel: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.6, repeat: [1.1, 1.1], clearcoat: 0.25, clearcoatRoughness: 0.45, color: [0.34, 0.22, 0.19] }),
       tableWood: M.create('mahogany', { repeat: [1.6, 1.6], color: [0.5, 0.31, 0.26] }),
@@ -134,13 +141,15 @@ export default {
     {
       // re-authored nero: wide soft veins + sparse fine ones, white-grey, ~10% cover; three seeded variants so
       // neighbouring slabs do not repeat the same figure
-      const neroV = [0, 1, 2].map((k) => marbleNero3Texture(ctx.textures, { key: `gameroom:nero3:${k}`, seed: k * 1.7 }));
-      const mk = (rep, tint = 1, k = 0) => { const t = neroV[k].withRepeat(rep, rep); return new THREE.MeshPhysicalMaterial({ map: t.map, normalMap: t.normalMap, normalScale: new THREE.Vector2(0.5, 0.5), roughnessMap: t.ormMap, roughness: 1, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.3, envMapIntensity: 0.6, color: new THREE.Color(tint, tint, tint), name: `nero${k}` }); };
+      const neroV = [0, 1, 2].map((k) => marblePortoroTexture(ctx.textures, { key: `gameroom:portoro2:${k}`, seed: k * 1.7 }));
+      const mk = (rep, tint = 1, k = 0) => { const t = neroV[k].withRepeat(rep, rep); return new THREE.MeshPhysicalMaterial({ map: t.map, roughnessMap: t.ormMap, roughness: 1.05, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.2, envMapIntensity: 0.55, color: new THREE.Color(tint, tint, tint), name: `nero${k}` }); };
       mat.marble = mk(1.4); mat.marbleDark = mk(1.9, 0.85, 1);
       mat.marbleVariants = [mat.marble, mk(1.4, 1, 1), mk(1.4, 1, 2)];
       const logs = logTextures(ctx.textures);
       const lb = logs.bark.withRepeat(1, 1);
-      mat.log = new THREE.MeshStandardMaterial({ map: lb.map, normalMap: lb.normalMap, roughness: 0.95, emissive: new THREE.Color(1, 1, 1), emissiveMap: logs.ember.map, emissiveIntensity: 2.2, name: 'log' });
+      mat.log = new THREE.MeshStandardMaterial({ map: lb.map, normalMap: lb.normalMap, normalScale: new THREE.Vector2(1.6, 1.6), roughness: 0.95, color: new THREE.Color(1.1, 1.0, 0.95), name: 'logBark' });
+      // charred underside and split ends: near-black char, the fissure mask glowing orange
+      mat.logEmber = new THREE.MeshStandardMaterial({ map: lb.map, normalMap: lb.normalMap, normalScale: new THREE.Vector2(1.6, 1.6), roughness: 0.95, color: new THREE.Color(0.35, 0.3, 0.28), emissive: new THREE.Color(1, 1, 1), emissiveMap: logs.ember.map, emissiveIntensity: 2.2, name: 'logEmber' });
       const soot = sootTexture(ctx.textures);
       mat.soot = new THREE.MeshStandardMaterial({ map: soot.map, normalMap: soot.normalMap, roughness: 0.95, name: 'soot' });
       // shields: the room's dark walnut (~#3a1f12) under a clearcoat, not orange
@@ -148,8 +157,9 @@ export default {
       mat.shieldWalnut = new THREE.MeshPhysicalMaterial({ map: wal.map, normalMap: wal.normalMap, roughnessMap: wal.roughnessMap, color: new THREE.Color(0.36, 0.25, 0.2), roughness: 0.6, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.3, envMapIntensity: 0.08, name: 'shieldWalnut' });
       const iv = ivoryTexture(ctx.textures).withRepeat(1, 1);
       const bx = boxwoodTexture(ctx.textures).withRepeat(1, 1);
-      // turned, waxed boxwood (~#d8bf8c): long grain + turning rings, low wax clearcoat, crevice tone from vertex colours
-      mat.queenIvory = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(1.0, 0.97, 0.92), map: bx.map, normalMap: bx.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), roughnessMap: bx.ormMap, roughness: 1.0, metalness: 0, vertexColors: true, clearcoat: 0.3, clearcoatRoughness: 0.35, envMapIntensity: 0.6, name: 'queenBoxwood' });
+      // carved, waxed boxwood: vertical grain on a cylindrical uv, wax clearcoat, crevices darkened from vertex colours
+      const bx2 = boxwood2Texture(ctx.textures).withRepeat(1, 1);
+      mat.queenIvory = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(1.0, 0.95, 0.88), map: bx2.map, normalMap: bx2.normalMap, normalScale: new THREE.Vector2(0.5, 0.5), roughnessMap: bx2.ormMap, roughness: 0.9, metalness: 0, vertexColors: true, clearcoat: 0.5, clearcoatRoughness: 0.25, sheen: 0.25, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.6, 0.45, 0.25), envMapIntensity: 0.7, name: 'queenBoxwood' });
     }
 
     // ================================================================ shell
@@ -301,6 +311,32 @@ export default {
       }
     }, { tile: false });
     const frostMat = new THREE.MeshStandardMaterial({ map: frostTex, transparent: true, depthWrite: false, roughness: 0.6, color: 0xdfe8ff, emissive: 0x2a3a60, emissiveIntensity: 0.6, name: 'frost' });
+    // the view out, in three parallax layers: sky and cloud 30 m off, the elms 8 m off, a near branch 2 m off
+    const paneGlass = (() => {
+      const rg = rainGlassTexture(ctx.textures).withRepeat(1, 1);
+      return new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.12, roughness: 0.05, metalness: 0, normalMap: rg.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), envMapIntensity: 1.4, clearcoat: 1, clearcoatRoughness: 0.03, depthWrite: false, name: 'paneGlass' });
+    })();
+    {
+      const skyFar = new THREE.Mesh(new THREE.PlaneGeometry(12, 16), skyMat);
+      skyFar.position.set(-0.3, 3.7, Z0 - 30); skyFar.userData.noShadow = true; skyFar.userData.noBake = true; skyFar.renderOrder = -3; root.add(skyFar);
+      const tt = treeSilhouetteTexture(ctx.textures, { aspect: 0.75, key: 'gameroom:trees8m' });
+      const elms = new THREE.Mesh(new THREE.PlaneGeometry(7.5, 10), new THREE.MeshBasicMaterial({ map: tt.map, transparent: true, depthWrite: false, color: new THREE.Color(9, 10.5, 13.5), toneMapped: false, name: 'elms8m' }));
+      elms.position.set(-1.2, 3.0, Z0 - 8); elms.userData.noShadow = true; elms.userData.noBake = true; elms.renderOrder = -2; root.add(elms);
+    }
+    const branchTex = ctx.textures.canvas('gameroom:branch', 1024, 768, (c) => {
+      const rnd = ctx.random.fork('branch');
+      c.clearRect(0, 0, 1024, 768); c.lineCap = 'round'; c.strokeStyle = 'rgba(5,6,10,1)';
+      const limb = (x, y, ang, len, w, depth) => {
+        const x2 = x + Math.cos(ang) * len, y2 = y + Math.sin(ang) * len;
+        const mx = (x + x2) / 2 + (rnd.next() - 0.5) * len * 0.3, my = (y + y2) / 2 + (rnd.next() - 0.5) * len * 0.3;
+        c.lineWidth = w; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(mx, my, x2, y2); c.stroke();
+        if (depth <= 0 || len < 5) return;
+        const n = 2 + (rnd.next() < 0.4 ? 1 : 0);
+        for (let i = 0; i < n; i++) { const t = 0.45 + rnd.next() * 0.55; limb(x + (x2 - x) * t, y + (y2 - y) * t, ang + (rnd.next() - 0.5) * 1.3, len * (0.55 + rnd.next() * 0.2), Math.max(0.8, w * 0.6), depth - 1); }
+      };
+      limb(1030, 300, Math.PI + 0.15, 420, 26, 7);
+    }, { tile: false });
+    const branchMat = new THREE.MeshBasicMaterial({ map: branchTex, transparent: true, depthWrite: false, color: new THREE.Color(1, 1, 1), name: 'nearBranch' });
     for (const [k, wxW] of WIN.xs.entries()) {
       const s = S.back;
       const wx = lx.back(wxW);
@@ -321,7 +357,7 @@ export default {
       bar(WIN.w, 0.05, 0, WIN.h * 0.5, 0.06);
       bar(0.025, WIN.h, 0, WIN.h / 2, 0.03);
       for (const y of [WIN.h * 0.25, WIN.h * 0.75]) bar(WIN.w, 0.022, 0, y, 0.03);
-      const gl = new THREE.Mesh(new THREE.PlaneGeometry(WIN.w - 0.06, WIN.h - 0.06), mat.glass); gl.position.set(0, WIN.h / 2, 0.01); gl.userData.noShadow = true; sash.add(gl);
+      const gl = new THREE.Mesh(G.planeUV(WIN.w - 0.06, WIN.h - 0.06, 1 / 0.4), paneGlass); gl.position.set(0, WIN.h / 2, 0.01); gl.userData.noShadow = true; gl.userData.noBake = true; gl.renderOrder = 4; sash.add(gl);
       // hoar frost creeping in from the corners of each pane
       for (let pi = 0; pi < 8; pi++) {
         const pw2 = (WIN.w - 0.1) / 2, ph2 = (WIN.h - 0.1) / 4;
@@ -330,10 +366,12 @@ export default {
         fr.userData.noShadow = true; fr.renderOrder = 3; sash.add(fr);
       }
       sash.position.set(wx, WIN.sill, -WIN.depth * 0.55); s.grp.add(sash);
-      const trees = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 4.0), treeMat);
-      trees.position.set(wx + (k ? 0.5 : -0.3), WIN.sill + 1.0, -2.0); trees.userData.noShadow = true; trees.renderOrder = -1; s.grp.add(trees);
-      const card = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 5.6), skyMat);
-      card.position.set(wx + (k ? 0.9 : -0.6), WIN.sill + 1.1, -3.2); card.userData.noShadow = true; s.grp.add(card);
+      // a near branch 2 m beyond the glass, stirring in the wind (left window only; the right sees the elm)
+      if (k === 0) {
+        const br = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.0).translate(-1.3, 0, 0), branchMat);
+        br.position.set(wx + 1.2, WIN.sill + 1.65, -2.0 - WIN.depth); br.userData.noShadow = true; br.userData.noBake = true; br.userData.keep = true; br.renderOrder = -1; s.grp.add(br);
+        ctx.onUpdate((dt, t) => { br.rotation.z = 0.025 * Math.sin(t * 0.6) + 0.012 * Math.sin(t * 1.7 + 0.8); });
+      }
       // drapes: pinch-pleated velvet panels gathered by silk tiebacks, pooling on the boards
       const rodY = FRIEZE_Y - 0.1;
       for (const side of [-1, 1]) {
@@ -462,17 +500,8 @@ export default {
       const aoG = new THREE.PlaneGeometry(BR * 3.2, BR * 3.2).rotateX(-Math.PI / 2);
       for (const b of balls) { const d = new THREE.Mesh(aoG, aoM); d.position.set(b.position.x, BH + 0.0015, b.position.z); d.userData.noShadow = true; d.renderOrder = 2; ballGroup.add(d); b.userData.ao = d; }
     }
-    // a cue left lying on the cloth, a triangle and chalk on the rail
+    // the wooden triangle left by the foot spot, chalk on the rail (the cues are all back in the rack)
     {
-      const parts = cueGeometry(G, 1.46);
-      const cue = new THREE.Group();
-      cue.add(new THREE.Mesh(parts.butt, mat.ebony), new THREE.Mesh(parts.shaft, mat.maple), new THREE.Mesh(parts.ferrule, mat.ivory), new THREE.Mesh(parts.tip, mat.tip), new THREE.Mesh(parts.wrap, mat.leather));
-      cue.rotation.set(Math.PI / 2 - 0.03, 0, 0);
-      const holder = new THREE.Group(); holder.add(cue);
-      holder.rotation.y = Math.PI + 0.42;
-      holder.position.set(T.x - 0.02, BH + 0.016, T.z + 1.28);
-      cue.position.set(0, 0, 0);
-      add(holder);
       const tri = new THREE.Shape(); const R = 0.19;
       for (let i = 0; i < 3; i++) { const a = -Math.PI / 2 + (i / 3) * Math.PI * 2; i ? tri.lineTo(Math.cos(a) * R, Math.sin(a) * R) : tri.moveTo(Math.cos(a) * R, Math.sin(a) * R); }
       const th = new THREE.Path(); for (let i = 0; i < 3; i++) { const a = -Math.PI / 2 - (i / 3) * Math.PI * 2; i ? th.lineTo(Math.cos(a) * (R - 0.035), Math.sin(a) * (R - 0.035)) : th.moveTo(Math.cos(a) * (R - 0.035), Math.sin(a) * (R - 0.035)); }
@@ -493,7 +522,7 @@ export default {
     const boardY = gtable.userData.topY + 0.001;
     {
       const bset = chessboardTexture(ctx.textures, { inner: FIELD / BOARD });
-      const bm = new THREE.MeshPhysicalMaterial({ map: bset.map, normalMap: bset.normalMap, roughnessMap: bset.ormMap, roughness: 1, metalness: 0, clearcoat: 0.2, clearcoatRoughness: 0.55, envMapIntensity: 0.15, color: new THREE.Color(1.04, 0.98, 0.92), name: 'chessboard' });
+      const bm = new THREE.MeshPhysicalMaterial({ map: bset.map, normalMap: bset.normalMap, roughnessMap: bset.ormMap, roughness: 1, metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.14, envMapIntensity: 0.35, color: new THREE.Color(1.04, 0.98, 0.92), name: 'chessboard' });
       const top = new THREE.Mesh(new THREE.PlaneGeometry(BOARD, BOARD).rotateX(-Math.PI / 2), bm);
       top.position.set(C.x, boardY - 0.001, C.z); top.name = 'chessboard'; top.userData.keep = true; top.receiveShadow = true;
       add(top);
@@ -528,7 +557,7 @@ export default {
     const ci = castIronTexture(ctx.textures).withRepeat(3, 3);
     const tl = majolicaTileTexture(ctx.textures).withRepeat(1, 1);
     const fireMats = {
-      marble: mat.marble, marbleDark: mat.marbleDark, brick: mat.brick, soot: mat.soot, log: mat.log, brass: mat.bronze,
+      marble: mat.marble, marbleDark: mat.marbleDark, brick: mat.brick, soot: mat.soot, log: mat.log, logEmber: mat.logEmber, brass: mat.bronze,
       iron: new THREE.MeshStandardMaterial({ color: 0x141312, roughness: 0.55, metalness: 0.7, envMapIntensity: 0.5, name: 'blackIron' }),
       castIron: new THREE.MeshStandardMaterial({ map: ci.map, normalMap: ci.normalMap, normalScale: new THREE.Vector2(1.4, 1.4), roughnessMap: ci.ormMap, metalnessMap: ci.ormMap, roughness: 1, metalness: 1, envMapIntensity: 0.7, name: 'castIron' }),
       tile: new THREE.MeshPhysicalMaterial({ map: tl.map, normalMap: tl.normalMap, roughnessMap: tl.ormMap, roughness: 1, clearcoat: 0.8, clearcoatRoughness: 0.08, envMapIntensity: 0.9, name: 'majolica' }),
@@ -737,7 +766,7 @@ export default {
       const sc = buildSconce(ctx, { brass: mat.bronze, globe: mat.globe });
       sc.position.set(x, 1.95, 0.0); S[s].grp.add(sc);
       sc.updateWorldMatrix(true, false);
-      const l = new THREE.PointLight(0xffb070, 1.6, 5, 2);
+      const l = new THREE.PointLight(0xffb070, 3.2, 2.6, 2);
       root.updateMatrixWorld(true);
       const wp = sc.localToWorld(sc.userData.lightPos.clone()); l.position.copy(root.worldToLocal(wp)); root.add(l); sconceLights.push(l);
     }
@@ -753,10 +782,13 @@ export default {
     moon.shadow.bias = -0.0005; moon.shadow.normalBias = 0.02; moon.shadow.radius = Math.max(4, Q.shadowRadius || 0);
     moon.shadow.camera.near = 3; moon.shadow.camera.far = 22;
     root.add(moon, moon.target);
-    root.add(new THREE.HemisphereLight(0x323a48, 0x2a1c10, 0.92));
+    root.add(new THREE.HemisphereLight(0x34404e, 0x2e1e12, 1.6));
     // soft bounce: the lamp pool on the baize lifts the upper walls and ceiling, the hearth warms its corner
     root.add(fx.areaLight({ center: [T.x, 0.84, T.z], normal: [0.001, 1, 0.01], width: 1.3, height: 2.4, color: 0xc8b080, intensity: 0.55 }));
+    // warm bounce from the lamp's brass bar and the shade tops, lifting the coffers over the table
+    root.add(fx.areaLight({ center: [T.x, 1.95, T.z], normal: [0.001, 1, 0.002], width: 1.6, height: 2.6, color: 0xd8a868, intensity: 0.5 }));
     root.add(fx.areaLight({ center: [X1 - 0.7, 0.5, FIRE_Z], normal: [-1, 0.35, 0], width: 1.3, height: 0.9, color: 0xff9a52, intensity: 0.5 }));
+    root.add(fx.areaLight({ center: [-1.5, 0.05, -1.6], normal: [0.05, 1, 0.1], width: 1.6, height: 2.2, color: 0x8a9ab8, intensity: 0.45 }));
     for (const wx of WIN.xs) root.add(fx.areaLight({ center: [wx, WIN.sill + WIN.h / 2, Z0 - 0.1], normal: [0, -0.3, 1], width: WIN.w - 0.1, height: WIN.h - 0.1, color: 0xa6b6d4, intensity: 1.7 }));
     {
       const pls = new THREE.SpotLight(0xffc890, 1.5, 3, 0.75, 0.75, 2);
@@ -786,7 +818,9 @@ export default {
     // warm bounce off the rug and the floor around the table (the lamp pool spilling past the rails)
     for (const sx of [-1, 1]) { const b = new THREE.PointLight(0xc88a58, 0.9, 2.6, 2); b.position.set(T.x + sx * 1.15, 0.32, T.z + sx * 0.3); root.add(b); }
     // fire: low in the firebox, flickering +-25% at 2-4 Hz
-    const fireLight = new THREE.PointLight(0xff7c34, 5, 7, 2); fireLight.position.set(X1 - 0.48, 0.42, FIRE_Z); root.add(fireLight);
+    const fireLight = new THREE.PointLight(0xff7c34, 5, 7, 2); fireLight.position.set(X1 - 0.48, 0.42, FIRE_Z + 0.05); root.add(fireLight);
+    // a small, separately flickering light inside the firebox so the firebrick cheeks and back move with the flames
+    const cheekLight = new THREE.PointLight(0xff8a3a, 0.9, 0.9, 2); cheekLight.position.set(X1 - 0.27, 0.36, FIRE_Z - 0.08); root.add(cheekLight);
     {
       // dedicated narrow picture-light spots on the trophies: warm, from above and in front, so the antlers
       // rim-light and throw their shadow on the damask
@@ -802,7 +836,8 @@ export default {
     // card table oil lamp
     const oilLight = new THREE.PointLight(0xffa04a, 1.5, 4, 2); oilLight.position.set(CARD.x - 0.05, 1.0, CARD.z - 0.3); root.add(oilLight);
     // a candle left burning on the games table: warm fill on the chessboard
-    const chessCandle = fx.candle({ height: 0.065, radius: 0.012, light: true, lightIntensity: 1.0, lightDistance: 3, seed: 61, burn: 0.75 });
+    const chessCandle = fx.candle({ height: 0.065, radius: 0.012, light: true, lightIntensity: 1.0, lightDistance: 3, seed: 61, burn: 0.75, castShadow: true, shadowMapSize: 512 });
+    chessCandle.traverse((o) => { if (o.isPointLight && o.castShadow) { o.shadow.camera.far = 1.6; o.shadow.bias = -0.0015; o.shadow.normalBias = 0.004; o.shadow.radius = 4; } });
     {
       // a brass chamberstick: drip pan with a ring handle and a short socket
       const cs = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.05, 0], [0.054, 0.004], [0.052, 0.012], [0.046, 0.009], [0.016, 0.012], [0.011, 0.02], [0.011, 0.038], [0.016, 0.042], [0.013, 0.046], [0, 0.046]], 24), mat.brass);
@@ -845,6 +880,8 @@ export default {
       const ff = 1 + 0.14 * Math.sin(t * 2 * Math.PI * 2.3) + 0.08 * Math.sin(t * 2 * Math.PI * 3.7 + 1.3) + 0.05 * Math.sin(t * 2 * Math.PI * 2.9 + 4.0);
       fireLight.intensity = 4.6 * ff;
       fireLight.color.setRGB(1.0, 0.47 + 0.05 * (ff - 1), 0.19 + 0.04 * (ff - 1));
+      const fc = 1 + 0.22 * Math.sin(t * 2 * Math.PI * 3.1 + 2.2) + 0.12 * Math.sin(t * 2 * Math.PI * 5.3) + 0.08 * Math.sin(t * 2 * Math.PI * 1.7 + 0.4);
+      cheekLight.intensity = 0.9 * fc; cheekLight.position.z = FIRE_Z - 0.08 + 0.05 * Math.sin(t * 1.9);
       fire.userData.coalMat.emissiveIntensity = 0.7 * (0.85 + 0.3 * (ff - 0.75));
       fire.userData.logMat.emissiveIntensity = 2.2 * (0.8 + 0.4 * (0.5 + 0.5 * Math.sin(t * 1.3)) * ff);
       oilLight.intensity = 1.5 * (0.92 + 0.08 * Math.sin(t * 8.3) * Math.sin(t * 3.3 + 2));
@@ -861,7 +898,7 @@ export default {
       root.add(sh); shafts.push(sh);
     }
     lamp.userData.bulbs.forEach((b, i) => {
-      const hz = hazeCone({ top: 0.17, bottom: 0.62, height: 0.9, color: 0xffc27a, opacity: 0.009, seed: i * 3.7, time: ctx.time });
+      const hz = hazeCone({ top: 0.17, bottom: 0.66, height: 0.95, color: 0xffc27a, opacity: 0.022, seed: i * 3.7, time: ctx.time });
       hz.position.set(T.x, lampY + 0.03, T.z + b.z); add(hz);
     });
     const dust = root.add(fx.dust({ box: new THREE.Box3(V3(-3.0, 0.3, Z0 + 0.1), V3(0.4, 3.0, -1.6)), count: 1400, shafts, size: 0.0036, intensity: 1.3, ambient: 0.0 })) && root.children[root.children.length - 1];
@@ -879,6 +916,12 @@ export default {
       camera: { position: [C.x, boardY + 0.92, C.z + 0.64], target: [C.x, boardY, C.z + 0.1], fov: 40 },
       onSolved: async () => {
         ctx.state.set('gameroom.queensSolved', true);
+        // the candle flares and the bloom swells for a moment
+        {
+          const fl = chessCandle.userData.flame; const u0 = fl?.material?.uniforms?.uIntensity; const base = u0 ? u0.value : 0;
+          let tt = 0; const stop = ctx.onUpdate?.((dt) => { tt += dt; const k = Math.exp(-(((tt - 0.5) / 0.45) ** 2)); if (u0) u0.value = base * (1 + 1.4 * k); if (fl) fl.scale.setScalar(1 + 0.35 * k); if (tt > 2 && typeof stop === 'function') stop(); });
+          ctx.post.set({ bloomStrength: 0.42 }, 0.4); setTimeout(() => ctx.post.set({ bloomStrength: 0.18 }, 1.2), 900);
+        }
         ctx.audio.sfx?.('chime', { freq: 880 });
         await ctx.say({ text: 'Eight queens, and not one of them at another\'s throat. How very *unlike* a family.', speaker: 'stauf', speakerName: 'Stauf' });
       },

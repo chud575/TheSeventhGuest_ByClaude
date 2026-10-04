@@ -170,57 +170,98 @@ const FLAME_VERT = /* glsl */ `
 varying vec2 vUv;
 void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const FLAME_FRAG = /* glsl */ `
-uniform float uTime; uniform float uSeed; uniform float uIntensity;
+uniform float uTime; uniform float uSeed; uniform float uIntensity; uniform float uLean; uniform float uBlue;
 varying vec2 vUv;
 ${NOISE}
 vec3 ramp(float h) {
   // h: heat 0..1  -> deep red, orange, yellow, white-hot
-  vec3 c = mix(vec3(0.35, 0.03, 0.0), vec3(1.0, 0.25, 0.02), smoothstep(0.0, 0.35, h));
-  c = mix(c, vec3(1.0, 0.62, 0.15), smoothstep(0.3, 0.65, h));
-  c = mix(c, vec3(1.0, 0.92, 0.7), smoothstep(0.65, 1.0, h));
+  vec3 c = mix(vec3(0.3, 0.025, 0.0), vec3(1.0, 0.22, 0.02), smoothstep(0.0, 0.35, h));
+  c = mix(c, vec3(1.0, 0.58, 0.13), smoothstep(0.3, 0.65, h));
+  c = mix(c, vec3(1.0, 0.9, 0.66), smoothstep(0.68, 1.0, h));
   return c;
 }
 void main() {
-  vec2 p = vUv; float t = uTime;
-  // domain-warped, upward-scrolling fbm
-  vec3 q = vec3(p.x * 3.0, p.y * 2.2 - t * 1.6, uSeed + t * 0.25);
-  float w = grFbm(q);
-  float n = grFbm(vec3(p.x * 5.0 + (w - 0.5) * 1.6, p.y * 3.5 - t * 2.4, uSeed * 1.7));
-  float x = (p.x - 0.5) * 2.0 + (w - 0.5) * 0.7 * p.y;
-  // a ragged tongue profile: wide at the logs, licking to a point
-  float prof = (1.0 - p.y) * (0.75 + 0.25 * sin(p.y * 6.0 + uSeed));
-  float body = 1.0 - smoothstep(prof * 0.55, prof * 0.9 + 0.05, abs(x));
-  float heat = body * (1.25 - p.y * 1.1) * (0.55 + 0.75 * n);
-  heat -= smoothstep(0.45, 1.0, p.y) * (1.0 - n) * 0.9;
-  heat = clamp(heat, 0.0, 1.0) * smoothstep(0.0, 0.07, p.y);
-  float a = smoothstep(0.08, 0.35, heat);
-  vec3 c = ramp(heat) * uIntensity * a;
-  gl_FragColor = vec4(c, 1.0);
+  vec2 p = vUv;
+  float t = uTime * (0.85 + 0.3 * fract(uSeed * 0.731));
+  // two-level domain warp, scrolling upward faster than the flame body
+  vec3 q = vec3(p.x * 2.1, p.y * 1.5 - t * 1.25, uSeed + t * 0.18);
+  vec2 warp = vec2(grFbm(q), grFbm(q + vec3(5.2, 1.3, 2.7))) - 0.5;
+  vec2 pw = p + warp * vec2(0.42, 0.22) * (0.25 + p.y);
+  float n = grFbm(vec3(pw.x * 4.2, pw.y * 3.2 - t * 2.3, uSeed * 1.7));
+  float n2 = grFbm(vec3(pw.x * 9.0, pw.y * 6.0 - t * 3.4, uSeed * 2.9));
+  float x = (pw.x - 0.5) * 2.0 - uLean * p.y * p.y;
+  float prof = pow(max(1.0 - p.y, 0.0), 0.75);
+  float body = 1.0 - smoothstep(prof * 0.4, prof * 0.95 + 0.04, abs(x));
+  float heat = body * (1.25 - p.y * 1.05) * (0.45 + 0.75 * n + 0.2 * n2);
+  // the upper tongues tear off into separate licks
+  heat -= smoothstep(0.3, 1.0, p.y) * (1.0 - n) * 1.15;
+  heat = clamp(heat, 0.0, 1.0) * smoothstep(0.0, 0.05, p.y);
+  float a = smoothstep(0.05, 0.3, heat);
+  vec3 c = ramp(heat) * a;
+  // a narrow blue-violet band where the gas leaves the wood
+  float blue = smoothstep(0.0, 0.025, p.y) * (1.0 - smoothstep(0.04, 0.11, p.y)) * smoothstep(0.2, 0.7, body) * (0.6 + 0.4 * n2);
+  c = c * (1.0 - blue * 0.75) + vec3(0.22, 0.26, 1.0) * blue * uBlue;
+  gl_FragColor = vec4(c * uIntensity, 1.0);
 }`;
 
-/** A cluster of crossed flame sheets (3 planes, 60 degrees apart). Origin = base. */
-export function fireFlames({ width = 0.5, height = 0.42, count = 5, rnd, intensity = 3.2, time }) {
+/**
+ * A ragged fire: `count` overlapping flame sheets with randomised height (0.4-1.0x), lean, width, yaw and phase,
+ * so the tongues cross and merge instead of standing in a row. Origin = base (the top of the logs).
+ */
+export function fireFlames({ width = 0.5, height = 0.42, count = 16, rnd, intensity = 3.2, time }) {
   const g = new THREE.Group(); g.name = 'fireFlames';
   const mats = [];
   for (let i = 0; i < count; i++) {
-    const h = height * (0.55 + rnd.next() * 0.55), w = width / count * (1.6 + rnd.next() * 0.8);
+    // centre-weighted placement, tallest tongues near the middle of the grate
+    const u = (rnd.next() + rnd.next()) / 2;
+    const x = (u - 0.5) * width;
+    const centre = 1 - Math.abs(u - 0.5) * 1.4;
+    const h = height * (0.4 + 0.6 * rnd.next()) * (0.65 + 0.35 * centre);
+    const w = width * (0.22 + 0.2 * rnd.next());
     const mat = new THREE.ShaderMaterial({
       vertexShader: FLAME_VERT, fragmentShader: FLAME_FRAG,
-      uniforms: { uTime: time, uSeed: { value: i * 7.31 + rnd.next() * 10 }, uIntensity: { value: intensity * (0.8 + rnd.next() * 0.4) } },
+      uniforms: { uTime: time, uSeed: { value: i * 7.31 + rnd.next() * 10 }, uIntensity: { value: intensity * (0.45 + rnd.next() * 0.35) }, uLean: { value: (rnd.next() - 0.5) * 0.5 - x * 0.9 }, uBlue: { value: 0.5 + rnd.next() * 0.4 } },
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false,
     });
     mats.push(mat);
-    const x = -width / 2 + (i + 0.5) * (width / count) + (rnd.next() - 0.5) * 0.03;
-    for (let k = 0; k < 3; k++) {
-      const pl = new THREE.Mesh(new THREE.PlaneGeometry(w, h, 1, 1).translate(0, h / 2, 0), mat);
-      pl.rotation.y = (k / 3) * Math.PI + rnd.next() * 0.3;
-      pl.position.set(x, 0, (rnd.next() - 0.5) * 0.08);
-      pl.userData.noBake = true; pl.userData.noShadow = true; pl.renderOrder = 7;
-      g.add(pl);
-    }
+    const pl = new THREE.Mesh(new THREE.PlaneGeometry(w, h, 1, 1).translate(0, h / 2, 0), mat);
+    pl.rotation.y = (rnd.next() - 0.5) * 1.3;
+    pl.rotation.z = (rnd.next() - 0.5) * 0.12;
+    pl.position.set(x, (rnd.next() - 0.3) * 0.02, (rnd.next() - 0.5) * 0.1);
+    pl.userData.noBake = true; pl.userData.noShadow = true; pl.renderOrder = 7;
+    g.add(pl);
   }
   g.userData.keep = true; g.userData.noBake = true;
   g.userData.mats = mats;
+  return g;
+}
+
+const SMOKE_FRAG = /* glsl */ `
+uniform float uTime; uniform float uSeed; uniform float uOpacity;
+varying vec2 vUv;
+${NOISE}
+void main() {
+  vec2 p = vUv;
+  vec3 q = vec3(p.x * 2.0, p.y * 1.2 - uTime * 0.35, uSeed);
+  vec2 warp = vec2(grFbm(q), grFbm(q + vec3(3.1, 7.7, 1.9))) - 0.5;
+  float n = grFbm(vec3((p.x + warp.x * 0.5) * 3.0, (p.y + warp.y * 0.3) * 2.0 - uTime * 0.5, uSeed * 1.3));
+  float x = abs(p.x - 0.5 - warp.x * 0.25 * p.y) * 2.0;
+  float body = 1.0 - smoothstep(0.25 + 0.5 * p.y, 0.6 + 0.4 * p.y, x);
+  float a = body * smoothstep(0.35, 0.75, n) * smoothstep(0.0, 0.25, p.y) * (1.0 - smoothstep(0.7, 1.0, p.y)) * uOpacity;
+  gl_FragColor = vec4(vec3(0.018, 0.015, 0.013), a);
+}`;
+
+/** dark soot / smoke sheets rolling up off the flames into the flue (normal blending, darkens what is behind). */
+export function smokeSheets({ width = 0.4, height = 0.5, count = 3, rnd, time, opacity = 0.55 }) {
+  const g = new THREE.Group(); g.name = 'fireSmoke';
+  for (let i = 0; i < count; i++) {
+    const mat = new THREE.ShaderMaterial({ vertexShader: FLAME_VERT, fragmentShader: SMOKE_FRAG, uniforms: { uTime: time, uSeed: { value: 3.3 + i * 5.1 }, uOpacity: { value: opacity * (0.7 + 0.3 * rnd.next()) } }, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+    const pl = new THREE.Mesh(new THREE.PlaneGeometry(width * (0.8 + 0.3 * rnd.next()), height).translate(0, height / 2, 0), mat);
+    pl.rotation.y = (rnd.next() - 0.5) * 0.8; pl.position.set((rnd.next() - 0.5) * width * 0.3, 0, -0.03 - i * 0.025);
+    pl.userData.noBake = true; pl.userData.noShadow = true; pl.renderOrder = 6;
+    g.add(pl);
+  }
+  g.userData.keep = true; g.userData.noBake = true;
   return g;
 }
 

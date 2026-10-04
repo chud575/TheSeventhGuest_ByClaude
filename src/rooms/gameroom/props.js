@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { fireFlames, sparks } from './fx.js';
+import { fireFlames, sparks, smokeSheets } from './fx.js';
+import { vnoise3 } from '../../engine/lib/contrib/bedroom-sdf.js';
 
 /**
  * Game-room furniture and props, all modelled here: the billiard table and its
@@ -31,7 +32,7 @@ export function taperedTube(curve, segs, r0, r1, radial = 8) {
   }
   for (let i = 0; i < segs; i++) for (let j = 0; j < radial; j++) {
     const a = i * (radial + 1) + j, b = a + radial + 1;
-    idx.push(a, b, a + 1, b, b + 1, a + 1);
+    idx.push(a, a + 1, b, b, a + 1, b + 1);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -79,25 +80,74 @@ export function buildBilliardTable(ctx, mats, { seed = 7 } = {}) {
   const { PW, PL, BH, CUSH, RAIL, BALL_R } = TABLE;
   const g = new THREE.Group(); g.name = 'billiardTable';
   const ox = PW / 2 + CUSH + RAIL, oz = PL / 2 + CUSH + RAIL;
-  // slate bed + cloth
-  const bedW = PW + CUSH * 2 + 0.02, bedL = PL + CUSH * 2 + 0.02;
-  g.add(at(new THREE.Mesh(G.boxUV(bedW, 0.06, bedL, 1), mats.dark), 0, BH - 0.03, 0));
-  const cloth = new THREE.Mesh(G.planeUV(bedW, bedL, 1, 1, 1).rotateX(-Math.PI / 2), mats.baize);
-  cloth.position.y = BH + 0.0005; cloth.name = 'cloth'; g.add(cloth);
-  // pockets: dark holes + leather cups
+  // pockets (centres) — corner pockets sit on the diagonal, middle pockets cut back into the long rail
   const pockets = [];
   for (const sx of [-1, 1]) for (const sz of [-1, 0, 1]) pockets.push(V3(sx * (PW / 2 + (sz ? 0.012 : 0.03)), BH, sz * (PL / 2 + 0.012)));
-  const holeG = new THREE.CircleGeometry(0.058, 28).rotateX(-Math.PI / 2);
-  const cupG = G.latheFromProfile([[0.058, 0], [0.056, -0.04], [0.045, -0.09], [0.0, -0.11]].reverse(), 20);
+  const POCKET_R = 0.058;
+  /** walk a rectangle's boundary, pushing samples that fall in a pocket onto the pocket circle (out = union, in = difference) */
+  const pocketOutline = (hw, hl, out) => {
+    const pts = [];
+    const corners = [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]];
+    for (let e = 0; e < 4; e++) {
+      const [x0, z0] = corners[e], [x1, z1] = corners[(e + 1) % 4];
+      const L = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(L / 0.004);
+      const nx = (z1 - z0) / L, nz = -(x1 - x0) / L;          // outward normal (counter-clockwise walk)
+      for (let i = 0; i < n; i++) {
+        let x = x0 + (x1 - x0) * (i / n), z = z0 + (z1 - z0) * (i / n);
+        for (const c of pockets) {
+          const dx = x - c.x, dz = z - c.z;
+          if (dx * dx + dz * dz >= POCKET_R * POCKET_R) continue;
+          // solve |p + n t - c| = R for the outer (t > 0) or inner (t < 0) root
+          const b = dx * nx + dz * nz, cc = dx * dx + dz * dz - POCKET_R * POCKET_R;
+          const disc = Math.sqrt(Math.max(0, b * b - cc));
+          const t = out ? -b + disc : -b - disc;
+          x += nx * t; z += nz * t;
+        }
+        pts.push(new THREE.Vector2(x, z));
+      }
+    }
+    return pts;
+  };
+  // slate bed + cloth: the cloth is cut by the six pocket mouths
+  const bedW = PW + CUSH * 2 + 0.02, bedL = PL + CUSH * 2 + 0.02;
+  g.add(at(new THREE.Mesh(G.boxUV(bedW - 0.03, 0.05, bedL - 0.03, 1), mats.dark), 0, BH - 0.03, 0));
+  {
+    const cs0 = new THREE.Shape(pocketOutline(bedW / 2, bedL / 2, false));
+    const cg = new THREE.ShapeGeometry(cs0, 1);
+    cg.rotateX(Math.PI / 2);                                 // shape xy -> xz (y up after flip below)
+    cg.scale(1, -1, 1);
+    const P = cg.attributes.position, uvA = cg.attributes.uv;
+    for (let i = 0; i < P.count; i++) { P.setY(i, 0); uvA.setXY(i, P.getX(i), P.getZ(i)); }
+    cg.computeVertexNormals();
+    const nrm = cg.attributes.normal; let flip = nrm.getY(0) < 0;
+    if (flip) { const ix = cg.index.array; for (let i = 0; i < ix.length; i += 3) { const t2 = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t2; } cg.computeVertexNormals(); }
+    const cloth = new THREE.Mesh(cg, mats.baize);
+    cloth.position.y = BH + 0.0005; cloth.name = 'cloth'; g.add(cloth);
+  }
+  // pocket throats: leather liners seen from inside, dropping to a dark bottom
+  const linerMat = (mats.leather || mats.hole).clone(); linerMat.side = THREE.DoubleSide; linerMat.name = 'pocketLiner';
+  const throatG = new THREE.CylinderGeometry(POCKET_R, POCKET_R * 0.86, 0.17, 28, 1, true);
+  const bottomG = new THREE.CircleGeometry(POCKET_R * 0.86, 24).rotateX(-Math.PI / 2);
   for (const p of pockets) {
-    g.add(at(new THREE.Mesh(holeG, mats.hole), p.x, BH + 0.0012, p.z));
-    g.add(at(new THREE.Mesh(cupG, mats.hole), p.x, BH + 0.001, p.z));
+    g.add(at(new THREE.Mesh(throatG, linerMat), p.x, BH + 0.045 - 0.085, p.z));
+    g.add(at(new THREE.Mesh(bottomG, mats.hole), p.x, BH + 0.045 - 0.165, p.z));
+  }
+  // a faint chalk-blue smudge on the cloth by the head string
+  {
+    const smT = ctx.textures.canvas('gameroom:chalkSmudge', 128, 128, (c) => {
+      const rnd = ctx.random.fork('chalk');
+      c.clearRect(0, 0, 128, 128);
+      for (let i = 0; i < 60; i++) { const x = 64 + (rnd.next() - 0.5) * 70, y = 64 + (rnd.next() - 0.5) * 40, r = 4 + rnd.next() * 14; const gr = c.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(90,130,190,0.16)'); gr.addColorStop(1, 'rgba(90,130,190,0)'); c.fillStyle = gr; c.fillRect(0, 0, 128, 128); }
+    }, { tile: false });
+    const sm = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.14).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: smT, transparent: true, depthWrite: false, roughness: 1, name: 'chalkSmudge' }));
+    sm.position.set(0.12, BH + 0.0012, PL / 4 + 0.03); sm.rotation.y = 0.3; sm.userData.noShadow = true; sm.renderOrder = 2; g.add(sm);
   }
   // cushions: wedge profile extruded between pocket jaws
   const cs = new THREE.Shape();
-  cs.moveTo(0, -0.002); cs.lineTo(0.028, -0.002); cs.lineTo(CUSH, 0.026); cs.quadraticCurveTo(CUSH + 0.003, 0.036, CUSH - 0.006, 0.04); cs.lineTo(0, 0.043); cs.lineTo(0, -0.002);
+  // K-66 profile: under-cut face rising steeply to a rounded rubber nose at ~0.036 m (63% of ball height), crowned top
+  cs.moveTo(0, -0.002); cs.lineTo(0.02, -0.002); cs.bezierCurveTo(0.036, 0.008, CUSH - 0.004, 0.022, CUSH, 0.031); cs.bezierCurveTo(CUSH + 0.002, 0.036, CUSH - 0.001, 0.0395, CUSH - 0.006, 0.0405); cs.bezierCurveTo(0.03, 0.0425, 0.012, 0.0435, 0, 0.0438); cs.lineTo(0, -0.002);
   const cushion = (len) => {
-    const e = new THREE.ExtrudeGeometry(cs, { depth: len, bevelEnabled: false, curveSegments: 6 });
+    const e = new THREE.ExtrudeGeometry(cs, { depth: len, bevelEnabled: false, curveSegments: 14 });
     e.translate(0, 0, -len / 2);
     return G.applyBoxUVs(e, 1);
   };
@@ -119,7 +169,7 @@ export function buildBilliardTable(ctx, mats, { seed = 7 } = {}) {
   // top rail: bevelled mahogany ring
   {
     const s = rectShape(ox * 2, oz * 2, 0.05);
-    s.holes.push(rectPath(PW + CUSH * 2 - 0.004, PL + CUSH * 2 - 0.004));
+    s.holes.push(new THREE.Path(pocketOutline((PW + CUSH * 2 - 0.004) / 2, (PL + CUSH * 2 - 0.004) / 2, true).reverse()));
     const rail = new THREE.Mesh(slab(s, 0.05, 0.014, 3), mats.wood);
     rail.position.y = BH - 0.005; g.add(rail);
     // nosing under the rail
@@ -178,8 +228,6 @@ export function buildBilliardTable(ctx, mats, { seed = 7 } = {}) {
       // brass cap over the iron, standing proud of the leather
       const cap = new THREE.Mesh(ext(arcShape(0.083, 0.097, -span / 2 - 0.05, span / 2 + 0.05), 0.008, 0.002), mats.brass);
       cap.rotation.y = -outward; cap.position.set(p.x, BH + 0.043, p.z); g.add(cap);
-      // throat: dark leather cup dropping through the rail
-      g.add(at(new THREE.Mesh(G.latheFromProfile([[0.06, 0.05], [0.058, 0.0], [0.055, -0.05], [0.05, -0.09]].reverse(), 20), leather), p.x, BH - 0.0, p.z));
       // net bag hanging under the rail, outside the frieze at the corners and sides
       const nx = p.x + Math.sign(p.x) * (corner ? 0.115 : 0.135), nz = corner ? p.z + Math.sign(p.z) * 0.115 : 0;
       const bag = new THREE.Mesh(bagG, netMat); bag.position.set(nx, BH - 0.04, nz); bag.userData.noShadow = true; g.add(bag);
@@ -403,6 +451,45 @@ export function buildCueRack(ctx, mats, { cues = 7 } = {}) {
 }
 
 // ============================================================================ seating
+/**
+ * A moulded chair rail swept along `curve`: a chamfered rounded-square section w (in the plane of the back) x d
+ * (front-to-back), optionally with two carved bead lines on the front face. taper(t) scales the section.
+ */
+export function mouldedRail(curve, segs, w, d, { bead = 0, taper = null, radial = 28 } = {}) {
+  const pos = [], uv = [], idx = [];
+  const sec = [];
+  for (let j = 0; j <= radial; j++) {
+    const a = (j / radial) * Math.PI * 2;
+    const c = Math.cos(a), sn = Math.sin(a);
+    const e = 2 / 3.2;                                    // superellipse: chamfered, rounded-square
+    let x = Math.sign(c) * Math.abs(c) ** e * w / 2, y = Math.sign(sn) * Math.abs(sn) ** e * d / 2;
+    if (bead && y > 0) { const bx = Math.abs(x) / (w / 2); y -= d * 0.09 * Math.exp(-(((bx - 0.45) / 0.12) ** 2)); y += d * 0.05 * Math.exp(-((bx / 0.18) ** 2)); }
+    sec.push([x, y]);
+  }
+  const len = curve.getLength();
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    const p = curve.getPointAt(t), T = curve.getTangentAt(t).normalize();
+    // the back is roughly a plane facing +z: keep the section's "front" toward +z
+    const B0 = new THREE.Vector3(0, 0, 1);
+    const N = new THREE.Vector3().crossVectors(T, B0).normalize();
+    const B = new THREE.Vector3().crossVectors(N, T).normalize();
+    const k = taper ? taper(t) : 1;
+    for (let j = 0; j <= radial; j++) {
+      const [x, y] = sec[j];
+      pos.push(p.x + (N.x * x + B.x * y) * k, p.y + (N.y * x + B.y * y) * k, p.z + (N.z * x + B.z * y) * k);
+      uv.push(j / radial, t * len * 6);
+    }
+  }
+  for (let i = 0; i < segs; i++) for (let j = 0; j < radial; j++) { const a = i * (radial + 1) + j, b = a + radial + 1; idx.push(a, a + 1, b, b, a + 1, b + 1); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
 export function buildSideChair(ctx, mats) {
   const { geometry: G } = ctx;
   const g = new THREE.Group();
@@ -413,46 +500,47 @@ export function buildSideChair(ctx, mats) {
     g.add(at(new THREE.Mesh(legG, mats.wood), x, 0, 0.19));
     g.add(at(new THREE.Mesh(new G.RoundedBoxGeometry(0.038, 0.07, 0.038, 1, 0.004), mats.wood), x, 0.395, 0.19));
   }
-  // back legs: square-section sabre curve rising into the back uprights
+  // back legs: square-section sabre curve rising to the seat, where the moulded balloon back takes over
   for (const sx of [-1, 1]) {
-    const curve = new THREE.CatmullRomCurve3([V3(sx * 0.19, 0, -0.27), V3(sx * 0.19, 0.22, -0.21), V3(sx * 0.185, seatH, -0.19), V3(sx * 0.18, 0.66, -0.22), V3(sx * 0.17, 0.86, -0.26)]);
-    g.add(new THREE.Mesh(taperedTube(curve, 24, 0.016, 0.013, 8), mats.wood));
+    const curve = new THREE.CatmullRomCurve3([V3(sx * 0.19, 0, -0.27), V3(sx * 0.19, 0.22, -0.21), V3(sx * 0.185, seatH, -0.195), V3(sx * 0.182, seatH + 0.06, -0.2)]);
+    g.add(new THREE.Mesh(taperedTube(curve, 16, 0.016, 0.0155, 8), mats.wood));
   }
   // H-stretcher: turned side rails and a cross rail
   const strG = G.latheFromProfile([[0, 0], [0.008, 0], [0.01, 0.04], [0.007, 0.1], [0.011, 0.2], [0.007, 0.3], [0.01, 0.36], [0.008, 0.4], [0, 0.4]], 10);
   for (const sx of [-1, 1]) { const st = new THREE.Mesh(strG, mats.wood); st.rotation.x = Math.PI / 2; st.scale.y = 0.445 / 0.4; st.position.set(sx * 0.196, 0.14, -0.245 + 0.445); st.rotation.x = -Math.PI / 2; st.position.z = 0.2; g.add(st); }
   { const cr = new THREE.Mesh(strG, mats.wood); cr.rotation.z = Math.PI / 2; cr.scale.y = 0.39 / 0.4; cr.position.set(0.195, 0.15, -0.02); g.add(cr); }
-  // carved crest rail with a scrolled, shell-carved top
+  // balloon back: one continuous moulded rail (chamfered, a carved bead on the face) rising from the back legs,
+  // nipped in at the waist and swelling into the hoop, leaning back with a ~4 cm lumbar curve; a carved S-scroll
+  // middle rail with a patera boss at the waist, and a carved shell-and-leaf crest at the top
   {
-    const cs = new THREE.Shape();
-    cs.moveTo(-0.185, 0); cs.lineTo(0.185, 0); cs.bezierCurveTo(0.2, 0.035, 0.17, 0.075, 0.12, 0.07); cs.bezierCurveTo(0.07, 0.065, 0.045, 0.1, 0, 0.11);
-    cs.bezierCurveTo(-0.045, 0.1, -0.07, 0.065, -0.12, 0.07); cs.bezierCurveTo(-0.17, 0.075, -0.2, 0.035, -0.185, 0);
-    for (const sx of [-1, 1]) { const h = new THREE.Path(); h.absellipse(sx * 0.11, 0.038, 0.022, 0.014, 0, Math.PI * 2, true); cs.holes.push(h); }
-    const e = new THREE.ExtrudeGeometry(cs, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.005, bevelSize: 0.0045, bevelSegments: 4, curveSegments: 24 });
-    e.translate(0, 0, -0.007);
-    const crest = new THREE.Mesh(G.applyBoxUVs(e, 7), mats.carve || mats.wood); crest.position.set(0, 0.79, -0.252); crest.rotation.x = -0.18; g.add(crest);
-    // carved shell at the top centre
-    const sh = new THREE.Mesh(G.latheFromProfile([[0, 0.006], [0.012, 0.005], [0.022, 0.003], [0.028, 0]], 14, 0, Math.PI).rotateX(Math.PI / 2), mats.wood);
-    sh.material = mats.carve || mats.wood; sh.position.set(0, 0.875, -0.268); sh.rotation.x = -0.18; g.add(sh);
-  }
-  // pierced vase splat, 18 mm thick: a central vesica, a pair of C-scrolls and a tear-drop
-  {
-    const sp = new THREE.Shape();
-    sp.moveTo(-0.035, 0); sp.bezierCurveTo(-0.035, 0.05, -0.105, 0.08, -0.095, 0.16); sp.bezierCurveTo(-0.085, 0.24, -0.03, 0.25, -0.05, 0.31);
-    sp.lineTo(0.05, 0.31); sp.bezierCurveTo(0.03, 0.25, 0.085, 0.24, 0.095, 0.16); sp.bezierCurveTo(0.105, 0.08, 0.035, 0.05, 0.035, 0);
-    sp.lineTo(-0.035, 0);
-    const h1 = new THREE.Path(); h1.moveTo(0, 0.07); h1.bezierCurveTo(0.03, 0.11, 0.03, 0.16, 0, 0.2); h1.bezierCurveTo(-0.03, 0.16, -0.03, 0.11, 0, 0.07); sp.holes.push(h1);
+    const y0 = seatH + 0.05, y1 = 0.915;
+    const zb = (y) => { const u = Math.max(0, (y - y0) / (y1 - y0)); return -0.2 - 0.065 * u - 0.04 * Math.sin(Math.PI * Math.min(1, u * 1.1)); };
+    const half = [[0.182, y0], [0.178, y0 + 0.07], [0.15, 0.6], [0.138, 0.645], [0.155, 0.7], [0.178, 0.77], [0.172, 0.835], [0.135, 0.885], [0.07, 0.91], [0, 0.915]];
+    const pts = [...half.map(([x, y]) => V3(-x, y, zb(y))), ...half.slice(0, -1).reverse().map(([x, y]) => V3(x, y, zb(y)))];
+    const hoop = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+    g.add(new THREE.Mesh(mouldedRail(hoop, 160, 0.03, 0.026, { bead: 1 }), mats.carve || mats.wood));
+    // S-scroll middle rail
+    const mr = [V3(-0.14, 0.645, zb(0.645)), V3(-0.105, 0.628, zb(0.63)), V3(-0.06, 0.632, zb(0.632)), V3(-0.022, 0.652, zb(0.652)), V3(0, 0.656, zb(0.656))];
+    const mid = new THREE.CatmullRomCurve3([...mr, ...mr.slice(0, -1).reverse().map((p) => V3(-p.x, p.y, p.z))], false, 'centripetal');
+    g.add(new THREE.Mesh(mouldedRail(mid, 90, 0.022, 0.02, { taper: (t) => 0.8 + 0.35 * Math.abs(Math.cos(t * Math.PI * 2)) }), mats.carve || mats.wood));
+    // volutes where the scrolls turn in, and the patera boss
     for (const sx of [-1, 1]) {
-      const h = new THREE.Path();
-      h.moveTo(sx * 0.045, 0.1); h.bezierCurveTo(sx * 0.08, 0.12, sx * 0.08, 0.19, sx * 0.05, 0.215); h.bezierCurveTo(sx * 0.06, 0.18, sx * 0.06, 0.13, sx * 0.045, 0.1);
-      if (sx > 0) { const pts = h.getPoints(16).reverse(); const hp = new THREE.Path(pts); sp.holes.push(hp); } else sp.holes.push(h);
+      const vol = new THREE.Mesh(new THREE.TorusGeometry(0.014, 0.0052, 10, 24, Math.PI * 1.6), mats.carve || mats.wood);
+      vol.position.set(sx * 0.052, 0.643, zb(0.643) + 0.004); vol.rotation.set(-0.15, 0, sx > 0 ? 0.6 : Math.PI - 0.6 + Math.PI * 0.4); g.add(vol);
     }
-    const h2 = new THREE.Path(); h2.absellipse(0, 0.255, 0.012, 0.02, 0, Math.PI * 2, true); sp.holes.push(h2);
-    const e = new THREE.ExtrudeGeometry(sp, { depth: 0.01, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.003, bevelSegments: 4, curveSegments: 24 });
-    e.translate(0, 0, -0.005);
-    const splat = new THREE.Mesh(G.applyBoxUVs(e, 7), mats.carve || mats.wood); splat.position.set(0, seatH + 0.06, -0.218); splat.rotation.x = -0.14; g.add(splat);
-    // shoe rail the splat stands in
-    g.add(at(new THREE.Mesh(new G.RoundedBoxGeometry(0.12, 0.025, 0.035, 1, 0.006), mats.wood), 0, seatH + 0.055, -0.21));
+    const pat = G.latheFromProfile([[0, 0.012], [0.006, 0.0115], [0.012, 0.009], [0.017, 0.005], [0.02, 0.0015], [0.021, 0]], 40);
+    { const pp = pat.attributes.position; for (let i = 0; i < pp.count; i++) { const x = pp.getX(i), z = pp.getZ(i), r = Math.hypot(x, z); const a2 = Math.atan2(z, x); pp.setY(i, pp.getY(i) * (1 - 0.35 * Math.pow(0.5 + 0.5 * Math.cos(a2 * 10), 2) * Math.min(1, r / 0.008))); } pat.computeVertexNormals(); }
+    pat.rotateX(Math.PI / 2 - 0.25);
+    g.add(at(new THREE.Mesh(pat, mats.carve || mats.wood), 0, 0.652, zb(0.652) + 0.008));
+    // crest: a fluted shell flanked by two lobed leaves curling outward
+    const shell = new THREE.LatheGeometry([[0, 0.012], [0.01, 0.0115], [0.02, 0.009], [0.028, 0.005], [0.032, 0.0015], [0.033, 0]].map(([r, y]) => new THREE.Vector2(Math.max(r, 1e-4), y)), 36, Math.PI / 2, Math.PI);
+    { const pp = shell.attributes.position; for (let i = 0; i < pp.count; i++) { const x = pp.getX(i), z = pp.getZ(i); const a2 = Math.atan2(z, x); const r = Math.hypot(x, z); const k = 1 + 0.08 * Math.cos(a2 * 9) * Math.min(1, r / 0.01); pp.setXYZ(i, x * k, pp.getY(i) * (1 - 0.3 * (0.5 + 0.5 * Math.cos(a2 * 9))), z * k); } shell.computeVertexNormals(); }
+    shell.rotateX(Math.PI / 2); shell.rotateX(-0.3);
+    g.add(at(new THREE.Mesh(shell, mats.carve || mats.wood), 0, y1 - 0.004, zb(y1) + 0.006));
+    for (const sx of [-1, 1]) {
+      const lf = new THREE.CatmullRomCurve3([V3(sx * 0.02, y1 + 0.006, zb(y1) + 0.008), V3(sx * 0.05, y1 + 0.016, zb(y1) + 0.006), V3(sx * 0.08, y1 + 0.008, zb(y1)), V3(sx * 0.09, y1 - 0.006, zb(y1) - 0.002)]);
+      g.add(new THREE.Mesh(mouldedRail(lf, 24, 0.016, 0.009, { taper: (t) => Math.max(0.25, Math.sin(Math.PI * (0.15 + 0.85 * t))), bead: 1 }), mats.carve || mats.wood));
+    }
   }
   // seat rails with a serpentine, moulded front apron
   g.add(at(new THREE.Mesh(new G.RoundedBoxGeometry(0.44, 0.06, 0.42, 2, 0.01), mats.wood), 0, seatH - 0.05, -0.005));
@@ -681,6 +769,47 @@ function corbelShape(h, d) {
   return s;
 }
 
+/**
+ * A split log lying along X: furrowed bark pushed out of a cylinder with ridged noise, a ragged end. Two material
+ * groups: 0 = bark, 1 = char/ember (the underside facing the coals and both cut ends).
+ */
+export function logGeometry(r, l, seed = 0) {
+  const g0 = new THREE.CylinderGeometry(r, r * 0.95, l, 30, 14, false);
+  g0.rotateZ(Math.PI / 2);
+  const p = g0.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const rr = Math.hypot(y, z);
+    if (rr < 1e-5) continue;
+    const a = Math.atan2(z, y);
+    const fur = Math.abs(Math.sin(a * 7 + vnoise3(x * 9 + seed, Math.cos(a), Math.sin(a)) * 4));
+    const k = 1 + 0.07 * (fur - 0.5) + 0.05 * (vnoise3(x * 30 + seed * 3, Math.cos(a) * 3, Math.sin(a) * 3) - 0.5);
+    const endBulge = Math.abs(x) > l / 2 - 1e-4 ? 0.92 + 0.08 * vnoise3(y * 80, z * 80, seed) : 1;
+    p.setXYZ(i, x + (Math.abs(x) > l / 2 - 1e-4 ? Math.sign(x) * 0.006 * (vnoise3(y * 60, z * 60, seed) - 0.5) : 0), y * k * endBulge, z * k * endBulge);
+  }
+  const g = g0.toNonIndexed();
+  g.computeVertexNormals();
+  const P = g.attributes.position, N = g.attributes.normal;
+  const tri = P.count / 3;
+  const bark = [], ember = [];
+  for (let t = 0; t < tri; t++) {
+    let ny = 0, ax = 0;
+    for (let k = 0; k < 3; k++) { ny += N.getY(t * 3 + k); ax += Math.abs(N.getX(t * 3 + k)); }
+    const end = ax / 3 > 0.7;
+    (end || ny / 3 < -0.35 ? ember : bark).push(t);
+  }
+  const order = [...bark, ...ember];
+  const out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'uv']) {
+    const src = g.attributes[name], n = src.itemSize, arr = new Float32Array(order.length * 3 * n);
+    order.forEach((t, j) => { for (let k = 0; k < 3 * n; k++) arr[j * 3 * n + k] = src.array[t * 3 * n + k]; });
+    out.setAttribute(name, new THREE.BufferAttribute(arr, n));
+  }
+  out.addGroup(0, bark.length * 3, 0);
+  out.addGroup(bark.length * 3, ember.length * 3, 1);
+  return out;
+}
+
 export function buildFireplace(ctx, mats, { seed = 3 } = {}) {
   const { geometry: G } = ctx;
   const g = new THREE.Group(); g.name = 'fireplace';
@@ -794,18 +923,23 @@ export function buildFireplace(ctx, mats, { seed = 3 } = {}) {
   }
   coals.userData.noBake = true; coals.userData.keep = true;
   inner.add(coals);
-  const logMat = mats.log || new THREE.MeshStandardMaterial({ color: 0x1a120c, roughness: 0.95, emissive: new THREE.Color(0.9, 0.22, 0.04), emissiveIntensity: 0.3, name: 'log' });
-  const endMat = new THREE.MeshStandardMaterial({ color: 0x140c08, roughness: 0.9, emissive: new THREE.Color(1.0, 0.3, 0.06), emissiveIntensity: 0.6, name: 'logEnd' });
-  for (const [x, ry, y, r, l] of [[-0.04, 0.28, 0.17, 0.05, 0.5], [0.07, -0.32, 0.18, 0.046, 0.46], [0.01, 0.06, 0.255, 0.042, 0.44]]) {
-    const log = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.94, r, l, 16, 1, true), logMat);
-    log.rotation.z = Math.PI / 2; log.rotation.y = ry; log.position.set(x, y, -0.06); log.userData.keep = true; inner.add(log);
-    for (const e of [-1, 1]) { const cap = new THREE.Mesh(new THREE.CircleGeometry(r * (e > 0 ? 0.94 : 1), 16), endMat); cap.position.y = e * l / 2; cap.rotation.x = -Math.PI / 2 * e; log.add(cap); }
+  // logs: split oak with furrowed, displaced bark; glowing only where they are charred (underside + split ends)
+  const barkMat = mats.log;
+  const emberMat = mats.logEmber;
+  const endMat = emberMat;
+  const logMat = emberMat;
+  for (const [x, ry, y, r, l, sd] of [[-0.05, 0.3, 0.165, 0.052, 0.5, 1], [0.07, -0.34, 0.172, 0.047, 0.46, 2], [0.0, 0.05, 0.252, 0.043, 0.44, 3], [-0.13, -0.9, 0.12, 0.03, 0.26, 4]]) {
+    const lg = logGeometry(r, l, sd);
+    const log = new THREE.Mesh(lg, [barkMat, emberMat]);
+    log.rotation.y = ry; log.position.set(x, y, -0.06); log.userData.keep = true; log.userData.noBake = true; inner.add(log);
   }
-  const flames = fireFlames({ width: 0.44, height: 0.44, count: 6, rnd, intensity: 2.4, time: ctx.time });
-  flames.position.set(0, 0.17, -0.05); inner.add(flames);
-  const back2 = fireFlames({ width: 0.36, height: 0.3, count: 4, rnd, intensity: 1.5, time: ctx.time });
-  back2.position.set(0.02, 0.2, -0.12); inner.add(back2);
-  const sp = sparks({ count: 22, width: 0.36, depth: 0.12, height: 0.6, rnd, time: ctx.time }); sp.position.set(0, 0.25, -0.05); inner.add(sp);
+  const flames = fireFlames({ width: 0.46, height: 0.5, count: 16, rnd, intensity: 2.6, time: ctx.time });
+  flames.position.set(0, 0.19, -0.05); inner.add(flames);
+  const back2 = fireFlames({ width: 0.38, height: 0.32, count: 6, rnd, intensity: 1.4, time: ctx.time });
+  back2.position.set(0.01, 0.21, -0.11); inner.add(back2);
+  const smoke = smokeSheets({ width: 0.42, height: 0.48, count: 3, rnd, time: ctx.time, opacity: 0.6 });
+  smoke.position.set(0, 0.42, -0.1); inner.add(smoke);
+  const sp = sparks({ count: 10, width: 0.36, depth: 0.12, height: 0.6, rnd, time: ctx.time }); sp.position.set(0, 0.25, -0.05); inner.add(sp);
   // ------------------------------------------------ andirons (fire-dogs): iron legs and bar, brass urn finials
   for (const sx of [-1, 1]) {
     const fd = new THREE.Group();
@@ -838,7 +972,7 @@ export function buildFireplace(ctx, mats, { seed = 3 } = {}) {
     }
     fi.position.set(-0.98, 0.05, 0.52); g.add(fi);
   }
-  g.userData = { flames, coals, coalMat, logMat, endMat, Hm, openW, openH, W, D };
+  g.userData = { flames, coals, coalMat, logMat, endMat, barkMat, Hm, openW, openH, W, D };
   return g;
 }
 

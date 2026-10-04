@@ -39,7 +39,7 @@ function latheAO(prof, segs, s) {
     const [r0, y0] = prof[j - 1], [r1, y1] = prof[j + 1];
     const c = r - (r0 + r1) / 2;
     const span = Math.hypot(r1 - r0, y1 - y0) + 1e-6;
-    return 1 - 0.5 * Math.min(1, Math.max(0, -c / span) * 6);
+    return Math.max(0.25, 1 - 1.0 * Math.min(1, Math.max(0, -c / span) * 6));
   });
   // soften
   const aos = ao.map((v, j) => (j > 0 && j < n - 1 ? (ao[j - 1] + 2 * v + ao[j + 1]) / 4 : v));
@@ -68,44 +68,51 @@ export function queenGeometry(G, s = 1) {
     [0.0108, 0.0615], [0.0112, 0.0622], [0.0104, 0.0629],                              // smaller upper ring
     [0.0084, 0.0634], [0.0080, 0.0645],
     [0.0088, 0.0668], [0.0102, 0.0700], [0.0120, 0.0735], [0.0138, 0.0765], [0.0150, 0.0786],  // flared cup
-    [0.0156, 0.0796], [0.0158, 0.0802], [0.0, 0.0802],
+    [0.0156, 0.0796], [0.0161, 0.0806],                                                 // crown band
+    [0.0166, 0.0830], [0.0171, 0.0862], [0.0175, 0.0896], [0.0174, 0.0908],            // outer wall of the coronet
+    [0.0168, 0.0916], [0.0158, 0.0917], [0.0151, 0.0910],                              // rounded lip
+    [0.0146, 0.0880], [0.0138, 0.0848], [0.0128, 0.0826],                              // inner wall
+    [0.0116, 0.0818], [0.0098, 0.0828], [0.0080, 0.0846], [0.0058, 0.0866], [0.0040, 0.0878],  // domed cap rising inside
+    [0.0030, 0.0884], [0.0034, 0.0893], [0.0027, 0.0901], [0, 0.0903],
   );
-  const RAD = 72;
-  const parts = [latheAO(prof, RAD, s)];
-  // coronet: one crenellated wall with eight pointed merlons
+  const RAD = 96;
+  const body = latheAO(prof, RAD, s);
   {
-    const NP = 8, N = NP * 18, rows = 7;
-    const pos = [], idx = [], uv = [], col = [];
-    const yb = 0.0790, rb = 0.0150, th = 0.0016;
-    const tri = (a) => { const f = ((a * NP) / (Math.PI * 2)) % 1; const t = 1 - Math.abs(f - 0.5) * 2; return Math.pow(t, 1.6); };
-    for (let i = 0; i <= N; i++) {
-      const a = (i / N) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
-      const pk = tri(a);
-      const yt = 0.0812 + 0.0118 * pk, rt = 0.0160 + 0.0022 * pk;
-      const ym = yb + (yt - yb) * 0.55, rm = rb + (rt - rb) * 0.5 + 0.0003;
-      const pts = [[rb, yb], [rm, ym], [rt, yt], [rt - th * 0.5, yt + 0.0005], [rt - th, yt], [rm - th, ym], [rb - th * 1.5, yb + 0.0006]];
-      const shade = [1, 1, 1, 1, 0.82, 0.62, 0.5];
-      pts.forEach(([r, y], k) => { pos.push(ca * r * s, y * s, sa * r * s); uv.push(i / N, 0.85 + k / rows * 0.15); const c = shade[k]; col.push(c, c * 0.97, c * 0.93); });
+    // carve the coronet: the wall above the band is cut into eight rounded points by a sin(8θ) height deform
+    const P = body.attributes.position, C = body.attributes.color;
+    const yb = 0.0812 * s;
+    for (let i = 0; i < P.count; i++) {
+      const x = P.getX(i), y = P.getY(i), z = P.getZ(i);
+      const r = Math.hypot(x, z) / s;
+      if (y <= yb || r < 0.0122) continue;
+      const a = Math.atan2(z, x);
+      const lobe = Math.pow(0.5 + 0.5 * Math.cos(a * 8), 1.6);
+      const f = 0.32 + 0.68 * lobe;
+      P.setY(i, yb + (y - yb) * f);
+      // the hollows between the points and the inside of the crown take a darker wax tone
+      const k = 0.62 + 0.38 * lobe;
+      C.setXYZ(i, C.getX(i) * k, C.getY(i) * k, C.getZ(i) * k);
     }
-    for (let i = 0; i < N; i++) for (let j = 0; j < rows - 1; j++) {
-      const a = i * rows + j, b = (i + 1) * rows + j;
-      idx.push(a, a + 1, b, b, a + 1, b + 1);
-    }
-    const cg = new THREE.BufferGeometry();
-    cg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    cg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-    cg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-    cg.setIndex(idx); cg.computeVertexNormals();
-    parts.push(cg);
+    body.computeVertexNormals();
   }
-  // domed cap inside the coronet, a turned neck and the finial ball
-  const capProf = [[0, 0.0806], [0.0142, 0.0804], [0.0138, 0.0832], [0.0120, 0.0860], [0.0090, 0.0882], [0.0052, 0.0898], [0.0034, 0.0906], [0.0044, 0.0914], [0.0028, 0.0924], [0, 0.0926]];
-  const cap = latheAO(capProf, 48, s);
-  { const c = cap.attributes.color; for (let i = 0; i < c.count; i++) { const y = cap.attributes.position.getY(i) / s; const k = 0.6 + 0.4 * Math.min(1, (y - 0.0804) / 0.009); c.setXYZ(i, c.getX(i) * k, c.getY(i) * k, c.getZ(i) * k); } }
-  parts.push(cap);
-  const ball = new THREE.SphereGeometry(0.0044 * s, 24, 16); ball.translate(0, 0.0966 * s, 0);
+  const parts = [body];
+  // a pearl on each point and the finial ball
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    const pb = new THREE.SphereGeometry(0.0021 * s, 12, 8); pb.translate(Math.cos(a) * 0.0164 * s, 0.0925 * s, Math.sin(a) * 0.0164 * s);
+    pb.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(pb.attributes.position.count * 3).fill(1), 3));
+    parts.push(pb);
+  }
+  const ball = new THREE.SphereGeometry(0.0042 * s, 24, 16); ball.translate(0, 0.0938 * s, 0);
   ball.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(ball.attributes.position.count * 3).fill(1), 3));
   parts.push(ball);
+  // cylindrical uv: u around, v up the piece, so the boxwood grain runs vertically
+  for (const p of parts) {
+    const P = p.attributes.position, uv = new Float32Array(P.count * 2);
+    const u0 = p.attributes.uv;
+    for (let i = 0; i < P.count; i++) { uv[i * 2] = (p === body ? u0.getX(i) : Math.atan2(P.getZ(i), P.getX(i)) / (Math.PI * 2) + 0.5) * 2; uv[i * 2 + 1] = P.getY(i) / s / 0.02; }
+    p.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  }
   const g = G.mergeGeometries(parts.map((p) => {
     const q = p.index ? p.toNonIndexed() : p;
     for (const k of Object.keys(q.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(k)) q.deleteAttribute(k);
@@ -140,6 +147,23 @@ export function createQueensPuzzle(ctx, { parent, center, size, homeZ, homeY = 0
     group.add(m);
     queens.push({ mesh: m, sq: null, i });
   }
+  // soft dark contact discs under every queen (fade as she is lifted)
+  const aoTex = ctx.textures.canvas('gameroom:queenAO', 64, 64, (c) => { const g2 = c.createRadialGradient(32, 32, 0, 32, 32, 32); g2.addColorStop(0, 'rgba(0,0,0,1)'); g2.addColorStop(0.45, 'rgba(0,0,0,0.75)'); g2.addColorStop(0.75, 'rgba(0,0,0,0.25)'); g2.addColorStop(1, 'rgba(0,0,0,0)'); c.clearRect(0, 0, 64, 64); c.fillStyle = g2; c.fillRect(0, 0, 64, 64); }, { tile: false });
+  const discG = new THREE.PlaneGeometry(sq * 0.98, sq * 0.98).rotateX(-Math.PI / 2);
+  for (const q of queens) {
+    const d = new THREE.Mesh(discG, new THREE.MeshBasicMaterial({ map: aoTex, transparent: true, opacity: 0.6, depthWrite: false, name: 'queenContact' }));
+    d.renderOrder = 4; d.userData.noBake = true; d.userData.noShadow = true;
+    group.add(d); q.disc = d;
+  }
+  const syncDiscs = () => {
+    for (const q of queens) {
+      const baseY = q.sq ? 0 : homeY;
+      const lift = q.mesh.position.y - baseY;
+      q.disc.position.set(q.mesh.position.x, baseY + 0.0008, q.mesh.position.z);
+      q.disc.material.opacity = 0.6 * Math.max(0, 1 - lift / 0.04);
+      const k = 1 + lift * 12; q.disc.scale.set(k, 1, k);
+    }
+  };
   // invisible pick plane over the 8x8 field
   const pickMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false });
   const pickPlane = new THREE.Mesh(new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2), pickMat);
@@ -165,9 +189,14 @@ export function createQueensPuzzle(ctx, { parent, center, size, homeZ, homeY = 0
     vertexShader: 'varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: `uniform float uAmt; uniform float uTime; uniform float uIn; uniform float uOut; varying vec2 vP;
       void main(){ float e = max(abs(vP.x), abs(vP.y)); float t = (e - uIn) / (uOut - uIn);
-        float band = smoothstep(0.0, 0.05, t) * (1.0 - smoothstep(0.35, 0.6, t));
-        float a = atan(vP.y, vP.x); float run = 0.6 + 0.4 * sin(a * 2.0 - uTime * 1.5);
-        gl_FragColor = vec4(vec3(1.0, 0.66, 0.26) * band * run * uAmt * 1.6, 1.0); }`,
+        float band = smoothstep(0.0, 0.04, t) * (1.0 - smoothstep(0.18, 0.36, t));
+        // perimeter coordinate 0..1 around the square, a warm wave running round the stringing twice
+        vec2 q = vP / max(e, 1e-4);
+        float per = abs(q.x) > abs(q.y) ? (q.x > 0.0 ? 0.125 * q.y : 0.5 - 0.125 * q.y) : (q.y > 0.0 ? 0.25 - 0.125 * q.x : 0.75 + 0.125 * q.x);
+        per = fract(per + 0.125);
+        float w1 = fract(per * 2.0 - uTime * 0.22);
+        float wave = exp(-pow((w1 - 0.5) / 0.09, 2.0));
+        gl_FragColor = vec4(vec3(1.0, 0.62, 0.24) * band * (0.18 + 1.2 * wave) * uAmt, 1.0); }`,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
   });
   const glow = new THREE.Mesh(new THREE.ShapeGeometry(glowShape).rotateX(-Math.PI / 2), glowMat);
@@ -201,7 +230,13 @@ export function createQueensPuzzle(ctx, { parent, center, size, homeZ, homeY = 0
     const bad = conflicts();
     for (const q of queens) {
       const e = q.mesh.material.emissive;
-      if (solvedFlag) { const sx = Math.sin(t * 0.45) * size * 0.65; e.setRGB(0.3, 0.17, 0.04).multiplyScalar(0.25 + 0.9 * Math.exp(-(((q.mesh.position.x - sx) / (size * 0.22)) ** 2))); }
+      if (solvedFlag) {
+        // each queen in turn: a warm rim pulse and a 2 mm lift-and-settle
+        const lt = solvedT - 0.28 * q.i;
+        const pulse = Math.exp(-(((lt - 0.3) / 0.2) ** 2));
+        e.setRGB(0.34, 0.19, 0.05).multiplyScalar(0.08 + 0.9 * pulse);
+        if (!anims.some((a) => a.q === q) && q.sq) q.mesh.position.y = 0.002 * Math.sin(Math.PI * Math.min(1, Math.max(0, lt / 0.6)));
+      }
       else if (bad.has(q.i)) e.setRGB(0.55, 0.03, 0.01).multiplyScalar(0.65 + 0.35 * Math.sin(t * 6));
       else if (q.i === hoverQueen) e.setRGB(0.12, 0.08, 0.02);
       else e.setRGB(0, 0, 0);
@@ -214,10 +249,12 @@ export function createQueensPuzzle(ctx, { parent, center, size, homeZ, homeY = 0
       // the rim light sweeps slowly from one side of the board to the other and back, low and warm
       const u = Math.sin(t * 0.45);
       sweep.position.set(u * size * 0.6, 0.16, -size * 0.75);
-      sweep.intensity = 0.32 * amt;
+      sweep.intensity = 0.22 * amt;
+      syncDiscs();
       return;
     }
     sweep.intensity = 0;
+    syncDiscs();
     const hq = hoverQueen >= 0 ? queens[hoverQueen] : null;
     if (hq?.sq) {
       for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {

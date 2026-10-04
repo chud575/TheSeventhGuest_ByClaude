@@ -50,7 +50,7 @@ export function drapeGeometry({ width = 0.62, height = 3.0, folds = 7, depth = 0
     // horizontal gather: 1 at the tieback, easing off above (long sweep) and below (quick flare)
     const vt = tieback;
     // the leading edge runs in a near-straight diagonal down to the cord, then falls almost plumb, flaring gently to the floor
-    const above = v < vt ? Math.pow(v / vt, 1.15) : 0;
+    const above = v < vt ? v / vt : 0;                 // straight taper to the cord, no S-bend
     const below = v >= vt ? 1 - smooth(vt, 1.0, v) * 0.5 : 0;
     const gather = v < vt ? above : below;
     // width at this height: full at the header, tieW at the tieback, ~45% of full at the floor
@@ -73,7 +73,11 @@ export function drapeGeometry({ width = 0.62, height = 3.0, folds = 7, depth = 0
         if (v < 0.015) z *= 0.6;
       }
       // folds drift slightly sideways as they fall (no perfectly vertical ribbons)
-      x += Math.sin(v * 5.0 + f.ph * 6.28) * 0.006 * (1 + gather);
+      x += Math.sin(v * 5.0 + f.ph * 6.28) * 0.003 * (1 + gather) * (1 - gather * 0.7);
+      // the leading edge hem is not a ruled line: it ripples in and out with the folds it crosses
+      const edge = smooth(0.82, 1.0, u);
+      x += edge * (0.008 * Math.sin(v * 31 + seed) * Math.sin(v * 9.0 + 1.3) + 0.005 * Math.sin(v * 63 + seed * 2.0)) * (0.4 + 0.6 * (1 - gather));
+      z += edge * 0.012 * Math.sin(v * 17 + seed * 0.7);
       // the inner edge rolls back on itself where it sweeps to the tieback
       // a bulge just above the tieback where the cloth blouses over the cord
       z += 0.035 * Math.exp(-(((v - (vt - 0.05)) / 0.05) ** 2));

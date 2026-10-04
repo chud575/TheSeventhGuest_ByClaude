@@ -149,38 +149,55 @@ export function buildChesterfield2(ctx, mats) {
       if (u < 0.05 || u > uTuftEnd + 0.04 || s < 0.16 || s > runA - 0.05) return 0;
       const e = Math.min(1, (u - 0.05) / 0.05, (uTuftEnd + 0.04 - u) / 0.05, (s - 0.16) / 0.05, (runA - 0.05 - s) / 0.05);
       const { p, dm } = tuft((u - 0.05) / cellU, (s - 0.16) / cellS);
-      return (0.014 + 0.016 * p - 0.022 * dm) * Math.max(0, e);
+      return (0.016 + 0.024 * p - 0.034 * dm) * Math.max(0, e);
     };
     const wearFn = (u, s) => Math.exp(-(((u - uRollTop) / 0.06) ** 2)) * (0.45 + 0.55 * Math.min(1, s / runA) ** 2) + Math.exp(-(((runA - s) / 0.03) ** 2)) * 0.6;
     const bAt = [];
     for (let iu = 0; iu <= 3; iu++) for (let is = 0; is <= 6; is++) if ((iu + is) % 2 === 0) { const u = 0.05 + iu * cellU, s = 0.16 + is * cellS; if (iu > 0 && is > 0 && is < 6 && u < uTuftEnd) bAt.push([u, s]); }
     const ag = sweptSurface(prof.poly, runA, { nu: 90, ns: 64, place, tuftFn, wearFn, flip: sx < 0, buttons, buttonAt: bAt });
     g.add(new THREE.Mesh(ag, L));
-    // front cap: the profile filled, slightly inset, and a gathered scroll disc on the roll
-    // (built for the left arm and mirrored for the right so both face +z)
-    const shp = new THREE.Shape(prof.poly.map(([h, y]) => new THREE.Vector2(-(armX + h), y)));
-    const capG = new THREE.ShapeGeometry(shp, 24);
-    const cc = new Float32Array(capG.attributes.position.count * 3).fill(1.1);
-    capG.setAttribute('color', new THREE.Float32BufferAttribute(cc, 3));
-    const front = at(new THREE.Mesh(capG, L), 0, 0, zA1 + 0.001); front.scale.x = -sx; g.add(front);
-    const back = new THREE.Mesh(capG, L); back.scale.set(-sx, 1, -1); back.position.z = zA0; g.add(back);
-    // scroll disc: radial pleats gathered into a centre button
+    // front cap: the leather is gathered radially into a button at the centre of the scroll — one fan-shaped
+    // surface from the button out to the profile outline, pleated round the roll, plain and slightly puffed below
     const R = prof.roll.R + 0.003;
-    const disc = new THREE.CircleGeometry(R, 72, 0, Math.PI * 2);
-    {
-      const p = disc.attributes.position;
-      for (let i = 0; i < p.count; i++) {
-        const x = p.getX(i), y = p.getY(i); const r = Math.hypot(x, y) / R, a = Math.atan2(y, x);
-        p.setZ(i, 0.012 * (1 - r * r) + 0.0045 * Math.abs(Math.sin(a * 11)) * r * (1 - r * 0.5));
-      }
-      disc.computeVertexNormals();
-      const dc = new Float32Array(p.count * 3); for (let i = 0; i < p.count; i++) { const r = Math.hypot(p.getX(i), p.getY(i)) / R; const k = 0.95 + 0.25 * r; dc.set([k, k * 0.97, k * 0.94], i * 3); }
-      disc.setAttribute('color', new THREE.Float32BufferAttribute(dc, 3));
-    }
     const dcx = sx * (armX + prof.roll.cx), dcy = prof.roll.cy;
-    g.add(at(new THREE.Mesh(disc, L), dcx, dcy, zA1 + 0.002));
-    buttons.push({ p: V3(dcx, dcy, zA1 + 0.014), n: V3(0, 0, 1) });
-    for (let i = 0; i < 30; i++) { const a = (i / 30) * Math.PI * 2; studs.push({ p: V3(dcx + Math.cos(a) * (R + 0.002), dcy + Math.sin(a) * (R + 0.002), zA1 + 0.003), n: V3(0, 0, 1) }); }
+    const outline = resample([...prof.poly, prof.poly[0]], 160).pts.map(([h, y]) => [sx * (armX + h), y]);
+    const capFan = (z0, dir) => {
+      const rings = 18, pos = [], col = [], uv = [], idx = [];
+      const n = outline.length;
+      for (let k = 0; k < n; k++) {
+        const [px, py] = outline[k];
+        const ang = Math.atan2(py - dcy, px - dcx);
+        for (let r = 0; r <= rings; r++) {
+          const t = r / rings;
+          const x = dcx + (px - dcx) * t, y = dcy + (py - dcy) * t;
+          const d = Math.hypot(x - dcx, y - dcy);
+          const inRoll = Math.min(1, Math.max(0, (R * 1.35 - d) / (R * 0.5)));
+          const pleat = Math.pow(Math.abs(Math.sin(ang * 11)), 0.7) * Math.min(1, d / 0.018) * inRoll;
+          const puff = 0.006 * (1 - t * t) * (1 - inRoll) + 0.011 * inRoll * Math.sin(Math.min(1, d / R) * Math.PI * 0.5 + 0.3);
+          const z = z0 + dir * (0.002 + puff + 0.005 * pleat - 0.004 * Math.exp(-((d / 0.01) ** 2)) * 0);
+          pos.push(x, y, z);
+          const k2 = 1.05 - 0.28 * (1 - pleat) * inRoll + 0.08 * (1 - t);
+          col.push(k2, k2 * 0.97, k2 * 0.94);
+          uv.push(x * 2.4, y * 2.4);
+        }
+      }
+      for (let k = 0; k < n - 1; k++) for (let r = 0; r < rings; r++) {
+        const a2 = k * (rings + 1) + r, b2 = (k + 1) * (rings + 1) + r;
+        idx.push(a2, b2, a2 + 1, b2, b2 + 1, a2 + 1);
+      }
+      const cg = new THREE.BufferGeometry();
+      cg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      cg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+      cg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      cg.setIndex(idx); cg.computeVertexNormals();
+      // make sure the fan faces outward (dir)
+      if (cg.attributes.normal.array.reduce((acc, v, i) => (i % 3 === 2 ? acc + v : acc), 0) * dir < 0) { const ix = cg.index.array; for (let i = 0; i < ix.length; i += 3) { const t2 = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t2; } cg.computeVertexNormals(); }
+      return cg;
+    };
+    g.add(new THREE.Mesh(capFan(zA1, 1), L));
+    g.add(new THREE.Mesh(capFan(zA0, -1), L));
+    buttons.push({ p: V3(dcx, dcy, zA1 + 0.016), n: V3(0, 0, 1) });
+    for (let i = 0; i < 30; i++) { const a = (i / 30) * Math.PI * 2; studs.push({ p: V3(dcx + Math.cos(a) * (R + 0.006), dcy + Math.sin(a) * (R + 0.006), zA1 + 0.004), n: V3(0, 0, 1) }); }
     // close nailing down the front edges of the arm face
     for (let y = foot + 0.04; y < prof.roll.cy - R - 0.012; y += 0.022) {
       studs.push({ p: V3(sx * (armX + armOut + 0.004), y, zA1 + 0.003), n: V3(0, 0, 1) });
@@ -204,7 +221,7 @@ export function buildChesterfield2(ctx, mats) {
       if (u < 0.04 || u > uEnd + 0.04 || s < s0 - 0.02 || s > s1 + 0.02) return 0;
       const e = Math.min(1, (u - 0.04) / 0.05, (uEnd + 0.04 - u) / 0.05, (s - s0 + 0.02) / 0.05, (s1 + 0.02 - s) / 0.05);
       const { p, dm } = tuft((u - 0.04) / cellU, (s - s0) / cellS);
-      return (0.016 + 0.018 * p - 0.026 * dm) * Math.max(0, e);
+      return (0.018 + 0.027 * p - 0.04 * dm) * Math.max(0, e);
     };
     const wearFn = (u) => Math.exp(-(((u - uTop) / 0.06) ** 2)) * 0.7;
     const bAt = [];
