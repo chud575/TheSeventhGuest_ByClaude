@@ -59,7 +59,7 @@ function wireMaterial(base, U) {
         vec3 H1 = normalize(L1 + V), H2 = normalize(uL2Dir + V);
         float dif1 = sqrt(max(0.0, 1.0 - pow(dot(T, L1), 2.0)));
         vec3 col = uBase * (0.025 + 0.1 * dif1 * a1 * uL1Col * 0.4 + 0.04 * uL2Col + 0.025 * uAmb);
-        col += uBase * (kk(T, H1, 90.0) * uL1Col * a1 * 0.8 + kk(T, H2, 140.0) * uL2Col * 0.4);
+        col += uBase * (kk(T, H1, 260.0) * uL1Col * a1 * 0.55 + kk(T, H2, 260.0) * uL2Col * 0.3);
         gl_FragColor = vec4(col, clamp(vCov, 0.0, 1.0) * 0.8 * uOpacity);
       }`,
   });
@@ -207,7 +207,9 @@ void surface(vec2 uv, inout Surface s) {
     gold.normalScale = new THREE.Vector2(0.9, 0.9);
     // a bronze-powder gold lacquer rather than solid metal: it keeps its colour inside the dark case,
     // where a pure metal would only mirror the black lid
-    gold.color.set(0xd09a38); gold.metalness = 0.55; gold.roughness = 1.0; gold.clearcoat = 0.4; gold.clearcoatRoughness = 0.25; gold.envMapIntensity = 0.8; gold.needsUpdate = true;
+    // (no clearcoat: at the grazing angle of the gameplay camera its fresnel mirrored the bright bay as a
+    // pale beige sheet over the whole plate)
+    gold.color.set(0xe8b450); gold.metalness = 0.6; gold.roughness = 1.0; gold.clearcoat = 0.0; gold.envMapIntensity = 0.45; gold.specularIntensity = 0.5; gold.needsUpdate = true;
     const plateOuter = clipBelow(offsetPoly(pts, 0.06), 0.06);
     const s = shapeOf(plateOuter);
     const holes = [
@@ -459,12 +461,18 @@ void surface(vec2 uv, inout Surface s) {
   desk.name = 'piano-desk';
   {
     const fret = fretworkTexture(ctx.textures);
-    const fm = new THREE.MeshStandardMaterial({ map: fret.map, normalMap: fret.normalMap, alphaTest: 0.5, roughness: 0.25, metalness: 0, side: THREE.DoubleSide, color: 0x7a7a7a });
+    const fm = new THREE.MeshStandardMaterial({ map: fret.map, normalMap: fret.normalMap, alphaTest: 0.5, roughness: 0.55, metalness: 0, side: THREE.DoubleSide, color: 0x6a6a6a });
     const panel = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.3), fm);
     panel.position.y = 0.17; desk.add(panel);
-    const frameG = new THREE.Mesh(G.frameGeometry(0.78, 0.3, { width: 0.018, depth: 0.012, uvScale: 2 }), ebony);
+    // the desk is hand-rubbed satin, not mirror: its ledge sat right under the candles and threw two hot
+    // rectangular flares into the puzzle view
+    const satin = new THREE.MeshPhysicalMaterial({ color: 0x070606, roughness: 0.5, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.45, envMapIntensity: 0.3, specularIntensity: 0.5 });
+    const frameG = new THREE.Mesh(G.frameGeometry(0.78, 0.3, { width: 0.018, depth: 0.012, uvScale: 2 }), satin);
     frameG.position.y = 0.17; desk.add(frameG);
-    const ledge = new THREE.Mesh(new G.RoundedBoxGeometry(0.84, 0.014, 0.045, 2, 0.005), ebony);
+    const ledge = new THREE.Mesh(new G.RoundedBoxGeometry(0.84, 0.014, 0.045, 2, 0.005), satin);
+    // dark cloth behind the fretwork: nothing inside the case shows through the desk or between the pages
+    const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.77, 0.29), new THREE.MeshStandardMaterial({ color: 0x0b0706, roughness: 1 }));
+    cloth.position.set(0, 0.17, -0.006); desk.add(cloth);
     ledge.position.set(0, 0.01, 0.02); desk.add(ledge);
     const sheetMat = (seed, title) => new THREE.MeshStandardMaterial({ map: sheetMusicTexture(ctx.textures, { seed, title }), roughness: 0.85, side: THREE.DoubleSide });
     // the two pages overlap at the spine, so nothing inside the case shows between them

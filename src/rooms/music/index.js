@@ -85,6 +85,69 @@ float wpF(vec2 p) { return 0.5 * wpN(p) + 0.25 * wpN(p * 2.03 + 7.1) + 0.125 * w
   }`);
     };
     const parquet = M.create('parquet', { species: 'walnut', ratio: 5, planksAcross: 2, repeat: [0.9, 0.9], polish: 0.7, wear: 0.35 });
+    {
+      // a quieter herringbone: rift-sawn walnut with fine straight grain (no cartoon swirls), each plank
+      // its own tone, waxed with a patchy sheen that breaks the reflections up
+      const pq = ctx.textures.generate('music:parquet2', {
+        size: hq ? 2048 : 1024, normalStrength: 0.9,
+        glsl: /* glsl */ `
+vec4 herring(vec2 p, float L, float N, out vec2 id) {
+  vec2 c = floor(p);
+  float xr = c.x - c.y;
+  float m = mod(xr, 2.0 * L);
+  float sIdx = floor(xr / (2.0 * L));
+  if (m < L) {
+    float x0 = c.x - m;
+    id = vec2(mod(sIdx, N) * 131.0 + mod(c.y, L * N), 1.0);
+    return vec4((p.x - x0) / L, fract(p.y), 0.0, 0.0);
+  } else {
+    float j = m - L; float k = c.y + j; float y0 = k + 1.0 - L;
+    id = vec2(mod(sIdx, N) * 131.0 + mod(k, L * N), 2.0);
+    return vec4((p.y - y0) / L, fract(p.x), 1.0, 0.0);
+  }
+}
+void surface(vec2 uv, inout Surface s) {
+  float L = 5.0, N = 2.0;
+  float span = 1.41421356 * L * N;
+  vec2 p = rot2(PI * 0.25) * (uv * span);
+  vec2 id;
+  vec4 h = herring(p + 1e-4, L, N, id);
+  vec2 q = h.xy;
+  float seed = id.x * 1.13 + id.y * 17.0;
+  vec2 off = hash22(vec2(seed, seed * 3.1)) * 50.0;
+  vec2 g = vec2(q.x * L, q.y);
+  float wob = gnoise(g * vec2(0.3, 0.6) + off, vec2(1000.0)) * 0.08;
+  float y = q.y + wob;
+  float lines = smoothstep(0.35, 1.0, sin((y * 7.0 + hash11(seed) * 3.0) * 6.2831) * 0.5 + 0.5) * 0.5
+              + smoothstep(0.6, 1.0, sin((y * 19.0 + hash11(seed + 1.0) * 5.0) * 6.2831) * 0.5 + 0.5) * 0.3;
+  float streak = gnoise(g * vec2(0.5, 14.0) + off, vec2(1000.0)) * 0.5 + 0.5;
+  vec3 early = vec3(0.36, 0.23, 0.14), late = vec3(0.25, 0.15, 0.09);
+  vec3 col = mix(early, late, clamp(lines * 0.7 + (streak - 0.5) * 0.35, 0.0, 1.0));
+  float pore = step(0.94, hash12(floor(g * vec2(26.0, 80.0)) + off));
+  col = mix(col, late * 0.6, pore * 0.35);
+  // per-plank tone: three families of boards (sapwood-pale, honey, deep)
+  float t = hash11(seed * 3.7);
+  col *= t < 0.2 ? 1.12 : (t < 0.75 ? 0.95 + 0.1 * hash11(seed * 9.1) : 0.78);
+  float ex = min(q.x, 1.0 - q.x) * L, ey = min(q.y, 1.0 - q.y);
+  float e = min(ex, ey);
+  float gapM = smoothstep(0.012, 0.03, e), bev = smoothstep(0.03, 0.09, e);
+  col *= mix(0.22, 1.0, gapM);
+  // wax: patchy sheen, duller in the traffic, buffed where nobody walks
+  float wax = fbm(uv * 5.0, vec2(5.0), 4) * 0.5 + 0.5;
+  float w = smoothstep(0.35, 0.85, fbm(uv + 3.0, vec2(3.0), 4) * 0.5 + 0.5) * 0.3;
+  col = mix(col, col * 1.1 + 0.015, w * 0.5);
+  s.albedo = col;
+  s.height = 0.55 * bev + 0.45 * gapM - 0.04 * pore + lines * 0.015;
+  s.rough = 0.24 + 0.22 * wax + w * 0.3 + pore * 0.15 + (1.0 - gapM) * 0.4;
+  s.metal = 0.0;
+  s.ao = mix(0.4, 1.0, bev);
+}`,
+      }).withRepeat(0.9, 0.9);
+      for (const k of ['map', 'normalMap', 'roughnessMap']) parquet[k] = pq[k];
+      if (parquet.metalnessMap) parquet.metalnessMap = pq.metalnessMap;
+      if (parquet.aoMap) parquet.aoMap = pq.aoMap;
+      parquet.needsUpdate = true;
+    }
     const ebony = M.create('ebony', { repeat: [2, 2], color: [0.55, 0.55, 0.6], clearcoat: 1.0, clearcoatRoughness: 0.06, roughness: 0.6 });
     const mahogany = M.create('mahogany', { repeat: [1.2, 1.2] });
     // (satin, not gloss: a sharp clearcoat on the panel bevels mirrored the bright bay as white slits)
@@ -179,6 +242,19 @@ void surface(vec2 uv, inout Surface s) {
       colors: { field: [0.19, 0.03, 0.038], border: [0.035, 0.04, 0.1], ivory: [0.42, 0.36, 0.28], gold: [0.33, 0.22, 0.1], teal: [0.07, 0.13, 0.18], dark: [0.028, 0.02, 0.026], rose: [0.3, 0.1, 0.11] },
     });
     rugMat.roughness = 1.0; rugMat.envMapIntensity = 0.2;
+    // the carpet itself is an offline 2K design (tools/genRug.py): a full border hierarchy round a
+    // lattice field and a lobed medallion, abrash banding, knot grain and a pile normal map
+    try {
+      const L = new THREE.TextureLoader();
+      const [rmap, rnrm] = await Promise.all(['rug.jpg', 'rug_n.jpg'].map((f) => L.loadAsync(ctx.assetUrl(f))));
+      rmap.colorSpace = THREE.SRGBColorSpace;
+      for (const t of [rmap, rnrm]) { t.anisotropy = 16; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; }
+      rugMat.map = rmap; rugMat.normalMap = rnrm; rugMat.normalScale = new THREE.Vector2(0.8, 0.8);
+      rugMat.roughnessMap = null; rugMat.metalnessMap = null; rugMat.metalness = 0;
+      rugMat.color.setRGB(0.82, 0.8, 0.8);
+      if ('sheen' in rugMat) { rugMat.sheen = 0.5; rugMat.sheenRoughness = 0.6; rugMat.sheenColor = new THREE.Color(0.4, 0.28, 0.24); }
+      rugMat.needsUpdate = true;
+    } catch (e) { console.warn('music rug', e); }
     for (const m of [rugMat, parquet]) for (const k of ['map', 'normalMap', 'roughnessMap']) if (m[k]) { m[k].anisotropy = 16; }
     {
       // wear + dirt darkening toward the edges (trodden, never beaten), as an AO map
@@ -775,7 +851,7 @@ void surface(vec2 uv, inout Surface s) {
     const fireLight = new THREE.PointLight(0xff7a2a, 3.0, 9, 2);
     fireLight.position.set(X0 + 0.85, 0.5, FIRE.z);
     add(fireLight);
-    const fireInner = new THREE.PointLight(0xff6a1c, 0.9, 2.2, 2);
+    const fireInner = new THREE.PointLight(0xff6a1c, 1.6, 2.6, 2);
     fireInner.position.set(X0 + 0.16, 0.24, FIRE.z);
     add(fireInner);
     // overmantel: a composer's portrait in a heavy gilt frame
@@ -926,6 +1002,8 @@ void surface(vec2 uv, inout Surface s) {
 
     // a lower, cooler sky fill (deeper shadows) with a warm floor bounce so the lower walls hold detail
     add(new THREE.HemisphereLight(0x4a62a4, 0x5a3420, 0.95));
+    // a whisper of cool ambient so the deepest shadows (the bay corners, behind the harp) hold detail
+    add(new THREE.AmbientLight(0x30406a, 0.12));
     // warm bounce off the boards and the rug (soft area lights lying on the floor, facing up): the wainscot
     // and the lower walls keep their detail instead of crushing to black, with no point-light hotspots
     add(fx.areaLight({ center: [X0 + 1.1, 0.03, FIRE.z], normal: [0.25, 1, 0], width: 1.4, height: 1.8, color: 0xff9255, intensity: 0.55 }));
@@ -964,7 +1042,7 @@ void surface(vec2 uv, inout Surface s) {
       shaft.userData.base = wx < -1 ? 0.12 : wx < 1 ? 0.065 : 0.035;
       add(shaft); shafts.push(shaft);
     }
-    const dust = add(fx.dust({ box: new THREE.Box3(V3(-3.4, 0.1, Z0 + 0.05), V3(3.4, 3.4, 1.2)), count: 2200, shafts, size: 0.009, intensity: 2.2, ambient: 0.0 }));
+    const dust = add(fx.dust({ box: new THREE.Box3(V3(-3.4, 0.1, Z0 + 0.05), V3(3.4, 3.4, 1.2)), count: 1600, shafts, size: 0.0075, intensity: 1.5, ambient: 0.0 }));
     const fog = add(fx.fog({ box: new THREE.Box3(V3(X0 + 0.2, 0, Z0 + 0.1), V3(X1 - 0.2, 0.5, Z1 - 0.3)), color: 0x0b111e, litColor: 0x31405e, density: 0.3, heightFalloff: 4 }));
     // looking straight into the bay (the harp view) the shafts and floor mist sit between the camera
     // and everything else: thin them there so the cello, drapes and parquet keep their colour
@@ -1094,8 +1172,8 @@ void surface(vec2 uv, inout Surface s) {
       ghost.group.visible = ghostFade.value > 0.01;
       ghost.update(dt, t, !(window.__game?.mode === 'puzzle' || solvedScenePlayed));
       const fl = 0.8 + 0.2 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1.2) + 0.08 * Math.sin(t * 17.0);
-      fireLight.intensity = 3.0 * fl;
-      fireInner.intensity = 0.9 * (0.75 + 0.25 * Math.sin(t * 11.0 + 1.0) * Math.sin(t * 4.3));
+      fireLight.intensity = 3.6 * fl;
+      fireInner.intensity = 1.6 * (0.75 + 0.25 * Math.sin(t * 11.0 + 1.0) * Math.sin(t * 4.3));
       fire.userData.coalMat.emissiveIntensity = 1.4 + 0.3 * Math.sin(t * 1.3);
       fire.userData.bedMat.emissiveIntensity = 1.6 + 0.3 * Math.sin(t * 0.9 + 0.5);
       fire.userData.logMat.emissiveIntensity = 1.8 + 0.4 * Math.sin(t * 1.7 + 2.0);
@@ -1172,7 +1250,7 @@ void surface(vec2 uv, inout Surface s) {
           for (const o of hidden) o.visible = true;
           for (const m of pianoProbe.mats) { m.envMap = rt.texture; m.needsUpdate = true; }
           const lidMat = piano.userData.lidPivot.userData.lidMat;
-          lidMat.envMap = rt2.texture; lidMat.envMapIntensity = 1.2; lidMat.roughness = 0.3; lidMat.clearcoatRoughness = 0.2; lidMat.needsUpdate = true;
+          lidMat.envMap = rt2.texture; lidMat.envMapIntensity = 0.6; lidMat.roughness = 0.14; lidMat.clearcoatRoughness = 0.07; lidMat.needsUpdate = true;
           pianoProbe.rt = rt; pianoProbe.rt2 = rt2;
         } catch (e) { console.warn('piano probe', e); }
       },

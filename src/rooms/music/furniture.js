@@ -42,7 +42,7 @@ export function buildFireplace(ctx, { marble, iron, brass, gilt }) {
   g.add(shelfEdge);
   // the tablet's ormolu is its own darker, satin fire-gilt: lit only by the scene (the bright gilt
   // turned it into a glowing orange sign over the fire)
-  gilt = new THREE.MeshStandardMaterial({ color: 0x9a7432, metalness: 1.0, roughness: 0.48, envMapIntensity: 0.35 });
+  gilt = new THREE.MeshStandardMaterial({ color: 0xb49a62, metalness: 1.0, roughness: 0.42, envMapIntensity: 0.5 });
   // frieze tablet: a carved marble panel with a gilt bead frame and a small gilt lyre
   const tablet = new THREE.Mesh(new G.RoundedBoxGeometry(0.42, 0.17, 0.03, 2, 0.008), marble);
   tablet.position.set(0, openH + 0.2, D * 0.55 + 0.012); g.add(tablet);
@@ -197,15 +197,22 @@ export function buildTorchere(ctx, { brass, seed = 11 }) {
   const { geometry: G, fx } = ctx;
   const g = new THREE.Group();
   g.name = 'torchere';
+  // the domed foot is dulled, tarnished brass (a polished dish right under five flames mirrored them
+  // as a hot spot on the rug)
+  const footBrass = brass.clone();
+  footBrass.roughness = 1.6; footBrass.envMapIntensity = 0.5;
+  if (footBrass.color) footBrass.color.multiplyScalar(0.7);
+  const base = new THREE.Mesh(G.latheFromProfile([[0.0, 0], [0.16, 0], [0.16, 0.015], [0.12, 0.035], [0.06, 0.06], [0.045, 0.1], [0.06, 0.14], [0.03, 0.2], [0.0, 0.2]], 28), footBrass);
+  g.add(base);
   const stem = new THREE.Mesh(G.latheFromProfile([
-    [0.0, 0], [0.16, 0], [0.16, 0.015], [0.12, 0.035], [0.06, 0.06], [0.045, 0.1], [0.06, 0.14], [0.03, 0.2], [0.022, 0.5], [0.035, 0.55], [0.024, 0.6],
+    [0.0, 0.2], [0.03, 0.2], [0.022, 0.5], [0.035, 0.55], [0.024, 0.6],
     [0.02, 1.2], [0.04, 1.25], [0.03, 1.3], [0.05, 1.36], [0.02, 1.4], [0.0, 1.41],
   ], 28), brass);
   g.add(stem);
   // tripod feet
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2;
-    const foot = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 8), brass);
+    const foot = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 8), footBrass);
     foot.position.set(Math.cos(a) * 0.14, 0.02, Math.sin(a) * 0.14); g.add(foot);
   }
   const candles = [];
@@ -407,7 +414,7 @@ export function buildGasolier(ctx, { brass, crystal }) {
     [0.04, -0.34], [0.05, -0.38], [0.02, -0.44], [0.035, -0.5], [0, -0.56]], 32), brass);
   body.position.y = y0; g.add(body);
   const globes = [];
-  const globeMat = new THREE.MeshPhysicalMaterial({ color: 0xfff2dc, emissive: new THREE.Color(1.0, 0.74, 0.45), emissiveIntensity: 0.4, roughness: 0.55, transmission: 0, transparent: true, opacity: 0.96 });
+  const globeMat = new THREE.MeshPhysicalMaterial({ color: 0xfff2dc, emissive: new THREE.Color(1.0, 0.74, 0.45), emissiveIntensity: 0.2, roughness: 0.55, transmission: 0, transparent: true, opacity: 0.96 });
   const cupProf = [[0, 0], [0.022, 0], [0.04, 0.025], [0.045, 0.035], [0.03, 0.04], [0, 0.04]];
   const globeProf = [[0.024, 0], [0.05, 0.025], [0.066, 0.07], [0.06, 0.12], [0.038, 0.155], [0.04, 0.165], [0.036, 0.17]];
   const tier = (n, r, yArm, yTip, rot, scale) => {
