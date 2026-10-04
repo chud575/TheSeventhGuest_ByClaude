@@ -13,12 +13,14 @@ import * as THREE from 'three';
  */
 export function applyGrime(material, {
   plumes = [], ceiling = [3.4, 0.7, 0.45], floor = [0.35, 0.35], path = null, pathWidth = 0.45, pathStrength = 0.5, noise = 0.25, tag = 'g', tiles = null, sootTint = [0.92, 0.88, 0.8], sootTintAmt = 0.5,
+  tide = [0, 0], smudges = [], hgrad = [0, 1, 0],
 } = {}) {
   const T = tiles ? { grid: [8, 8], offset: 0, amp: 0.1, hue: 0.03, rough: 0.25, tilt: 0.0, ...tiles } : null;
   const P = plumes.slice(0, 8);
   while (P.length < 8) P.push([0, 0, 99, 0, 0.3]);
   const plumeA = P.map((p) => new THREE.Vector4(p[0], p[1], p[2], p[3]));
   const plumeW = P.map((p) => p[4] ?? 0.3);
+  const SM = smudges.slice(0, 4); while (SM.length < 4) SM.push([0, -99, 0, 0.1, 0]);
   const pts = (path || []).slice(0, 4).map((p) => new THREE.Vector2(p[0], p[1]));
   const nPath = pts.length;
   while (pts.length < 4) pts.push(new THREE.Vector2());
@@ -30,6 +32,8 @@ export function applyGrime(material, {
       gCeil: { value: new THREE.Vector3(...ceiling) }, gFloor: { value: new THREE.Vector2(...floor) },
       gPath: { value: pts }, gPathW: { value: pathWidth }, gPathS: { value: pathStrength }, gNoise: { value: noise },
       gSootTint: { value: new THREE.Vector4(...sootTint, sootTintAmt) },
+      gTide: { value: new THREE.Vector2(...tide) }, gHGrad: { value: new THREE.Vector3(...hgrad) },
+      gSmudge: { value: SM.map((m) => new THREE.Vector4(m[0], m[1], m[2], m[3])) }, gSmudgeS: { value: SM.map((m) => m[4]) },
     });
     if (T) Object.assign(shader.uniforms, { gTGrid: { value: new THREE.Vector2(...T.grid) }, gTP: { value: new THREE.Vector4(T.amp, T.hue, T.rough, T.tilt) }, gTOff: { value: T.offset } });
     shader.vertexShader = shader.vertexShader
@@ -45,6 +49,10 @@ uniform vec2 gFloor;
 uniform vec2 gPath[4];
 uniform float gPathW, gPathS, gNoise;
 uniform vec4 gSootTint;
+uniform vec2 gTide;
+uniform vec3 gHGrad;
+uniform vec4 gSmudge[4];
+uniform float gSmudgeS[4];
 float gH(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float gN(vec3 x) {
   vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
@@ -71,6 +79,17 @@ float gSoot() {
   }
   return s;
 }
+// hand smudges: greasy, mottled darkening round things people touch
+float gSmudgeV() {
+  float m = 0.0;
+  for (int i = 0; i < 4; i++) {
+    vec4 sm = gSmudge[i];
+    if (gSmudgeS[i] <= 0.0) continue;
+    vec3 d = (vGW - sm.xyz) / sm.w;
+    m += gSmudgeS[i] * exp(-dot(d, d) * 2.2);
+  }
+  return m * (0.4 + 0.9 * smoothstep(0.35, 0.75, gN(vGW * 38.0)));
+}
 float gPathMask() {
   float m = 0.0;
   ${nPath > 1 ? `for (int i = 0; i < ${nPath - 1}; i++) {
@@ -90,15 +109,21 @@ float gSootV = clamp(gSoot() * (0.7 + 0.6 * gn), 0.0, 0.85);
 float gCeilV = gCeil.z * smoothstep(gCeil.x - gCeil.y, gCeil.x, vGW.y) * (0.75 + 0.5 * gn);
 float gFloorV = gFloor.y * smoothstep(gFloor.x, 0.0, vGW.y) * (0.6 + 0.8 * gn2);
 float gPathV = gPathS * gPathMask() * (0.7 + 0.5 * gn2) * step(vGW.y, 0.05);
-float gDark = 1.0 - clamp(gSootV + gCeilV + gFloorV, 0.0, 0.88);
+// mop-water tide marks: dirt carried up the bottom few cm, dried in wavering brown lines
+float gTl = vGW.y - gTide.x * (1.0 + (gn2 - 0.5) * 0.5);
+float gTideV = gTide.y * (smoothstep(0.02, -0.06, gTl) * (0.35 + 0.3 * gn2) + exp(-gTl * gTl / 0.000018) * 0.6 + exp(-pow(gTl + gTide.x * 0.45, 2.0) / 0.00001) * 0.3);
+float gSmV = clamp(gSmudgeV(), 0.0, 0.7);
+float gHG = gHGrad.z * smoothstep(gHGrad.x, gHGrad.y, vGW.y) * (0.6 + 0.8 * gn);
+float gDark = 1.0 - clamp(gSootV + gCeilV + gFloorV + gTideV * 0.6 + gSmV * 0.55 + gHG, 0.0, 0.88);
 diffuseColor.rgb *= gDark * (1.0 + (gn - 0.5) * gNoise);
 diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.78, 0.74, 0.72), gPathV);
-diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * gSootTint.rgb, clamp(gSootV * 1.6, 0.0, 1.0) * gSootTint.a);
+diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * gSootTint.rgb, clamp(gSootV * 1.6 + gHG, 0.0, 1.0) * gSootTint.a);
+diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.82, 0.7, 0.52), clamp(gTideV + gSmV, 0.0, 1.0) * 0.6);
 ${T ? `vec4 gTh = gTileH(vMapUv);
 diffuseColor.rgb *= 1.0 + (gTh.x - 0.5) * gTP.x;
 diffuseColor.rgb *= 1.0 + (vec3(gTh.y, 0.5, 1.0 - gTh.y) - 0.5) * gTP.y;` : ''}`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-roughnessFactor = clamp(roughnessFactor * (1.0 - gPathV * 0.55) + gSootV * 0.15, 0.04, 1.0);
+roughnessFactor = clamp(roughnessFactor * (1.0 - gPathV * 0.55) + gSootV * 0.15 + gTideV * 0.25 - gSmV * 0.1, 0.04, 1.0);
 ${T ? 'roughnessFactor = clamp(roughnessFactor * (1.0 + (gTh.z - 0.5) * gTP.z * 2.0), 0.04, 1.0);' : ''}`)
       .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
 ${T ? `#ifdef USE_CLEARCOAT
@@ -109,7 +134,7 @@ material.clearcoat *= 1.0 - clamp(gFloorV * 0.8 + gSootV * 0.6, 0.0, 0.85);
 ${T ? 'normal = normalize(normal + (vec3(gTh.w, fract(gTh.w * 7.13), 0.0) - 0.5) * gTP.w);' : ''}`);
   };
   const key = material.customProgramCacheKey?.bind(material);
-  material.customProgramCacheKey = () => (key ? key() : '') + `|kgrime2:${tag}:${nPath}:${T ? 1 : 0}`;
+  material.customProgramCacheKey = () => (key ? key() : '') + `|kgrime3:${tag}:${nPath}:${T ? 1 : 0}`;
   material.needsUpdate = true;
   return material;
 }

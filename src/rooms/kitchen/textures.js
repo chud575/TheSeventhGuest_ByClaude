@@ -72,8 +72,8 @@ export function flagstoneTexture(forge, size = 2048) {
 
 /** Glazed cream tiles in running bond (0.15 x 0.075 m): per-tile glaze drift, crackle crazing, chips, odd replaced tiles. 1 tile = 1.2 x 1.2 m. */
 export function wallTileTexture(forge, size = 2048) {
-  return forge.generate('kitchen:walltile6', {
-    size, normalStrength: 2.6,
+  return forge.generate('kitchen:walltile8', {
+    size, normalStrength: 1.8,
     glsl: /* glsl */ `
     void surface(vec2 uv, inout Surface s) {
       vec2 g = vec2(uv.x * 8.0, uv.y * 16.0);
@@ -84,45 +84,51 @@ export function wallTileTexture(forge, size = 2048) {
       vec2 tid = vec2(mod(id.x, 8.0), mod(id.y, 16.0));
       vec3 h3 = hash32(tid + 3.1);
       vec3 h4 = hash32(tid * 2.3 + 17.0);
-      // slightly irregular hand-set joints
+      // slightly irregular hand-set joints, softened by a century of grease
       vec2 dm = min(f, 1.0 - f) * vec2(0.15, 0.075);
       float de = min(dm.x, dm.y);
-      float grout = 1.0 - smoothstep(0.0011, 0.0021, de);
+      float grout = 1.0 - smoothstep(0.0009, 0.0026, de);
       float pillow = domeh(-de + 0.005, 0.005);
-      float replaced = step(0.955, h4.x);           // a later, whiter, uncrazed tile
-      float cracked = step(0.985, h4.y) * (1.0 - replaced);
-      vec3 cream = mix(vec3(0.84, 0.79, 0.67), vec3(0.9, 0.89, 0.84), replaced);
-      vec3 col = cream * (0.95 + 0.1 * h3.x);
-      col = mix(col, vec3(0.82, 0.83, 0.76), h3.y * 0.3);
-      col = mix(col, vec3(0.88, 0.8, 0.66), h4.z * 0.25);
-      // glaze pools darker toward the edges
+      float cracked = step(0.985, h4.y);
+      // per-tile glaze: each firing came out a little different. Continuous variation only (value +-8 %,
+      // hue +-3 %), no odd white tiles
+      vec3 cream = vec3(0.71, 0.65, 0.53);         // yellowed by a century of smoke
+      float val = 1.0 + (h3.x - 0.5) * 0.16;
+      vec3 hue = vec3(1.0 + (h4.x - 0.5) * 0.06, 1.0, 1.0 - (h4.x - 0.5) * 0.06);
+      vec3 col = cream * val * hue;
+      col = mix(col, col * vec3(0.97, 0.98, 0.94), h3.y * 0.4);
+      // glaze pools darker toward the edges, and in a soft wave across the face (hand-dipped)
       col *= 0.88 + 0.12 * smoothstep(0.0, 0.012, de);
-      // crackle crazing (fine voronoi), stained by grease
-      float craze = 1.0 - smoothstep(0.0, 0.035, voronoiEdge(uv * 34.0 + h3.xy * 3.0, vec2(34.0), 1.0));
-      float craze2 = 1.0 - smoothstep(0.0, 0.06, voronoiEdge(uv * 70.0 + h3.yz, vec2(70.0), 1.0));
-      craze = max(craze, craze2 * 0.7) * (1.0 - replaced) * smoothstep(0.15, 0.6, fbm(uv + h3.z, vec2(10.0), 3) * 0.5 + 0.5);
+      col *= 0.97 + 0.05 * sin(f.x * 3.0 + h4.z * 6.0) * sin(f.y * 2.0 + h3.z * 4.0);
+      // crackle crazing: per-tile scale (from three periodic scales), fainter, stained by grease where it is open
+      float sc = 26.0 + floor(h3.x * 3.0) * 12.0;
+      float craze = 1.0 - smoothstep(0.0, 0.03, voronoiEdge(uv * sc + h3.xy * 3.0, vec2(sc), 1.0));
+      float craze2 = 1.0 - smoothstep(0.0, 0.05, voronoiEdge(uv * (sc * 2.0) + h3.yz, vec2(sc * 2.0), 1.0));
+      float crazeAmt = (0.25 + 0.75 * h4.z) * smoothstep(0.2, 0.65, fbm(uv + h3.z, vec2(10.0), 3) * 0.5 + 0.5);
+      craze = max(craze, craze2 * 0.6) * crazeAmt;
       // a through-crack across some tiles
       float tc = cracked * (1.0 - smoothstep(0.0, 0.03, abs(f.y - 0.5 - 0.3 * sin(f.x * 4.0 + h4.z * 6.0) * (f.x - 0.3))));
       float grime = smoothstep(0.42, 0.9, fbm(uv + 5.0, vec2(6.0), 5) * 0.5 + 0.5);
-      col = mix(col, col * vec3(0.72, 0.64, 0.5), grime * 0.55);
-      col = mix(col, col * vec3(0.5, 0.42, 0.32), craze * 0.6);
+      col = mix(col, col * vec3(0.72, 0.64, 0.5), grime * 0.45);
+      col = mix(col, col * vec3(0.6, 0.52, 0.4), craze * 0.35);
       col = mix(col, vec3(0.3, 0.26, 0.2), tc * 0.8);
       // chipped arrises revealing the biscuit
       float chipN = vnoise(uv * 140.0 + h3.xy * 10.0, vec2(140.0));
       float chip = smoothstep(0.8, 0.9, chipN) * (1.0 - smoothstep(0.0, 0.007, de));
-      // knocked corners: about one tile in three has lost a corner, showing the buff biscuit (dirty)
       vec2 cc = step(0.5, h3.yz);
       float cdist = length((f - cc) * vec2(0.15, 0.075));
-      float corner = step(0.62, h4.z) * (1.0 - smoothstep(0.008, 0.011, cdist + (chipN - 0.5) * 0.006 - h3.x * 0.005));
+      float corner = step(0.7, h4.z) * (1.0 - smoothstep(0.008, 0.011, cdist + (chipN - 0.5) * 0.006 - h3.x * 0.005));
       chip = max(chip, corner);
-      col = mix(col, vec3(0.5, 0.41, 0.31) * (0.8 + 0.3 * chipN), chip);
-      vec3 groutCol = vec3(0.3, 0.28, 0.25) * (0.75 + 0.5 * grime);
+      col = mix(col, vec3(0.42, 0.34, 0.26) * (0.8 + 0.3 * chipN), chip);
+      // grout: warm grey, dirty, slightly recessed and soft-edged
+      vec3 groutCol = vec3(0.2, 0.18, 0.155) * (0.7 + 0.4 * grime);
       col = mix(col, groutCol, grout);
       s.albedo = col;
-      s.height = mix(0.55 + 0.45 * pillow - chip * 0.3 - tc * 0.2 + (h3.z - 0.5) * 0.06, 0.15, grout);
-      s.rough = mix(0.08 + 0.25 * grime + 0.06 * h3.z + craze * 0.2, 0.95, max(grout, chip));
+      s.height = mix(0.55 + 0.45 * pillow - chip * 0.3 - tc * 0.2 + (h3.z - 0.5) * 0.05 - craze * 0.015, 0.2, grout);
+      // per-tile roughness 0.15 - 0.4, grease dulls it further
+      s.rough = mix(0.15 + 0.25 * h4.y + 0.2 * grime + craze * 0.1, 0.95, max(grout, chip));
       s.metal = 0.0;
-      s.ao = mix(1.0, 0.55, grout) * (1.0 - craze * 0.15);
+      s.ao = mix(1.0, 0.6, grout) * (1.0 - craze * 0.08);
     }`,
   });
 }
@@ -409,8 +415,8 @@ export function tinLiningTexture(forge, size = 512) {
 
 /** Limewashed lime plaster: trowel undulation, multi-coat brush mottle, tide-marked water stains, hairline cracks. 1 tile = 2 m. */
 export function limewashTexture(forge, { color = [0.3, 0.37, 0.44], stain = 1, lath = 0, size = 2048, key = 'wall' } = {}) {
-  return forge.generate(`kitchen:limewash2:${key}`, {
-    size, normalStrength: 3.2,
+  return forge.generate(`kitchen:limewash3:${key}`, {
+    size, normalStrength: 2.4,
     uniforms: { uColor: color, uStain: stain, uLath: lath },
     glsl: /* glsl */ `
     void surface(vec2 uv, inout Surface s) {
@@ -423,9 +429,10 @@ export function limewashTexture(forge, { color = [0.3, 0.37, 0.44], stain = 1, l
       float brushA = fbm(rot2(0.6) * uv * 1.0 + 5.0, vec2(30.0, 6.0), 3) * 0.5 + 0.5;
       float brushB = fbm(rot2(-0.7) * uv + 11.0, vec2(26.0, 5.0), 3) * 0.5 + 0.5;
       float brush = mix(brushA, brushB, smoothstep(0.3, 0.7, mid));
-      float chalk = smoothstep(0.45, 0.85, fbm(uv + 71.0, vec2(7.0), 5) * 0.5 + 0.5);
-      vec3 col = vec3(uColor) * (0.74 + 0.48 * low) * (0.88 + 0.22 * brush) * (0.95 + 0.07 * fine) * (0.9 + 0.18 * mid);
-      col = mix(col, col * 1.18 + vec3(0.03, 0.035, 0.04), chalk * 0.35);             // chalky bloom
+      float chalk = smoothstep(0.4, 0.85, fbm(uv + 71.0, vec2(4.0), 5) * 0.5 + 0.5);
+      vec3 col = vec3(uColor) * (0.72 + 0.5 * low) * (0.94 + 0.1 * brush) * (0.985 + 0.03 * fine) * (0.92 + 0.14 * mid);
+      // limewash bloom: big soft patches where the lime has chalked out pale and grey
+      col = mix(col, col * 1.12 + vec3(0.05, 0.05, 0.05), chalk * 0.5);
       // thinned limewash: an older, paler coat ghosting through
       float thin = smoothstep(0.62, 0.82, fbm(uv + 13.0, vec2(6.0), 5) * 0.5 + 0.5);
       col = mix(col, col * 0.62 + vec3(0.24, 0.24, 0.22), thin * 0.45);
@@ -747,8 +754,8 @@ const FOOT_GLSL = /* glsl */ `
  */
 export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 7.2], block = [0.2, -0.6], blockHalf = [0.7, 0.34], kerb = [-1.97, -0.63, -3.1], sack = [-1.1, -1.45], sacks = [], tile = [-3.2, 3.4, 0.3], trail = [[0.05, -0.62], [2.95, -1.2]] } = {}) {
   const S = sacks.slice(0, 4); while (S.length < 4) S.push([99, 99, 0.01]);
-  return forge.generate('kitchen:flour13', {
-    size, aspect: rect[2] / rect[3], tile: false, normalStrength: 1.6,
+  return forge.generate('kitchen:flour15', {
+    size, aspect: rect[2] / rect[3], tile: false, normalStrength: 0.7,
     uniforms: { uRect: rect, uBlock: [...block, ...blockHalf], uKerb: kerb, uSack: sack, uS0: S[0], uS1: S[1], uS2: S[2], uS3: S[3], uTile: tile, uP0: trail[0], uP1: trail[1] },
     glsl: /* glsl */ `
     ${FOOT_GLSL}
@@ -771,10 +778,10 @@ export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 
       // ---- density field (all low frequency, no hard edges)
       vec2 c = w - (uBlock.xy + vec2(-0.25, 0.04));
       float spill = exp(-dot(c * vec2(0.75, 1.1), c * vec2(0.75, 1.1)) * 1.9);
-      float a = spill * (0.45 + 0.75 * n1) * (0.7 + 0.45 * n2);
+      float a = spill * (0.42 + 0.7 * n1) * (0.65 + 0.45 * n2);
       // under the pastry end of the block: a heavier fall where the dough is worked
       vec2 cp = w - (uBlock.xy + vec2(-0.45, 0.05));
-      a = max(a, exp(-dot(cp * vec2(1.5, 2.0), cp * vec2(1.5, 2.0)) * 2.2) * (0.85 + 0.35 * n3));
+      a = max(a, exp(-dot(cp * vec2(1.5, 2.0), cp * vec2(1.5, 2.0)) * 2.2) * (0.75 + 0.35 * n3));
       // split sack: a dense fan poured toward the block, piled at the mouth
       vec2 cs = w - uSack;
       vec2 fanDir = normalize(uBlock.xy - uSack);
@@ -785,12 +792,12 @@ export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 
       // drifts piled against the block legs
       vec2 lq = abs(abs(w - uBlock.xy) - (uBlock.zw - 0.08));
       float legD = length(lq) - 0.05;
-      a = max(a, drift(legD, 0.09, n3) * 0.95);
+      a = max(a, drift(legD, 0.07, n3) * 0.6);
       // along the range kerb
       float kd = (w.y - uKerb.z) * step(uKerb.x, w.x) * step(w.x, uKerb.y) + 10.0 * (1.0 - step(uKerb.x, w.x) * step(w.x, uKerb.y));
-      a = max(a, drift(kd, 0.1, n3 * n2 * 1.6) * 0.7);
+      a = max(a, drift(kd, 0.1, n3 * n2 * 1.6) * 0.5);
       // round the sacks
-      a = max(a, max(max(sackDrift(w, uS0, n3), sackDrift(w, uS1, n3)), max(sackDrift(w, uS2, n3), sackDrift(w, uS3, n3))) * 0.8);
+      a = max(a, max(max(sackDrift(w, uS0, n3), sackDrift(w, uS1, n3)), max(sackDrift(w, uS2, n3), sackDrift(w, uS3, n3))) * 0.62);
       // along the skirting: gathered by the broom into the corners and edges, broken along its length
       float wallD = min(min(w.x - uRect.x, uRect.x + uRect.z - w.x), min(uRect.y - w.y, w.y - (uRect.y - uRect.w)));
       a = max(a, drift(wallD - 0.01, 0.08, n3) * smoothstep(0.4, 0.75, n2) * 0.7);
@@ -806,22 +813,37 @@ export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 
       vec2 dg = w - vec2(-1.55, -1.25);
       float drag = exp(-pow(dot(dg, vec2(0.86, 0.5)) / 0.08, 2.0)) * smoothstep(0.55, 0.0, abs(dot(dg, vec2(-0.5, 0.86)) - 0.25));
       a *= 1.0 - drag * 0.7;
-      // ---- coverage: a smooth ramp. dense flour (a > ~0.9) is opaque enough to bury the grout; thin flour is a
-      // translucent veil whose fine grain only shows where it is thin; thin flour also lodges in the joints.
-      float n4 = fbm(uv + 13.0, vec2(36.0), 4) * 0.5 + 0.5;     // ~15 cm clumping at the margins
-      float n5 = fbm(uv + 23.0, vec2(110.0), 3) * 0.5 + 0.5;    // ~5 cm feathering
-      // body: the spill proper, a fairly tight (2-4 cm) but ragged, feathered margin
-      float edgeV = a * 1.1 + (n4 - 0.5) * 0.3 + (n5 - 0.5) * 0.12;
-      float body = smoothstep(0.34, 0.5, edgeV);
-      // powder: scattered grains and puffs thrown just beyond the margin, densest close to it
-      float halo = smoothstep(0.12, 0.34, edgeV) * (1.0 - body);
-      float puff = halo * smoothstep(0.62, 0.9, n5 * 0.8 + grain2 * 0.3) * 0.5;
-      // a thin dusting (tracked flour) as a fine grained veil, never a fog
-      float dustV = smoothstep(0.08, 0.3, dust) * (0.35 + 0.4 * smoothstep(0.4, 0.8, grain2 * 0.5 + n5 * 0.6)) * 0.3;
-      float cov = max(body * (0.72 + 0.2 * smoothstep(0.5, 1.1, a) + 0.08 * n5), max(puff, dustV));
-      float thin = 1.0 - body;
-      cov += joint * smoothstep(0.1, 0.32, edgeV) * thin * 0.22;
-      float alpha = clamp(cov, 0.0, 1.0) * 0.92;
+      // ---- directional drag streaks: boots and the broom have smeared the spill out along their stroke, so the
+      // margins are combed into long thin streaks rather than a hard rim
+      vec2 sdA = rot2(0.42) * (w - uBlock.xy);
+      float streakA = vnoise(vec2(sdA.x * 2.2, sdA.y * 70.0) + 3.0, vec2(1e4)) * 0.6 + vnoise(vec2(sdA.x * 5.0, sdA.y * 150.0) + 9.0, vec2(1e4)) * 0.4;
+      vec2 sdB = rot2(-0.9) * (w - uSack);
+      float streakB = vnoise(vec2(sdB.x * 1.6, sdB.y * 55.0) + 7.0, vec2(1e4));
+      float streakZone = smoothstep(0.05, 0.4, a) * (1.0 - smoothstep(0.9, 1.3, a));
+      a *= mix(1.0, 0.45 + 0.9 * streakA, streakZone * 0.8);
+      a *= mix(1.0, 0.55 + 0.75 * streakB, smoothstep(1.6, 0.4, length(w - uSack)) * streakZone * 0.6);
+      // broom arcs: bristle striations along each arc, thinning the flour and leaving a faint ridge at the arc end
+      float bang = atan(bc.y, bc.x);
+      float bristle = vnoise(vec2(br * 260.0, bang * 4.0), vec2(1e4));
+      a *= 1.0 - sweepZone * 0.45 * smoothstep(0.35, 0.75, bristle);
+      a += sweepZone * 0.12 * smoothstep(0.85, 1.0, stroke1) * (0.5 + 0.5 * n3);
+      // ---- coverage: flour is a scatter of grains whose fraction grows with density. Thin flour shows as
+      // isolated grains and specks on the flags (never a veil), density builds to an opaque core only at the
+      // spill source (the split sack); everywhere else the flags show through at 30-60 %.
+      float n5 = fbm(uv + 23.0, vec2(110.0), 3) * 0.5 + 0.5;    // ~5 cm clumping
+      float g = grain * 0.3 + grain2 * 0.5 + n5 * 0.2;
+      float dens = clamp(a + (n5 - 0.5) * 0.12, 0.0, 1.6);
+      float thr = 1.0 - clamp(dens, 0.0, 1.0) * 0.92;           // grain threshold falls as density rises
+      float scatter = smoothstep(thr - 0.05, thr + 0.05, g);
+      float core = smoothstep(0.18, 1.15, dens);                // a wide, soft gradient to the core
+      vec2 cs2 = w - uSack;
+      float source = max(exp(-dot(cs2, cs2) / 0.05), fan * smoothstep(0.55, 0.0, along) * 0.9);
+      float peak = mix(0.66, 0.92, source);                      // flags show through except at the spill source
+      float cov = max(core * peak, scatter * mix(0.5, 0.8, core));
+      cov = max(cov, dust * 1.6 * scatter);
+      float thin = 1.0 - core;
+      cov += joint * smoothstep(0.08, 0.5, dens) * thin * 0.18;
+      float alpha = clamp(cov, 0.0, 1.0);
       // first footprints pressed out of the spill
       vec2 dir = normalize(uP1 - uP0);
       vec2 nrm = vec2(-dir.y, dir.x);
@@ -837,11 +859,12 @@ export function flourDecalTexture(forge, { size = 2560, rect = [-3.2, 3.4, 6.4, 
         fpOut = max(fpOut, smoothstep(0.1, 0.5, footPrint(fs, side, fi)));
       }
       alpha *= 1.0 - fpOut * 0.75;
-      s.albedo = vec3(0.86, 0.84, 0.78) * (0.9 + 0.1 * n2) * (0.93 + 0.07 * grain) * mix(1.0, 0.92, thin);
+      // warm cream, peak albedo ~0.7; thin flour picks up the dirt of the floor and goes greyer
+      s.albedo = vec3(0.72, 0.68, 0.6) * (0.92 + 0.08 * n2) * (0.94 + 0.06 * grain) * mix(1.0, 0.86, thin);
       s.alpha = saturate(alpha);
-      // height: the drifts are soft mounds (shading from the density itself) with fine grain on top
-      s.height = 0.3 + min(a, 1.4) * 0.3 * body + body * 0.05 + grain * 0.025 * cov + n5 * 0.04 * body - fpOut * 0.08 * cov;
-      s.rough = 0.92 - grain * 0.06;
+      // height: a dusting, not drifts. Only the core is (barely) raised; the margins are flat so no normal-map rim
+      s.height = 0.5 + core * core * 0.05 + grain * 0.012 * core - fpOut * 0.03 * core;
+      s.rough = 1.0;
       s.metal = 0.0;
       s.ao = 1.0;
     }`,

@@ -400,7 +400,52 @@ function drawLabel(g, i, letter, mode, H, style, family = 0) {
   // the seam: a soldered lap on lithographed tins; on paper a glued overlap with a darker glue line
   if (paper) { g.fillStyle = C ? 'rgba(120,85,40,0.45)' : ORM.paper; g.fillRect(0, 0, 9, H); g.fillStyle = C ? 'rgba(60,40,20,0.5)' : ORM.paper; g.fillRect(8, 0, 1.5, H); }
   else { g.fillStyle = ink('rgba(150,148,140,0.9)', 'tin'); g.fillRect(0, 0, 3, H); g.fillRect(W - 2, 0, 2, H); }
+  if (!paper) {
+    // the soldered side seam sits on the flank (the tin body's lap, matching the seam strip on the geometry):
+    // an unprinted band of bare tin with grey solder edges, rust blooming out of the lap and creeping down from the rims
+    const sx = W * (0.5 + (i % 2 ? 1 : -1) * 0.2);
+    g.fillStyle = ink('rgba(168,166,158,0.95)', 'tin'); g.fillRect(sx - 3, 0, 6, H);
+    g.fillStyle = C ? 'rgba(70,66,60,0.85)' : ORM.tin; g.fillRect(sx - 4, 0, 1.2, H); g.fillRect(sx + 3, 0, 1.2, H);
+    for (let k = 0; k < 9; k++) {
+      const y = k < 3 ? H - R() * (RIM + 8) : (k < 5 ? R() * (RIM + 6) : R() * H);
+      const x = sx + (R() - 0.5) * 12, r = 2 + R() * (k < 5 ? 10 : 6);
+      if (C) { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(92,36,12,0.9)'); gr.addColorStop(0.6, 'rgba(128,60,22,0.55)'); gr.addColorStop(1, 'rgba(128,60,22,0)'); g.fillStyle = gr; } else g.fillStyle = ORM.rust;
+      g.beginPath(); g.arc(x, y, r * (C ? 1 : 0.6), 0, Math.PI * 2); g.fill();
+    }
+    // a rust run: a thin streak down from the top rim where damp collected
+    if (C) { const x = sx + (R() - 0.5) * 6; const gr = g.createLinearGradient(0, RIM, 0, RIM + 40 + R() * 40); gr.addColorStop(0, 'rgba(110,48,16,0.6)'); gr.addColorStop(1, 'rgba(110,48,16,0)'); g.fillStyle = gr; g.fillRect(x - 1.5, RIM, 3, 80); }
+  }
   g.restore();
+}
+
+/** Age a few labels in place (colour atlas only): sun-faded and desaturated on one side, and the colour plates
+ * printed slightly out of register (red plate shifted 2 px across, blue plate 1 px down). */
+function ageCell(g, x0, y0, w, h, i) {
+  if (i % 3 === 1) {
+    g.save();
+    g.beginPath(); g.rect(x0, y0, w, h); g.clip();
+    g.globalCompositeOperation = 'saturation';
+    const sg = g.createLinearGradient(x0, 0, x0 + w, 0);
+    const side = i % 2;
+    sg.addColorStop(side ? 0 : 1, 'rgba(128,128,128,0.65)'); sg.addColorStop(0.5, 'rgba(128,128,128,0.3)'); sg.addColorStop(side ? 1 : 0, 'rgba(128,128,128,0.05)');
+    g.fillStyle = sg; g.fillRect(x0, y0, w, h);
+    g.globalCompositeOperation = 'screen';
+    const fg = g.createLinearGradient(x0, 0, x0 + w, 0);
+    fg.addColorStop(side ? 0 : 1, 'rgba(70,60,40,0.55)'); fg.addColorStop(0.55, 'rgba(70,60,40,0.12)'); fg.addColorStop(side ? 1 : 0, 'rgba(70,60,40,0)');
+    g.fillStyle = fg; g.fillRect(x0, y0, w, h);
+    g.restore();
+  }
+  if (i % 4 === 2 || i % 5 === 0) {
+    const img = g.getImageData(x0, y0, w, h), d = img.data, src = new Uint8ClampedArray(d);
+    const dxR = 2 + (i % 2), dyB = 1 + (i % 3 === 0 ? 1 : 0);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 4;
+      const xr = Math.max(0, x - dxR), yb = Math.max(0, y - dyB);
+      d[o] = src[(y * w + xr) * 4];
+      d[o + 2] = src[(yb * w + x) * 4 + 2];
+    }
+    g.putImageData(img, x0, y0);
+  }
 }
 
 /**
@@ -429,6 +474,7 @@ export async function buildLabelAtlas(letters, { extras = [], heights = [], fami
       g.scale(S, S);
       drawLabel(g, i, L, mode, hOf(i), i >= letters.length ? 0 : (i * 7) % 3, families[i] || 0);
       g.restore();
+      if (mode === 'c' && (families[i] || 0) !== 3) ageCell(g, col * CELL_W, row * CELL_H, CELL_W, Math.ceil(hOf(i) * S), i);
     });
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = mode === 'c' ? THREE.SRGBColorSpace : THREE.NoColorSpace;

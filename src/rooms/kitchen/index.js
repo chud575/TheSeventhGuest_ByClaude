@@ -7,7 +7,7 @@ import {
 } from './textures.js';
 import {
   mk, rbox, lathe, tube, buildOilLamp, buildRange, buildDresser, buildButcherBlock, buildSaucepan, buildScale, buildGasBracket, buildWindsorChair, crock, jarGeo, mergeInto,
-  buildPheasant, buildMopBucket, buildBoots, buildCoalHod, sackGeometry, sackTie, loafGeometry, buildOnionString, flourMound,
+  buildPheasant, buildMopBucket, buildBoots, buildCoalHod, sackGeometry, sackTie, loafGeometry, buildOnionString, flourMound, buildGasolier, hungLinen,
 } from './props.js';
 import { applyGrime } from './grime.js';
 import { makeBounce } from './bounce.js';
@@ -81,31 +81,31 @@ export default {
     const CV = kitchenCanvases(forge);
     // soot plumes: range flue, the four gas brackets, the pantry lamp, the candle on the block
     const PLUMES = [
-      [(CH.ax0 + CH.ax1) / 2, Z0 + 0.3, 1.45, 0.9, 0.45],
-      [X0 + 0.05, 0.15, 2.15, 0.55, 0.16], [X1 - 0.05, -0.05, 2.15, 0.55, 0.16], [0.12, Z0 + 0.05, 2.2, 0.55, 0.16], [2.7, Z1 - 0.05, 2.32, 0.5, 0.16],
+      [(CH.ax0 + CH.ax1) / 2, Z0 + 0.3, 1.3, 1.35, 0.5],
+      [X0 + 0.05, 0.15, 2.15, 0.75, 0.16], [X1 - 0.05, -0.05, 2.15, 0.75, 0.16], [CH.x1 + 0.05, Z0 + 0.25, 2.12, 0.75, 0.16], [2.7, Z1 - 0.05, 2.32, 0.7, 0.16],
       [X0 + 0.3, DRESSER_Z + 0.7, 1.35, 0.35, 0.2],
     ];
     const grime = (m, o = {}) => applyGrime(m, { plumes: PLUMES, ...o });
     // grease & smoke on the glazed tile: either side of the range recess, round the sink, under each gas bracket
     const TILE_GREASE = [
-      [CH.ax0 - 0.1, Z0 + CH.d, 0.45, 0.85, 0.32], [CH.ax1 + 0.1, Z0 + CH.d, 0.45, 0.85, 0.32],
+      [CH.ax0 - 0.04, Z0 + CH.d, 0.35, 1.4, 0.3], [CH.ax1 + 0.04, Z0 + CH.d, 0.35, 1.4, 0.3],
       [(CH.ax0 + CH.ax1) / 2, Z0 + 0.05, 0.4, 1.0, 0.5], [WIN.x, Z0, 0.7, 0.4, 0.5],
-      [X0 + 0.02, 0.15, 0.9, 0.35, 0.22], [X1 - 0.02, -0.42, 0.9, 0.35, 0.22], [0.12, Z0 + 0.02, 0.9, 0.35, 0.22], [2.7, Z1 - 0.02, 0.95, 0.3, 0.2],
+      [X0 + 0.02, 0.15, 0.9, 0.35, 0.22], [X1 - 0.02, -0.42, 0.9, 0.35, 0.22], [CH.x1 + 0.02, Z0 + 0.25, 0.9, 0.35, 0.22], [2.7, Z1 - 0.02, 0.95, 0.3, 0.2],
     ];
     const mat = {
       flags: grime(matFrom(quarryTileTexture(forge, 2048), { repeat: [1 / 2.4, 1 / 2.4], physical: true, clearcoat: 0.12, clearcoatRoughness: 0.45, name: 'quarry' }),
         { tiles: { grid: [8, 8], amp: 0.05, hue: 0.015, rough: 0.25, tilt: 0.03 }, ceiling: [9, 0.1, 0], floor: [0, 0], path: [[(CH.ax0 + CH.ax1) / 2, Z0 + 0.9], [BLOCK.x - 0.3, BLOCK.z - 0.55], [BLOCK.x - 0.9, BLOCK.z + 0.6], [0.55, Z1 - 0.3]], pathWidth: 0.42, pathStrength: 0.55, noise: 0.35, tag: 'floor' }),
-      tile: applyGrime(matFrom(wallTileTexture(forge, 2048), { repeat: [1 / 1.2, 1 / 1.2], physical: true, clearcoat: 0.45, clearcoatRoughness: 0.16, name: 'walltile' }), { plumes: TILE_GREASE, tiles: { grid: [8, 16], offset: 1, amp: 0.17, hue: 0.07, rough: 0.7, tilt: 0.15 }, floor: [0.55, 0.7], noise: 0.2, sootTint: [0.85, 0.66, 0.38], sootTintAmt: 0.85, tag: 'tile' }),
+      tile: applyGrime(matFrom(wallTileTexture(forge, 2048), { repeat: [1 / 1.2, 1 / 1.2], physical: true, clearcoat: 0.45, clearcoatRoughness: 0.16, name: 'walltile' }), { plumes: TILE_GREASE, tiles: { grid: [8, 16], offset: 1, amp: 0.05, hue: 0.02, rough: 0.5, tilt: 0.07 }, floor: [0.35, 0.45], tide: [0.15, 0.85], hgrad: [0.55, 1.25, 0.14], smudges: [[X1, 0.95, DUMB.z - 0.37, 0.13, 0.75], [X1, 0.92, DUMB.z + 0.37, 0.13, 0.65], [X1, 1.3, DUMB.z + 0.4, 0.1, 0.45], [WIN.x, 0.98, Z0, 0.32, 0.4]], noise: 0.3, sootTint: [0.85, 0.66, 0.38], sootTintAmt: 0.85, tag: 'tile' }),
       border: grime(matFrom(borderTileTexture(forge, 512), { repeat: [1 / 0.15, 1 / 0.15], physical: true, clearcoat: 0.8, clearcoatRoughness: 0.1, name: 'bordertile' }), { tiles: { grid: [1, 1], amp: 0.25, hue: 0.08, rough: 0.5, tilt: 0.06 }, tag: 'border' }),
       glazeGreen: new THREE.MeshPhysicalMaterial({ color: 0x0d2a22, roughness: 0.2, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.08, name: 'glazeGreen' }),
-      plaster: grime(matFrom(limewashTexture(forge, { color: [0.31, 0.39, 0.47], stain: 1, size: 2048, key: 'wall' }), { repeat: [0.5, 0.5], name: 'limewash' }), { ceiling: [H, 0.75, 0.42], noise: 0.3, tag: 'plaster' }),
+      plaster: grime(matFrom(limewashTexture(forge, { color: [0.284, 0.326, 0.368], stain: 1, size: 2048, key: 'wall' }), { repeat: [0.5, 0.5], name: 'limewash' }), { ceiling: [H, 0.95, 0.6], noise: 0.35, sootTint: [0.85, 0.8, 0.72], sootTintAmt: 0.7, smudges: [[WIN.x - 0.85, 1.75, Z0, 0.45, 0.55], [WIN.x + 0.8, 1.6, Z0, 0.35, 0.45], [X1, 2.9, -2.6, 0.6, 0.35], [X0, 2.6, 2.4, 0.55, 0.3]], tag: 'plaster' }),
       ceiling: grime(matFrom(ceilingBoardTexture(forge, 2048), { repeat: [0.5, 0.5], name: 'ceilBoards' }), { ceiling: [H, 0.2, 0.15], noise: 0.4, tag: 'ceil' }),
       beam: grime(matFrom(adzedOakTexture(forge, 1024), { repeat: [1, 1], name: 'adzedOak' }), { ceiling: [H, 0.6, 0.25], noise: 0.3, tag: 'beam' }),
       pine: M.create('wood', { species: 'pine', boards: 3, polish: 0.1, wear: 0.8, repeat: [1.2, 1.2], color: [0.95, 0.9, 0.82], clearcoat: 0.0 }),
       pineDark: M.create('wood', { species: 'oak', boards: 0, polish: 0.3, wear: 0.6, repeat: [1.5, 1.5], color: [0.55, 0.42, 0.33] }),
       maple: M.create('wood', { species: 'pine', boards: 8, polish: 0.25, wear: 0.6, repeat: [1.2, 1.2], color: [0.82, 0.68, 0.55] }),
       mahogany: M.create('mahogany', { repeat: [1.5, 1.5] }),
-      brick: applyGrime(M.create('brick', { soot: 0.85, rows: 8, cols: 4, repeat: [1 / 0.9, 1 / 0.6] }), { plumes: [[(CH.ax0 + CH.ax1) / 2, Z0 + 0.1, 0.85, 1.4, 0.28], [CH.ax0 + 0.05, Z0 + 0.3, 0.9, 0.6, 0.12], [CH.ax1 - 0.05, Z0 + 0.3, 0.9, 0.6, 0.12]], ceiling: [CH.ah, 0.5, 0.6], floor: [0, 0], noise: 0.4, tag: 'brick' }),
+      brick: applyGrime(M.create('brick', { soot: 0.95, rows: 8, cols: 4, repeat: [1 / 0.9, 1 / 0.6] }), { plumes: [[(CH.ax0 + CH.ax1) / 2, Z0 + 0.1, 0.5, 2.2, 0.45], [CH.ax0 + 0.03, Z0 + 0.35, 0.7, 1.5, 0.16], [CH.ax1 - 0.03, Z0 + 0.35, 0.7, 1.5, 0.16]], ceiling: [CH.ah, 0.75, 0.8], floor: [0, 0], noise: 0.4, tag: 'brick' }),
       brass: M.create('brass', { tarnish: 0.45, polish: 0.65, repeat: [3, 3] }),
       steel: M.basic('iron', { color: 0x3a3a3c, roughness: 0.4 }),
       soot: new THREE.MeshStandardMaterial({ color: 0x050403, roughness: 0.95, name: 'soot' }),
@@ -116,6 +116,7 @@ export default {
     mat.iron = matFrom(ironSet, { repeat: [3, 3], name: 'iron', metalness: 0.55, color: new THREE.Color(1.25, 1.25, 1.25), envMapIntensity: 1.0 });
     mat.ironEdge = matFrom(ironSet, { repeat: [3, 3], name: 'ironEdge', color: new THREE.Color(1.9, 1.9, 1.9), roughness: 0.75, envMapIntensity: 1.2 });
     mat.ironPolished = mat.ironEdge;
+    mat.ironGraphite = matFrom(ironSet, { repeat: [2, 2], name: 'ironGraphite', metalness: 0.45, color: new THREE.Color(0.95, 0.95, 0.98), envMapIntensity: 0.9 });
     mat.ironRelief = new THREE.MeshStandardMaterial({ map: CV.relief.map, bumpMap: CV.relief.bump, bumpScale: 3.5, roughnessMap: CV.relief.rough, metalness: 0.65, roughness: 1, envMapIntensity: 1.0, name: 'ironRelief' });
     mat.ironRelief2 = new THREE.MeshStandardMaterial({ map: CV.relief2.map, bumpMap: CV.relief2.bump, bumpScale: 3.5, roughnessMap: CV.relief2.rough, metalness: 0.65, roughness: 1, envMapIntensity: 1.0, name: 'ironRelief2' });
     mat.makerPlate = new THREE.MeshStandardMaterial({ map: CV.plate.map, bumpMap: CV.plate.bump, bumpScale: 2.5, metalness: 1, roughness: 0.38, name: 'makerPlate' });
@@ -135,7 +136,7 @@ export default {
     mat.cupboardPaint = matFrom(doorPaintTexture(forge, { color: [0.12, 0.2, 0.24], key: 'cupboard' }), { repeat: [1, 1], name: 'cupboardPaint' });
     mat.hatch = matFrom(doorPaintTexture(forge, { color: [0.2, 0.15, 0.1], key: 'brown' }), { repeat: [1, 1], name: 'doorBrown' });
     mat.door = matFrom(doorPaintTexture(forge, { color: [0.27, 0.2, 0.13], key: 'door2' }), { repeat: [1, 1], name: 'doorPaint' });
-    mat.sack = matFrom(sackTexture(forge), { repeat: [4.2, 4.2], name: 'sack', vertexColors: true, normalScale: new THREE.Vector2(0.85, 0.85) });
+    mat.sack = matFrom(sackTexture(forge), { repeat: [4.2, 4.2], name: 'sack', vertexColors: true, normalScale: new THREE.Vector2(1.2, 1.2) });
     stencilSack(mat.sack, CV.sackStencil || makeSackStencil(forge));
     mat.towel = new THREE.MeshStandardMaterial({ map: CV.towel, roughness: 0.92, side: THREE.DoubleSide, name: 'towel' });
     mat.emberMap = emberTexture(forge).map;
@@ -144,7 +145,7 @@ export default {
     mat.saltGlaze = new THREE.MeshPhysicalMaterial({ map: CV.saltGlaze, roughness: 0.45, clearcoat: 0.5, clearcoatRoughness: 0.35, name: 'saltGlaze' });
     mat.bristol = new THREE.MeshPhysicalMaterial({ map: CV.bristol, roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.15, name: 'bristolGlaze' });
     mat.porcelain = M.basic('porcelain', { color: 0xe6e1d4 });
-    mat.flour = matFrom(flourGrainTexture(forge, 512), { repeat: [1, 1], name: 'flourHeap', metalness: 0, normalScale: new THREE.Vector2(0.9, 0.9) });
+    mat.flour = matFrom(flourGrainTexture(forge, 512), { repeat: [1, 1], name: 'flourHeap', metalness: 0, color: new THREE.Color(0.82, 0.78, 0.7), roughness: 1, normalScale: new THREE.Vector2(0.5, 0.5) });
     mat.flour.metalnessMap = null; mat.flour.vertexColors = true; mat.flour.transparent = true; mat.flour.depthWrite = true;
     mat.tinPlate = matFrom(tinplateTexture(forge, 512), { repeat: [2, 1], name: 'tinPlate', envMapIntensity: 0.9 });
     mat.cloth = new THREE.MeshStandardMaterial({ color: 0x3a1512, roughness: 0.9, side: THREE.DoubleSide, name: 'mantelCloth' });
@@ -270,7 +271,7 @@ export default {
         size: 2560, rect: [X0, Z1, X1 - X0, Z1 - Z0], block: [BLOCK.x, BLOCK.z], blockHalf: [0.7, 0.34], kerb: [CH.ax0 + 0.03, CH.ax1 - 0.03, Z0 + 0.72],
         sack: [-1.3, -1.72], sacks: [[X1 - 0.72, -2.27, 0.24], [X1 - 0.33, -1.9, 0.22], [X1 - 0.98, -1.62, 0.3], [-0.95, -1.48, 0.2]], tile: [X0, Z1, 0.3], trail,
       });
-      const flourMat = new THREE.MeshStandardMaterial({ map: fl.map, normalMap: fl.normalMap, roughnessMap: fl.ormMap, roughness: 1, transparent: true, depthWrite: false, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, name: 'flourDecal' });
+      const flourMat = new THREE.MeshStandardMaterial({ map: fl.map, normalMap: fl.normalMap, normalScale: new THREE.Vector2(0.35, 0.35), roughness: 1, transparent: true, depthWrite: false, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, name: 'flourDecal' });
       const decal = new THREE.Mesh(new THREE.PlaneGeometry(X1 - X0, Z1 - Z0), flourMat);
       decal.rotation.x = -Math.PI / 2; decal.position.set((X0 + X1) / 2, 0.002, (Z0 + Z1) / 2);
       decal.name = 'flour'; decal.renderOrder = 1;
@@ -326,14 +327,14 @@ export default {
       {
         const PW = CH.x1 - CH.x0 + 0.22, PTop = my - 0.02, nSc = 7, scW = PW / nSc;
         const hem = (x) => { const f = ((x + PW / 2) / scW) % 1; return 0.105 + 0.06 * Math.sin(Math.PI * f); };
-        const pelTex = forge.canvas('kitchen:pelmet', 1024, 256, (g2, w, h) => {
+        const pelTex = forge.canvas('kitchen:pelmet2', 1024, 256, (g2, w, h) => {
           g2.fillStyle = '#5a1712'; g2.fillRect(0, 0, w, h);
           for (let y = 0; y < h; y += 2) { g2.fillStyle = `rgba(${y % 4 ? 0 : 120},${y % 4 ? 0 : 40},${y % 4 ? 0 : 30},0.12)`; g2.fillRect(0, y, w, 1); }
           for (let x = 0; x < w; x += 3) { g2.fillStyle = 'rgba(0,0,0,0.06)'; g2.fillRect(x, 0, 1, h); }
           // braid: hem band (v 0..0.16) and a top band (v 0.86..0.94)
           const braid = (y0, y1) => {
             g2.fillStyle = '#8a6a2a'; g2.fillRect(0, y0, w, y1 - y0);
-            g2.strokeStyle = '#d0aa5a'; g2.lineWidth = 3;
+            g2.strokeStyle = '#a2843f'; g2.lineWidth = 3;
             for (let x = -20; x < w + 20; x += 14) { g2.beginPath(); g2.moveTo(x, y1); g2.lineTo(x + 10, y0); g2.stroke(); }
             g2.fillStyle = 'rgba(40,20,5,0.5)'; g2.fillRect(0, y0, w, 2); g2.fillRect(0, y1 - 2, w, 2);
           };
@@ -342,32 +343,57 @@ export default {
           g2.fillStyle = 'rgba(140,50,35,0.35)';
           for (let x = 40; x < w; x += 80) for (const y of [h * 0.42, h * 0.62]) { g2.beginPath(); g2.ellipse(x + (y > h * 0.5 ? 40 : 0), y, 12, 22, 0, 0, Math.PI * 2); g2.fill(); }
           // dust & sun-fading along the top fold lines
-          for (let k = 0; k < 40; k++) { g2.fillStyle = `rgba(160,120,90,${0.04 + (k % 4) * 0.02})`; g2.fillRect((k * 197) % w, 0, 6 + (k % 5) * 8, h); }
+          for (let k = 0; k < 40; k++) { g2.fillStyle = `rgba(160,120,90,${0.02 + (k % 4) * 0.012})`; g2.fillRect((k * 197) % w, 0, 6 + (k % 5) * 8, h); }
+          // a century of smoke and dust: the top edge under the shelf has gone a dull grey-brown, moth-thinned patches
+          const dg = g2.createLinearGradient(0, 0, 0, h * 0.4); dg.addColorStop(0, 'rgba(48,38,32,0.7)'); dg.addColorStop(1, 'rgba(48,38,32,0)');
+          g2.fillStyle = dg; g2.fillRect(0, 0, w, h * 0.4);
+          for (let k = 0; k < 60; k++) { const x = (k * 331) % w, y = (k * 113) % h; const gr = g2.createRadialGradient(x, y, 0, x, y, 8 + (k % 7) * 5); gr.addColorStop(0, 'rgba(30,18,14,0.35)'); gr.addColorStop(1, 'rgba(30,18,14,0)'); g2.fillStyle = gr; g2.fillRect(x - 45, y - 45, 90, 90); }
         }, { tile: false });
         pelTex.wrapS = THREE.RepeatWrapping; pelTex.repeat.set(PW / 0.9, 1);
-        const pelMat = new THREE.MeshPhysicalMaterial({ map: pelTex, roughness: 0.9, sheen: 0.6, sheenColor: new THREE.Color(0.5, 0.2, 0.15), side: THREE.DoubleSide, name: 'pelmet' });
-        const NX = 210, NY = 14, pos = [], uv = [], idx = [];
+        // wool serge: dull, a low sheen only at grazing angles
+        const pelMat = new THREE.MeshPhysicalMaterial({ map: pelTex, roughness: 0.95, sheen: 0.3, sheenRoughness: 0.8, sheenColor: new THREE.Color(0.45, 0.22, 0.16), vertexColors: true, side: THREE.DoubleSide, name: 'pelmet' });
+        // knife pleats: the cloth is gathered into ~4.5 cm pleats pinned along the shelf edge; they open out and
+        // deepen toward the hem, where the cloth hangs free, and each swag bellies forward
+        const NX = 520, NY = 18, pos = [], uv = [], col = [], idx = [];
+        const nPl = Math.round(PW / 0.045);
         for (let j = 0; j <= NY; j++) for (let i = 0; i <= NX; i++) {
-          const u = i / NX, x = (u - 0.5) * PW, hb = hem(x), t = j / NY;     // t = 0 hem .. 1 top
+          const u = i / NX, x = (u - 0.5) * PW, t = j / NY;     // t = 0 hem .. 1 top
+          const ph = u * nPl + 0.15 * Math.sin(u * 37.0);
+          const hb = hem(x) + 0.006 * Math.sin(ph * Math.PI * 2 + 0.5) * (1 - t) + 0.004 * Math.sin(u * 91.0);
           const y = -hb * (1 - t);
           const f = ((x + PW / 2) / scW) % 1;
-          const pleat = 0.009 * Math.sin(u * Math.PI * 2 * nSc * 3) * (1 - t * 0.7) + 0.012 * Math.sin(Math.PI * f) * (1 - t);   // swags belly out
-          pos.push(x, y, pleat); uv.push(u * PW / 0.9, t * 0.8 + 0.06 + (1 - t) * 0.0);
+          const saw = ph - Math.floor(ph);                       // knife pleat: a slow face then a sharp fold back
+          const pleatShape = saw < 0.78 ? saw / 0.78 : 1 - (saw - 0.78) / 0.22;
+          const open = 0.35 + 0.65 * (1 - t);
+          const pleat = 0.011 * pleatShape * open + 0.014 * Math.sin(Math.PI * f) * (1 - t) ** 1.3 + 0.002 * Math.sin(u * 230.0) * (1 - t);
+          pos.push(x, y, pleat); uv.push(u * PW / 0.9, t * 0.8 + 0.06);
+          // occlusion in the pleat throats, darker under the shelf (dust and smoke settle on the top fold)
+          const throat = saw >= 0.78 ? 0.55 + 0.45 * (1 - (saw - 0.78) / 0.22) : 0.7 + 0.3 * pleatShape;
+          const top = 1 - 0.35 * Math.max(0, (t - 0.82) / 0.18);
+          const v = Math.min(1, (0.55 + 0.45 * throat) * top);
+          col.push(v, v * 0.97, v * 0.95);
         }
         for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) { const a = j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1; idx.push(a, b, c, b, d, c); }
         const pg = new THREE.BufferGeometry();
-        pg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); pg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); pg.setIndex(idx); pg.computeVertexNormals();
+        pg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); pg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); pg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); pg.setIndex(idx); pg.computeVertexNormals();
         const pel = mk(pg, pelMat, (CH.x0 + CH.x1) / 2, PTop, zf + 0.285);
         add(pel);
-        // bobble fringe hanging from the hem: a short cord and a tassel ball every 2.5 cm
-        const bob = new THREE.SphereGeometry(0.0085, 8, 6), cord = new THREE.CylinderGeometry(0.0012, 0.0012, 0.022, 4);
+        // bobble fringe hanging from the hem: cords of uneven drop, bobbles a little irregular, some missing
+        const bob = new THREE.SphereGeometry(0.0085, 8, 6), cord = new THREE.CylinderGeometry(0.0012, 0.0012, 1, 4);
         const list = [];
+        let k = 0;
         for (let x = -PW / 2 + 0.012; x < PW / 2; x += 0.025) {
-          const yb = PTop - hem(x);
-          list.push({ geo: cord, m: new THREE.Matrix4().makeTranslation((CH.x0 + CH.x1) / 2 + x, yb - 0.011, zf + 0.29) });
-          list.push({ geo: bob, m: new THREE.Matrix4().compose(V3((CH.x0 + CH.x1) / 2 + x, yb - 0.028, zf + 0.29), new THREE.Quaternion(), V3(1, 1.25, 1)) });
+          k++;
+          const r1 = Math.abs(Math.sin(k * 12.9898) * 43758.5453) % 1, r2 = Math.abs(Math.sin(k * 78.233) * 12345.678) % 1;
+          if (r1 > 0.95) continue;                                // a bobble lost
+          const xx = x + (r2 - 0.5) * 0.008;
+          const drop = 0.016 + r1 * 0.014;
+          const lean = (r2 - 0.5) * 0.25;
+          const yb = PTop - hem(xx);
+          list.push({ geo: cord, m: new THREE.Matrix4().compose(V3((CH.x0 + CH.x1) / 2 + xx + Math.sin(lean) * drop / 2, yb - drop / 2, zf + 0.29), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, lean)), V3(1, drop, 1)) });
+          list.push({ geo: bob, m: new THREE.Matrix4().compose(V3((CH.x0 + CH.x1) / 2 + xx + Math.sin(lean) * drop, yb - drop - 0.007, zf + 0.29), new THREE.Quaternion(), V3(0.85 + r2 * 0.3, 1.1 + r1 * 0.3, 0.85 + r2 * 0.3)) });
         }
-        add(new THREE.Mesh(mergeInto(list), new THREE.MeshStandardMaterial({ color: 0x8a6a2a, roughness: 0.75, name: 'fringe' })));
+        add(new THREE.Mesh(mergeInto(list), new THREE.MeshStandardMaterial({ color: 0x6e5422, roughness: 0.85, name: 'fringe' })));
       }
       // copper batterie: S-hooks on a brass rail across the breast, pans hung by their handle loops, tinned insides to the room
       const railY = 2.42, railZ = zf + 0.15;
@@ -978,7 +1004,20 @@ export default {
       // top shelf: a mixed run of stoneware - salt-glaze, Bristol cream-and-brown, treacle brown - varied size, lids, labels
       {
         const R = ctx.random.fork('crocks');
-        const glazes = [mat.saltGlaze, mat.bristol, mat.stonewareBrown, mat.bristol, mat.saltGlaze, mat.stoneware];
+        const greenGlaze = new THREE.MeshPhysicalMaterial({ color: 0x3e4a2c, roughness: 0.32, clearcoat: 0.7, clearcoatRoughness: 0.25, name: 'greenGlaze' });
+        const ochreGlaze = new THREE.MeshPhysicalMaterial({ color: 0x8a6430, roughness: 0.38, clearcoat: 0.6, clearcoatRoughness: 0.3, name: 'ochreGlaze' });
+        const greyGlaze = new THREE.MeshPhysicalMaterial({ color: 0x8d8a80, roughness: 0.5, clearcoat: 0.4, clearcoatRoughness: 0.4, name: 'greyGlaze' });
+        const glazes = [mat.saltGlaze, mat.bristol, greenGlaze, mat.stonewareBrown, ochreGlaze, mat.bristol, greyGlaze, mat.saltGlaze, mat.stoneware];
+        // a chip knocked out of the rim: the profile drops in a small notch over a short arc
+        const chipRim = (geo, h, ang, wdt) => {
+          const p = geo.attributes.position;
+          for (let q = 0; q < p.count; q++) {
+            const y = p.getY(q); if (y < h * 0.9) continue;
+            const a = Math.atan2(p.getZ(q), p.getX(q)); const da = Math.abs(Math.atan2(Math.sin(a - ang), Math.cos(a - ang)));
+            if (da < wdt) p.setY(q, y - Math.min(y - h * 0.9, 0.012 * (1 - (da / wdt) ** 2)));
+          }
+          geo.computeVertexNormals();
+        };
         const lblMat = new THREE.MeshStandardMaterial({ map: CV.crockLabels, roughness: 0.9, name: 'crockLabel' });
         let x = -L / 2 + 0.12;
         let k = 0;
@@ -994,6 +1033,7 @@ export default {
             : prof === 1 ? lathe(G, [[0, 0], [r * 0.92, 0], [r, h * 0.06], [r, h * 0.86], [r * 1.04, h * 0.9], [r * 1.04, h * 0.97], [r * 0.9, h], [0, h * 0.97]], 32)       // straight storage jar, rolled lip
             : prof === 2 ? lathe(G, [[0, 0], [r * 0.7, 0], [r * 1.05, h * 0.3], [r * 1.08, h * 0.5], [r * 0.85, h * 0.78], [r * 0.5, h * 0.88], [r * 0.55, h], [r * 0.45, h], [0, h * 0.95]], 32)   // bellied jug
             : lathe(G, [[0, 0], [r * 0.85, 0], [r * 0.95, h * 0.1], [r * 0.82, h * 0.5], [r * 0.95, h * 0.9], [r, h], [r * 0.9, h], [0, h * 0.96]], 32);   // waisted crock
+          if (k % 3 === 0) chipRim(vg, h, R.next() * 6.28, 0.18 + R.next() * 0.12);
           const vm = mk(vg, gm, x, s5, cz, 0, R.next() * 6.28, 0);
           vm.scale.set(1 + (R.next() - 0.5) * 0.08, 1, 1 + (R.next() - 0.5) * 0.08);
           add(vm, dg);
@@ -1027,7 +1067,7 @@ export default {
         const blueRim = new THREE.MeshPhysicalMaterial({ color: 0x1c2f66, roughness: 0.25, clearcoat: 0.8, name: 'enamelBlue' });
         const railY = s5 - 0.04, railZ = dresser.SD - 0.03;
         add(mk(new THREE.CylinderGeometry(0.011, 0.011, L - 0.08, 12), mat.dresserPaint, 0, railY, railZ, 0, 0, Math.PI / 2), dg);
-        const hookGeo = tube([[0, 0.012, 0], [0, -0.014, 0], [0, -0.028, 0.008], [0, -0.026, 0.02], [0, -0.014, 0.022]], 0.0028, 16, 6);
+        const hookGeo = tube([[0, 0.016, 0], [0, -0.016, 0], [0, -0.032, 0.009], [0, -0.03, 0.024], [0, -0.016, 0.027]], 0.0034, 18, 6);
         for (let k = 0; k < 8; k++) {
           const x = -L / 2 + 0.17 + k * ((L - 0.34) / 7);
           add(mk(hookGeo, mat.brass, x, railY - 0.008, railZ + 0.008), dg);
@@ -1035,10 +1075,11 @@ export default {
           const m = k % 3 === 0 ? blueRim : enamel;
           // pivot at the hook: handle loop at the pivot, body hanging out to one side and down
           const hold = new THREE.Group();
-          hold.add(mk(mug, m, -side * 0.045, -0.062, 0));
-          hold.add(mk(new THREE.TorusGeometry(0.02, 0.005, 6, 14), m, 0, -0.02, 0));
-          hold.position.set(x, railY - 0.03, railZ + 0.024);
-          hold.rotation.z = side * 1.1;
+          // the handle loop hangs on the hook's crook; the mug's weight swings its body under the hook, mouth tilted up
+          hold.add(mk(mug, m, 0, -0.088, -0.042));
+          hold.add(mk(new THREE.TorusGeometry(0.022, 0.0055, 6, 16), m, 0, -0.024, -0.004, 0, Math.PI / 2, 0));
+          hold.position.set(x, railY - 0.034, railZ + 0.032);
+          hold.rotation.set(-0.32, side * 0.12, side * 0.06);
           add(hold, dg);
         }
       }
@@ -1185,7 +1226,7 @@ export default {
         // a pressed bead along the top: bend the upper band forward a touch
         { const p = eg.attributes.position; for (let k = 0; k < p.count; k++) { const y = p.getY(k); p.setZ(k, p.getZ(k) + 0.0025 * Math.exp(-((y + 0.006) ** 2) / 0.00002) + Math.max(0, -y - 0.012) * 0.12); } eg.computeVertexNormals(); }
         G.applyBoxUVs(eg, 6);
-        const edgeMat = new THREE.MeshStandardMaterial({ map: mat.tinPlate.map, roughnessMap: mat.tinPlate.roughnessMap, metalnessMap: mat.tinPlate.metalnessMap, normalMap: mat.tinPlate.normalMap, metalness: 1, roughness: 0.9, color: new THREE.Color(0.95, 0.85, 0.66), envMapIntensity: 0.8, side: THREE.DoubleSide, name: 'shelfTin' });
+        const edgeMat = new THREE.MeshStandardMaterial({ map: mat.tinPlate.map, normalMap: mat.tinPlate.normalMap, normalScale: new THREE.Vector2(1.5, 1.5), metalness: 0.85, roughness: 0.5, color: new THREE.Color(0.5, 0.42, 0.3), envMapIntensity: 0.45, side: THREE.DoubleSide, name: 'shelfTin' });
         for (const y of dresser.shelfYs) {
           add(mk(eg, edgeMat, 0, y - 0.004, SD + 0.0075), dg);
           for (let k = 0; k < 9; k++) add(mk(new THREE.SphereGeometry(0.0022, 6, 4), mat.iron, -EL / 2 + 0.05 + k * ((EL - 0.1) / 8), y - 0.009, SD + 0.0095), dg);
@@ -1245,7 +1286,7 @@ export default {
       // rolling pin, dough in a heap of flour, the scale, a bowl of eggs, a candle in a chamberstick
       add(mk(new THREE.CylinderGeometry(0.03, 0.03, 0.34, 24), mat.maple, -0.1, sY(-0.1, 0.2) + 0.03, 0.2, 0, 0.4, Math.PI / 2), bg);
       for (const s of [-1, 1]) add(mk(new THREE.CylinderGeometry(0.012, 0.014, 0.1, 12), mat.maple, -0.1 + s * 0.2 * Math.cos(0.4), sY(-0.1, 0.2) + 0.03, 0.2 - s * 0.2 * Math.sin(0.4), 0, 0.4, Math.PI / 2), bg);
-      add(mk(flourMound({ R: 0.2, h: 0.045, seed: 7, stretch: 1.15 }), mat.flour, -0.4, sY(-0.4, 0.05) - 0.002, 0.05, 0, 0.4, 0), bg).scale.set(1, 1, 0.85);
+      add(mk(flourMound({ R: 0.2, h: 0.016, seed: 7, stretch: 1.15 }), mat.flour, -0.4, sY(-0.4, 0.05) - 0.002, 0.05, 0, 0.4, 0), bg).scale.set(1, 1, 0.85);
       add(mk(new THREE.SphereGeometry(0.075, 32, 20), new THREE.MeshPhysicalMaterial({ color: 0xd8c39a, roughness: 0.7, sheen: 0.4, name: 'dough' }), -0.38, sY(-0.38, 0.06) + 0.055, 0.06), bg).scale.set(1.15, 0.55, 1);
       const scale = buildScale(G, mat);
       scale.position.set(-0.45, sY(-0.45, -0.25), -0.25); scale.rotation.y = 0.2;
@@ -1390,16 +1431,21 @@ export default {
       }
       // the car: a shelf box with a silver cloche
       const car = new THREE.Group();
+      // a short car (52 cm) so the dark shaft, its guide rails and the hauling ropes show above it
+      const CHT = 0.52;
       car.add(mk(rbox(G, D - 0.06, 0.03, w - 0.04, 0.004), mat.pineDark, 0, 0, 0));
-      car.add(mk(rbox(G, D - 0.06, 0.03, w - 0.04, 0.004), mat.pineDark, 0, 0.7, 0));
-      car.add(mk(rbox(G, 0.02, 0.7, w - 0.04, 0.004), mat.pineDark, D / 2 - 0.04, 0.35, 0));
+      car.add(mk(rbox(G, D - 0.06, 0.03, w - 0.04, 0.004), mat.pineDark, 0, CHT, 0));
+      car.add(mk(rbox(G, 0.02, CHT, w - 0.04, 0.004), mat.pineDark, D / 2 - 0.04, CHT / 2, 0));
+      // iron crosshead and shackle the ropes are spliced to
+      car.add(mk(rbox(G, 0.05, 0.03, w - 0.1, 0.004), mat.iron, 0.02, CHT + 0.03, 0));
+      for (const sd of [-1, 1]) car.add(mk(new THREE.TorusGeometry(0.016, 0.004, 6, 14), mat.iron, 0.02, CHT + 0.06, sd * (w / 2 - 0.07)));
       cloche = new THREE.Group();
       cloche.add(mk(lathe(G, [[0, 0], [0.17, 0], [0.18, 0.005], [0.17, 0.012], [0.0, 0.012]], 40), M.basic('silver', { roughness: 0.25 })));
       cloche.add(mk(lathe(G, [[0.155, 0.01], [0.155, 0.04], [0.14, 0.1], [0.1, 0.15], [0.05, 0.17], [0.0, 0.175]], 40), M.basic('silver', { roughness: 0.2 })));
       cloche.add(mk(lathe(G, [[0, 0], [0.012, 0], [0.006, 0.015], [0.02, 0.03], [0.0, 0.035]], 16), M.basic('silver', { roughness: 0.2 }), 0, 0.175, 0));
       cloche.position.set(-0.02, 0.015, 0);
       car.add(cloche);
-      for (const sd of [-1, 1]) car.add(mk(rbox(G, D - 0.08, 0.7, 0.016, 0.003), mat.pineDark, 0, 0.35, sd * (w / 2 - 0.03)));
+      for (const sd of [-1, 1]) car.add(mk(rbox(G, D - 0.08, CHT, 0.016, 0.003), mat.pineDark, 0, CHT / 2, sd * (w / 2 - 0.03)));
       // a linen napkin and a folded note on the car's floor beside the cloche
       car.add(mk(rbox(G, 0.12, 0.004, 0.09, 0.001), new THREE.MeshStandardMaterial({ color: 0xd6cfbf, roughness: 0.9, name: 'note' }), 0.05, 0.017, w / 2 - 0.12, 0, 0.4, 0));
       car.position.set(X1 + D / 2 + 0.02, y0 + 0.005, zc);
@@ -1417,7 +1463,7 @@ export default {
       const cs = casing(w, h, y0 - 0.06, G.PROFILES.chairRail(0.09, 0.032), mat.hatch, 0.0);
       cs.position.set(X1, 0, zc); cs.rotation.y = -Math.PI / 2;
       g.add(cs);
-      g.add(mk(rbox(G, 0.14, 0.045, w + 0.24, 0.01), mat.pineDark, X1 - 0.05, y0 - 0.0225, zc));
+      g.add(mk(rbox(G, 0.14, 0.045, w + 0.24, 0.01), mat.hatch, X1 - 0.05, y0 - 0.0225, zc));
       // jambs with the sash grooves inside the wall thickness
       for (const sd of [-1, 1]) {
         g.add(mk(new THREE.BoxGeometry(0.1, h + 0.1, 0.022), mat.hatch, X1 + 0.05, y0 + h / 2, zc + sd * (w / 2 + 0.011)));
@@ -1439,7 +1485,16 @@ export default {
       hatch.userData.dynamic = true;
       g.add(hatch);
       // ropes inside the shaft
-      for (const sd of [-1, 1]) { const r = mk(ropeGeo(2.3), hemp, X1 + D / 2 + 0.12, y0 + 0.02, zc + sd * (w / 2 - 0.07)); g.add(r); }
+      for (const sd of [-1, 1]) { const r = mk(ropeGeo(2.0), hemp, X1 + D / 2 + 0.04, y0 + 0.59, zc + sd * (w / 2 - 0.07)); g.add(r); }
+      // guide rails: oak battens with iron wear strips up each side of the shaft, the car's runners between them
+      for (const sd of [-1, 1]) for (const dx of [0.07, D - 0.07]) {
+        g.add(mk(new THREE.BoxGeometry(0.035, 2.6, 0.016), mat.pineDark, X1 + dx, y0 + 0.4, zc + sd * (w / 2 - 0.008)));
+        g.add(mk(new THREE.BoxGeometry(0.008, 2.6, 0.018), mat.iron, X1 + dx + 0.02, y0 + 0.4, zc + sd * (w / 2 - 0.008)));
+      }
+      // the shaft falls away to black: a sooty soffit far above and a dark well below the car
+      g.add(mk(new THREE.BoxGeometry(D, 0.02, w), mat.soot, X1 + D / 2, y0 + 1.75, zc));
+      // the sill: paint worn through to bare wood where trays have been slid across it
+      g.add(mk(rbox(G, 0.035, 0.002, 0.38, 0.001), mat.blockBase, X1 - 0.03, y0 + 0.001, zc));
       // the hand rope: over a cast-iron pulley in a bracket above the casing, down to a cleat beside it
       {
         const py = y0 + h + 0.3, pz = zc + w / 2 + 0.05;
@@ -1518,13 +1573,13 @@ export default {
       }
       add(g);
       // warm candle-glow drifting down the shaft from the dining room above
-      dumbLight = new THREE.PointLight(0xe0a468, 0, 2.2, 2);
-      dumbLight.position.set(X1 + 0.32, y0 + h * 0.75, zc - 0.05);
+      dumbLight = new THREE.PointLight(0xe0a468, 0, 1.3, 2);
+      dumbLight.position.set(X1 + 0.42, y0 + 0.45, zc - 0.05);
       add(dumbLight);
     }
     const setHatch = (t) => {
       hatch.position.y = DUMB.y + DUMB.h / 2 + t * (DUMB.h + 0.08);
-      dumbLight.intensity = 0.9 + t * 1.2;
+      dumbLight.intensity = 0.45 + t * 0.9;
     };
     setHatch(dumb.t);
     async function revealDumbwaiter(animate) {
@@ -1574,7 +1629,7 @@ export default {
       for (const [cy, ph] of [[rb + lowH / 2, lowH], [rb + lowH + rl + upH / 2, upH]]) for (const cx of [st + pw / 2, w - st - pw / 2]) {
         g.add(mk(rbox(G, pw + 0.01, ph + 0.01, 0.016, 0.002), mat.door, cx, cy, 0));
         for (const s of [1, -1]) {
-          const fp = mk(G.raisedPanel(pw - 0.004, ph - 0.004, { border: 0.016, bevel: 0.03, fieldDepth: 0.004, frameDepth: 0.007 }), mat.door, cx, cy, s * 0.008, 0, s > 0 ? 0 : Math.PI, 0);
+          const fp = mk(G.raisedPanel(pw - 0.004, ph - 0.004, { border: 0.018, bevel: 0.045, fieldDepth: 0.009, frameDepth: 0.013 }), mat.door, cx, cy, s * 0.008, 0, s > 0 ? 0 : Math.PI, 0);
           g.add(fp);
         }
       }
@@ -1868,15 +1923,13 @@ export default {
         ag.add(mk(rbox(G, 0.012, 0.06, 0.05, 0.003), mat.iron, sx * (AL / 2 - 0.15), top - 0.02, 0));
       }
       // linen drying over the slats: a sheet folded over two slats, tea towels, a pinafore
-      const linenMat = new THREE.MeshStandardMaterial({ color: 0xd6cfbf, roughness: 0.9, side: THREE.DoubleSide, name: 'drying' });
+      // linen: soft sheen, a little light bleeding through where it is thin (faked with a faint emissive from the gas)
+      const linenMat = new THREE.MeshPhysicalMaterial({ color: 0xd2cab8, roughness: 0.92, sheen: 0.5, sheenRoughness: 0.7, sheenColor: new THREE.Color(0.9, 0.85, 0.75), emissive: new THREE.Color(0.05, 0.035, 0.02), side: THREE.DoubleSide, name: 'drying' });
       const towelMat = mat.towel;
       const drape = (w, hFront, hBack, x, z, m, seed) => {
-        for (const [hh, dz] of [[hFront, 0.012], [hBack, -0.012]]) {
-          const c = new THREE.Mesh(G.curtainGeometry({ width: w, height: hh, folds: Math.max(3, Math.round(w * 9)), depth: 0.018, gather: 0.3, seed: seed + dz * 100, segX: 30, segY: 14 }), m);
-          fixNaN(c.geometry, 30);
-          c.position.set(x, 0.012, z + dz); if (dz < 0) c.rotation.y = Math.PI;
-          ag.add(c);
-        }
+        const c = new THREE.Mesh(hungLinen({ width: w, front: hFront, back: hBack, r: 0.016, seed }), m);
+        c.position.set(x, 0, z); c.rotation.y = (seed % 2 ? 1 : -1) * 0.03;
+        ag.add(c);
       };
       drape(0.9, 0.42, 0.3, -0.25, slatZ[1], linenMat, 3);
       drape(0.36, 0.26, 0.2, 0.5, slatZ[2], towelMat, 8);
@@ -2025,10 +2078,13 @@ export default {
         const lamp = buildOilLamp(ctx, mat);
         lamp.group.position.set(2.98, 0.82, Z1 - 0.3);
         add(lamp.group);
-        const ll = new THREE.PointLight(0xffa456, 1.1, 4.0, 2);
+        // the focal warm pool at this end of the room: shadowed, so the table, cupboard and door throw shapes
+        const ll = new THREE.PointLight(0xffa456, 2.6, 3.6, 2);
         ll.position.set(2.98, 0.82 + lamp.flameY + 0.05, Z1 - 0.36);
+        ll.castShadow = Q.shadows; ll.shadow.mapSize.set(512, 512); ll.shadow.bias = -0.002; ll.shadow.normalBias = 0.03; ll.shadow.radius = 3; ll.shadow.camera.near = 0.1; ll.shadow.camera.far = 4;
         add(ll);
-        ctx.onUpdate((dt, t) => { ll.intensity = 1.1 * (0.95 + 0.05 * Math.sin(t * 4.3 + 1) * Math.sin(t * 2.1)); });
+        lamp.group.traverse((o) => { if (o.isMesh) o.userData.noShadow = true; });
+        ctx.onUpdate((dt, t) => { ll.intensity = 2.6 * (0.95 + 0.05 * Math.sin(t * 4.3 + 1) * Math.sin(t * 2.1)); });
       }
       // utensil rail with hanging tools
       const rx0 = 2.35, rx1 = 3.05, ry = 1.78, rz = Z1 - 0.05;
@@ -2089,7 +2145,7 @@ export default {
       // the split sack by the pantry: lying on its side, mouth toward the block, a heap of flour pouring out
       lyingSack(4, { r: 0.19, h: 0.58, slump: 0.7, flour: 1.0, neck: 0.06 }, -1.3, -1.72, -0.65 + Math.PI);
       // the heap poured from its mouth, slumped toward the block
-      add(mk(flourMound({ R: 0.3, h: 0.075, seed: 3, stretch: 1.6 }), mat.flour, -1.08, 0.001, -1.6, 0, -0.75, 0));
+      add(mk(flourMound({ R: 0.3, h: 0.026, seed: 3, stretch: 1.6 }), mat.flour, -1.08, 0.001, -1.6, 0, -0.75, 0));
       // a brace of pheasants and bunches of herbs hung from the beam over the sacks
       const bz = BEAMS[1], by = H - BEAM_H - 0.01;
       for (const [x, sd] of [[2.45, 0], [2.6, 1]]) {
@@ -2192,18 +2248,19 @@ export default {
       add(sg);
     }
 
-    // ================================================================ gas brackets
+    // ================================================================ gas: a three-light gasolier over the block + four wall brackets
     const gasLights = [];
     {
-      const globeMat = new THREE.MeshPhysicalMaterial({ color: 0x3a3028, emissive: new THREE.Color(1.0, 0.78, 0.52), emissiveMap: CV.mantle, emissiveIntensity: 1.25, roughness: 0.55, clearcoat: 1, clearcoatRoughness: 0.1, name: 'gasGlobe' });
+      // thin acid-etched glass: mostly transparent, a faint warm glow where the flame lights it from inside
+      const globeMat = new THREE.MeshPhysicalMaterial({ color: 0xf4ece0, emissive: new THREE.Color(1.0, 0.74, 0.46), emissiveMap: CV.mantle, emissiveIntensity: 0.14, roughness: 0.35, transparent: true, opacity: 0.38, depthWrite: false, side: THREE.DoubleSide, clearcoat: 1, clearcoatRoughness: 0.1, name: 'gasGlobe' });
       const spots = [
-        { p: V3(X0, 1.98, 0.15), ry: Math.PI / 2, i: 2.6 },          // left wall, beyond the dresser
-        { p: V3(X1, 1.98, -0.42), ry: -Math.PI / 2, i: 3.2 },        // right wall, by the dumbwaiter
-        { p: V3(0.12, 2.02, Z0), ry: 0, i: 1.4 },                     // back wall between breast and plate rack
-        { p: V3(2.7, 2.15, Z1), ry: Math.PI, i: 2.6 },                // front wall above the utensil rail
+        { p: V3(X0, 1.98, 0.15), ry: Math.PI / 2, i: 2.4 },          // left wall, beyond the dresser
+        { p: V3(X1, 1.98, -0.42), ry: -Math.PI / 2, i: 2.4 },        // right wall, by the dumbwaiter
+        { p: V3(CH.x1, 1.95, Z0 + 0.25), ry: Math.PI / 2, i: 2.2 },    // on the breast return, beside the range
+        { p: V3(2.7, 2.15, Z1), ry: Math.PI, i: 2.4 },                // front wall above the utensil rail
       ];
-      for (const s of spots) {
-        const b = buildGasBracket(G, mat, globeMat);
+      spots.forEach((s, si) => {
+        const b = buildGasBracket(G, mat, globeMat, fx, si * 1.7);
         b.group.position.copy(s.p); b.group.rotation.y = s.ry;
         add(b.group);
         // the gas supply: an iron pipe down the wall from the cornice, clipped every half metre
@@ -2211,12 +2268,32 @@ export default {
         const top = H - 0.14, len = top - s.p.y;
         add(mk(new THREE.CylinderGeometry(0.008, 0.008, len, 8), mat.iron, s.p.x + off.x, s.p.y + len / 2, s.p.z + off.z));
         for (let yy = s.p.y + 0.35; yy < top - 0.05; yy += 0.45) add(mk(rbox(G, 0.03, 0.012, 0.03, 0.003), mat.iron, s.p.x + off.x * 0.6, yy, s.p.z + off.z * 0.6, 0, s.ry, 0));
-        const pl = new THREE.PointLight(0xffaa5c, s.i, 7, 2);
+        // short-range pool: a bare fishtail burner lights the wall round it and little else
+        const pl = new THREE.PointLight(0xffa458, s.i, 2.7, 2);
         const lp = b.lightPos.clone().applyEuler(new THREE.Euler(0, s.ry, 0)).add(s.p);
         pl.position.copy(lp);
         add(pl);
         gasLights.push({ pl, base: s.i, seed: gasLights.length * 3.1 });
-      }
+      });
+      // gasolier: hung from the ceiling just in front of the pot rack, globes at head height over the block
+      const GAS = V3(BLOCK.x + 0.05, 2.3, BLOCK.z + 0.56);
+      const gz = buildGasolier(G, mat, globeMat, fx, { drop: (H - GAS.y) / 0.85, armR: 0.25, seed: 11 });
+      gz.group.scale.setScalar(0.85);
+      gz.group.position.copy(GAS); gz.group.rotation.y = 0.35;
+      add(gz.group);
+      // key: a 2700 K shadowed spot from under the font straight down onto the block (the pool on the floor round it)
+      const gasKey = new THREE.SpotLight(0xffb066, 9.0, 5.5, 0.95, 0.75, 2);
+      gasKey.position.set(GAS.x, GAS.y - 0.05, GAS.z);
+      gasKey.target.position.set(BLOCK.x - 0.05, 0.0, BLOCK.z + 0.1);
+      gasKey.castShadow = Q.shadows;
+      gasKey.shadow.mapSize.set(1024, 1024); gasKey.shadow.bias = -0.0006; gasKey.shadow.normalBias = 0.02; gasKey.shadow.radius = 3;
+      gasKey.shadow.camera.near = 0.2; gasKey.shadow.camera.far = 6;
+      add(gasKey); add(gasKey.target);
+      // the globes also light the pans, the beams and the smoke bell above them (no shadow)
+      const gasUp = new THREE.PointLight(0xffa458, 1.6, 2.6, 2);
+      gasUp.position.set(GAS.x, GAS.y + 0.12, GAS.z);
+      add(gasUp);
+      gasLights.push({ pl: gasKey, base: 9.0, seed: 7.7 }, { pl: gasUp, base: 1.6, seed: 7.7 });
       ctx.onUpdate((dt, t) => { for (const g of gasLights) g.pl.intensity = g.base * (0.97 + 0.03 * Math.sin(t * 7.3 + g.seed) * Math.sin(t * 2.9 + g.seed)); });
     }
 
@@ -2229,19 +2306,19 @@ export default {
     add(fire); add(fire.target);
     ctx.onUpdate((dt, t) => {
       const f = 0.85 + 0.1 * Math.sin(t * 3.3) * Math.sin(t * 1.7 + 1) + 0.05 * Math.sin(t * 11.0);
-      fire.intensity = 1.2 * f; range.emberMat.emissiveIntensity = 1.5 * f;
+      fire.intensity = 1.2 * f; range.emberMat.emissiveIntensity = 1.5 * f; if (range.group.userData.ashMat) range.group.userData.ashMat.emissiveIntensity = 0.7 * (0.8 + 0.4 * (f - 0.8));
     });
     // faint warm bounce low in the brick recess so the sooty brick reads (below the hob)
     const alcove = new THREE.PointLight(0xff7a3a, 0.35, 1.2, 2);
     alcove.position.set((CH.ax0 + CH.ax1) / 2, 0.5, Z0 + 0.75);
     add(alcove);
     // warm rim on the kettle & stockpot from the gas bracket on the breast
-    const rangeRim = new THREE.SpotLight(0xffb070, 8.0, 3.6, 0.75, 0.8, 2);
+    const rangeRim = new THREE.SpotLight(0xffb070, 5.0, 3.6, 0.75, 0.8, 2);
     rangeRim.position.set(CH.x1 + 0.25, 2.1, Z0 + 0.75);
     rangeRim.target.position.set((CH.ax0 + CH.ax1) / 2, 0.6, Z0 + 0.5);
     add(rangeRim); add(rangeRim.target);
     // fake bounce: candle- and lamp-light thrown up off the floured block onto the beams
-    const bounce = new THREE.PointLight(0xd89a5c, 1.8, 3.4, 2);
+    const bounce = new THREE.PointLight(0xd89a5c, 0.8, 3.0, 2);
     bounce.position.set(BLOCK.x, 2.75, BLOCK.z + 0.2);
     add(bounce);
     const dinPassage = new THREE.PointLight(0xffa860, 1.0, 3.5, 2);
@@ -2261,7 +2338,7 @@ export default {
     moon.shadow.bias = -0.0004; moon.shadow.normalBias = 0.02; moon.shadow.radius = 2.5; moon.shadow.blurSamples = 12;
     moon.shadow.camera.near = 1; moon.shadow.camera.far = 16;
     add(moon); add(moon.target);
-    const hemi = new THREE.HemisphereLight(0x4d64a8, 0x3a2a1c, 0.15);
+    const hemi = new THREE.HemisphereLight(0x4d64a8, 0x3a2a1c, 0.07);
     add(hemi);
     add(fx.areaLight({ center: [WIN.x, WIN.sill + WIN.h / 2, Z0 + 0.04], normal: [0, -0.35, 1], width: WIN.w, height: WIN.h, color: 0x8ea6ff, intensity: 4.2 }));
 
@@ -2395,7 +2472,7 @@ export default {
     const candleW = V3(BLOCK.x + 0.62, 0.98, BLOCK.z - 0.18);
     const gi = makeBounce({
       room: { min: [X0, 0, Z0], max: [X1, H, Z1] },
-      sky: [0.075, 0.095, 0.17], ground: [0.06, 0.042, 0.03], cornerDark: 0.6,
+      sky: [0.04, 0.05, 0.095], ground: [0.035, 0.025, 0.018], cornerDark: 0.75,
       emitters: [
         { p: [(CH.ax0 + CH.ax1) / 2, 0.45, Z0 + 0.95], r: 1.0, c: [0.55, 0.24, 0.08] },          // range hearth
         { p: [candleW.x, candleW.y - 0.05, candleW.z], r: 1.25, c: [0.5, 0.32, 0.15] },           // candle off the block top
@@ -2405,7 +2482,8 @@ export default {
         { p: [X0 + 0.35, 1.05, DRESSER_Z - 0.7], r: 1.0, c: [0.4, 0.24, 0.1] },                    // pantry lamp
         { p: [X0 + 0.35, 2.05, 0.15], r: 0.9, c: [0.28, 0.17, 0.08] },                             // gas, left wall
         { p: [X1 - 0.35, 2.05, -0.05], r: 0.9, c: [0.3, 0.18, 0.08] },                             // gas, right wall
-        { p: [0.12, 2.1, Z0 + 0.35], r: 0.8, c: [0.22, 0.13, 0.06] },                              // gas, back wall
+        { p: [CH.x1 + 0.3, 2.1, Z0 + 0.25], r: 0.8, c: [0.22, 0.13, 0.06] },                       // gas, breast return
+        { p: [BLOCK.x + 0.05, 2.3, BLOCK.z + 0.56], r: 1.1, c: [0.3, 0.19, 0.08] },                // gasolier globes
         { p: [2.7, 2.15, Z1 - 0.35], r: 0.9, c: [0.26, 0.16, 0.07] },                              // gas, front wall
         { p: [2.95, 1.0, Z1 - 0.35], r: 0.9, c: [0.3, 0.18, 0.08] },                               // side-table lamp
         { p: [X1 - 0.3, DUMB.y + 0.4, DUMB.z], r: 0.7, c: [0.2, 0.12, 0.06] },                     // dumbwaiter spill
@@ -2415,7 +2493,7 @@ export default {
         { p: [X0 + 0.4, 1.6, DRESSER_Z], r: 0.9, c: [0.16, 0.1, 0.05] },                            // tins & crocks catching the lamp
       ],
     });
-    gi.uniforms.kbGain.value = 1.65;
+    gi.uniforms.kbGain.value = 0.9;
     gi.applyTree(root);
     mergeStatic(root);
 
@@ -2426,7 +2504,7 @@ export default {
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
       grade: { exposure: 1.8, contrast: 1.08, saturation: 0.98, lift: [0.007, 0.008, 0.016], bloomStrength: 0.3, bloomThreshold: 1.6, godRayWeight: 0.3, godRayThreshold: 2.5, vignette: 0.42, aoIntensity: 1.0, aoRadius: 0.45 },
-      environment: { position: [0.2, 1.7, 1.2], intensity: 0.8 },
+      environment: { position: [0.2, 1.7, 1.2], intensity: 0.5 },
       onEnter() {
         if (!ctx.state.has('kitchen.greeted')) {
           ctx.state.set('kitchen.greeted', true);

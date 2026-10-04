@@ -137,33 +137,30 @@ export function buildRange(ctx, mat) {
     sh.moveTo(-0.12, -0.07); sh.lineTo(0.12, -0.07); sh.lineTo(0.12, 0.07); sh.lineTo(-0.12, 0.07); sh.lineTo(-0.12, -0.07);
     for (let i = 0; i < 4; i++) { const y = -0.045 + i * 0.03; const hp = new THREE.Path(); hp.moveTo(-0.085, y - 0.007); hp.lineTo(0.085, y - 0.007); hp.lineTo(0.085, y + 0.007); hp.lineTo(-0.085, y + 0.007); hp.lineTo(-0.085, y - 0.007); sh.holes.push(hp); }
     g.add(mk(G.applyBoxUVs(new THREE.ExtrudeGeometry(sh, { depth: 0.01, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 1 }), 1), edge, 0, 0.235, 0.012));
-    const ashMat = emberMat.clone(); ashMat.emissiveIntensity = 0.35; ashMat.name = 'ashGlow';
-    const ash = mk(new THREE.PlaneGeometry(0.2, 0.12), ashMat, 0, 0.235, -0.004); ash.userData.noBake = true; g.add(ash);
+    const ashMat = emberMat.clone(); ashMat.emissiveIntensity = 0.7; ashMat.name = 'ashGlow';
+    const ash = mk(new THREE.PlaneGeometry(0.2, 0.12), ashMat, 0, 0.235, -0.004); ash.userData.noBake = true; g.add(ash); g.userData.ashMat = ashMat;
     g.add(mk(new THREE.BoxGeometry(0.22, 0.13, 0.03), mat.soot, 0, 0.235, -0.022));
   }
   // dampers
   for (const x of [-0.08, 0.08]) g.add(mk(lathe(G, [[0, 0], [0.013, 0], [0.017, 0.01], [0.01, 0.026], [0.014, 0.034], [0, 0.037]], 16), brass, x, 0.72, 0.012, Math.PI / 2));
   // ---- hob slab + hob covers with ring grooves and lifting notches
   g.add(mk(rbox(G, W + 0.06, 0.04, D + 0.04, 0.012), edge, 0, HOB - 0.02, -D / 2 + 0.005));
-  const cover = (R) => {
-    const pts = [[0, 0], [R + 0.003, 0], [R + 0.003, 0.006], [R, 0.011], [R * 0.93, 0.012]];
-    for (const [r0, r1] of [[0.86, 0.8], [0.62, 0.56], [0.38, 0.33]]) pts.push([R * r0, 0.012], [R * (r0 - 0.01), 0.008], [R * (r1 + 0.01), 0.008], [R * r1, 0.012]);
-    pts.push([R * 0.12, 0.012], [R * 0.1, 0.016], [0, 0.017]);
-    return lathe(G, pts, 48);
-  };
-  for (const [x, z, R] of [[-0.42, -0.22, 0.12], [-0.13, -0.22, 0.1], [0.15, -0.22, 0.1], [0.43, -0.22, 0.12], [-0.28, -0.45, 0.09], [0.3, -0.45, 0.09]]) {
-    g.add(mk(cover(R), edge, x, HOB, z));
-    g.add(mk(new THREE.BoxGeometry(0.024, 0.008, 0.012), mat.soot, x + R * 0.8, HOB + 0.009, z));
+  // raised cast-iron hotplate lids: a heavy disc with a chamfered edge, a cast fillet ring, a shallow crown and a
+  // lifting-notch recess at the rim; dull black-leaded graphite, never a ring of glowing grooves
+  const lidIron = mat.ironGraphite || edge;
+  const cover = (R) => lathe(G, [[0, 0], [R + 0.004, 0], [R + 0.004, 0.009], [R - 0.002, 0.016], [R * 0.9, 0.0175], [R * 0.86, 0.02], [R * 0.82, 0.0175], [R * 0.55, 0.02], [R * 0.2, 0.0225], [R * 0.08, 0.0235], [0, 0.0235]], 56);
+  const lids = [[-0.42, -0.22, 0.12, 0.4], [-0.13, -0.22, 0.1, 1.9], [0.15, -0.22, 0.1, 2.6], [0.43, -0.22, 0.12, -0.7], [-0.28, -0.45, 0.09, 1.1], [0.3, -0.45, 0.09, 0.2]];
+  for (const [x, z, R, rot] of lids) {
+    g.add(mk(cover(R), lidIron, x, HOB, z));
+    // the lifting notch: a slot cast into the rim, black with ash
+    const nx = Math.cos(rot) * R * 0.8, nz = Math.sin(rot) * R * 0.8;
+    g.add(mk(new THREE.BoxGeometry(0.03, 0.012, 0.014), mat.soot, x + nx, HOB + 0.0145, z + nz, 0, -rot, 0));
+    // seating ring: the hob plate is cast with a lip the lid drops into
+    g.add(mk(new THREE.TorusGeometry(R + 0.008, 0.004, 6, 56), edge, x, HOB + 0.002, z, Math.PI / 2));
   }
   // hotplate seams: the hob is cast in sections, the joints filled with black lead and ash
   for (const z of [-0.335]) g.add(mk(new THREE.BoxGeometry(W - 0.02, 0.003, 0.006), mat.soot, 0, HOB + 0.0005, z));
   for (const x of [-0.275, 0.01, 0.29]) g.add(mk(new THREE.BoxGeometry(0.006, 0.003, 0.24), mat.soot, x, HOB + 0.0005, -0.22));
-  // the fire shows as a thin red line round the lifted edge of one cover
-  {
-    const glowMat = emberMat.clone(); glowMat.emissiveIntensity = 0.9; glowMat.emissiveMap = null; glowMat.name = 'hobGlow';
-    const ring = mk(new THREE.TorusGeometry(0.103, 0.0018, 4, 48), glowMat, 0.15, HOB + 0.002, -0.22, Math.PI / 2);
-    ring.userData.noBake = true; g.add(ring);
-  }
   // the cover lifter left on the hob: a forged bar with a hooked end and a coiled-wire cool handle
   {
     const lf = new THREE.Group();
@@ -177,7 +174,7 @@ export function buildRange(ctx, mat) {
   // ash dust and rust blooms on the hob slab (a decal under the covers)
   {
     const HW = W + 0.04, HD = D + 0.02, hz = -D / 2 + 0.005;
-    const covers = [[-0.42, -0.22, 0.12], [-0.13, -0.22, 0.1], [0.15, -0.22, 0.1], [0.43, -0.22, 0.12], [-0.28, -0.45, 0.09], [0.3, -0.45, 0.09]];
+    const covers = lids;
     const tex = ctx.textures.canvas('kitchen:hobAsh', 1024, 512, (c, w, h) => {
       c.clearRect(0, 0, w, h);
       const toPx = (x, z) => [((x + HW / 2) / HW) * w, ((z - hz + HD / 2) / HD) * h];
@@ -187,9 +184,9 @@ export function buildRange(ctx, mat) {
       for (const [x, z, r] of covers) {
         const [px, py] = toPx(x, z), rp = (r / HW) * w;
         const gr = c.createRadialGradient(px, py, rp * 0.98, px, py, rp * 1.35);
-        gr.addColorStop(0, 'rgba(120,52,18,0.85)'); gr.addColorStop(0.4, 'rgba(105,48,20,0.45)'); gr.addColorStop(1, 'rgba(90,40,18,0)');
+        gr.addColorStop(0, 'rgba(12,11,10,0.8)'); gr.addColorStop(0.4, 'rgba(30,27,24,0.4)'); gr.addColorStop(1, 'rgba(40,36,32,0)');
         c.fillStyle = gr; c.beginPath(); c.arc(px, py, rp * 1.4, 0, Math.PI * 2); c.fill();
-        for (let k = 0; k < 14; k++) { const an = R() * Math.PI * 2, rr = rp * (1.02 + R() * 0.25); c.fillStyle = `rgba(140,62,22,${0.3 + R() * 0.4})`; c.beginPath(); c.arc(px + Math.cos(an) * rr, py + Math.sin(an) * rr, 1 + R() * 4, 0, Math.PI * 2); c.fill(); }
+        for (let k = 0; k < 14; k++) { const an = R() * Math.PI * 2, rr = rp * (1.02 + R() * 0.25); c.fillStyle = k % 4 ? `rgba(70,62,54,${0.15 + R() * 0.2})` : `rgba(96,48,22,${0.12 + R() * 0.15})`; c.beginPath(); c.arc(px + Math.cos(an) * rr, py + Math.sin(an) * rr, 1 + R() * 3, 0, Math.PI * 2); c.fill(); }
       }
       // grey ash: drifted toward the front edge and the fire door, fingered smears
       for (let k = 0; k < 900; k++) {
@@ -289,6 +286,56 @@ export function drapedCloth({ width = 0.26, front = 0.3, back = 0.2, r = 0.014, 
         x *= 1 + d * 0.15;
       }
       pos.push(x, y, z); uv.push(u * width * 4, (sDist / L) * L * 4);
+    }
+  }
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    const a = j * (nx + 1) + i, b = a + 1, c = a + nx + 1, d = c + 1;
+    idx.push(a, c, b, b, c, d);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * Linen hung over a round slat (along X at the origin): deep soft folds that open toward the hem, an uneven
+ * hem (the corners pull down further than the middle), a slight curl at the edge, and a flattened contact over
+ * the slat. returns geometry.
+ */
+export function hungLinen({ width = 0.5, front = 0.35, back = 0.25, r = 0.014, seed = 1, nx = 64, ny = 56 } = {}) {
+  const pos = [], uv = [], idx = [];
+  const rr = (k) => hash3(seed * 3.3, k * 1.7, 0.9);
+  const ph = [rr(1) * 6, rr(2) * 6, rr(3) * 6];
+  for (let j = 0; j <= ny; j++) {
+    const v = j / ny;
+    for (let i = 0; i <= nx; i++) {
+      const u = i / nx, xc = (u - 0.5) * width;
+      const edge = Math.abs(u - 0.5) * 2;
+      // per-column drop: corners fall lower, a ragged hem
+      const dropK = 1 + 0.12 * edge * edge + 0.04 * Math.sin(u * 9 + ph[0]) + 0.025 * Math.sin(u * 23 + ph[1]);
+      const F = front * dropK, B = back * (1 + 0.1 * edge * edge + 0.04 * Math.sin(u * 11 + ph[2]));
+      const L = F + Math.PI * r + B;
+      const sDist = v * L;
+      let x = xc, y, z;
+      const foldAmp = (d) => Math.min(1, d / 0.18) * 0.02;
+      const folds = (xx, d) => Math.sin(xx * 31 + ph[0] + d * 3) * foldAmp(d) + Math.sin(xx * 67 + ph[1]) * foldAmp(d) * 0.4;
+      if (sDist < F) {
+        const d = F - sDist;
+        y = -d; z = r + 0.002 + Math.abs(folds(x, d)) * 1.2 + 0.004 * Math.max(0, d / F - 0.85) * 8;
+        x *= 1 + d * 0.18;
+        x += Math.sin(d * 7 + seed) * 0.006 * edge;
+      } else if (sDist < F + Math.PI * r) {
+        const th = (sDist - F) / r;
+        y = Math.sin(th) * (r + 0.002); z = Math.cos(th) * (r + 0.002);
+      } else {
+        const d = sDist - F - Math.PI * r;
+        y = -d; z = -r - 0.002 - Math.abs(folds(x + 0.05, d)) * 1.1;
+        x *= 1 + d * 0.12;
+      }
+      pos.push(x, y, z); uv.push(u * width * 4, v * 4);
     }
   }
   for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
@@ -586,18 +633,78 @@ export function buildScale(G, mat) {
 // Gas wall bracket with an etched globe. origin = wall plate centre, arm toward +Z.
 // returns { group, globe, lightPos }
 // =====================================================================================
-export function buildGasBracket(G, mat, globeMat) {
+export function buildGasBracket(G, mat, globeMat, fx = null, seed = 0) {
   const g = new THREE.Group();
-  g.add(mk(lathe(G, [[0, 0], [0.055, 0], [0.05, 0.012], [0.03, 0.02], [0, 0.025]], 24), mat.brass, 0, 0, 0, Math.PI / 2));
+  // wall plate (turned rose), a swan-neck arm with a swivel knuckle, a tap with a lever key
+  g.add(mk(lathe(G, [[0, 0], [0.055, 0], [0.056, 0.006], [0.05, 0.012], [0.034, 0.018], [0.03, 0.022], [0, 0.026]], 28), mat.brass, 0, 0, 0, Math.PI / 2));
   g.add(mk(tube([[0, 0, 0.02], [0, -0.03, 0.12], [0, 0.02, 0.22], [0, 0.07, 0.26]], 0.009, 24, 8), mat.brass));
-  // tap key
-  g.add(mk(rbox(G, 0.05, 0.008, 0.01, 0.002), mat.brass, 0, -0.02, 0.1));
-  // gallery + globe + chimney
-  g.add(mk(lathe(G, [[0.015, 0], [0.05, 0.01], [0.055, 0.02], [0.05, 0.024], [0.015, 0.012]], 24), mat.brass, 0, 0.07, 0.26));
-  const globe = mk(lathe(G, [[0.03, 0], [0.06, 0.02], [0.075, 0.07], [0.07, 0.12], [0.045, 0.16], [0.04, 0.17]], 32), globeMat, 0, 0.09, 0.26);
-  globe.userData.noBake = true;
+  g.add(mk(new THREE.SphereGeometry(0.016, 14, 10), mat.brass, 0, -0.028, 0.115));
+  g.add(mk(rbox(G, 0.06, 0.008, 0.01, 0.002), mat.brass, 0, -0.028, 0.115));
+  g.add(mk(new THREE.SphereGeometry(0.007, 8, 6), mat.brass, 0.032, -0.028, 0.115));
+  // burner: a little steatite-tipped fishtail jet on a brass pillar, inside a gallery
+  g.add(mk(lathe(G, [[0.012, 0], [0.016, 0.012], [0.012, 0.04], [0.008, 0.06], [0.0055, 0.075], [0, 0.077]], 16), mat.brass, 0, 0.065, 0.26));
+  g.add(mk(lathe(G, [[0.0, 0], [0.005, 0], [0.006, 0.008], [0.0035, 0.012], [0, 0.012]], 12), new THREE.MeshStandardMaterial({ color: 0xd8d0b8, roughness: 0.5, name: 'steatite' }), 0, 0.142, 0.26));
+  g.add(mk(lathe(G, [[0.015, 0], [0.05, 0.01], [0.056, 0.02], [0.052, 0.024], [0.042, 0.02], [0.015, 0.012]], 28), mat.brass, 0, 0.07, 0.26));
+  for (let k = 0; k < 3; k++) { const a = k * Math.PI * 2 / 3 + 0.3; g.add(mk(tube([[Math.cos(a) * 0.045, 0.092, 0.26 + Math.sin(a) * 0.045], [Math.cos(a) * 0.056, 0.1, 0.26 + Math.sin(a) * 0.056], [Math.cos(a) * 0.052, 0.112, 0.26 + Math.sin(a) * 0.052]], 0.0025, 6, 4), mat.brass)); }
+  // open-topped tulip of acid-etched glass (thin, the flame shows through it)
+  const globe = mk(lathe(G, [[0.03, 0], [0.05, 0.012], [0.068, 0.045], [0.074, 0.085], [0.07, 0.12], [0.062, 0.15], [0.066, 0.162], [0.069, 0.166]], 36), globeMat, 0, 0.092, 0.26);
+  globe.userData.noBake = true; globe.userData.noShadow = true; globe.renderOrder = 3;
   g.add(globe);
-  return { group: g, globe, lightPos: V3(0, 0.17, 0.26) };
+  let flame = null;
+  if (fx) {
+    // a fishtail (batswing) flame: a flat, wide fan, blue at the root
+    flame = fx.flame({ height: 0.045, width: 0.022, intensity: 4.5, seed: seed + 3, core: [1.0, 0.9, 0.66], outer: [1.0, 0.52, 0.16], base: [0.2, 0.32, 1.0] });
+    flame.position.set(0, 0.152, 0.26);
+    g.add(flame);
+  }
+  return { group: g, globe, flame, lightPos: V3(0, 0.18, 0.26) };
+}
+
+/**
+ * Three-light brass gasolier for over the block: ceiling rose, a drop rod with a slide collar, a cast font,
+ * three scrolled arms each carrying a gallery, a fishtail burner and an open etched-glass tulip, and a
+ * smoke bell over the font. origin = font centre; the rod runs up `drop` m. returns { group, flames, globes, burners }.
+ */
+export function buildGasolier(G, mat, globeMat, fx, { drop = 1.2, armR = 0.3, seed = 0 } = {}) {
+  const g = new THREE.Group(); g.name = 'gasolier';
+  const brass = mat.brass;
+  // ceiling rose + rod + slide collar
+  g.add(mk(lathe(G, [[0, 0], [0.09, 0], [0.085, -0.012], [0.05, -0.025], [0.03, -0.035], [0, -0.04]], 32), brass, 0, drop, 0));
+  g.add(mk(new THREE.CylinderGeometry(0.011, 0.011, drop - 0.06, 12), brass, 0, drop / 2 + 0.06, 0));
+  g.add(mk(lathe(G, [[0, 0], [0.022, 0], [0.026, 0.012], [0.022, 0.05], [0.026, 0.062], [0, 0.062]], 20), brass, 0, drop * 0.55, 0));
+  // smoke bell: a pierced brass dish that kept the ceiling clean (it is black inside now)
+  g.add(mk(lathe(G, [[0.012, 0.32], [0.04, 0.315], [0.12, 0.27], [0.15, 0.24], [0.148, 0.232], [0.118, 0.26], [0.04, 0.305], [0.012, 0.31]], 40), mat.iron));
+  // the font: a turned urn with a pendant finial
+  g.add(mk(lathe(G, [[0, -0.16], [0.012, -0.155], [0.02, -0.13], [0.012, -0.11], [0.03, -0.08], [0.055, -0.04], [0.06, 0.0], [0.05, 0.03], [0.022, 0.05], [0.026, 0.07], [0.012, 0.09], [0, 0.09]], 32), brass));
+  g.add(mk(new THREE.TorusGeometry(0.058, 0.005, 8, 32), brass, 0, 0.0, 0, Math.PI / 2));
+  const flames = [], globes = [], burners = [];
+  for (let k = 0; k < 3; k++) {
+    const a = k * Math.PI * 2 / 3 + 0.5;
+    const c = Math.cos(a), s = Math.sin(a);
+    const P = (r, y) => [c * r, y, s * r];
+    // a scrolled arm: out and down from the font, then up to the burner
+    g.add(mk(tube([P(0.05, -0.01), P(0.12, -0.06), P(0.2, -0.07), P(armR - 0.04, -0.04), P(armR, 0.0), P(armR, 0.03)], 0.008, 32, 8), brass));
+    // decorative C-scroll under each arm
+    g.add(mk(tube([P(0.07, -0.08), P(0.11, -0.12), P(0.16, -0.11), P(0.17, -0.085), P(0.15, -0.075)], 0.004, 20, 6), brass));
+    const bx = c * armR, bz = s * armR, by = 0.03;
+    g.add(mk(lathe(G, [[0.014, 0], [0.018, 0.01], [0.012, 0.03], [0.006, 0.05], [0, 0.052]], 16), brass, bx, by, bz));
+    g.add(mk(lathe(G, [[0.015, 0], [0.058, 0.012], [0.064, 0.024], [0.058, 0.028], [0.046, 0.022], [0.015, 0.012]], 28), brass, bx, by + 0.004, bz));
+    const globe = mk(lathe(G, [[0.034, 0], [0.056, 0.014], [0.076, 0.05], [0.083, 0.095], [0.078, 0.135], [0.068, 0.168], [0.072, 0.18], [0.076, 0.185]], 40), globeMat, bx, by + 0.026, bz);
+    globe.userData.noBake = true; globe.userData.noShadow = true; globe.renderOrder = 3;
+    g.add(globe); globes.push(globe);
+    const f = fx.flame({ height: 0.05, width: 0.024, intensity: 5, seed: seed + k * 2.3, core: [1.0, 0.9, 0.66], outer: [1.0, 0.52, 0.16], base: [0.2, 0.32, 1.0] });
+    f.position.set(bx, by + 0.05, bz);
+    g.add(f); flames.push(f);
+    burners.push(V3(bx, by + 0.08, bz));
+  }
+  // the pull chains of the two taps, hanging under the font
+  for (const sx of [-1, 1]) {
+    const pts = []; for (let i = 0; i <= 10; i++) { const t = i / 10; pts.push([sx * 0.03, -0.06 - t * 0.16, Math.sin(t * 3) * 0.004]); }
+    g.add(mk(tube(pts, 0.0018, 20, 4), brass));
+    g.add(mk(lathe(G, [[0, 0], [0.008, -0.004], [0.01, -0.014], [0.006, -0.024], [0, -0.026]], 12), brass, sx * 0.03, -0.22, 0));
+  }
+  g.traverse((o) => { if (o.isMesh && !o.userData.isFlame) o.userData.noShadow = true; });
+  return { group: g, flames, globes, burners };
 }
 
 /** Merge many (geometry, matrix) pairs into one geometry (strips extra attributes). */
@@ -800,71 +907,83 @@ export function fbm3(x, y, z, oct = 3) { let a = 0, s = 0.5, f = 1; for (let i =
  * opts.lying: shorten & flatten for a sack laid on its side (caller rotates it).
  */
 export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0.11, flour = 0.6 } = {}) {
-  const NU = 72, NV = 56;
+  const NU = 160, NV = 84;
   const pos = [], col = [], uvs = [], suv = [], idx = [];
   const rnd = (k) => hash3(seed * 1.7, k * 3.1, 0.5);
   const lean = [(rnd(1) - 0.5) * 0.5 * slump * r, (rnd(2) - 0.5) * 0.35 * slump * r];
-  const creases = [0, 1, 2, 3].slice(0, 3 + (seed % 2)).map((k) => ({ a: rnd(10 + k) * Math.PI * 2, t: 0.35 + rnd(20 + k) * 0.4, tilt: (rnd(30 + k) - 0.5) * 3.0, depth: 0.16 + rnd(40 + k) * 0.1 }));
-  const sagBands = [0.48 + rnd(50) * 0.1, 0.62 + rnd(51) * 0.08];
+  // 4-6 sharp fold creases running from the tie down the sides, each wandering a little and dying out on the belly
+  const nCr = 4 + (seed % 3);
+  const creases = Array.from({ length: nCr }, (_, k) => ({ a: (k / nCr) * Math.PI * 2 + (rnd(10 + k) - 0.5) * 0.7, end: 0.22 + rnd(20 + k) * 0.22, tilt: (rnd(30 + k) - 0.5) * 1.4, depth: 0.1 + rnd(40 + k) * 0.08 }));
+  const sagBands = [0.5 + rnd(50) * 0.1, 0.64 + rnd(51) * 0.08];
   const tNeck = 1 - neck / h * 1.0;          // where the neck starts
+  const tuft = 0.18 + rnd(70) * 0.06;        // the ragged mouth above the tie (small: the neck is twisted shut)
   for (let j = 0; j <= NV; j++) {
     const t = j / NV;
     for (let i = 0; i <= NU; i++) {
       const u = i / NU, a = u * Math.PI * 2;
       const ca = Math.cos(a), sa = Math.sin(a);
-      // ---- profile: radius & height for parameter t
+      // ---- profile: radius & height for parameter t. A heavy jute sack slumps: the flour settles into a broad,
+      // flattened base that spreads past the shoulders, the slack upper cloth falls in over it and is
+      // gathered hard into a short, twisted neck under the cord.
       let rr, y;
-      if (t < 0.08) {               // flat base, rounding up into the bulge
-        const k = t / 0.08;
-        rr = r * (0.0 + 1.12 * Math.sin(k * Math.PI / 2));
-        y = h * 0.035 * (1 - Math.cos(k * Math.PI / 2));
-      } else if (t < tNeck - 0.08) { // body: widest low down (settled), narrowing to the shoulder
-        const k = (t - 0.08) / (tNeck - 0.16);
-        // pear-shaped: the flour settles into a fat belly low down, the top half slack
-        rr = r * (1.08 + 0.1 * slump + 0.07 * Math.sin(Math.min(1, k / 0.3) * Math.PI * 0.5) - k * 0.1 - 4.0 * Math.max(0, k - 0.74) ** 2);
-        y = h * (0.035 + k * (tNeck - 0.12));
-      } else if (t < tNeck) {        // shoulder gathered into the neck
-        const k = (t - (tNeck - 0.08)) / 0.08;
-        rr = r * (0.82 * (1 - k) + 0.17 * k);
-        y = h * ((tNeck - 0.085) + k * 0.07);
-      } else {                       // twisted neck + small ruffled mouth
+      const tSh = tNeck - 0.3;       // shoulders start (the gathered top takes the upper ~30 %)
+      if (t < 0.06) {               // flat base, a tight roll up into the belly
+        const k = t / 0.06;
+        rr = r * 1.2 * Math.sin(k * Math.PI / 2);
+        y = h * 0.03 * (1 - Math.cos(k * Math.PI / 2));
+      } else if (t < tSh) {          // body: settled and widest at the bottom, nearly straight-sided above
+        const k = (t - 0.06) / (tSh - 0.06);
+        rr = r * (1.2 + 0.05 * Math.sin(Math.min(1, k / 0.15) * Math.PI * 0.5) - 0.24 * k + 0.05 * slump * (1 - k));
+        y = h * (0.03 + k * (tSh - 0.04)) * (1 - 0.08 * slump * Math.sin(k * Math.PI));
+      } else if (t < tNeck) {        // shoulders: the slack cloth pulled in to the neck, a concave slope
+        const k = (t - tSh) / 0.3;
+        const e = Math.pow(k, 0.75);
+        rr = r * (1.01 * (1 - e) + 0.12 * e) * (1 + 0.06 * Math.sin(k * Math.PI));
+        y = h * ((tSh - 0.01) + k * (tNeck - tSh - 0.015));
+      } else {                       // twisted neck + a short ruffled crown above the cord
         const k = (t - tNeck) / (1 - tNeck);
-        // the gathered mouth above the tie flares open in a ruff of hessian
-        rr = r * (0.16 - 0.03 * Math.sin(k * Math.PI) + (k > 0.55 ? ((k - 0.55) / 0.45) ** 1.5 * 0.32 : 0));
-        y = h * (tNeck - 0.015) + neck * 1.25 * k;
+        const crown = k > 0.35 ? ((k - 0.35) / 0.65) ** 1.2 : 0;
+        rr = r * (0.12 - 0.02 * Math.sin(k * Math.PI) + crown * (tuft + 0.08) * (0.65 + 0.35 * Math.abs(Math.sin(a * 3.5 + seed)) + 0.15 * Math.sin(a * 11 + seed * 2)));
+        y = h * (tNeck - 0.025) + neck * 0.62 * k - crown * crown * neck * 0.12 * Math.abs(Math.sin(a * 3.5 + seed));
       }
-      // the sack settles: base squashed wide, the upper half sags to one side and forward
       const sag = Math.sin(Math.min(1, t / tNeck) * Math.PI * 0.5) ** 2;
-      let x = ca * rr, z = sa * rr * (0.9 - 0.08 * slump);
-      // big diagonal creases (inward folds with a soft ridge either side)
+      // the tube flattens: shoulders bulge out sideways (x), front and back fall in (z)
+      const sideBulge = Math.exp(-((t - 0.5) ** 2) / 0.06);
+      let x = ca * rr * (1 + 0.12 * sideBulge), z = sa * rr * (0.9 - 0.12 * sideBulge - 0.06 * slump);
+      // sharp creases: a narrow V valley with soft ridges either side, deepest just under the neck
       let fold = 0;
+      const tc = Math.min(1, t / tNeck);
       for (const c of creases) {
-        let da = Math.atan2(Math.sin(a - c.a - c.tilt * (t - c.t)), Math.cos(a - c.a - c.tilt * (t - c.t)));
-        const band = Math.exp(-((t - c.t) ** 2) / 0.05);
-        fold += (-c.depth * Math.exp(-(da * da) / 0.006) + c.depth * 0.4 * Math.exp(-((Math.abs(da) - 0.16) ** 2) / 0.006)) * band;
+        if (tc < c.end) continue;
+        const life = Math.min(1, (tc - c.end) / 0.25) * (1 - Math.max(0, (tc - 0.97) / 0.03));
+        const ang = c.a + c.tilt * (1 - tc);
+        const da = Math.atan2(Math.sin(a - ang), Math.cos(a - ang));
+        const wv = 0.0016 + 0.004 * (1 - tc);
+        fold += c.depth * life * (-Math.exp(-(da * da) / wv) + 0.35 * Math.exp(-((Math.abs(da) - 2.2 * Math.sqrt(wv)) ** 2) / (wv * 1.4)));
       }
       // lumpy fill (flour settles unevenly) - kept low so the silhouette stays taut, not a beanbag
-      const lump = (fbm3(ca * 2.2 + seed, t * 3.0, sa * 2.2, 3) - 0.5) * 0.09;
+      const lump = (fbm3(ca * 2.2 + seed, t * 3.0, sa * 2.2, 3) - 0.5) * 0.07;
       // gathered folds radiating down from the tie: sharp V valleys between soft ridges, deepest at the neck
-      const nF = 4 + (seed % 2);
-      const gath = Math.max(0, Math.min(1, (t - (tNeck - 0.26)) / 0.26));
-      const fphase = a * nF * 0.5 + seed * 1.3 + (t - tNeck) * 4.0 * (rnd(60) - 0.5);
-      const vfold = 1 - Math.pow(Math.abs(Math.sin(fphase)), 0.35);
-      const wr = -gath * gath * (0.3 * vfold) + gath * 0.05 * Math.sin(a * 11 + t * 30 + seed);
-      const twist = t > tNeck ? Math.sin(a * 6 + (t - tNeck) * 60 + seed) * 0.22 - 0.12 * vfold + (t > tNeck + (1 - tNeck) * 0.5 ? 0.22 * Math.sin(a * 9 + seed) * ((t - tNeck) / (1 - tNeck)) : 0) : 0;
+      const nF = 6 + (seed % 3);
+      const gath = Math.max(0, Math.min(1, (t - (tNeck - 0.2)) / 0.2));
+      const fphase = a * nF * 0.5 + seed * 1.3 + (t - tNeck) * 6.0 * (rnd(60) - 0.5);
+      const vfold = 1 - Math.pow(Math.abs(Math.sin(fphase)), 0.3);
+      const wr = -gath * gath * (0.32 * vfold) + gath * 0.04 * Math.sin(a * 11 + t * 30 + seed);
+      // the neck is twisted shut: a spiral of tight ridges
+      const twist = t > tNeck ? Math.sin(a * 5 + (t - tNeck) * 70 + seed) * 0.16 - 0.1 * vfold : 0;
       // the side seams: the sack was sewn from a flat tube, so two crisp ridges run up its sides
       const seamA = Math.min(Math.abs(Math.atan2(Math.sin(a), Math.cos(a))), Math.abs(Math.atan2(Math.sin(a - Math.PI), Math.cos(a - Math.PI))));
       const seamR = 0.035 * Math.exp(-(seamA * seamA) / 0.004) - 0.02 * Math.exp(-((seamA - 0.12) ** 2) / 0.003);
       // belly: the full sack sags over its base, a crease where it meets the floor
-      const belly = 0.07 * Math.exp(-((t - 0.13) ** 2) / 0.0025) - 0.06 * Math.exp(-((t - 0.065) ** 2) / 0.0005);
+      const belly = 0.06 * Math.exp(-((t - 0.11) ** 2) / 0.002) - 0.05 * Math.exp(-((t - 0.055) ** 2) / 0.0004);
       // horizontal sag wrinkles where the slack top folds over the full belly
       let sagW = 0;
-      for (const b of sagBands) sagW -= 0.045 * Math.exp(-((t - b) ** 2) / 0.0012) * (0.6 + 0.4 * Math.sin(a * 2 + seed + b * 9));
+      for (const b of sagBands) sagW -= 0.04 * Math.exp(-((t - b) ** 2) / 0.001) * (0.6 + 0.4 * Math.sin(a * 2 + seed + b * 9));
       const k = 1 + (t > 0.03 && t < tNeck ? fold + lump + sagW + seamR * (1 - gath) + belly : 0) + wr + twist;
       x *= k; z *= k;
       x += lean[0] * sag; z += lean[1] * sag;
-      y *= 1 - slump * 0.12 * sag;
-      if (t >= 0.08 && t < tNeck) y += (fbm3(ca * 3 + 4, t * 2, sa * 3 + seed, 2) - 0.5) * 0.03 * h;
+      y *= 1 - slump * 0.14 * sag;
+      if (t >= 0.06 && t < tNeck) y += (fbm3(ca * 3 + 4, t * 2, sa * 3 + seed, 2) - 0.5) * 0.025 * h;
       pos.push(x, Math.max(0, y), z);
       // ---- ageing colour
       const n1 = fbm3(ca * 1.6 + seed * 3, y * 3.2, sa * 1.6, 4), n2 = fbm3(ca * 5 + 9, y * 9, sa * 5 + seed, 3);
@@ -878,7 +997,7 @@ export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0
       const shade = 1 - dirt * 0.45 - damp * 0.35 + (n2 - 0.5) * 0.18;
       cr *= shade; cg *= shade * 0.98; cb *= shade * 0.95;
       const fd = Math.min(0.75, dust);
-      cr = cr * (1 - fd) + 1.55 * fd; cg = cg * (1 - fd) + 1.6 * fd; cb = cb * (1 - fd) + 1.75 * fd;
+      cr = cr * (1 - fd) + 1.22 * fd; cg = cg * (1 - fd) + 1.2 * fd; cb = cb * (1 - fd) + 1.14 * fd;
       col.push(cr, cg, cb);
       uvs.push(u * 2 * Math.PI * r * 1.1, t * (h + r));
       suv.push(u, t / tNeck);
@@ -903,8 +1022,8 @@ export function sackGeometry(seed = 0, { r = 0.2, h = 0.5, slump = 0.3, neck = 0
     const l = Math.hypot(nx, ny, nz) || 1;
     n.setXYZ(a0, nx / l, ny / l, nz / l); n.setXYZ(a1, nx / l, ny / l, nz / l);
   }
-  geo.userData.neckY = h * (tNeck - 0.015) * (1 - slump * 0.12);
-  geo.userData.neckR = r * 0.16;
+  geo.userData.neckY = h * (tNeck - 0.02) * (1 - slump * 0.14);
+  geo.userData.neckR = r * 0.12;
   geo.userData.lean = lean;
   return geo;
 }

@@ -26,7 +26,8 @@ export const cansMeta = {
   ],
 };
 
-const PITCH = 0.094, GAP = 0.078;
+// a word break is exactly one empty slot, so the gaps read as deliberate spaces rather than missing tins
+const PITCH = 0.096, GAP = 0.096;
 
 // three tin formats: standard 1 lb, tall, squat; each with its own bead count and lid style
 export const FORMATS = [
@@ -105,9 +106,11 @@ function labelGeometry(rect, seed, dentAmt, F, fam = 0) {
 
 /** Push a dent (or two) into a tin's side, away from the letter face; a knocked rim on some. */
 function dent(pos, seed, amt, H) {
-  if (amt <= 0) return;
-  const dents = [[Math.PI + (((seed * 1.7) % 2) - 1) * 1.3, 0.025 + (seed % 5) * 0.012 * (H / 0.112), 0.06 * amt]];
-  if (seed % 3 === 0) dents.push([((seed * 2.3) % 6.28), H * 0.72, 0.035 * amt]);
+  const flank = seed % 3 === 2;             // one tin in three has a knock on the flank you can see from the front
+  if (amt <= 0 && !flank) return;
+  const dents = amt > 0 ? [[Math.PI + (((seed * 1.7) % 2) - 1) * 1.3, 0.025 + (seed % 5) * 0.012 * (H / 0.112), 0.06 * amt]] : [];
+  if (amt > 0 && seed % 3 === 0) dents.push([((seed * 2.3) % 6.28), H * 0.72, 0.035 * amt]);
+  if (flank) dents.push([(seed % 2 ? 1 : -1) * (0.75 + (seed % 5) * 0.06), H * (0.3 + (seed % 4) * 0.12), 0.05]);
   const rimA = (seed * 2.71) % 6.28, rimK = seed % 4 === 1 ? 0.05 * amt : 0;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
@@ -140,11 +143,12 @@ export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, o
   const atlas = await buildLabelAtlas(letters, { extras: ['7'], heights, families });
   const labelMat = new THREE.MeshPhysicalMaterial({
     map: atlas.map, roughnessMap: atlas.orm, metalnessMap: atlas.orm, roughness: 1, metalness: 1,
-    clearcoat: 0.45, clearcoatRoughness: 1, clearcoatRoughnessMap: atlas.orm, envMapIntensity: 0.7, name: 'canLabel',
+    clearcoat: 0.4, clearcoatRoughness: 1, clearcoatRoughnessMap: atlas.orm, envMapIntensity: 0.55, name: 'canLabel',
   });
   // tinplate: bright silver tin on most, a gold lacquer on others (both carry AO + rust in the vertex colour)
-  const tinSilver = tinMat.clone(); tinSilver.vertexColors = true; tinSilver.name = 'tinPlateSilver'; tinSilver.envMapIntensity = 0.85; tinSilver.roughness = 0.78; tinSilver.color = new THREE.Color(1.08, 1.08, 1.1);
-  const tinGold = tinMat.clone(); tinGold.vertexColors = true; tinGold.name = 'tinPlateGold'; tinGold.envMapIntensity = 0.75; tinGold.roughness = 0.85; tinGold.color = new THREE.Color(1.0, 0.74, 0.4);
+  const tinSilver = tinMat.clone(); tinSilver.vertexColors = true; tinSilver.name = 'tinPlateSilver'; tinSilver.envMapIntensity = 0.6; tinSilver.roughness = 0.85; tinSilver.color = new THREE.Color(1.08, 1.08, 1.1);
+  const tinGold = tinMat.clone(); tinGold.vertexColors = true; tinGold.name = 'tinPlateGold'; tinGold.envMapIntensity = 0.55; tinGold.roughness = 0.9;
+  const solder = new THREE.MeshStandardMaterial({ color: 0x77736a, metalness: 0.75, roughness: 0.6, envMapIntensity: 0.5, name: 'canSolder' }); tinGold.color = new THREE.Color(1.0, 0.74, 0.4);
   const tinMatV = tinGold;
   const isGold = (i) => [1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0][i % 11] === 1;
   const tinGeos = FORMATS.map((F) => tinGeometry(G, F));
@@ -164,15 +168,16 @@ export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, o
   })();
   const dustMat = new THREE.MeshStandardMaterial({ map: dustTex, transparent: true, depthWrite: false, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, name: 'lidDust' });
   /** rust blooms and grime in the vertex colour, gathered at the seams and rims */
-  const rustify = (geo, seed, H) => {
+  const rustify = (geo, seed, H, seamAng = Math.PI) => {
     const p = geo.attributes.position, c = geo.attributes.color;
     for (let k = 0; k < p.count; k++) {
       const x = p.getX(k), y = p.getY(k), z = p.getZ(k);
       const a = Math.atan2(x, z);
       const rimW = Math.exp(-(y * y) / 0.00008) + Math.exp(-((H - y) ** 2) / 0.00005);
-      const seamW = Math.exp(-((Math.abs(a) - Math.PI) ** 2) / 0.02);
+      const da = Math.atan2(Math.sin(a - seamAng), Math.cos(a - seamAng));
+      const seamW = Math.exp(-(da * da) / 0.006) + 0.5 * Math.exp(-((Math.abs(a) - Math.PI) ** 2) / 0.02);
       const n = 0.5 + 0.5 * Math.sin(a * 13 + seed * 2.1) * Math.sin(y * 300 + seed) + 0.25 * Math.sin(a * 37 + y * 900 + seed * 5);
-      const rust = Math.min(1, Math.max(0, (rimW * 0.9 + seamW * 0.7) * n - 0.35) * 1.8);
+      const rust = Math.min(1, Math.max(0, (rimW * 1.0 + seamW * 0.9) * n - 0.3) * 2.0);
       const v = c.getX(k);
       c.setXYZ(k, v * (1 - rust * 0.35), v * (1 - rust * 0.6), v * (1 - rust * 0.78));
     }
@@ -212,7 +217,8 @@ export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, o
     const label = new THREE.Mesh(labelGeometry(atlas.uvRect(i), i + 1, dentAmt, F, fam), labelMat);
     const tg = (fam === 3 ? tinGeosPlain : tinGeos)[formatOf(i)].clone();
     if (dentAmt > 0) dent(tg.attributes.position, i + 1, dentAmt, F.h);
-    rustify(tg, i + 1, F.h);
+    const seamAng = fam === 3 ? Math.PI : (i % 2 ? 1 : -1) * 0.4 * Math.PI;   // matches the bare seam band printed on the label
+    rustify(tg, i + 1, F.h, seamAng);
     tg.computeVertexNormals();
     const tin = new THREE.Mesh(tg, isGold(i) ? tinGold : tinSilver);
     label.castShadow = tin.castShadow = true;
@@ -220,8 +226,9 @@ export async function createCansPuzzle(ctx, parent, shelves, { tinMat, camera, o
     g.add(tin, label);
     // soldered side seam: a narrow lapped strip down the back
     const [sy0, sy1] = labelSpan(F, fam);
-    const seam = new THREE.Mesh(new THREE.BoxGeometry(0.0032, sy1 - sy0 + (fam === 3 ? 0.012 : 0.004), 0.0009), tin.material);
-    seam.position.set(0, (sy0 + sy1) / 2, -(F.r + 0.0003)); g.add(seam);
+    const seam = new THREE.Mesh(new THREE.BoxGeometry(0.0034, sy1 - sy0 + (fam === 3 ? 0.012 : 0.004), 0.0011), solder);
+    const sr = F.r + (fam === 3 ? 0.0003 : 0.0006);
+    seam.position.set(Math.sin(seamAng) * sr, (sy0 + sy1) / 2, Math.cos(seamAng) * sr); seam.rotation.y = seamAng; g.add(seam);
     const dust = new THREE.Mesh(new THREE.CircleGeometry(F.r * 0.95, 32), dustMat);
     dust.rotation.x = -Math.PI / 2; dust.rotation.z = i; dust.position.y = F.h - (F.lid === 'cap' ? 0.0007 : 0.0011); dust.renderOrder = 2;
     g.add(dust);
