@@ -507,7 +507,7 @@ function ghostRig(ctx) {
   const num = (k, d) => Number(ctx.params.get(k) || d);
   const kp = (ctx.params.get('gkp') || '1.0,0.95,0.7').split(',').map(Number);
   return {
-    keyDir: kp, keyColor: [0.86, 0.9, 1.0], keyI: num('gk', 3.0),
+    keyDir: kp, keyColor: [0.86, 0.9, 1.0], keyI: num('gk', 3.4),
     fillDir: [-0.55, -0.6, 0.6], fillColor: [1.0, 0.62, 0.36], fillI: num('gfill', 0.25),
     rimDir: [-0.5, 0.55, -0.9], rimColor: [0.62, 0.72, 0.95], rimI: num('grim', 0.6),
     sceneK: num('gscene', 0.2),

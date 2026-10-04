@@ -178,7 +178,7 @@ void surface(vec2 uv, inout Surface s) {
 export function tapestryMap(ctx) {
   // a worn ikat-woven tapestry: rows of feathered lozenges in rust, umber, ochre and near-black,
   // the dye edges bleeding along the warp (the jagged "ikat blur"), on a fine plain weave
-  return ctx.textures.generate('library:tapestry:v6', {
+  return ctx.textures.generate('library:tapestry:v7', {
     size: 1024, tile: true, normalStrength: 0.9,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
@@ -186,18 +186,24 @@ void surface(vec2 uv, inout Surface s) {
   float row = floor(p.y);
   // warp-wise feathering: each thread row shifts the motif edge a little
   float thread = floor(uv.y * 1024.0 / 3.0);
-  float feather = (hash12(vec2(thread, row)) - 0.5) * 0.09 + 0.03 * sin(uv.y * 160.0 + row);
+  float feather = (hash12(vec2(thread, row)) - 0.5) * 0.12 + 0.04 * sin(uv.y * 160.0 + row) + 0.05 * (fbm(uv * vec2(2.0, 30.0), vec2(2.0, 30.0), 2));
+  float colId = floor(p.x + 0.5 * mod(row, 2.0) + feather);
   vec2 c = vec2(fract(p.x + 0.5 * mod(row, 2.0) + feather) - 0.5, fract(p.y) - 0.5);
-  float lz = abs(c.x) * 1.15 + abs(c.y) * 0.9;           // lozenge distance
-  float ring1 = smoothstep(0.43, 0.4, lz);
-  float ring2 = smoothstep(0.3, 0.27, lz);
-  float core = smoothstep(0.15, 0.12, lz);
-  float pick = hash12(vec2(floor(p.x + 0.5 * mod(row, 2.0)), row));
+  float pick = hash12(vec2(colId, row));
+  float pick2 = hash12(vec2(colId, row) + 7.7);
+  // hand-tied motifs: each lozenge a slightly different size and squash
+  float sc = 0.85 + 0.3 * pick2;
+  float lz = (abs(c.x) * (1.0 + 0.3 * (pick - 0.5)) * 1.15 + abs(c.y) * 0.9) / sc;
+  float ring1 = smoothstep(0.43, 0.38, lz);
+  float ring2 = smoothstep(0.3, 0.25, lz) * step(0.2, pick2);
+  float core = smoothstep(0.15, 0.1, lz);
   vec3 rust = vec3(0.4, 0.15, 0.07), umber = vec3(0.17, 0.09, 0.05), ochre = vec3(0.5, 0.31, 0.13), ink = vec3(0.045, 0.035, 0.03), cream = vec3(0.58, 0.47, 0.33);
-  vec3 col = umber;
-  col = mix(col, pick > 0.5 ? rust : ochre * 0.85, ring1);
+  // abrash: dye-lot bands drifting across the ground
+  float abrash = fbm(vec2(uv.y * 3.0, 0.5), vec2(3.0, 1.0), 2) * 0.5 + 0.5;
+  vec3 col = mix(umber, umber * vec3(1.25, 1.1, 0.95), abrash);
+  col = mix(col, pick > 0.55 ? rust : (pick > 0.25 ? ochre * 0.85 : umber * 1.5), ring1);
   col = mix(col, ink, ring2);
-  col = mix(col, pick > 0.75 ? cream : rust * 1.1, core);
+  col = mix(col, pick2 > 0.7 ? cream : (pick2 > 0.35 ? rust * 1.1 : ochre), core);
   // horizontal stripe bands between motif rows
   float band = smoothstep(0.47, 0.5, abs(fract(p.y) - 0.5));
   col = mix(col, ink * 1.4, band * 0.8);

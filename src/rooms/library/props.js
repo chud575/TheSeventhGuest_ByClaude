@@ -817,7 +817,7 @@ export function buildProps(ctx, root, mat) {
 
   // ================================================================ rug (faded Persian)
   {
-    const rug = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 3.4), ctx.materials.create('rug', { palette: 'heriz', colors: { field: [0.36, 0.06, 0.045], border: [0.06, 0.07, 0.12], ivory: [0.55, 0.45, 0.31], gold: [0.56, 0.37, 0.13], teal: [0.08, 0.16, 0.15], dark: [0.04, 0.03, 0.03], rose: [0.48, 0.16, 0.1] }, aspect: 2.3 / 3.4, knots: 220, wear: 0.5, fringe: 0.04, seed: 7, size: 1536 }));
+    const rug = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 3.4), ctx.materials.create('rug', { palette: 'heriz', colors: { field: [0.36, 0.06, 0.045], border: [0.16, 0.05, 0.035], ivory: [0.55, 0.45, 0.31], gold: [0.56, 0.37, 0.13], teal: [0.07, 0.12, 0.11], dark: [0.04, 0.03, 0.03], rose: [0.48, 0.16, 0.1] }, aspect: 2.3 / 3.4, knots: 220, wear: 0.5, fringe: 0.04, seed: 7, size: 1536, color: [1.15, 0.92, 0.82] }));
     rug.rotation.x = -Math.PI / 2; rug.rotation.z = 0.04;
     rug.position.set(-1.7, 0.005, -2.3);
     rug.receiveShadow = true;
