@@ -934,7 +934,7 @@ vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
  * grout is dark and grimy; the chamfered edges are slightly lifted; light scuffing.
  */
 export function floorTexture(forge, size = 1024) {
-  return forge.generate('foyer:floor4', {
+  return forge.generate('foyer:floor5', {
     size, aspect: 1, tile: true, normalStrength: 1.0,
     glsl: /* glsl */ `
 // domain-warped marble in tile-local space: soft cloudy drifts, a few wandering veins with a crisp core
@@ -972,7 +972,7 @@ void surface(vec2 uv, inout Surface s) {
     col = mix(col, vec3(0.16, 0.17, 0.19), vein * (0.62 + 0.3 * h3));
     col = mix(col, vec3(0.34, 0.35, 0.36), halo2 * 0.2 + vein2 * 0.25);
     col = mix(col, col * vec3(0.95, 0.88, 0.74), smoothstep(0.6, 0.95, cloud) * 0.45);
-    col = mix(col, vec3(0.5, 0.5, 0.5), crackle * 0.08);
+    col = mix(col, vec3(0.5, 0.5, 0.5), crackle * 0.04);
     rough = 0.25 + 0.06 * (h2 - 0.5);
   } else {
     // Nero Marquina: a deep black body, sparse white calcite veins with soft milky halos
@@ -982,7 +982,7 @@ void surface(vec2 uv, inout Surface s) {
     col = mix(col, vec3(0.16, 0.16, 0.16), halo * 0.18 * strong);
     col = mix(col, vec3(0.62, 0.61, 0.58), vein * (0.45 + 0.4 * h3) * strong);
     col = mix(col, vec3(0.3, 0.3, 0.29), vein2 * 0.1);
-    col = mix(col, vec3(0.12, 0.12, 0.12), crackle * 0.12);
+    col = mix(col, vec3(0.08, 0.08, 0.08), crackle * 0.05);
     rough = 0.15 + 0.05 * (h2 - 0.5);
   }
   // grout + a bevelled arris on every slab
@@ -994,9 +994,9 @@ void surface(vec2 uv, inout Surface s) {
   col *= mix(0.84, 1.0, smoothstep(0.0, 0.007, e));
   float sc = fbm(uv * vec2(9.0, 40.0) + h1 * 3.0, vec2(9.0, 40.0), 3) * 0.5 + 0.5;
   float scuff = smoothstep(0.7, 0.85, sc) * (0.5 + 0.5 * hash12(floor(uv * 60.0)));
-  float pits = step(0.997, hash12(floor(uv * 1100.0)));
+  float pits = step(0.9995, hash12(floor(uv * 1100.0)));
   s.albedo = col * (1.0 - scuff * 0.05);
-  s.height = mix(0.42 + 0.12 * sqrt(bevel) + cloud * 0.015 - pits * 0.2 - crackle * 0.02, 0.18, groutM);
+  s.height = mix(0.42 + 0.12 * sqrt(bevel) + cloud * 0.01 - pits * 0.1 - crackle * 0.006, 0.18, groutM);
   s.rough = mix(rough + vein * 0.04 + scuff * 0.2 + pits * 0.3 + crackle * 0.05, 0.85, groutM);
   s.metal = 0.0;
   s.ao = mix(1.0, 0.5, groutM) * (1.0 - pits * 0.3);

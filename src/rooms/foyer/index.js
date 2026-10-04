@@ -752,7 +752,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     // canvas weave + impasto + craquelure ride on the bump map; old varnish = a soft clearcoat over a matte paint film
     const paintingMat = async (name, o = {}) => {
       const [map, bump] = await Promise.all([loadTex(`${name}.jpg`, true), loadTex(`${name}_bump.png`, false)]);
-      return new THREE.MeshPhysicalMaterial({ map, bumpMap: bump, bumpScale: o.bump ?? 2.2, roughness: 0.62, metalness: 0, clearcoat: o.clearcoat ?? 0.6, clearcoatRoughness: 0.35, envMapIntensity: 0.25, specularIntensity: 0.35, color: new THREE.Color(o.gain ?? 1, o.gain ?? 1, o.gain ?? 1) });
+      return new THREE.MeshPhysicalMaterial({ map, bumpMap: bump, bumpScale: o.bump ?? 2.2, roughness: 0.62, metalness: 0, clearcoat: o.clearcoat ?? 0.6, clearcoatRoughness: 0.35, envMapIntensity: 0.25, specularIntensity: 0.35, color: new THREE.Color(1.08, 1.0, 0.86).multiplyScalar(o.gain ?? 1) });   // warm: the cool fill must not turn the bitumen darks navy
     };
     const paintings = Object.fromEntries(await Promise.all(['stauf', 'lady', 'elder', 'maid'].map(async (n) => [n, await paintingMat(n, n === 'stauf' ? { gain: 1.15 } : {})])));
     // brass picture light: a closed hood on two swan-neck arms; the warm lamp strip hides under the hood lip

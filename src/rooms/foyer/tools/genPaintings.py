@@ -95,7 +95,7 @@ def stauf():
     cx = 600
     neckY = y0 + int(fsz * 0.8)
     cm = costume_mask(W, H, cx, neckY, 150, 560, 210, seed, ctrl=[(0.0, 0.0), (0.2, 0.08), (0.46, 0.28), (0.72, 0.52), (0.9, 0.78), (0.99, 1.1), (1.03, 1.8), (1.05, 4.0)])
-    coat = silk(H, W, cm, cx - 60, neckY + 160, seed + 20, col(30, 27, 28), sheen=0.12)
+    coat = silk(H, W, cm, cx - 60, neckY + 160, seed + 20, col(44, 38, 36), sheen=0.22)
     below = ss(y0 + fsz - 110, y0 + fsz - 10, yy)          # the study's own coat corners carry down into the painted coat
     cmask = cm * np.maximum(below, 1 - blur(a_full(a, H, W, x0, y0), 4))
     img = lerp(img, coat, cmask)
@@ -121,7 +121,7 @@ def stauf():
     chain = blur(chain, 1.1)
     img = lerp(img, col(196, 150, 70) * 0.8, np.clip(chain * 1.4, 0, 1))
     # chiaroscuro: a raking light from upper left -- the shadow side and the lower body sink into the ground
-    rake = np.clip(1.12 - 0.5 * ss(0.42, 0.95, u) - 0.62 * ss(0.5, 1.0, v), 0.22, 1.12)
+    rake = np.clip(1.12 - 0.45 * ss(0.42, 0.95, u) - 0.42 * ss(0.55, 1.0, v), 0.4, 1.12)
     img = img * rake[..., None]
     lum = img @ np.array([0.3, 0.59, 0.11], np.float32)
     img = img * (0.9 + 0.14 * ss(0.12, 0.55, lum))[..., None]
