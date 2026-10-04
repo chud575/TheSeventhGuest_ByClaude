@@ -240,7 +240,7 @@ export function linen(ctx) {
  */
 export function knightsBoard(ctx, { aspect = 2.0, board = 0.82 } = {}) {
   return ctx.textures.generate('bedroom:board2', {
-    size: 2048, aspect, tile: false, normalStrength: 2.2,
+    size: 2048, aspect, tile: false, normalStrength: 4.0,
     uniforms: { uAspect2: aspect, uBoard: board },
     glsl: /* glsl */ `
     vec3 grain(vec2 p, vec3 a, vec3 b, float seed, float freq) {
@@ -510,7 +510,7 @@ export function dollFace(ctx, { seed = 0, cracked = false, eyes = '#3a5a8a', hai
       const gr = g.createRadialGradient(x, y, 1, x, y, r); gr.addColorStop(0, `rgba(205,95,90,${a})`); gr.addColorStop(1, 'rgba(205,95,90,0)');
       g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
     }
-    // eye sockets: dark, wide, painted lids; the glass eyeballs sit on top (see buildDoll)
+    // eye sockets: shadowed lids round the sculpted sockets (glass eyes: see doll.js)
     for (const sd of [-1, 1]) {
       const ex = cx + sd * 26 * S, ey = cy - 2 * S;
       // eye shadow

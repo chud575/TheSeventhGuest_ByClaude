@@ -219,7 +219,7 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
   }
   // ---- counterpane draped over the mattress with hanging sides
   {
-    const cw = W - 0.08, drop = 0.42, cl = L - 0.32;
+    const cw = W - 0.08, drop = 0.42, cl = L - 0.1;
     const segS = 90, segZ = 50;
     const half = cw / 2 + drop;
     const geo = new THREE.PlaneGeometry(half * 2, cl, segS, segZ);
@@ -254,8 +254,9 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
       uv.setXY(i, (s + half) * 1.0, (zz + cl / 2) * 1.0);
     }
     geo.computeVertexNormals();
-    const cover = mesh(geo, mats.quilt, 0, mTop + 0.03, 0.16 - 0.0, g);
+    const cover = mesh(geo, mats.quilt, 0, mTop + 0.03, 0.05, g);
     cover.name = 'cloth';
+    if (ctx.params?.get?.('brDbg') !== 'nosheet') {
     // turned-down sheet at the head: the top sheet folded back over the counterpane in a soft roll,
     // its band rumpled, hanging down over both sides with the cover
     {
@@ -276,13 +277,14 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
         let yy = y, xx = x;
         if (ax > cw / 2 - 0.06) { const d = ax - (cw / 2 - 0.06); const a = Math.min(d / 0.06, 1) * Math.PI / 2; xx = Math.sign(x) * (cw / 2 - 0.06 + Math.sin(a) * 0.06 + Math.max(0, d - 0.094) * 0.1); yy = y - (1 - Math.cos(a)) * 0.06 - Math.max(0, d - 0.094) * 1.0; }
         // rumples along the band
-        yy += 0.006 * Math.sin(x * 23.0 + z * 9.0) * Math.sin(x * 7.0 + 1.3) + 0.004 * Math.sin(x * 51.0 - z * 30.0);
+        yy += 0.007 * Math.sin(x * 11.0 + z * 9.0) * Math.sin(x * 4.3 + 1.3) + 0.003 * Math.sin(x * 19.0 - z * 14.0) * Math.sin(x * 2.1);
         const zz = z + 0.012 * Math.sin(x * 5.3 + 0.7) + 0.008 * Math.sin(x * 17.0);
         p.setXYZ(i, xx, yy, zz);
       }
       sgm.computeVertexNormals();
-      const sheet = mesh(G.applyBoxUVs(sgm, 1), mats.linen, 0, mTop + 0.03, -hl + 0.48, g);
+      const sheet = mesh(G.applyBoxUVs(sgm, 1), mats.linen, 0, mTop + 0.052, -hl + 0.48, g);
       sheet.name = 'cloth';
+    }
     }
   }
   // ---- pillows: soft stuffed cases with corded piping round the seam, a head-dent in the middle
@@ -942,139 +944,7 @@ export function buildOilLamp(ctx, mats) {
   return g;
 }
 
-// ============================================================================ dolls
-/** lathe whose outer rim is ruffled: r(θ) *= 1 + ruffle * sin(n θ) weighted toward the hem (profile y below `ruffleTop`). */
-function ruffledLathe(G, pts, { seg = 64, n = 18, ruffle = 0.08, ruffleTop = 0.5, seed = 0 } = {}) {
-  const g = G.latheFromProfile(pts, seg);
-  const p = g.attributes.position;
-  const ys = pts.map((q) => q[1]);
-  const y0 = Math.min(...ys), y1 = Math.max(...ys);
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-    const r = Math.hypot(x, z); if (r < 1e-5) continue;
-    const a = Math.atan2(z, x);
-    const k = 1 - Math.min(1, Math.max(0, (y - y0) / ((y1 - y0) * ruffleTop)));
-    const f = 1 + ruffle * k * (Math.sin(a * n + seed) * 0.75 + Math.sin(a * n * 2.3 + seed * 2.0) * 0.25);
-    p.setX(i, x * f); p.setZ(i, z * f);
-  }
-  g.computeVertexNormals();
-  return g;
-}
-
-/** scalloped lace collar / frill: a shallow cone ring whose outer edge is scalloped. */
-function frillGeometry(rIn, rOut, { n = 14, drop = 0.3, seg = 72 } = {}) {
-  const g = new THREE.RingGeometry(rIn, rOut, seg, 2);
-  const p = g.attributes.position, uv = g.attributes.uv;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i);
-    const r = Math.hypot(x, y), a = Math.atan2(y, x);
-    const t = (r - rIn) / (rOut - rIn);
-    const sc = 1 + t * 0.12 * Math.abs(Math.sin(a * n * 0.5));
-    const rr = rIn + (r - rIn) * sc;
-    // ripple up/down like a goffered frill
-    const zz = -t * (rOut - rIn) * drop + Math.sin(a * n) * t * (rOut - rIn) * 0.18;
-    p.setXYZ(i, Math.cos(a) * rr, zz, Math.sin(a) * rr);
-    uv.setXY(i, (a / (Math.PI * 2) + 0.5) * n, t);
-  }
-  g.computeVertexNormals();
-  return g;
-}
-
-/**
- * Seated bisque doll. Local: sitting on y = 0, facing +Z. size ≈ height of the seated doll.
- * Options: pose 'lap' | 'reach' | 'limp'; headYaw / tilt (radians); bonnet; cracked face.
- */
-export function buildDoll(ctx, mats, { size = 0.3, seed = 0, dress = 0xb08080, hair = 0x3a2010, cracked = false, eyes = '#3a5a8a', bonnet = false, bonnetBack = false, tilt = 0, headYaw = 0, pose = 'lap', lace = true } = {}) {
-  const G = ctx.geometry; const g = new THREE.Group(); g.name = 'doll';
-  const s = size / 0.3;
-  const S = (pts) => pts.map(([r, y]) => [r * s, y * s]);
-  const dressM = mats.dollVelvet(dress);
-  const hairM = mats.dollHair(hair);
-  const face = mats.dollFace({ seed, cracked, eyes, hair: `#${new THREE.Color(hair).getHexString()}` });
-  // petticoat (lace) peeking under a ruffled skirt
-  const pet = mesh(ruffledLathe(G, S([[0, 0.004], [0.122, 0.004], [0.125, 0.012], [0.11, 0.03], [0.0, 0.03]]), { n: 26, ruffle: 0.06, ruffleTop: 1, seed }), mats.laceFrill, 0, 0, 0.004 * s, g);
-  pet.scale.set(1, 1, 1.12);
-  const skirt = ruffledLathe(G, S([[0, 0.012], [0.116, 0.012], [0.118, 0.022], [0.108, 0.05], [0.088, 0.08], [0.064, 0.108], [0.046, 0.128], [0.0, 0.13]]), { n: 15, ruffle: 0.1, ruffleTop: 0.55, seed: seed + 1 });
-  const sk = mesh(skirt, dressM, 0, 0, 0, g); sk.scale.set(1, 1, 1.15);
-  // a sash at the waist
-  const sash = mesh(new THREE.TorusGeometry(0.047 * s, 0.008 * s, 8, 28), mats.dollSash, 0, 0.128 * s, 0, g); sash.rotation.x = Math.PI / 2; sash.scale.set(1, 1.1, 1);
-  // bodice with a pin-tucked front
-  mesh(G.latheFromProfile(S([[0.0, 0.12], [0.046, 0.12], [0.05, 0.145], [0.046, 0.18], [0.034, 0.2], [0.018, 0.208], [0.0, 0.21]]), 24), dressM, 0, 0, 0, g);
-  for (let i = 0; i < 4; i++) mesh(new THREE.SphereGeometry(0.004 * s, 8, 6), mats.pearl, 0, (0.14 + i * 0.016) * s, 0.048 * s - i * 0.0035 * s, g);
-  // goffered lace collar
-  if (lace) { const col = mesh(frillGeometry(0.018 * s, 0.05 * s, { n: 16, drop: 0.45 }), mats.laceFrill, 0, 0.207 * s, 0, g); col.rotation.y = seed; }
-  // legs forward: white stockings + strapped black shoes
-  for (const sx of [-1, 1]) {
-    const leg = mesh(new THREE.CapsuleGeometry(0.0145 * s, 0.085 * s, 4, 10), mats.stocking, sx * 0.034 * s, 0.02 * s, 0.1 * s, g); leg.rotation.x = Math.PI / 2 - 0.12;
-    const shoe = mesh(new THREE.SphereGeometry(0.015 * s, 14, 10), mats.shoe, sx * 0.034 * s, 0.022 * s, 0.155 * s, g); shoe.scale.set(0.95, 0.8, 1.5);
-    const strap = mesh(new THREE.TorusGeometry(0.0125 * s, 0.002 * s, 5, 16), mats.shoe, sx * 0.034 * s, 0.025 * s, 0.146 * s, g); strap.rotation.y = Math.PI / 2;
-  }
-  // arms: puffed sleeve + bisque forearm + hand; posed
-  const arms = { lap: [0.95, 0.0, 0.35], reach: [1.45, 0.0, 0.18], limp: [0.15, 0.0, 0.12] }[pose] || [0.95, 0, 0.35];
-  for (const sx of [-1, 1]) {
-    const sh = new THREE.Group(); sh.position.set(sx * 0.05 * s, 0.19 * s, 0); g.add(sh);
-    sh.rotation.set(arms[0] + (pose === 'limp' && sx > 0 ? 0.25 : 0), 0, sx * arms[2]);
-    const puff = mesh(new THREE.SphereGeometry(0.022 * s, 14, 10), dressM, 0, -0.012 * s, 0, sh); puff.scale.set(1, 1.15, 1);
-    mesh(new THREE.TorusGeometry(0.015 * s, 0.004 * s, 6, 16), mats.laceFrill, 0, -0.03 * s, 0, sh).rotation.x = Math.PI / 2;
-    mesh(new THREE.CapsuleGeometry(0.0105 * s, 0.045 * s, 4, 10), face.skin, 0, -0.06 * s, 0, sh);
-    const hand = mesh(new THREE.SphereGeometry(0.0125 * s, 12, 8), face.skin, 0, -0.093 * s, 0.003 * s, sh); hand.scale.set(0.8, 1.15, 0.55);
-    const thumb = mesh(new THREE.CapsuleGeometry(0.0035 * s, 0.008 * s, 3, 6), face.skin, sx * -0.008 * s, -0.088 * s, 0.006 * s, sh); thumb.rotation.z = sx * 0.6;
-  }
-  // head: larger porcelain head with painted face and glass eyes
-  const head = new THREE.Group(); head.position.set(0, 0.268 * s, 0); head.rotation.set(0.04, headYaw, tilt); g.add(head);
-  const hr = 0.06 * s;
-  // sculpted bisque head: a sphere pushed into a face — brow, sockets, nose, cheeks, a narrower chin
-  const headG = new THREE.SphereGeometry(hr, 56, 40);
-  {
-    const p = headG.attributes.position;
-    const bump = (x, y, z, cx, cy, sx, sy) => Math.exp(-(((x - cx) / sx) ** 2) - (((y - cy) / sy) ** 2)) * Math.max(0, z);
-    for (let i = 0; i < p.count; i++) {
-      let x = p.getX(i) / hr, y = p.getY(i) / hr, z = p.getZ(i) / hr;
-      let d = 0;
-      d += 0.09 * bump(x, y, z, 0, -0.2, 0.09, 0.16);                                   // nose
-      d -= 0.07 * (bump(x, y, z, 0.31, -0.02, 0.15, 0.1) + bump(x, y, z, -0.31, -0.02, 0.15, 0.1));   // sockets
-      d += 0.035 * bump(x, y, z, 0, 0.18, 0.5, 0.08);                                    // brow
-      d += 0.05 * (bump(x, y, z, 0.42, -0.35, 0.2, 0.18) + bump(x, y, z, -0.42, -0.35, 0.2, 0.18));  // cheeks
-      d += 0.03 * bump(x, y, z, 0, -0.58, 0.14, 0.08);                                  // lips
-      d += 0.04 * bump(x, y, z, 0, -0.8, 0.2, 0.12);                                    // chin
-      const nx = x, ny = y, nz = z;
-      x += nx * d; y += ny * d; z += nz * d;
-      if (y < 0) { const k = 1 - 0.14 * Math.min(1, -y); x *= k; z = z > 0 ? z * (1 - 0.04 * Math.min(1, -y)) : z * k; }
-      p.setXYZ(i, x * hr, y * hr, z * hr);
-    }
-    headG.computeVertexNormals();
-  }
-  const hm = mesh(headG, face.mat, 0, 0, 0, head); hm.scale.set(0.94, 1.03, 0.97);
-  hm.rotation.y = 0;
-  mesh(new THREE.CylinderGeometry(0.018 * s, 0.022 * s, 0.04 * s, 14), face.skin, 0, -0.055 * s, 0, head);
-  // small glass eyeballs set deep into the painted sockets, each under a heavy bisque upper lid
-  for (const sx of [-1, 1]) {
-    const ex = sx * 0.0185 * s, ey = -0.0015 * s, ez = hr * 0.86;
-    const e = mesh(new THREE.SphereGeometry(0.0082 * s, 18, 12), face.glass, ex, ey, ez, head);
-    e.scale.set(1, 0.82, 0.55);
-    // the lid hugs the eyeball and comes down over the top of the iris
-    const lid = mesh(new THREE.SphereGeometry(0.0082 * s * 1.08, 18, 8, 0, Math.PI * 2, 0, Math.PI * 0.46), face.skin, ex, ey, ez, head);
-    lid.scale.set(1, 0.82, 0.58); lid.rotation.x = 0.42;
-  }
-  // hair: cap + a fringe + long ringlets
-  const cap = mesh(new THREE.SphereGeometry(hr * 1.06, 28, 16, 0, Math.PI * 2, 0, Math.PI * 0.56), hairM, 0, 0.004 * s, -0.006 * s, head); cap.rotation.x = -0.42;
-  const fringe = mesh(new THREE.SphereGeometry(hr * 1.05, 20, 8, Math.PI * 0.25, Math.PI * 0.5, Math.PI * 0.18, Math.PI * 0.14), hairM, 0, 0.0, 0, head); fringe.rotation.y = -Math.PI * 0.5 - Math.PI * 0.25 + Math.PI * 0.25;
-  const ring = new THREE.CapsuleGeometry(0.0095 * s, 0.05 * s, 3, 8);
-  for (let i = 0; i < 11; i++) {
-    const a = Math.PI * 0.6 + (i / 10) * Math.PI * 0.8;
-    const r = mesh(ring, hairM, Math.cos(a) * hr * 0.92, -0.04 * s - (i % 3) * 0.006 * s, -Math.sin(a) * hr * 0.6 - 0.012 * s, head);
-    r.rotation.set(Math.sin(a) * 0.25, 0, Math.cos(a) * 0.3);
-  }
-  if (bonnet) {
-    const br = bonnetBack ? -1.25 : -0.75, bz = bonnetBack ? -0.03 : 0;
-    const b = mesh(new THREE.SphereGeometry(0.074 * s, 28, 14, 0, Math.PI * 2, 0, Math.PI * 0.5), dressM, 0, 0.004 * s, (-0.014 + bz) * s, head); b.rotation.x = br;
-    const brim = mesh(frillGeometry(0.066 * s, 0.088 * s, { n: 22, drop: -0.2 }), mats.laceFrill, 0, (bonnetBack ? 0.03 : 0.022) * s, (bonnetBack ? -0.012 : 0.012) * s, head); brim.rotation.x = bonnetBack ? 1.25 : br + Math.PI / 2;
-    const tie = mesh(new THREE.TorusGeometry(0.012 * s, 0.004 * s, 6, 12), mats.dollSash, 0.0, -0.06 * s, 0.035 * s, head); tie.rotation.y = 0.4;
-  }
-  g.userData.head = head;
-  return g;
-}
-
+// ============================================================================ dolls (see doll.js)
 /** Wall shelf with scrolled brackets. Local: back at z = 0, shelf tops at given heights. */
 export function buildDollShelf(ctx, mats, { w = 1.0, levels = [1.2, 1.58, 1.96], depth = 0.22 } = {}) {
   const G = ctx.geometry; const g = new THREE.Group(); g.name = 'dollshelf';
