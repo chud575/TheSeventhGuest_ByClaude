@@ -70,18 +70,24 @@ function head(x, y, z, H, o) {
   [py, pz] = [py * cp + pz * sp, -py * sp + pz * cp];
   const X = px, Y = py, Z = pz;
   let d = ell(X, Y, Z, 0, 0.02, -0.012, 0.077, 0.094, 0.097);                     // cranium
-  d = smin(d, ell(X, Y, Z, 0, -0.04, 0.03, 0.06, 0.062, 0.07), 0.03);              // face mass
+  d = smin(d, ell(X, Y, Z, 0, -0.04, 0.03, o.lady ? 0.054 : 0.06, 0.062, 0.07), 0.03);              // face mass
   d = smin(d, ell(X, Y, Z, 0, -0.084, 0.066, 0.026, 0.022, 0.022), 0.025);          // chin
-  d = smin(d, rcone(X, Y, Z, [-0.052, -0.06, 0.0], [0, -0.092, 0.06], 0.02, 0.016), 0.02);   // jaw line
-  d = smin(d, rcone(X, Y, Z, [0.052, -0.06, 0.0], [0, -0.092, 0.06], 0.02, 0.016), 0.02);
+  const jw = o.lady ? 0.045 : 0.052, jr = o.lady ? 0.017 : 0.02;
+  d = smin(d, rcone(X, Y, Z, [-jw, -0.06, 0.0], [0, -0.09, 0.06], jr, 0.014), 0.02);   // jaw line
+  d = smin(d, rcone(X, Y, Z, [jw, -0.06, 0.0], [0, -0.09, 0.06], jr, 0.014), 0.02);
   for (const s of [-1, 1]) d = smin(d, sph(X, Y, Z, s * 0.041, -0.012, 0.062, 0.022), 0.02);  // cheekbones
   d = smin(d, rcone(X, Y, Z, [-0.036, 0.028, 0.083], [0.036, 0.028, 0.083], 0.014, 0.014), 0.016);  // brow ridge
   // eye sockets, then the eyeballs and lids back in
   for (const s of [-1, 1]) d = smax(d, -sph(X, Y, Z, s * 0.03, 0.006, 0.1, 0.0175), 0.012);
   for (const s of [-1, 1]) {
-    d = smin(d, sph(X, Y, Z, s * 0.03, 0.004, 0.082, 0.0128), 0.004);
-    d = smin(d, ell(X, Y, Z, s * 0.03, 0.012, 0.088, 0.016, 0.006, 0.008), 0.004);   // upper lid
+    // eyeballs set back under the brow, heavy half-closed lids (a sleeper's calm, not a cartoon stare)
+    d = smin(d, sph(X, Y, Z, s * 0.03, 0.003, 0.073, 0.0128), 0.006);
+    d = smin(d, ell(X, Y, Z, s * 0.03, 0.009, 0.08, 0.0155, 0.0055, 0.0075), 0.006);   // upper lid
+    d = smin(d, ell(X, Y, Z, s * 0.03, -0.006, 0.079, 0.014, 0.004, 0.006), 0.006);   // lower lid
+    d = smin(d, ell(X, Y, Z, s * 0.034, -0.018, 0.078, 0.02, 0.008, 0.012), 0.012);   // under-eye / cheek plane
   }
+  // temple hollows and a nasolabial fold give the face planes
+  for (const s of [-1, 1]) d = smax(d, -ell(X, Y, Z, s * 0.07, 0.02, 0.055, 0.012, 0.02, 0.016), 0.012);
   // nose: bridge, tip and wings
   d = smin(d, rcone(X, Y, Z, [0, 0.022, 0.094], [0, -0.024, 0.117], 0.0085, 0.0115), 0.01);
   d = smin(d, sph(X, Y, Z, 0, -0.027, 0.11, 0.013), 0.008);
@@ -100,13 +106,13 @@ function head(x, y, z, H, o) {
     hd = smin(hd, ell(X, Y, Z, 0, 0.108, 0.012, 0.083, 0.042, 0.075), 0.035);           // rolled pompadour
     hd = smin(hd, ell(X, Y, Z, 0, 0.125, -0.03, 0.05, 0.035, 0.05), 0.03);            // crown
     hd = smin(hd, torus(X, Y - 0.15, Z + 0.035, 0, 0, 0, 0.022, 0.013), 0.012);        // topknot coil
-    hd += 0.0016 * Math.sin(Math.atan2(Z + 0.02, X) * 26 + Y * 30);                    // combed strands
+    hd += 0.0022 * Math.sin(Math.atan2(Z + 0.02, X) * 9 + Y * 22);                     // soft Marcel waves
     d = smin(d, hd, 0.006);
   } else if (o.hair) {
     let hd = ell(X, Y, Z, 0.004, 0.03, -0.014, 0.084, 0.1, 0.104);
     hd = Math.max(hd, Math.min(0.045 - 0.8 * Math.max(0, 0.05 - Z) - Y, Z + 0.04));
     hd = smin(hd, ell(X, Y, Z, -0.025, 0.08, 0.03, 0.06, 0.035, 0.06), 0.03);         // swept side part
-    hd += 0.0018 * Math.sin(X * 120 + Z * 30);
+    hd += 0.0012 * Math.sin(X * 45 + Z * 20);
     d = smin(d, hd, 0.008);
     for (const s of [-1, 1]) d = smin(d, rcone(X, Y, Z, [s * 0.074, 0.01, 0.01], [s * 0.068, -0.045, 0.03], 0.011, 0.008), 0.008);   // sideburns
   }
@@ -202,7 +208,8 @@ export function guestSDF(o) {
       tor = smin(tor, ell(x, y, z, 0, 0.95, L + 0.055, 0.135, 0.075, 0.075), 0.05);   // monobosom bodice
       tor = smin(tor, rcone(x, y, z, [0, 0.72, L + 0.07], [0, 0.6, L + 0.09], 0.035, 0.01), 0.04);   // basque point
       // pleated bertha falling over the shoulders
-      tor = smin(tor, torus(x, (y - 1.055) * 1.4, (z - L - 0.01) * 1.25, 0, 0, 0, 0.14, 0.03) + 0.004 * Math.sin(Math.atan2(x, z - L) * 24), 0.03);
+      // (a smooth lace fichu, no pleat ridges: under the rim shader they read as strings of beads)
+      tor = smin(tor, torus(x, (y - 1.05) * 1.6, (z - L - 0.01) * 1.25, 0, 0, 0, 0.135, 0.022), 0.05);
     } else {
       tor = ell(x, y, z, 0, 0.72, L, 0.145, 0.12, 0.1);
       tor = smin(tor, ell(x, y, z, 0, 0.93, L + 0.01, 0.17, 0.17, 0.115), 0.07);
@@ -234,7 +241,7 @@ export function guestSDF(o) {
       if (lady) {
         // leg-o'-mutton: big puff at the shoulder narrowing to a fitted forearm
         const mid = [(a.sh[0] * 0.55 + a.el[0] * 0.45) + a.s * 0.02, a.sh[1] * 0.55 + a.el[1] * 0.45, a.sh[2] * 0.55 + a.el[2] * 0.45];
-        ar = ell(x, y, z, mid[0], mid[1], mid[2], 0.08, 0.105, 0.08) + 0.0025 * Math.sin((z - mid[2]) * 140 + (y - mid[1]) * 40);
+        ar = ell(x, y, z, mid[0], mid[1], mid[2], 0.066, 0.09, 0.066) + 0.0015 * Math.sin((z - mid[2]) * 70 + (y - mid[1]) * 30);
         ar = smin(ar, rcone(x, y, z, a.sh, a.el, 0.06, 0.042), 0.04);
         ar = smin(ar, rcone(x, y, z, a.el, a.wr, 0.04, 0.028), 0.02);
       } else {
@@ -355,7 +362,8 @@ export const GUEST_BOUNDS = { min: [-0.46, 0.24, -0.42], max: [0.46, 1.72, 0.7] 
 export function packMesh({ positions, normals, indices }, bmin = GUEST_BOUNDS.min, bmax = GUEST_BOUNDS.max) {
   const nv = positions.length / 3, ni = indices.length;
   const big = nv > 65535;
-  const bytes = 8 + 24 + nv * 6 + nv * 4 + ni * (big ? 4 : 2);
+  const pv = (nv * 6 + 3) & ~3;   // keep the index block 4-byte aligned
+  const bytes = 8 + 24 + pv + nv * 4 + ni * (big ? 4 : 2);
   const buf = new ArrayBuffer(bytes + ((4 - (bytes % 4)) % 4));
   const dv = new DataView(buf);
   dv.setUint32(0, nv, true); dv.setUint32(4, ni, true);
@@ -363,7 +371,7 @@ export function packMesh({ positions, normals, indices }, bmin = GUEST_BOUNDS.mi
   let o = 32;
   const p16 = new Uint16Array(buf, o, nv * 3);
   for (let v = 0; v < nv; v++) for (let i = 0; i < 3; i++) p16[v * 3 + i] = Math.round(Math.max(0, Math.min(1, (positions[v * 3 + i] - bmin[i]) / (bmax[i] - bmin[i]))) * 65535);
-  o += nv * 6;
+  o += pv;
   const n8 = new Int8Array(buf, o, nv * 4);
   for (let v = 0; v < nv; v++) for (let i = 0; i < 3; i++) n8[v * 4 + i] = Math.round(normals[v * 3 + i] * 127);
   o += nv * 4;
@@ -375,7 +383,7 @@ export function unpackMesh(buf) {
   const nv = dv.getUint32(0, true), ni = dv.getUint32(4, true);
   const bmin = [0, 1, 2].map((i) => dv.getFloat32(8 + i * 4, true)), bmax = [0, 1, 2].map((i) => dv.getFloat32(20 + i * 4, true));
   let o = 32;
-  const p16 = new Uint16Array(buf, o, nv * 3); o += nv * 6;
+  const p16 = new Uint16Array(buf, o, nv * 3); o += (nv * 6 + 3) & ~3;
   const n8 = new Int8Array(buf, o, nv * 4); o += nv * 4;
   const indices = nv > 65535 ? new Uint32Array(buf, o, ni) : new Uint16Array(buf, o, ni);
   const positions = new Float32Array(nv * 3), normals = new Float32Array(nv * 3);

@@ -458,38 +458,45 @@ export function gobletGeometry(G, s = 1) {
 }
 
 /**
- * Standing bishop's-mitre napkin: two tall pointed panels (front and back) rising
- * from a folded cuff, with crisp pleat creases (flat-shaded so the folds read).
+ * Linen napkin rolled through a silver ring, lying on the cloth: a soft roll
+ * whose ends open out into fluted, fanned folds. Returns { roll, ring } geometries
+ * (roll along local x, resting on y = 0). UVs in centimetres for the linen weave.
  */
-export function napkinGeometry(G, { rx = 0.05, rz = 0.026, h = 0.15 } = {}) {
-  const U = 24, V = 6;
-  const pos = [];
-  const P = (i, j) => {
-    const u = i / U, v = j / V, a = u * Math.PI * 2;
-    const sa = Math.abs(Math.sin(a));
-    // pointed mitre peaks front/back (a = 90, 270 deg), low shoulders at the sides
-    const top = h * (0.42 + 0.58 * Math.pow(sa, 2.2));
-    const y = v * top;
-    // pleat creases: zig-zag in the radius, deeper toward the base
-    const tri = Math.abs(((u * 8) % 1) - 0.5) * 2;
-    const pleat = 1 + 0.16 * (tri - 0.5) * (1 - v * 0.6);
-    // panels converge toward the peak; the cuff flares slightly at the base
-    const taper = (1 - Math.pow(v, 1.4) * 0.72) * (j === 0 ? 1.06 : 1);
-    return [Math.cos(a) * rx * taper * pleat, y, Math.sin(a) * rz * taper * pleat * (1 - v * 0.35)];
-  };
-  for (let j = 0; j < V; j++) for (let i = 0; i < U; i++) {
-    const a = P(i, j), b = P(i + 1, j), c = P(i, j + 1), d = P(i + 1, j + 1);
-    pos.push(...a, ...c, ...b, ...b, ...c, ...d);
+export function napkinGeometry(G) {
+  const L = 0.17, R0 = 0.0145;
+  const NX = 64, NA = 48;
+  const pos = [], uv = [], idx = [];
+  for (let i = 0; i <= NX; i++) {
+    const x = -L / 2 + (i / NX) * L, e = Math.abs(x) / (L / 2);
+    const flare = Math.pow(Math.max(0, (e - 0.45) / 0.55), 1.8);
+    for (let j = 0; j <= NA; j++) {
+      const a = (j / NA) * Math.PI * 2;
+      // the rolled spiral's lap line, then the flutes opening toward the ends
+      let r = R0 * (1 + 0.06 * Math.max(0, Math.sin(a - x * 18)) ** 8) + 0.016 * flare;
+      r *= 1 + (0.18 + 0.1 * Math.sin(x * 40)) * flare * Math.sin(a * 7 + x * 30);
+      const y = Math.sin(a) * r, z = Math.cos(a) * r;
+      pos.push(x, y + R0 * 0.92 + 0.004 * flare * flare, z);
+      uv.push(x * 50, (a / (Math.PI * 2)) * 2 * Math.PI * R0 * 50);
+    }
   }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.computeVertexNormals();
-  // make sure the faces point outward
-  const p = g.attributes.position, n = g.attributes.normal;
-  let dot = 0; for (let i = 0; i < p.count; i++) dot += p.getX(i) * n.getX(i) + p.getZ(i) * n.getZ(i);
-  if (dot < 0) { const arr = p.array; for (let t = 0; t < arr.length; t += 9) for (let k = 0; k < 3; k++) { const tmp = arr[t + 3 + k]; arr[t + 3 + k] = arr[t + 6 + k]; arr[t + 6 + k] = tmp; } g.computeVertexNormals(); }
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(p.count * 2), 2));
-  return g;
+  const W = NA + 1;
+  for (let i = 0; i < NX; i++) for (let j = 0; j < NA; j++) {
+    const A = i * W + j, B = A + 1, Cc = A + W, D = Cc + 1;
+    idx.push(A, B, Cc, B, D, Cc);
+  }
+  const roll = new THREE.BufferGeometry();
+  roll.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  roll.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  roll.setIndex(idx);
+  roll.computeVertexNormals();
+  // make normals point outward (away from the roll axis)
+  const p = roll.attributes.position, n = roll.attributes.normal;
+  let dot = 0; for (let k = 0; k < p.count; k++) dot += (p.getY(k) - R0 * 0.92) * n.getY(k) + p.getZ(k) * n.getZ(k);
+  if (dot < 0) { const ix = roll.index.array; for (let t = 0; t < ix.length; t += 3) { const tmp = ix[t + 1]; ix[t + 1] = ix[t + 2]; ix[t + 2] = tmp; } roll.computeVertexNormals(); }
+  // chased silver ring with beaded edges
+  const ring = G.latheFromProfile([[R0 + 0.0012, -0.011], [R0 + 0.0032, -0.0105], [R0 + 0.0036, -0.008], [R0 + 0.0028, -0.006], [R0 + 0.0031, 0], [R0 + 0.0028, 0.006], [R0 + 0.0036, 0.008], [R0 + 0.0032, 0.0105], [R0 + 0.0012, 0.011]], 40);
+  ring.rotateZ(Math.PI / 2); ring.translate(0, R0 * 0.92, 0);
+  return { roll, ring };
 }
 
 function flatExtrude(shape, t) {
@@ -537,10 +544,11 @@ export function buildPlaceSetting(ctx, mats, { chinaMat, cutlery, napkin } = {})
   const plate = new THREE.Mesh(discUV(plateGeometry(G, 0.125), 0.125), chinaMat); plate.position.y = 0.012; g.add(plate);
   // lace doily under the charger
   if (mats.lace) { const d = new THREE.Mesh(new THREE.CircleGeometry(0.2, 48), mats.lace); d.rotation.x = -Math.PI / 2; d.position.y = 0.0012; g.add(d); }
-  const nap = new THREE.Mesh(napkin, mats.linen); nap.position.set(-0.26, 0.002, -0.02); nap.rotation.y = 0.15; g.add(nap);
-  const kn = new THREE.Mesh(cutlery.knife, mats.silver); kn.position.set(0.19, 0.0022, 0.0); kn.rotation.y = Math.PI; g.add(kn);
-  const sp = new THREE.Mesh(cutlery.spoon, mats.silver); sp.position.set(0.222, 0.0022, 0.0); sp.rotation.y = Math.PI; g.add(sp);
-  const fk = new THREE.Mesh(cutlery.fork, mats.silver); fk.position.set(-0.19, 0.0022, 0.0); fk.rotation.y = Math.PI; g.add(fk);
+  const nap = new THREE.Group(); nap.add(new THREE.Mesh(napkin.roll, mats.linen), new THREE.Mesh(napkin.ring, mats.silver));
+  nap.position.set(-0.255, 0.001, 0.0); nap.rotation.y = Math.PI / 2 + 0.12; g.add(nap);
+  const kn = new THREE.Mesh(cutlery.knife, mats.silver); kn.position.set(0.19, 0.0035, 0.0); kn.rotation.set(0, Math.PI, 0.3); g.add(kn);
+  const sp = new THREE.Mesh(cutlery.spoon, mats.silver); sp.position.set(0.222, 0.0022, 0.0); sp.rotation.set(0.03, Math.PI, -0.08); g.add(sp);
+  const fk = new THREE.Mesh(cutlery.fork, mats.silver); fk.position.set(-0.19, 0.0028, 0.0); fk.rotation.set(0.04, Math.PI, -0.12); g.add(fk);
   // goblet + wine glass
   const gob = new THREE.Mesh(gobletGeometry(G, 1.0), mats.crystal); gob.position.set(0.16, 0, -0.17); g.add(gob);
   const wine = new THREE.Mesh(G.latheFromProfile([[0, 0.11], [0.024, 0.115], [0.03, 0.13], [0.0, 0.13]], 16), mats.wine); wine.position.set(0.16, 0, -0.17); g.add(wine);

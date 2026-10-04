@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 import { heavyFrameProfile, cartoucheGeometry, buildDoorLeaf, buildArchitrave, buildChair, webBackGeometry, buildTable, buildSideboard, buildCandelabrum, buildChandelier, buildPlaceSetting, plateGeometry, discUV, gobletGeometry, napkinGeometry, cutleryGeometries } from './furniture.js';
-import { nightGardenTexture, ganacheTexture, spongeTexture, chinaTexture, ceilingFieldTexture, tuftedTexture, flameMahoganyTexture, giltPlateTexture, tombTexture, laceTexture, frostTexture } from './textures.js';
+import { ganacheTexture, spongeTexture, chinaTexture, ceilingFieldTexture, tuftedTexture, flameMahoganyTexture, giltPlateTexture, tombTexture, laceTexture, frostTexture } from './textures.js';
 import { buildCurtain, buildSwagValance, buildTassel } from './drapery.js';
-import { treeLayerTexture, frostPaneTexture, foxingTexture } from './textures.js';
+import { frostPaneTexture, foxingTexture, winterSkyTexture, treelineTexture, treeCardTexture, snowFieldTexture } from './textures.js';
 import { createCakePuzzle, cakeMeta, CAKE_ID } from './puzzleCake.js';
-import { denseHerizTexture } from './textures.js';
+import { denseHerizTexture, linenTexture, palmetteFriezeTexture } from './textures.js';
 import { rug as rugGenerator } from '../../engine/materials/generators/rug.js';
 import { mergeStatic } from './merge.js';
 import { createGuestMaterial, loadGuestGeometry } from './guestFx.js';
@@ -70,12 +70,12 @@ export default {
 
     // ================================================================ materials
     const mat = {
-      wall: M.create('damask', { base: [0.085, 0.12, 0.3], motif: [0.16, 0.22, 0.46], sheen: 0.5, aging: 0.45, variant: 0, repeat: [1 / 0.26, 1 / 0.26], macro: 0.4, size: 1024, normalScale: 0.45 }),
-      paint: M.create('plaster', { color: [0.09, 0.12, 0.28], cracks: 0.15, stains: 0.35, roughness: 0.7, repeat: [0.7, 0.7] }),
+      wall: M.create('damask', { base: [0.1, 0.17, 0.33], motif: [0.2, 0.3, 0.5], sheen: 0.5, aging: 0.45, variant: 0, repeat: [1 / 0.26, 1 / 0.26], macro: 0.4, size: 1024, normalScale: 0.45 }),
+      paint: M.create('plaster', { color: [0.1, 0.16, 0.3], cracks: 0.15, stains: 0.35, roughness: 0.7, repeat: [0.7, 0.7] }),
       niche: M.create('plaster', { color: [0.035, 0.045, 0.1], cracks: 0.25, stains: 0.5, repeat: [1, 1] }),
-      ceiling: M.create('plaster', { color: [0.1, 0.13, 0.28], cracks: 0.3, stains: 0.45, repeat: [0.45, 0.45] }),
+      ceiling: M.create('plaster', { color: [0.12, 0.16, 0.34], cracks: 0.3, stains: 0.45, repeat: [0.45, 0.45] }),
       beam: M.create('plaster', { color: [0.34, 0.07, 0.06], cracks: 0.1, stains: 0.4, roughness: 0.6, repeat: [1, 1] }),
-      floor: M.create('parquet', { species: 'walnut', ratio: 5, planksAcross: 2, repeat: [0.7, 0.7], polish: 0.6, wear: 0.5, macro: 0.5 }),
+      floor: M.create('parquet', { species: 'walnut', ratio: 5, planksAcross: 2, repeat: [1.35, 1.35], polish: 0.6, wear: 0.5, macro: 0.5 }),
       wood: M.create('mahogany', { repeat: [1.4, 1.4], color: [0.62, 0.42, 0.36] }),
       woodTop: M.create('mahogany', { repeat: [0.8, 0.8], color: [0.6, 0.4, 0.34] }),
       panel: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.75, repeat: [1.1, 1.1], clearcoat: 0.5, clearcoatRoughness: 0.28, color: [0.24, 0.15, 0.12] }),
@@ -93,7 +93,7 @@ export default {
       silver: M.basic('silver', { roughness: 0.25, envMapIntensity: 1.3 }),
       crystal: M.basic('crystal', { envMapIntensity: 1.5, opacity: 0.3 }),
       porcelain: M.basic('porcelain'),
-      linen: M.basic('cloth', { color: 0xb4ada0, roughness: 0.92, side: THREE.DoubleSide, sheenRoughness: 0.5 }),
+      linen: null,
       iron: M.basic('iron'),
       black: M.basic('black', { color: 0x0a0806 }),
       wine: new THREE.MeshPhysicalMaterial({ color: 0x3a0308, roughness: 0.12, transmission: 0, clearcoat: 1, clearcoatRoughness: 0.12, name: 'wine' }),
@@ -105,7 +105,17 @@ export default {
     }
     // the drapes: a smooth velvet (the generator's crushed-pile noise sparkled as white static under the moon);
     // the folds come from the geometry, the pile from a soft sheen lobe
-    mat.drape = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(0.035, 0.06, 0.24), roughness: 0.88, metalness: 0, sheen: 0.6, sheenRoughness: 0.75, sheenColor: new THREE.Color(0.22, 0.32, 0.7), side: THREE.DoubleSide, envMapIntensity: 0.35, name: 'drapeVelvet' });
+    mat.drape = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(0.05, 0.062, 0.105), roughness: 0.88, metalness: 0, sheen: 0.45, sheenRoughness: 0.7, sheenColor: new THREE.Color(0.2, 0.22, 0.27), side: THREE.DoubleSide, envMapIntensity: 0.35, name: 'drapeVelvet' });
+    {
+      const ln = linenTexture(ctx.textures);
+      mat.linen = new THREE.MeshPhysicalMaterial({ map: ln.map, normalMap: ln.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), roughnessMap: ln.ormMap, aoMap: ln.ormMap, color: 0xf0ebe0, roughness: 1, metalness: 0, sheen: 0.7, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.95, 0.93, 0.9), side: THREE.DoubleSide, envMapIntensity: 0.6, name: 'linen' });
+      // flatware: brushed old silver; broad soft highlights from the room, never a hot slab in the bloom
+      mat.flatware = new THREE.MeshPhysicalMaterial({ color: 0xc0c0c4, metalness: 1, roughness: 0.38, envMapIntensity: 0.7, name: 'flatware' });
+    }
+    {
+      const pf = palmetteFriezeTexture(ctx.textures).withRepeat(1 / 0.46, 1);
+      mat.frieze = new THREE.MeshPhysicalMaterial({ map: pf.map, normalMap: pf.normalMap, normalScale: new THREE.Vector2(1.6, 1.6), roughnessMap: pf.ormMap, metalnessMap: pf.ormMap, aoMap: pf.ormMap, aoMapIntensity: 1.0, roughness: 1, metalness: 1, envMapIntensity: 1.1, name: 'palmetteFrieze' });
+    }
     mat.rosePlaster = M.create('plaster', { color: [0.22, 0.24, 0.3], cracks: 0.2, stains: 0.5, roughness: 0.9, repeat: [3, 3] });
     mat.tassel = M.create('velvet', { color: [0.5, 0.36, 0.16], crush: 0.2, repeat: [6, 6], sheen: 1, sheenColor: [0.9, 0.7, 0.35] });
     mat.giltDark = M.create('gold', { wear: 0.6, dirt: 0.8, repeat: [2, 1], color: [0.45, 0.4, 0.36] });
@@ -131,12 +141,12 @@ export default {
     mat.china = new THREE.MeshPhysicalMaterial({ map: chinaSet.map, normalMap: chinaSet.normalMap, roughness: 0.12, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, name: 'china' });
     const ganSet = ganacheTexture(ctx.textures), spSet = spongeTexture(ctx.textures);
     const cakeMats = {
-      ganache: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(2.4, 1.9, 1.7), map: ganSet.map, normalMap: ganSet.normalMap, roughnessMap: ganSet.ormMap, roughness: 1, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.18, name: 'ganache' }),
+      ganache: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(1.15, 1.0, 0.95), map: ganSet.map, normalMap: ganSet.normalMap, roughnessMap: ganSet.ormMap, roughness: 1, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.2, sheen: 0.3, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.5, 0.3, 0.2), name: 'ganache' }),
       sponge: new THREE.MeshStandardMaterial({ map: spSet.map, normalMap: spSet.normalMap, roughnessMap: spSet.ormMap, aoMap: spSet.ormMap, roughness: 1, metalness: 0, name: 'sponge' }),
-      cream: new THREE.MeshPhysicalMaterial({ color: 0xbfb29a, roughness: 0.55, sheen: 0.5, sheenColor: new THREE.Color(1, 0.95, 0.9), name: 'cream' }),
-      sugar: new THREE.MeshPhysicalMaterial({ color: 0xc9c1b0, roughness: 0.7, sheen: 0.4, sheenRoughness: 0.6, sheenColor: new THREE.Color(1, 0.92, 0.85), name: 'sugar' }),
-      crumb: new THREE.MeshStandardMaterial({ color: 0x2e140a, roughness: 0.85, name: 'crumb' }),
-      ganacheDrip: new THREE.MeshPhysicalMaterial({ color: 0x2a120a, roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.15, name: 'ganacheDrip' }),
+      cream: new THREE.MeshPhysicalMaterial({ color: 0xd8c8a8, roughness: 0.55, sheen: 0.5, sheenColor: new THREE.Color(1, 0.95, 0.9), name: 'cream' }),
+      sugar: new THREE.MeshPhysicalMaterial({ color: 0xd6ccb8, roughness: 0.55, sheen: 0.5, sheenRoughness: 0.5, sheenColor: new THREE.Color(1, 0.92, 0.85), emissive: new THREE.Color(0.32, 0.2, 0.12), emissiveIntensity: 0.12, clearcoat: 0.3, clearcoatRoughness: 0.35, name: 'sugar' }),
+      crumb: new THREE.MeshStandardMaterial({ color: 0x4a2010, roughness: 0.85, name: 'crumb' }),
+      ganacheDrip: new THREE.MeshPhysicalMaterial({ color: 0x4a2414, roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.15, name: 'ganacheDrip' }),
       socket: new THREE.MeshStandardMaterial({ color: 0x0b0503, roughness: 0.6, name: 'socket' }),
       stone: (() => { const t = tombTexture(ctx.textures); return new THREE.MeshStandardMaterial({ map: t.map, normalMap: t.normalMap, roughnessMap: t.ormMap, roughness: 1, metalness: 0, color: 0xb0b0b4, name: 'tombstone' }); })(),
     };
@@ -363,18 +373,63 @@ export default {
       sash.position.set(wx, WIN.sill, -WIN.depth * 0.55); s.grp.add(sash);
       // the garden beyond, layered for parallax: far sky/treeline card, a mid layer of bare
       // trees (alpha), and a real snowy ground plane catching the moon
-      const sky = nightGardenTexture(ctx.textures);
-      const skyMat = new THREE.MeshBasicMaterial({ map: sky.map, color: new THREE.Color(1, 1, 1).multiplyScalar(3.2), toneMapped: false, name: 'garden' });
-      const card = new THREE.Mesh(new THREE.PlaneGeometry(9, 7.5), skyMat);
-      card.position.set(wx + 0.4, WIN.sill + 1.0, -7.5); s.grp.add(card);
-      const trees = treeLayerTexture(ctx.textures);
-      const treeMat = new THREE.MeshBasicMaterial({ map: trees.map, color: new THREE.Color(0.55, 0.62, 0.85), alphaTest: 0.5, toneMapped: false, name: 'treesMid', side: THREE.DoubleSide });
-      const tl = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 3.9), treeMat);
-      tl.position.set(wx - 0.6, 1.1, -5.6); tl.userData.noShadow = true; s.grp.add(tl);
-      const snowMat = new THREE.MeshStandardMaterial({ color: 0x8c96b0, roughness: 0.9, metalness: 0, emissive: new THREE.Color(0.1, 0.13, 0.22), name: 'snow' });
-      const snowG = new THREE.PlaneGeometry(10, 8, 20, 16);
-      { const pp = snowG.attributes.position; for (let i = 0; i < pp.count; i++) pp.setZ(i, 0.12 * Math.sin(pp.getX(i) * 1.3) * Math.cos(pp.getY(i) * 0.9)); snowG.computeVertexNormals(); }
-      const snow = new THREE.Mesh(snowG, snowMat); snow.rotation.x = -Math.PI / 2; snow.position.set(wx, 0.35, -4.4); s.grp.add(snow);
+      // the winter garden beyond, built in depth for parallax: sky dome card, a wooded ridge in mist,
+      // three tree cards at 5 / 8 / 12 m tinted by aerial perspective, ground-mist veils, and a real
+      // sloping snowfield with drifts and ice glints
+      const outside = new THREE.Group(); outside.position.set(wx, 0, 0); s.grp.add(outside);
+      const basic = (map, col, extra = {}) => new THREE.MeshBasicMaterial({ map, color: new THREE.Color(...col), toneMapped: false, fog: false, ...extra });
+      const sky = winterSkyTexture(ctx.textures);
+      const skyCard = new THREE.Mesh(new THREE.PlaneGeometry(44, 30), basic(sky.map, [2.4, 2.4, 2.4], { name: 'sky' }));
+      skyCard.position.set(1.0, 6.0, -26); outside.add(skyCard);
+      const tline = treelineTexture(ctx.textures);
+      const tl = new THREE.Mesh(new THREE.PlaneGeometry(40, 10), basic(tline.map, [1.5, 1.55, 1.7], { alphaTest: 0.4, name: 'treeline' }));
+      tl.position.set(0, 3.2, -19); outside.add(tl);
+      const cards = [[3, -12.5, 13, [2.1, 2.2, 2.5], -1.4], [2, -8.2, 8.5, [1.0, 1.06, 1.22], 1.9], [1, -4.9, 6.2, [0.7, 0.75, 0.9], -1.15]];
+      for (const [seed, z, size, col, x] of cards) {
+        const t = treeCardTexture(ctx.textures, seed);
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), basic(t.map, col, { alphaTest: 0.5, side: THREE.DoubleSide, name: `trees${seed}` }));
+        m.position.set(x, size / 2 + 0.1 + (-z) * 0.06, z); m.userData.noShadow = true; outside.add(m);
+      }
+      // mist veils hugging the ground between the layers (vertex-alpha gradient)
+      const veil = (w, h, z, a, col) => {
+        const g = new THREE.PlaneGeometry(w, h, 1, 8);
+        const c = []; const pp = g.attributes.position;
+        for (let i = 0; i < pp.count; i++) { const v = (pp.getY(i) + h / 2) / h; c.push(...col, a * Math.pow(Math.max(0, 1 - v), 1.6)); }
+        g.setAttribute('color', new THREE.Float32BufferAttribute(c, 4));
+        const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, toneMapped: false, fog: false, name: 'mist' }));
+        m.position.set(0, h / 2 - 0.2 + (-z) * 0.06, z); m.userData.noShadow = true; m.userData.noBake = true; outside.add(m);
+      };
+      veil(40, 3.5, -16, 0.75, [0.36, 0.41, 0.54]);
+      veil(30, 2.4, -10.5, 0.5, [0.32, 0.37, 0.5]);
+      veil(20, 1.4, -6.5, 0.3, [0.3, 0.35, 0.48]);
+      // the snowfield: rises gently toward the woods, wind drifts banked against the house wall
+      const sf = snowFieldTexture(ctx.textures);
+      sf.map.wrapS = sf.map.wrapT = THREE.RepeatWrapping; sf.map.repeat.set(6, 4);
+      const snowG = new THREE.PlaneGeometry(44, 26, 110, 64);
+      {
+        const pp = snowG.attributes.position, cols = [];
+        for (let i = 0; i < pp.count; i++) {
+          const x = pp.getX(i), d = pp.getY(i) + 13;            // d: distance out from the wall (0..26)
+          let y = 0.28 + d * 0.055 + 0.18 * Math.sin(x * 0.7 + d * 0.3) * Math.cos(d * 0.5 + x * 0.2) * Math.min(1, d / 4);
+          y += 0.32 * Math.exp(-d / 0.9) * (0.7 + 0.3 * Math.sin(x * 1.7));   // drift against the wall
+          y += 0.1 * Math.exp(-Math.pow((d - 3.2 - 0.6 * Math.sin(x * 0.4)) / 0.7, 2));   // a wind ridge
+          pp.setZ(i, y);
+        }
+        snowG.computeVertexNormals();
+        // baked moonlight: the moon hangs low over the woods, so the far faces of the drifts glow and the
+        // near faces fall into blue shade; everything fades into the mist with distance
+        const nn = snowG.attributes.normal, L = new THREE.Vector3(0.25, 0.9, 0.45).normalize();   // (plane space: +y = away, +z = up)
+        for (let i = 0; i < pp.count; i++) {
+          const d = pp.getY(i) + 13, k = Math.min(1, d / 22);
+          const lam = Math.max(0, nn.getX(i) * L.x + nn.getY(i) * L.y + nn.getZ(i) * L.z);
+          const sh = 0.55 + 0.6 * Math.pow(lam, 3);
+          cols.push((0.36 * sh) * (1 - k) + 0.46 * k, (0.41 * sh) * (1 - k) + 0.51 * k, (0.56 * sh) * (1 - k) + 0.64 * k);
+        }
+        snowG.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+      }
+      const snowMat = new THREE.MeshBasicMaterial({ map: sf.map, vertexColors: true, toneMapped: false, fog: false, name: 'snow' });
+      snowMat.color.setScalar(1.6);
+      const snow = new THREE.Mesh(snowG, snowMat); snow.rotation.x = -Math.PI / 2; snow.position.set(0, 0, -13.2); snow.userData.noShadow = true; outside.add(snow);
       // frost creeping in from the corners of the panes
       const fr = frostPaneTexture(ctx.textures);
       const frostGlass = new THREE.MeshStandardMaterial({ map: fr.map, transparent: true, depthWrite: false, roughness: 0.6, metalness: 0, color: 0xc8d4ee, name: 'frostPane' });
@@ -603,31 +658,46 @@ export default {
       const dir = V3(Math.sin(phi), 0, Math.cos(phi));
       places.push({ phi, dir });
       const ch = buildChair(ctx, furnMats, { backGeo });
-      const pull = [0.36, 0.06, 0.02, 0.02, 0.08, 0.3][k];
-      ch.position.copy(T).addScaledVector(dir, TABLE_R + 0.2 + pull);
-      ch.rotation.y = phi + Math.PI + [0.12, 0, 0.04, -0.05, 0, -0.1][k];
+      // the near-right chair is pulled out toward the doorway, its pierced back framing the table from the hero view
+      const cphi = k === 0 ? THREE.MathUtils.degToRad(13) : phi, cdir = V3(Math.sin(cphi), 0, Math.cos(cphi));
+      const pull = [0.62, 0.06, 0.02, 0.02, 0.08, 0.3][k];
+      ch.position.copy(T).addScaledVector(cdir, TABLE_R + 0.2 + pull);
+      ch.rotation.y = cphi + Math.PI + [0.12, 0, 0.04, -0.05, 0, -0.1][k];
       add(ch);
-      const ps = buildPlaceSetting(ctx, { charger: mat.charger, linen: mat.linen, silver: mat.silver, crystal: mat.crystal, wine: mat.wine, lace: mat.lace }, { chinaMat: mat.plate, cutlery, napkin: napkinG });
+      const ps = buildPlaceSetting(ctx, { charger: mat.charger, linen: mat.linen, silver: mat.flatware, crystal: mat.crystal, wine: mat.wine, lace: mat.lace }, { chinaMat: mat.plate, cutlery, napkin: napkinG });
       ps.position.copy(T).addScaledVector(dir, PLACE_R); ps.position.y = TABLE_H;
       ps.rotation.y = phi;
       add(ps);
     }
     // cake stand + cake (the puzzle)
-    const STAND_H = 0.07;
+    const STAND_H = 0.15;
     {
-      const st = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.11, 0], [0.11, 0.006], [0.08, 0.014], [0.03, 0.024], [0.022, 0.045], [0.03, 0.055], [0.06, 0.06], [0.31, 0.062], [0.315, 0.066], [0.3, STAND_H], [0, STAND_H]], 48), mat.standSilver);
+      // footed silver pedestal: domed, gadrooned foot, baluster stem with a knop, broad dished plate
+      const st = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.13, 0], [0.132, 0.006], [0.125, 0.012], [0.1, 0.022], [0.07, 0.035], [0.045, 0.045], [0.03, 0.055], [0.024, 0.07], [0.034, 0.082], [0.038, 0.09], [0.03, 0.098], [0.02, 0.108], [0.022, 0.12], [0.04, 0.13], [0.09, 0.138], [0.31, 0.142], [0.318, 0.146], [0.314, 0.15], [0.3, STAND_H], [0, STAND_H]], 64), mat.standSilver);
       st.position.set(T.x, TABLE_H, T.z); add(st);
       const doily = new THREE.Mesh(new THREE.CircleGeometry(0.3, 64), mat.lace); doily.rotation.x = -Math.PI / 2; doily.position.set(T.x, TABLE_H + STAND_H + 0.0015, T.z); add(doily);
       // chased rim band on the stand
       const rim = new THREE.Mesh(new THREE.TorusGeometry(0.312, 0.006, 8, 96), mat.silver); rim.rotation.x = Math.PI / 2; rim.position.set(T.x, TABLE_H + STAND_H - 0.002, T.z); add(rim);
     }
+    // wax only glows where the flame lights it from inside: a gradient emissive mask on the top ~12%
+    const waxGrad = (() => {
+      const c = document.createElement('canvas'); c.width = 4; c.height = 128;
+      const g = c.getContext('2d'); const gr = g.createLinearGradient(0, 128, 0, 0);
+      gr.addColorStop(0, '#000'); gr.addColorStop(0.8, '#000'); gr.addColorStop(0.93, '#555'); gr.addColorStop(1, '#fff');
+      g.fillStyle = gr; g.fillRect(0, 0, 4, 128);
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+    })();
+    const waxGlow = (candles) => candles.forEach((c) => {
+      const w = c.userData.body?.material; if (!w) return;
+      w.emissiveMap = waxGrad; w.emissive.setRGB(9, 4.6, 1.6); w.color.setRGB(0.78, 0.74, 0.66); w.roughness = 0.6; w.needsUpdate = true;
+    });
     // two small candelabra flanking the cake
     const tableCandles = [];
     for (const [k, phi] of [[0, THREE.MathUtils.degToRad(120)], [1, THREE.MathUtils.degToRad(240)]]) {
       const cb = buildCandelabrum(ctx, { metal: mat.silver }, { arms: 2, armR: 0.1, seed: 5 + k, candleH: 0.16 });
       cb.position.set(T.x + Math.sin(phi) * 0.44, TABLE_H, T.z + Math.cos(phi) * 0.44);
       cb.rotation.y = phi; cb.scale.setScalar(0.9);
-      add(cb); tableCandles.push(...cb.userData.candles);
+      add(cb); tableCandles.push(...cb.userData.candles); waxGlow(cb.userData.candles);
       for (const c of cb.userData.candles) if (c.userData.flame) c.userData.flame.material.uniforms.uIntensity.value = 3;
     }
 
@@ -637,7 +707,7 @@ export default {
       const sb = buildSideboard(ctx, furnMats, { w: 1.75, d: 0.55, h: 0.93 });
       sb.position.set(X0 + 0.3, 0, SB_Z); sb.rotation.y = Math.PI / 2; add(sb);
       const cb = buildCandelabrum(ctx, { metal: mat.silver }, { arms: 4, armR: 0.14, seed: 11, candleH: 0.22 });
-      cb.position.set(X0 + 0.32, 0.93, SB_Z - 0.45); add(cb);
+      cb.position.set(X0 + 0.32, 0.93, SB_Z - 0.45); add(cb); waxGlow(cb.userData.candles);
       // decanter, tray, glasses, fruit
       const tray = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.2, 0], [0.22, 0.012], [0.225, 0.02], [0.21, 0.016], [0, 0.008]], 40), mat.silver);
       tray.position.set(X0 + 0.32, 0.93, SB_Z + 0.2); add(tray);
@@ -720,7 +790,7 @@ export default {
 
     // ================================================================ lights
     const moonPos = V3(1.9, 5.4, Z0 - 4.4), moonTarget = V3(-1.05, 0, 0.5);
-    const moon = new THREE.SpotLight(0xa9bfff, 2600, 22, 0.24, 0.35, 2);
+    const moon = new THREE.SpotLight(0xb2c0e4, 2600, 22, 0.24, 0.35, 2);
     moon.position.copy(moonPos); moon.target.position.copy(moonTarget);
     moon.castShadow = Q.shadows;
     moon.shadow.mapSize.set(Q.shadowMapSize, Q.shadowMapSize);
@@ -728,7 +798,18 @@ export default {
     moon.shadow.camera.near = 2; moon.shadow.camera.far = 20;
     moon.map = fx.windowCookie({ cols: 2, rows: 4 });
     root.add(moon, moon.target);
-    root.add(new THREE.HemisphereLight(0x4a62b8, 0x140e0a, 0.6));
+    root.add(new THREE.HemisphereLight(0x5a78c0, 0x1a120c, 1.25));
+    // broad cool fill: the moonlit room must read as a blue room, not a black box with three lights.
+    // Large, soft, unshadowed panels wash the long walls from the window end and from behind the camera.
+    const fills = [
+      fx.areaLight({ center: [X0 + 0.9, 2.4, -2.2], normal: [-1, -0.15, 0.25], width: 3.0, height: 1.6, color: 0x7896c8, intensity: 0.55 }),
+      fx.areaLight({ center: [X1 - 0.9, 2.4, -2.2], normal: [1, -0.15, 0.25], width: 3.0, height: 1.6, color: 0x7896c8, intensity: 0.55 }),
+      fx.areaLight({ center: [0.0, 2.6, Z1 - 0.6], normal: [0, -0.25, -1], width: 4.2, height: 1.8, color: 0x7896c8, intensity: 0.5 }),
+      fx.areaLight({ center: [0.0, 2.2, Z0 + 1.6], normal: [0, 0.1, -1], width: 3.6, height: 1.4, color: 0x7896c8, intensity: 0.35 }),
+      fx.areaLight({ center: [X1 - 0.6, 1.8, 1.4], normal: [1, 0, -0.1], width: 3.4, height: 1.6, color: 0x7896c8, intensity: 0.4 }),
+      fx.areaLight({ center: [X0 + 0.6, 1.8, 1.4], normal: [-1, 0, -0.1], width: 3.4, height: 1.6, color: 0x7896c8, intensity: 0.35 }),
+    ];
+    for (const f of fills) root.add(f);
     root.add(fx.areaLight({ center: [0, WIN.sill + WIN.h / 2, Z0 + 0.06], normal: [0, -0.3, 1], width: WIN.w - 0.1, height: WIN.h - 0.1, color: 0x8ea6ff, intensity: 2.5 }));
     // gasolier: one shadowed warm light at the globe ring + a soft up-light for the ceiling
     let chandBase = 7, spotK = 0.6;
@@ -743,18 +824,21 @@ export default {
     chandSpot.shadow.bias = -0.0015; chandSpot.shadow.normalBias = 0.02; chandSpot.shadow.radius = 5; chandSpot.shadow.camera.near = 0.2; chandSpot.shadow.camera.far = 6;
     root.add(chandSpot, chandSpot.target);
     const upLight = new THREE.PointLight(0xffa860, 0.6, 4, 2); upLight.position.set(T.x, chandY + 0.12, T.z); root.add(upLight);
+    // a soft warm up-spot from the font so the rose, medallion and painted rinceau read overhead
+    const upSpot = new THREE.SpotLight(0xffb070, 6, 3.5, 1.15, 1.0, 2);
+    upSpot.position.set(T.x, chandY + 0.05, T.z); upSpot.target.position.set(T.x, H, T.z); root.add(upSpot, upSpot.target);
     // warm spill from the lit foyer through the doorway behind the player
     const foyerSpill = fx.areaLight({ center: [0, 1.5, Z1 - 0.05], normal: [0, 0.05, -1], width: 1.5, height: 2.5, color: 0xffc896, intensity: 2.2 });
     root.add(foyerSpill);
     // sideboard candles
-    const sbLight = new THREE.PointLight(0xffa04a, 2.6, 3, 2); sbLight.position.set(X0 + 0.5, 1.35, SB_Z - 0.45); root.add(sbLight);
+    const sbLight = new THREE.PointLight(0xffa04a, 2.0, 3.2, 2); sbLight.position.set(X0 + 0.78, 1.62, SB_Z - 0.3); root.add(sbLight);
     // table candle glow (no shadow)
     let tBase = 1.2;
     const tLight = new THREE.PointLight(0xffa04a, 1.2, 3, 2); tLight.position.set(T.x, TABLE_H + 0.45, T.z + 0.2); root.add(tLight);
     ctx.onUpdate((dt, t) => {
       const f = 0.96 + 0.025 * Math.sin(t * 7.3) * Math.sin(t * 2.9) + 0.015 * Math.sin(t * 13.1);
       chandLight.intensity = chandBase * f; upLight.intensity = 0.6 * f; chandSpot.intensity = chandBase * spotK * f;
-      sbLight.intensity = 2.6 * (0.9 + 0.1 * Math.sin(t * 9.7 + 1) * Math.sin(t * 4.1));
+      sbLight.intensity = 2.0 * (0.9 + 0.1 * Math.sin(t * 9.7 + 1) * Math.sin(t * 4.1));
       tLight.intensity = tBase * (0.9 + 0.1 * Math.sin(t * 8.3) * Math.sin(t * 3.3 + 2));
     });
 
@@ -766,7 +850,7 @@ export default {
     // seen from beside the window the camera looks down the length of the beam and the volume turns into
     // grainy haze over the drapes and wainscot: thin it out there
     { let k = 1; const shaftI = shaft.material?.uniforms?.uIntensity; const base = shaftI?.value ?? 0.32;
-      ctx.onUpdate((dt) => { if (!shaftI) return; const cur = ctx.nav?.current; const tgt = cur === 'window' || cur === 'back' ? 0.15 : 1; k += (tgt - k) * Math.min(1, dt * 2); if (ctx.shot) k = tgt; shaftI.value = base * k; }); }
+      ctx.onUpdate((dt) => { if (!shaftI) return; const cur = ctx.nav?.current; const tgt = cur === 'window' || cur === 'back' ? 0.15 : cur === 'table' ? 0.4 : 1; k += (tgt - k) * Math.min(1, dt * 2); if (ctx.shot) k = tgt; shaftI.value = base * k; }); }
     root.add(fx.dust({ box: new THREE.Box3(V3(-1.5, 0.15, Z0 + 0.2), V3(0.7, 2.6, 0.6)), count: 520, shafts: [shaft], size: 0.009, intensity: 2.0, ambient: 0.0 }));
     root.add(fx.fog({ box: new THREE.Box3(V3(X0 + 0.1, 0, Z0 + 0.1), V3(X1 - 0.1, 0.5, Z1 - 0.3)), color: 0x0b111e, litColor: 0x33425f, density: 0.45, heightFalloff: 4 }));
 
@@ -775,7 +859,7 @@ export default {
     const cakeOrigin = V3(T.x, TABLE_H + STAND_H, T.z);
     const cake = createCakePuzzle(ctx, {
       parent: root, origin: cakeOrigin, side: 0.088, height: 0.1, plates, mats: cakeMats,
-      camera: { position: [T.x, 2.12, T.z + 1.05], target: [T.x, TABLE_H, T.z + 0.06], fov: 50 },
+      camera: { position: [T.x, 2.15, T.z + 1.02], target: [T.x, TABLE_H + 0.06, T.z + 0.06], fov: 52 },
       onSetup: () => {
         spotK = 0.18; chandBase = 4; tBase = 0.3; chandSpot.penumbra = 1.0; chandSpot.angle = 1.2; mat.woodTop.clearcoatRoughness = 0.5; mat.woodTop.clearcoat = 0.35; mat.woodTop.roughness = 1.4; foyerSpill.intensity = 0.15; sconceLights.forEach((l) => { l.userData.i0 ??= l.intensity; l.intensity = l.userData.i0 * 0.3; });
         ctx.post.set({ exposure: 1.45, bloomThreshold: 1.9, bloomStrength: 0.15, godRayWeight: 0.0, vignette: 0.5 }, 0.8);
@@ -796,9 +880,9 @@ export default {
     // sculpted, baked period figures (tools/bake_guests.mjs); the seat by the window stays empty
     const guestSeats = [[1, 'pearls'], [2, 'stout'], [4, 'hat'], [5, 'thin']];
     const guestGeos = Object.fromEntries(await Promise.all(guestSeats.map(async ([, n]) => {
-      try { return [n, await loadGuestGeometry(ctx.assetUrl(`guest_${n}.bin`))]; } catch (e) { console.warn('[dining]', e.message); return [n, null]; }
+      try { return [n, await loadGuestGeometry(ctx.assetUrl(`guest_${n}.bin`), n)]; } catch (e) { console.warn('[dining]', e.message); return [n, null]; }
     })));
-    const ghostMats = guestSeats.map((_, i) => createGuestMaterial(ctx, { seed: i * 3.7, color: i % 2 ? 0x86a2ff : 0x7a98f6 }));
+    const ghostMats = guestSeats.map((_, i) => createGuestMaterial(ctx, { seed: i * 3.7, color: i % 2 ? 0x92a8e6 : 0x889ee0 }));
     const ghostDepth = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: true, transparent: true, opacity: 1, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 4 });
     ghostDepth.userData.noBake = true;
     const ghosts = guestSeats.filter(([, n]) => guestGeos[n]).map(([k, n], i) => {
@@ -865,12 +949,12 @@ export default {
 
     // ================================================================ nodes, edges, exits
     const nodes = {
-      main: { position: [-0.22, 1.63, 3.72], target: [0.22, 1.36, -4.0], fov: 60, label: 'The doorway', look: { yaw: [-45, 45], pitch: [-28, 24] } },
+      main: { position: [0.2, 1.42, 3.05], target: [-0.15, 1.15, -4.0], fov: 57, label: 'The doorway', look: { yaw: [-45, 45], pitch: [-28, 24] } },
       door: { position: [-0.22, 1.63, 3.6], target: [-0.1, 1.4, 8.0], fov: 58, label: 'The way out' },
       table: { position: [T.x - 0.55, 1.58, T.z + 1.95], target: [T.x, 0.86, T.z], fov: 52, label: 'The table', look: { yaw: [-50, 50], pitch: [-35, 25] }, grade: { exposure: 1.45, bloomStrength: 0.2, godRayWeight: 0.12 } },
       window: { position: [-1.35, 1.62, -1.55], target: [0.35, 1.62, Z0], fov: 60, label: 'The window', look: { yaw: [-70, 70], pitch: [-30, 30] }, grade: { exposure: 1.15, contrast: 1.12 } },
       back: { position: [-0.55, 1.6, -2.15], target: [0.6, 1.35, Z1], fov: 58, label: 'Looking back' },
-      sideboard: { position: [-0.7, 1.6, 1.0], target: [X0, 1.35, SB_Z - 0.1], fov: 56, label: 'The sideboard' },
+      sideboard: { position: [-0.7, 1.6, 1.0], target: [X0, 1.35, SB_Z - 0.1], fov: 56, label: 'The sideboard', grade: { bloomStrength: 0.14 } },
     };
     const edges = [
       ['main', 'door', null, { hotspot: { door: { position: [-0.2, 1.4, 5.6], radius: 0.9 }, main: { position: [0.1, 1.4, 0.5], radius: 0.9 } } }],
@@ -890,7 +974,7 @@ export default {
     ];
 
     // ================================================================ hotspots
-    const cakeBox = { min: [T.x - 0.32, TABLE_H, T.z - 0.32], max: [T.x + 0.32, TABLE_H + 0.3, T.z + 0.32] };
+    const cakeBox = { min: [T.x - 0.32, TABLE_H, T.z - 0.32], max: [T.x + 0.32, TABLE_H + 0.36, T.z + 0.32] };
     const hotspots = [
       { id: 'cake', nodes: ['main', 'table'], box: cakeBox, cursor: 'puzzle', label: 'The funeral cake', puzzle: cake.puzzle, priority: 2 },
       {
@@ -990,7 +1074,7 @@ export default {
       scene: root,
       nodes, edges, exits, hotspots, godRays,
       start: 'main',
-      grade: { chromaticAberration: 0.00012, exposure: 2.1, contrast: 1.12, saturation: 0.95, bloomStrength: 0.28, bloomThreshold: 1.7, godRayWeight: 0.1, godRayThreshold: 3.0, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4, shadowTint: [0.8, 0.95, 1.22], highlightTint: [1.1, 1.0, 0.86] },
+      grade: { chromaticAberration: 0.00012, exposure: 2.1, contrast: 1.12, saturation: 0.95, bloomStrength: 0.28, bloomThreshold: 1.7, godRayWeight: 0.1, godRayThreshold: 3.0, vignette: 0.45, aoIntensity: 1.1, aoRadius: 0.4, shadowTint: [0.9, 0.97, 1.1], highlightTint: [1.1, 1.0, 0.86] },
       environment: { position: [0.0, 1.8, 1.2], intensity: 0.8 },
       onEnter() {
         if (!ctx.state.has('dining.greeted')) {

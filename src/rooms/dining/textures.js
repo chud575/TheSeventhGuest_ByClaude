@@ -72,7 +72,7 @@ export function ganacheTexture(forge) {
 void surface(vec2 uv, inout Surface s) {
   float sw = fbm(uv * 3.0 + fbm(uv * 2.0, vec2(2.0), 3) * 0.8, vec2(3.0), 4);
   float ridge = 1.0 - abs(sin(sw * 5.0));
-  vec3 c = mix(vec3(0.075, 0.032, 0.02), vec3(0.11, 0.05, 0.03), ridge * 0.35 + 0.25 * fbm(uv * 12.0, vec2(12.0), 3));
+  vec3 c = mix(vec3(0.2, 0.1, 0.058), vec3(0.29, 0.15, 0.085), ridge * 0.35 + 0.25 * fbm(uv * 12.0, vec2(12.0), 3));
   s.albedo = c;
   s.height = 0.5 + ridge * 0.05 + sw * 0.04;
   s.rough = 0.16 + 0.12 * (1.0 - ridge);
@@ -93,7 +93,7 @@ void surface(vec2 uv, inout Surface s) {
   float por = smoothstep(0.55, 0.85, pores * 0.6 + pores2 * 0.4);
   vec3 sponge = mix(vec3(0.42, 0.04, 0.05), vec3(0.24, 0.02, 0.03), por);
   vec3 cream = vec3(0.88, 0.82, 0.72) * (0.92 + 0.08 * fbm(uv * 20.0, vec2(20.0), 3));
-  vec3 gan = vec3(0.08, 0.035, 0.02);
+  vec3 gan = vec3(0.2, 0.1, 0.058);
   float wob = 0.012 * fbm(vec2(uv.x * 6.0, 0.0), vec2(6.0, 1.0), 3);
   float vv = v + wob;
   vec3 c = sponge; float h = 0.5 - por * 0.25; float r = 0.85;
@@ -195,7 +195,7 @@ void surface(vec2 uv, inout Surface s) {
   vec2 p = vec2(uv.x * uAsp, uv.y);              // metric-ish (y = 1 = long side)
   vec2 r = vec2(uRose.x * uAsp, uRose.y);
   float mott = fbm(uv * 6.0, vec2(6.0), 5);
-  vec3 blue = vec3(0.1, 0.13, 0.3) * (0.85 + 0.3 * mott);
+  vec3 blue = vec3(0.11, 0.15, 0.32) * (0.85 + 0.3 * mott);
   float gold = 0.0;
   // borders: double gilt line inset from the edges
   vec2 e = min(vec2(p.x, p.y), vec2(uAsp - p.x, 1.0 - p.y));
@@ -229,10 +229,49 @@ void surface(vec2 uv, inout Surface s) {
   vec2 qq = polarRep(q, 24.0);
   float lv = fill(sdVesica((qq - vec2(0.125, 0.0)).yx, 0.012, 0.0075), 0.0012);
   gold = max(gold, lv);
+  // painted acanthus rinceau: eight scrolling arms leave the medallion, each throwing leaves and
+  // ending in a curled volute, with a soft dark-blue glaze shadow under the gilding
+  float arms = 0.0, armSh = 0.0;
+  for (int i = 0; i < 8; i++) {
+    float a0 = float(i) * 0.785398 + 0.39;
+    float sg = mod(float(i), 2.0) < 0.5 ? 1.0 : -1.0;
+    float t = clamp((rr - 0.16) / 0.2, 0.0, 1.0);
+    float th = a0 + 0.55 * sin(t * 5.5) * (1.0 - 0.3 * t) + sg * t * 0.35;
+    float dth = atan(sin(ang - th), cos(ang - th));
+    float inr = step(0.16, rr) * step(rr, 0.37);
+    float d = abs(dth) * rr;
+    float w = mix(0.0045, 0.0018, t);
+    arms = max(arms, inr * smoothstep(w, w * 0.4, d));
+    armSh = max(armSh, inr * smoothstep(w * 4.0, w, d));
+    // leaves: one every 1/7 of the arm, alternating sides, laid along the stem
+    float li = floor(t * 7.0 + 0.5);
+    float lt = li / 7.0;
+    if (li > 0.5 && li < 6.5) {
+      float lth = a0 + 0.55 * sin(lt * 5.5) * (1.0 - 0.3 * lt) + sg * lt * 0.35;
+      float lrad = 0.16 + lt * 0.2;
+      vec2 c = r + lrad * vec2(cos(lth), sin(lth));
+      float side = mod(li, 2.0) < 0.5 ? 1.0 : -1.0;
+      vec2 tang = vec2(-sin(lth), cos(lth));
+      vec2 la = normalize(tang * side + vec2(cos(lth), sin(lth)) * 0.6);
+      vec2 lq = p - (c + la * 0.014);
+      float lu = dot(lq, la), lv = dot(lq, vec2(-la.y, la.x));
+      float lf = smoothstep(1.0, 0.85, length(vec2(lu / 0.017, lv / (0.0065 * (1.0 + 0.4 * sin(lu * 500.0))))));
+      arms = max(arms, lf * 0.9);
+      armSh = max(armSh, smoothstep(1.6, 1.0, length(vec2(lu / 0.017, lv / 0.0065))));
+    }
+    // volute at the arm's end
+    float th1 = a0 + 0.55 * sin(5.5) * 0.7 + sg * 0.35;
+    vec2 vc = r + 0.38 * vec2(cos(th1), sin(th1));
+    vec2 vq = p - vc; float vr = length(vq); float va = atan(vq.y, vq.x);
+    float spiral = abs(fract((va / 6.2832) + vr / 0.008) - 0.5);
+    arms = max(arms, smoothstep(0.2, 0.06, spiral) * step(vr, 0.02) * 0.9);
+  }
+  blue *= 1.0 - 0.35 * armSh * (1.0 - arms);
+  gold = max(gold, arms * step(0.15, rr));
   // scattered gilt stars across the field
   vec2 sg = uv * vec2(uAsp * 9.0, 9.0);
   vec2 sf = fract(sg) - 0.5;
-  float st = fill(sdStar(sf, 0.07, 5.0, 2.5), 0.01) * step(0.2, rr) * step(0.12, de);
+  float st = fill(sdStar(sf, 0.07, 5.0, 2.5), 0.01) * step(0.42, rr) * step(0.12, de);
   gold = max(gold, st * 0.65);
   gold *= 0.75 + 0.25 * fbm(uv * 40.0, vec2(40.0), 3);
   vec3 gilt = vec3(0.78, 0.58, 0.28);
@@ -532,4 +571,256 @@ export function denseHerizTexture(forge, rugGen, { colors, aspect, knots = 560, 
   rep('int mc = medallion(f, min(FA, FL) * 0.62, er);', 'int mc = medallion(f, min(FA, FL) * 0.5, er);');
   rep('if (spLine < 0.0) { ci = 2; return; }', 'if (spLine < -0.004) { ci = 3; return; }');
   return forge.generate(`dining:denseheriz:${def.key}`, { ...def, glsl: g, key: undefined });
+}
+
+/** Fine damask-weave table linen: over-under threads with slub, a faint woven diamond. Tiles (1 tile ~ 2 cm). */
+export function linenTexture(forge) {
+  return forge.generate('dining:linen', {
+    size: 512, normalStrength: 1.1,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 g = uv * 32.0;
+  vec2 id = floor(g), f = fract(g);
+  float over = mod(id.x + id.y, 2.0);
+  // warp threads run along y where 'over', weft along x elsewhere
+  float tw = over > 0.5 ? sin(f.x * 3.14159) : sin(f.y * 3.14159);
+  float slub = 0.85 + 0.3 * vnoise(vec2(over > 0.5 ? id.x : id.y, (over > 0.5 ? g.y : g.x) * 0.25) * 1.7, vec2(64.0));
+  float dia = smoothstep(0.3, 0.32, abs(fract((uv.x + uv.y) * 4.0) - 0.5)) * smoothstep(0.3, 0.32, abs(fract((uv.x - uv.y) * 4.0) - 0.5));
+  vec3 c = vec3(0.9, 0.87, 0.81) * (0.9 + 0.1 * tw * slub) * (0.97 + 0.03 * dia);
+  s.albedo = c;
+  s.height = 0.5 + 0.25 * tw * slub + 0.04 * dia;
+  s.rough = 0.78 - 0.12 * dia;
+  s.metal = 0.0; s.ao = 0.85 + 0.15 * tw;
+}`,
+  });
+}
+
+/** Winter night sky only (no ground, no trees): gradient, moon with halo, torn cloud lit from behind, faint stars. */
+export function winterSkyTexture(forge) {
+  return forge.generate('dining:wintersky', {
+    size: 1024, aspect: 1.2, tile: false,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  vec2 p = uv;
+  vec2 moon = vec2(0.6, 0.74);
+  float md = length((p - moon) * vec2(1.2, 1.0));
+  vec3 sky = mix(vec3(0.07, 0.09, 0.15), vec3(0.2, 0.25, 0.36), smoothstep(0.1, 0.95, p.y));
+  sky = mix(vec3(0.17, 0.2, 0.28), sky, smoothstep(0.0, 0.35, p.y));          // brighter haze toward the horizon
+  sky += vec3(0.55, 0.6, 0.72) * exp(-md * 6.0) * 0.7 + vec3(0.3, 0.34, 0.42) * exp(-md * 2.2) * 0.25;
+  float cl = fbm(p * vec2(1.3, 3.6) + vec2(0.3, 0.1) + vec2(0.1 * fbm(p * vec2(2.0, 5.0), vec2(16.0), 2), 0.0), vec2(16.0, 16.0), 4);
+  float cov = smoothstep(-0.05, 0.35, cl) * smoothstep(0.2, 0.55, p.y);
+  sky = mix(sky, sky * 0.55 + vec3(0.025, 0.03, 0.045), cov * 0.75);
+  sky += vec3(0.7, 0.74, 0.82) * smoothstep(0.14, 0.0, abs(cl - 0.04)) * exp(-md * 3.2) * 0.55;   // silver linings
+  vec2 g = p * vec2(140.0, 116.0); vec2 id = floor(g); vec2 f = fract(g) - 0.5;
+  float st = smoothstep(0.12, 0.0, length(f - (hash22(id) - 0.5) * 0.6)) * step(0.93, hash12(id + 1.7)) * (1.0 - cov) * smoothstep(0.35, 0.7, p.y);
+  sky += vec3(0.8, 0.85, 1.0) * st * 0.5;
+  sky = mix(sky, vec3(1.0, 0.98, 0.94) * 1.35, smoothstep(0.03, 0.025, md));
+  s.albedo = sky; s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+}
+
+/** Distant wooded ridge: a soft, ragged forest silhouette dissolving into ground mist (alpha). */
+export function treelineTexture(forge) {
+  return forge.generate('dining:treeline', {
+    size: 1024, aspect: 4.0, tile: false,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  float x = uv.x;
+  float ridge = 0.42 + 0.12 * fbmv(vec2(x * 3.0, 0.0), vec2(64.0), 4);
+  // individual crowns: spiky conifers and rounded bare crowns along the ridge
+  // lumpy canopy of bare crowns, a few taller dark firs standing out of it
+  float cr = 0.1 * fbmv(vec2(x * 28.0, 0.5), vec2(1024.0), 4) + 0.05 * fbmv(vec2(x * 90.0, 2.5), vec2(1024.0), 3);
+  vec2 g = vec2(x * 22.0, 0.0); float c = fract(g.x) - 0.5; float pick = step(0.72, hash12(vec2(floor(g.x), 3.0)));
+  float fir = pick * max(0.0, 0.16 * (1.0 - abs(c) * 7.0 * (1.0 + 0.6 * (1.0 - smoothstep(0.0, 1.0, abs(c) * 7.0)))));
+  float top = ridge + cr * 1.6 + 0.012 * fbm(vec2(x * 260.0, uv.y * 40.0), vec2(1024.0), 3);
+  float a = smoothstep(0.004, -0.006, uv.y - top);
+  float mist = smoothstep(0.42, 0.0, uv.y);                 // ground mist eats the foot of the woods
+  s.albedo = mix(vec3(0.06, 0.075, 0.11), vec3(0.2, 0.23, 0.31), mist);
+  s.alpha = a;
+  s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+}
+
+/** A card of bare winter trees (alpha), seeded: trunks with bark taper, forking limbs, twig fans, snow on the upper limbs. */
+export function treeCardTexture(forge, seed = 1) {
+  return forge.generate(`dining:treecard${seed}`, {
+    size: 1024, aspect: 1.0, tile: false,
+    glsl: /* glsl */ `
+const float SEED = ${seed.toFixed(1)};
+vec2 limb(vec2 q, float len, float w0, float ang, float s, out float snow) {
+  vec2 b = rot2(ang) * q;
+  float t = clamp(b.y / len, 0.0, 1.0);
+  float bw = mix(w0, w0 * 0.2, t);
+  float bend = 0.035 * len * sin(t * 3.0 + s) + 0.012 * len * sin(t * 13.0 + s * 2.0);
+  float d = max(abs(b.x - bend) - bw, max(-b.y, b.y - len));
+  snow = smoothstep(0.0, bw * 1.2, b.x - bend) * step(0.0, ang * sign(ang));
+  return vec2(d, t);
+}
+float tree(vec2 p, vec2 base, float hgt, float s, out float snowAmt) {
+  vec2 q = p - base;
+  float tw = mix(0.016, 0.003, clamp(q.y / hgt, 0.0, 1.0));
+  float lean = 0.04 * sin(s) * q.y;
+  float d = max(abs(q.x - lean - 0.008 * sin(q.y * 9.0 + s)) - tw, max(-q.y, q.y - hgt));
+  snowAmt = 0.0;
+  for (int i = 0; i < 14; i++) {
+    float fi = float(i);
+    float y0 = hgt * (0.25 + fi * 0.053);
+    float side = mod(fi + s, 2.0) < 1.0 ? -1.0 : 1.0;
+    float ang = side * (0.45 + 0.45 * hash12(vec2(fi, s)));
+    float len = hgt * (0.42 - fi * 0.024) * (0.7 + 0.5 * hash12(vec2(s, fi)));
+    float sn;
+    vec2 L = limb(q - vec2(0.04 * sin(s) * y0, y0), len, 0.0055 * (1.0 - fi * 0.05), ang, s + fi, sn);
+    d = min(d, L.x);
+    // forks and twig fans
+    for (int k = 0; k < 3; k++) {
+      float fk = float(k);
+      vec2 b = rot2(ang) * (q - vec2(0.04 * sin(s) * y0, y0));
+      vec2 c = rot2(-side * (0.35 + 0.25 * fk)) * (b - vec2(0.0, len * (0.3 + 0.22 * fk)));
+      float ln2 = len * (0.45 - fk * 0.1);
+      float tt = clamp(c.y / ln2, 0.0, 1.0);
+      d = min(d, max(abs(c.x + 0.006 * sin(c.y * 70.0 + fk)) - mix(0.0022, 0.0006, tt), max(-c.y, c.y - ln2)));
+    }
+  }
+  return d;
+}
+void surface(vec2 uv, inout Surface s) {
+  float sn;
+  float d = tree(uv, vec2(0.22 + 0.1 * sin(SEED), 0.0), 0.92, SEED, sn);
+  d = min(d, tree(uv, vec2(0.74 + 0.08 * cos(SEED * 1.7), 0.0), 0.7 + 0.15 * sin(SEED * 2.3), SEED + 3.0, sn));
+  d = min(d, tree(uv, vec2(0.5, 0.0), 0.38, SEED + 7.0, sn));
+  float a = smoothstep(0.0015, -0.0008, d);
+  float rim = smoothstep(-0.004, 0.0, d);                 // a lighter frost edge on the limbs
+  s.albedo = mix(vec3(0.03, 0.035, 0.05), vec3(0.32, 0.36, 0.46), rim * 0.6);
+  s.alpha = a;
+  s.height = 0.5; s.rough = 1.0; s.metal = 0.0; s.ao = 1.0;
+}`,
+  });
+}
+
+/** Wind-packed snow: soft drift ripples, sastrugi streaks and sparse ice glints (the glints live in alpha for the emissive mask). */
+export function snowFieldTexture(forge) {
+  return forge.generate('dining:snowfield', {
+    size: 1024, normalStrength: 0.8,
+    glsl: /* glsl */ `
+void surface(vec2 uv, inout Surface s) {
+  float rip = fbmv(uv * vec2(3.0, 9.0), vec2(3.0, 9.0), 5);
+  float st = fbmv(uv * vec2(1.5, 30.0) + rip, vec2(1.5, 30.0), 3);
+  vec2 g = uv * 260.0; vec2 id = floor(g); vec2 f = fract(g) - 0.5;
+  float glint = smoothstep(0.16, 0.0, length(f - (hash22(id) - 0.5) * 0.6)) * step(0.965, hash12(id + 5.3));
+  s.albedo = vec3(0.78, 0.82, 0.9) * (0.86 + 0.14 * rip) + glint * 0.5;
+  s.height = 0.4 + 0.4 * rip + 0.08 * st;
+  s.rough = mix(0.85, 0.15, glint);
+  s.metal = 0.0; s.ao = 0.85 + 0.15 * rip;
+  s.alpha = 1.0;
+}`,
+  });
+}
+
+/**
+ * Carved gilt frieze tile (0.46 m x 0.40 m): an anthemion band of alternating nine-lobed palmettes and
+ * three-petal lotus buds linked by C-scroll tendrils, over an egg-and-dart moulding with a bead-and-reel
+ * fillet, all in high relief (height drives a strong normal map; cavities baked into AO and grime).
+ * u tiles along the wall; v = 0 bottom .. 1 top.
+ */
+export function palmetteFriezeTexture(forge) {
+  return forge.generate('dining:palmette', {
+    size: 1024, aspect: 1.15, normalStrength: 7.0,
+    glsl: /* glsl */ `
+const float ASP = 1.15;
+// rounded relief of a tapered lobe from b along unit d, length L, max half-width W; returns (height, wide-shadow)
+vec2 lobe(vec2 p, vec2 b, vec2 d, float L, float W) {
+  vec2 q = p - b;
+  float t = dot(q, d) / L;
+  float o = abs(q.x * d.y - q.y * d.x);
+  float tt = clamp(t, 0.0, 1.0);
+  float w = W * pow(sin(3.14159 * pow(tt, 0.75)), 0.7) + 0.0005;
+  float inside = step(0.0, t) * step(t, 1.0);
+  float h = inside * sqrt(max(0.0, 1.0 - (o / w) * (o / w))) * (0.65 + 0.35 * sin(3.14159 * tt));
+  h -= inside * 0.18 * exp(-pow(o / (0.18 * w), 2.0)) * step(o, w);          // carved midrib
+  float sh = inside * smoothstep(w * 1.9, w * 0.9, o);
+  return vec2(max(h, 0.0), sh);
+}
+vec2 ring(vec2 p, vec2 c, float r, float w, float a0, float a1) {
+  vec2 q = p - c; float a = atan(q.y, q.x);
+  float on = step(a0, a) * step(a, a1);
+  float o = abs(length(q) - r);
+  return vec2(on * sqrt(max(0.0, 1.0 - (o / w) * (o / w))), on * smoothstep(w * 2.2, w, o));
+}
+void surface(vec2 uv, inout Surface s) {
+  vec2 p = vec2(uv.x * ASP, uv.y);
+  float h = 0.0, sh = 0.0;
+  vec2 r;
+  // --- main field: palmette at x = 0.25 tile, lotus at 0.75
+  vec2 B = vec2(0.25 * ASP, 0.3);
+  for (int i = 0; i < 9; i++) {
+    float fi = float(i) - 4.0;
+    float a = fi * 0.3;
+    vec2 d = vec2(sin(a), cos(a));
+    float L = 0.56 - abs(fi) * 0.045;
+    r = lobe(p, B + d * 0.035, d, L, 0.036 - abs(fi) * 0.0016);
+    h = max(h, r.x); sh = max(sh, r.y);
+  }
+  // heart-shaped base of the palmette
+  float hb = length((p - B) * vec2(1.0, 1.3)) / 0.05;
+  h = max(h, sqrt(max(0.0, 1.0 - hb * hb)) * 0.9); sh = max(sh, smoothstep(1.8, 1.0, hb));
+  // lotus bud
+  vec2 Lb = vec2(0.75 * ASP, 0.27);
+  r = lobe(p, Lb, vec2(0.0, 1.0), 0.48, 0.06); h = max(h, r.x); sh = max(sh, r.y);
+  r = lobe(p, Lb + vec2(-0.01, 0.0), normalize(vec2(-0.55, 1.0)), 0.3, 0.032); h = max(h, r.x * 0.9); sh = max(sh, r.y);
+  r = lobe(p, Lb + vec2(0.01, 0.0), normalize(vec2(0.55, 1.0)), 0.3, 0.032); h = max(h, r.x * 0.9); sh = max(sh, r.y);
+  float cb = length((p - Lb) * vec2(1.0, 1.6)) / 0.06;
+  h = max(h, sqrt(max(0.0, 1.0 - cb * cb))); sh = max(sh, smoothstep(1.8, 1.0, cb));
+  // C-scroll tendrils springing from the palmette base to the lotus, curling at the ends
+  for (int k = 0; k < 2; k++) {
+    float sx = k == 0 ? 1.0 : -1.0;
+    vec2 c = vec2((0.5 + sx * 0.0) * ASP + sx * 0.0, 0.24);
+    float cx = (k == 0 ? 0.5 : 0.0) * ASP;
+    r = ring(p, vec2(cx + 0.0, 0.25), 0.11, 0.011, -0.2, 3.34); h = max(h, r.x * 0.75); sh = max(sh, r.y);
+    r = ring(p, vec2(cx - 0.13, 0.2), 0.04, 0.009, -3.14, 3.14); h = max(h, r.x * 0.7); sh = max(sh, r.y);
+    r = ring(p, vec2(cx + 0.13, 0.2), 0.04, 0.009, -3.14, 3.14); h = max(h, r.x * 0.7); sh = max(sh, r.y);
+  }
+  // wrap the tile seam: repeat the scrolls at the right edge
+  r = ring(p, vec2(ASP, 0.25), 0.11, 0.011, -0.2, 3.34); h = max(h, r.x * 0.75); sh = max(sh, r.y);
+  r = ring(p, vec2(ASP - 0.13, 0.2), 0.04, 0.009, -3.14, 3.14); h = max(h, r.x * 0.7); sh = max(sh, r.y);
+  float field = step(0.165, p.y) * step(p.y, 0.92);
+  h *= field; sh *= field;
+  // --- egg-and-dart below
+  float ed = 0.0, eds = 0.0;
+  if (p.y < 0.13) {
+    float cell = ASP / 5.0;
+    float cx = (floor(p.x / cell) + 0.5) * cell;
+    vec2 q = vec2(p.x - cx, p.y - 0.068);
+    float eg = length(q / vec2(0.034, 0.05));
+    float egg = sqrt(max(0.0, 1.0 - eg * eg));
+    float shell = abs(length(q / vec2(0.044, 0.06)) - 1.0);
+    float sl = smoothstep(0.16, 0.0, shell) * step(-0.02, q.y + 0.04);
+    float dx = abs(abs(p.x - cx) - cell * 0.5);
+    float dart = smoothstep(0.009 * (p.y / 0.13 + 0.2), 0.0, dx) * step(0.02, p.y);
+    ed = max(egg * 0.95, max(sl * 0.55, dart * 0.6));
+    eds = smoothstep(1.5, 1.0, eg);
+  }
+  // bead-and-reel fillet
+  float br = 0.0;
+  if (p.y > 0.13 && p.y < 0.165) {
+    float bc = ASP / 20.0; float bx = mod(p.x, bc) - bc * 0.5;
+    float bead = length(vec2(bx / 0.012, (p.y - 0.1475) / 0.013));
+    br = sqrt(max(0.0, 1.0 - bead * bead));
+  }
+  // top fillet (plain gilt astragal)
+  float top = smoothstep(0.92, 0.935, p.y) * (1.0 - 0.5 * smoothstep(0.96, 1.0, p.y));
+  float H = max(max(h, ed), max(br, top));
+  float raised = smoothstep(0.02, 0.12, H);
+  float wear = fbm(uv * 30.0, vec2(30.0 * ASP, 30.0), 4);
+  vec3 gold = mix(vec3(0.7, 0.52, 0.24), vec3(0.95, 0.76, 0.42), smoothstep(0.3, 1.0, H)) * (0.9 + 0.15 * wear);
+  vec3 ground = vec3(0.05, 0.065, 0.12) * (0.85 + 0.3 * wear);
+  float cav = max(sh, eds) * (1.0 - raised);
+  s.albedo = mix(ground * (1.0 - 0.5 * cav), gold * (0.8 + 0.2 * H), raised);
+  s.height = 0.25 + 0.6 * H;
+  s.metal = raised;
+  s.rough = mix(0.8, 0.32 + 0.2 * (1.0 - H), raised);
+  s.ao = mix(1.0 - 0.6 * cav, 0.65 + 0.35 * H, raised);
+}`,
+  });
 }

@@ -159,14 +159,14 @@ function tombGeometry(G) {
   return m;
 }
 /** piped buttercream rosette: a spiral of tapered rope, ~2.2 cm across */
-function rosetteGeometry() {
+function rosetteGeometry(segs = 96, rad = 8) {
   const pts = [];
   for (let i = 0; i <= 64; i++) { const t = i / 64; const a = t * Math.PI * 2 * 2.4; const r = 0.0095 * (1 - t * 0.85); pts.push(new THREE.Vector3(Math.cos(a) * r, 0.002 + t * 0.011, Math.sin(a) * r)); }
-  const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 96, 0.0034, 8);
+  const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), segs, 0.0034, rad);
   const p = g.attributes.position;
   // star-tip ridges
   const n = g.attributes.normal;
-  for (let i = 0; i < p.count; i++) { const k = i % 9; const f = 1 + 0.25 * Math.cos(k * (Math.PI * 2 / 8) * 3); p.setXYZ(i, p.getX(i) + n.getX(i) * 0.0006 * f, p.getY(i) + n.getY(i) * 0.0006 * f, p.getZ(i) + n.getZ(i) * 0.0006 * f); }
+  for (let i = 0; i < p.count; i++) { const k = i % (rad + 1); const f = 1 + 0.25 * Math.cos(k * (Math.PI * 2 / rad) * 3); p.setXYZ(i, p.getX(i) + n.getX(i) * 0.0006 * f, p.getY(i) + n.getY(i) * 0.0006 * f, p.getZ(i) + n.getZ(i) * 0.0006 * f); }
   g.computeVertexNormals();
   return g;
 }
@@ -189,7 +189,7 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
   const meshes = [], overlays = [], homes = [];
   const cornerDone = new Set();
   const beadGeo = new THREE.SphereGeometry(0.0062, 8, 5);
-  const skullG = skullGeometry(G), socketG = socketsGeometry(G), tombG = tombGeometry(G), rosG = rosetteGeometry();
+  const skullG = skullGeometry(G), socketG = socketsGeometry(G), tombG = tombGeometry(G), rosG = rosetteGeometry(), rosRimG = rosetteGeometry(40, 6);
   const R3 = 3 * side;
   let beadN = 0;
   const overlayMats = [];
@@ -210,10 +210,8 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
         const t = (i + 0.5) / n;
         beadN++;
         const sc = 0.78 + 0.32 * Math.abs(Math.sin(beadN * 1.7)) + 0.1 * Math.sin(beadN * 0.37);
-        for (const [y, k] of [[height + 0.0015, 1], [0.005, 1.15]]) {
-          const bg = beadGeo.clone(); bg.scale(sc * k, sc * 0.8 * k, sc * k); bg.translate(a.x + (b.x - a.x) * t, y, a.y + (b.y - a.y) * t);
-          beads.push(bg);
-        }
+        // shell-bead border round the foot
+        { const bg = beadGeo.clone(); bg.scale(sc * 1.15, sc * 0.9, sc * 1.15); bg.translate(a.x + (b.x - a.x) * t, 0.005, a.y + (b.y - a.y) * t); beads.push(bg); }
         // ganache drips running down the outer face
         if ((beadN * 7) % 5 < 3) {
           const len = 0.016 + 0.036 * Math.abs(Math.sin(beadN * 2.3));
@@ -227,6 +225,19 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
           dg.translate(cxw + ox * 0.0012, height - 0.001, czw + oz * 0.0012);
           drips.push(dg);
         }
+      }
+    });
+    // piped star-tip rosettes all along the top rim (they read as a cake from across the room)
+    c.outer.forEach((o, k) => {
+      if (!o) return;
+      const a = P[k], b = P[(k + 1) % 3];
+      const n = Math.max(2, Math.round(a.distanceTo(b) / 0.021));
+      for (let i = 0; i < n; i++) {
+        const t = (i + 0.5) / n;
+        const rg = rosRimG.clone(); rg.rotateY(i * 1.3 + c.i); rg.scale(0.95, 0.85 + 0.15 * ((i + c.i) % 2), 0.95);
+        const ix = a.x + (b.x - a.x) * t, iz = a.y + (b.y - a.y) * t;
+        rg.translate(ix * 0.86, height - 0.002, iz * 0.86);
+        rosettes.push(rg);
       }
     });
     // rosettes at the six outer corners of the hexagon
@@ -248,21 +259,30 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
     if (mk === 1) {
       const sk = new THREE.Mesh(skullG, mats.sugar); sk.castShadow = true;
       sk.add(new THREE.Mesh(socketG, mats.socket));
-      sk.position.set(0, height + 0.001, 0); sk.scale.setScalar(1.5);
+      sk.position.set(0, height + 0.001, 0); sk.scale.setScalar(1.95);
       sk.rotation.set(-0.5, ((c.i * 37) % 7 - 3) * 0.08, 0, 'YXZ');
       m.add(sk);
     } else if (mk === 2) {
-      const tb = new THREE.Mesh(tombG, mats.stone); tb.castShadow = true; tb.scale.setScalar(1.35);
+      const tb = new THREE.Mesh(tombG, mats.stone); tb.castShadow = true; tb.scale.setScalar(1.75);
       tb.position.set(0, height, 0.002);
       tb.rotation.set(-0.12 + ((c.i * 13) % 5) * 0.03, ((c.i * 29) % 7 - 3) * 0.1, ((c.i * 7) % 5 - 2) * 0.04);
       m.add(tb);
     }
     // glow overlay
+    // selection glow: a hot ember line traced along the knife cuts (the cell's edges), with only a
+    // faint warmth over the icing inside, so a marked slice reads as scored, not painted
     const og = new THREE.BufferGeometry();
-    const sh = 0.86;
-    og.setAttribute('position', new THREE.Float32BufferAttribute([P[0].x * sh, 0, P[0].y * sh, P[1].x * sh, 0, P[1].y * sh, P[2].x * sh, 0, P[2].y * sh], 3));
-    og.setIndex([0, 1, 2, 0, 2, 1]);
-    const om = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.5, 0.12), transparent: true, opacity: 0, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    const ring = [0.985, 0.86, 0.0];
+    const vpos = [], vcol = [];
+    const hot = [2.2, 1.1, 0.34], dim = [0.12, 0.06, 0.02];
+    for (const k of ring) for (let q = 0; q < 3; q++) { vpos.push(P[q].x * k, 0, P[q].y * k); vcol.push(...(k > 0.5 ? hot : dim)); }
+    vcol.splice(3 * 3, 9, ...hot.map((v) => v * 0.55), ...hot.map((v) => v * 0.55), ...hot.map((v) => v * 0.55));
+    og.setAttribute('position', new THREE.Float32BufferAttribute(vpos, 3));
+    og.setAttribute('color', new THREE.Float32BufferAttribute(vcol, 3));
+    const oi = [];
+    for (let q = 0; q < 3; q++) { const q1 = (q + 1) % 3; oi.push(q, q1, 3 + q1, q, 3 + q1, 3 + q, 3 + q, 3 + q1, 6 + q1, 3 + q, 6 + q1, 6 + q); }
+    og.setIndex(oi);
+    const om = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
     overlayMats.push(om);
     const ov = new THREE.Mesh(og, om); ov.position.y = height + 0.0035; ov.visible = false; ov.renderOrder = 4; ov.userData.noBake = true;
     m.add(ov);
@@ -383,13 +403,13 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
       const ov = overlays[i];
       let v = 0;
       if (owner[i] < 0) {
-        if (selected.has(i)) v = 0.42 + 0.12 * Math.sin(t * 5);
-        else if (i === hover && !solvedFlag) v = 0.22;
+        if (selected.has(i)) v = 0.8 + 0.2 * Math.sin(t * 5);
+        else if (i === hover && !solvedFlag) v = 0.35;
       }
       ov.visible = v > 0.01;
       ov.material.opacity = v;
       // marked cells rise a little out of the cake
-      if (owner[i] < 0 && !anims.some((a) => a.mesh === meshes[i])) meshes[i].position.y = homes[i].y + (selected.has(i) ? 0.008 : 0);
+      if (owner[i] < 0 && !anims.some((a) => a.mesh === meshes[i])) meshes[i].position.y = homes[i].y + (selected.has(i) ? 0.005 : 0);
     }
   }
   function resetAll(instant = true) {
