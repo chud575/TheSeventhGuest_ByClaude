@@ -579,26 +579,46 @@ export function makeJardiniere(ctx, mat) {
   // the pot: blue-and-white porcelain jardiniere with a rolled lip
   const pot = new THREE.Mesh(G.latheFromProfile([[0, 0], [0.07, 0], [0.085, 0.015], [0.12, 0.08], [0.135, 0.14], [0.13, 0.19], [0.14, 0.205], [0.135, 0.215], [0.12, 0.21], [0, 0.2]], 40), mat.porcelainBlue);
   pot.position.set(0, 0.724, z); g.add(pot);
-  // aspidistra: long lanceolate leaves arching out of the pot, tips browned
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x24301a, roughness: 0.6, side: THREE.DoubleSide, vertexColors: true, name: 'aspidistra' });
+  // aspidistra: broad lanceolate leaves on long stalks arching out of the pot, a folded midrib,
+  // fine parallel veins (texture), tips gone brown and papery; leaves are double-sided and lit a
+  // little from behind (sheen + emissive back-glow from the gas light)
+  const lt = ctx.textures.canvas('gallery:aspidistra', 128, 512, (c, w, h) => {
+    const g2 = c.createLinearGradient(0, h, 0, 0);
+    g2.addColorStop(0, '#2e3a1c'); g2.addColorStop(0.5, '#34441f'); g2.addColorStop(0.8, '#3a4520'); g2.addColorStop(0.92, '#6a5428'); g2.addColorStop(1, '#4a3518');
+    c.fillStyle = g2; c.fillRect(0, 0, w, h);
+    c.globalAlpha = 0.35;
+    for (let i = 1; i < 16; i++) { const x = (i / 16) * w; c.strokeStyle = i % 2 ? '#1c2610' : '#55663a'; c.lineWidth = 1; c.beginPath(); c.moveTo(w / 2 + (x - w / 2) * 0.2, h); c.quadraticCurveTo(x, h * 0.5, w / 2 + (x - w / 2) * 0.1, 0); c.stroke(); }
+    c.globalAlpha = 0.7; c.strokeStyle = '#7a8a50'; c.lineWidth = 3; c.beginPath(); c.moveTo(w / 2, h); c.lineTo(w / 2, 0); c.stroke();
+    let sd = 3; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    c.globalAlpha = 0.5; for (let i = 0; i < 40; i++) { c.fillStyle = rnd() > 0.5 ? '#1a1e0e' : '#5a4a26'; c.beginPath(); c.arc(rnd() * w, rnd() * h, 1 + rnd() * 3, 0, 6.3); c.fill(); }
+  }, { tile: false });
+  const leafMat = new THREE.MeshPhysicalMaterial({ map: lt, color: 0xffffff, roughness: 0.5, sheen: 0.4, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.4, 0.5, 0.25), emissive: new THREE.Color(0.02, 0.03, 0.008), side: THREE.DoubleSide, vertexColors: true, name: 'aspidistra' });
   let sd = 5; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-  for (let i = 0; i < 16; i++) {
-    const a = rnd() * Math.PI * 2, tilt = 0.25 + rnd() * 0.75, L = 0.38 + rnd() * 0.22;
-    const segs = 10, pos = [], col = [], idx = [];
+  for (let i = 0; i < 22; i++) {
+    const a = rnd() * Math.PI * 2, tilt = 0.15 + rnd() * 0.85, L = 0.42 + rnd() * 0.25, twist = (rnd() - 0.5) * 0.8;
+    const segs = 16, pos = [], col = [], uv = [], idx = [];
     for (let k = 0; k <= segs; k++) {
       const t = k / segs;
-      const w = 0.035 * Math.sin(Math.PI * Math.min(1, t * 1.1 + 0.05)) * (1 - 0.2 * t);
-      const r = Math.sin(tilt) * L * t, y = Math.cos(tilt) * L * t - 0.5 * L * t * t * tilt;
+      // stalk for the first 30 %, then the blade widening and tapering to a point
+      const bt = Math.max(0, (t - 0.3) / 0.7);
+      const w = 0.006 + 0.05 * Math.pow(Math.sin(Math.PI * Math.min(1, bt * 1.05)), 0.8) * (1 - 0.25 * bt);
+      const bend = tilt + t * t * 0.9 * tilt;
+      const r = Math.sin(tilt) * L * t + 0.25 * L * t * t * tilt, y = Math.cos(tilt) * L * t - 0.55 * L * t * t * tilt * tilt;
       const cx = Math.cos(a) * r, cz = Math.sin(a) * r;
-      const px = -Math.sin(a) * w, pz = Math.cos(a) * w;
-      pos.push(cx - px, y + 0.012 * t, cz - pz, cx + px, y + 0.012 * t, cz + pz, cx, y + 0.02 * Math.sin(Math.PI * t), cz);
-      const brown = THREE.MathUtils.smoothstep(t, 0.7, 1.0) * (0.5 + 0.5 * rnd());
-      for (let q = 0; q < 3; q++) col.push(1 + 1.6 * brown, 1 + 0.5 * brown, 1 - 0.2 * brown);
+      const ta = a + twist * t;
+      const px = -Math.sin(ta) * w, pz = Math.cos(ta) * w;
+      const fold = 0.012 * bt * (1 - bt) * 4 * w / 0.05;
+      void bend;
+      pos.push(cx - px, y - fold, cz - pz, cx + px, y - fold, cz + pz, cx, y, cz);
+      uv.push(0, t, 1, t, 0.5, t);
+      const brown = THREE.MathUtils.smoothstep(t, 0.82, 1.0) * (0.4 + 0.6 * rnd());
+      for (let q = 0; q < 3; q++) col.push(1 + 0.6 * brown, 1 + 0.2 * brown, 1 - 0.2 * brown);
       if (k < segs) { const b = k * 3; idx.push(b, b + 3, b + 2, b + 2, b + 3, b + 5, b + 2, b + 5, b + 1, b + 1, b + 5, b + 4); }
     }
     const lg = new THREE.BufferGeometry();
     lg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     lg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    lg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     lg.setIndex(idx); lg.computeVertexNormals();
     const leaf = new THREE.Mesh(lg, leafMat);
     leaf.position.set(0, 0.9, z);

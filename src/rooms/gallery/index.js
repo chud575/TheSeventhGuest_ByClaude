@@ -80,6 +80,7 @@ export default {
       deadMantle: new THREE.MeshStandardMaterial({ color: 0x8a8478, roughness: 0.9, name: 'deadMantle' }),
       lanternGlass: new THREE.MeshStandardMaterial({ color: 0x302010, emissive: new THREE.Color(1.0, 0.6, 0.28), emissiveIntensity: 0.55, roughness: 0.2, metalness: 0, transparent: true, opacity: 0.55, depthWrite: false, name: 'lanternGlass' }),
     };
+    for (const m of [mat.pilasterWood, mat.wainscot, mat.floor, mat.wall]) for (const k of ['map', 'normalMap', 'roughnessMap']) if (m?.[k]) m[k].anisotropy = 8;
     // old crown glass: the sconce flames should not print as pin-point dots on the panes
     mat.glass.clearcoatRoughness = 0.35; mat.glass.roughness = Math.max(mat.glass.roughness ?? 0, 0.3);
     {
@@ -294,22 +295,6 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
       mount(door, d.side, d.z, 0, 0);
       root.add(door);
       doors[name] = door;
-    }
-    // someone has left a lamp burning in the bedroom: a thin blade of warm light leaks under the
-    // door and fans out across the boards (a glow strip in the gap + a low light just outside)
-    {
-      const d = DOORS.bedroom;
-      const gt = ctx.textures.canvas('gallery:underDoor', 64, 64, (c, w, h) => {
-        const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.25, 'rgba(255,255,255,0.35)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-        c.fillStyle = g; c.fillRect(0, 0, w, h);
-        const s = c.createLinearGradient(0, 0, w, 0); s.addColorStop(0, 'rgba(0,0,0,1)'); s.addColorStop(0.08, 'rgba(0,0,0,0)'); s.addColorStop(0.92, 'rgba(0,0,0,0)'); s.addColorStop(1, 'rgba(0,0,0,1)');
-        c.globalCompositeOperation = 'destination-out'; c.fillStyle = s; c.fillRect(0, 0, w, h);
-      }, { tile: false });
-      const spill = new THREE.Mesh(new THREE.PlaneGeometry(d.w - 0.02, 0.22), new THREE.MeshBasicMaterial({ map: gt, color: new THREE.Color(0.55, 0.3, 0.12), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, name: 'underDoor' }));
-      spill.rotation.x = -Math.PI / 2; spill.position.set(X1 - 0.11 - 0.0, 0.0016, d.z); spill.rotation.z = Math.PI / 2;
-      spill.userData.noShadow = true; spill.renderOrder = 2;
-      root.add(spill);
-      const ul = new THREE.PointLight(0xff9c48, 0.35, 1.4, 2); ul.position.set(X1 - 0.16, 0.025, d.z); root.add(ul);
     }
     const atticHinge = doors.attic.userData.hinge;
     doors.attic.getObjectByName('void').visible = false;
@@ -554,6 +539,8 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
 
     // ================================================================ puzzle panel (left wall, middle bay)
     const toyMat = await makePortraitMaterial(ctx, 'toymaker');
+    // the likeness is varnished brighter than the family's portraits (the girandoles sit right beside it)
+    toyMat.emissive.setRGB(0.11, 0.095, 0.08);
     const panel = new THREE.Group();
     panel.name = 'puzzlePanel';
     {
@@ -564,9 +551,7 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
       fr.canvas.visible = false;
       fr.group.position.set(0, 0.0, 0.03); panel.add(fr.group);
       const plaque = makePlaque(ctx, mat, 'HENRY STAUF\nToymaker  ·  MDCCCLXXXIX', 0.44, 0.095);
-      plaque.position.set(0, -0.685, 0.035);
-      // a little hooded lamp-glow falls on the plate from the panel's lower rail
-      const pl = new THREE.PointLight(0xffb070, 0.3, 0.6, 2); pl.position.set(0, -0.76, 0.16); panel.add(pl); panel.add(plaque);
+      plaque.position.set(0, -0.685, 0.035); panel.add(plaque);
     }
     mount(panel, -1, PUZZLE.z, PUZZLE.y, 0.025);
     root.add(panel);
@@ -646,7 +631,7 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
     function applySolved(animate) {
       ctx.state.set('gallery.atticOpen', true);
       solvedFx = animate ? 0.001 : 1;
-      if (!animate) { atticHinge.rotation.y = -0.55; toyMat.userData.eyes.uGlow.value = 0.32; slide.forceSolved(); }
+      if (!animate) { atticHinge.rotation.y = -0.55; toyMat.userData.eyes.uGlow.value = 0.2; slide.forceSolved(); }
       else slide.revealSolved();
     }
     // review hook: ?gsolved=1 in shot mode renders the room as it looks after the puzzle
@@ -983,7 +968,7 @@ float rF(vec2 p) { return rN(p) * 0.5 + rN(p * 2.1 + 3.7) * 0.3 + rN(p * 4.3 + 9
           // the eyes kindle in pulses as the face closes up, then hold a steady ember
           // (they wait until the seams have closed, then kindle slowly)
           const g = THREE.MathUtils.smoothstep(solvedFx, 0.55, 1.0);
-          toyMat.userData.eyes.uGlow.value = 0.32 * g + Math.max(0, Math.sin(t * 6)) * 0.35 * g * (1 - g);
+          toyMat.userData.eyes.uGlow.value = 0.2 * g + Math.max(0, Math.sin(t * 6)) * 0.35 * g * (1 - g);
         }
       },
       dispose() { const d = window.__debug; if (d) { delete d.gallery; if (d.solvers) delete d.solvers.gallery; if (d.states) delete d.states.gallery; } },

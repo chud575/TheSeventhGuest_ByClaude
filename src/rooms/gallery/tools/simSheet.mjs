@@ -175,10 +175,10 @@ export function simulate({ steps = 420, iters = 8, log = false } = {}) {
   }
   // relax solver jitter on the free cloth, then re-project everything off the form so smoothing
   // can never pull the linen inside the bust or through the abacus corners
-  for (let pass = 0; pass < 6; pass++) {
+  for (let pass = 0; pass < 10; pass++) {
     const tmp = Float64Array.from(p);
     for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) {
-      const a = j * N + i, w = 0.5 * (1 - 0.85 * contact[a]);
+      const a = j * N + i, w = 0.5 * (1 - 0.45 * contact[a]);
       for (let c = 0; c < 3; c++) {
         const avg = (tmp[(a - 1) * 3 + c] + tmp[(a + 1) * 3 + c] + tmp[(a - N) * 3 + c] + tmp[(a + N) * 3 + c]) / 4;
         p[a * 3 + c] = tmp[a * 3 + c] + (avg - tmp[a * 3 + c]) * w;

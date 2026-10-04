@@ -320,10 +320,12 @@ function makePilaster(ctx, mat) {
   for (let i = 0; i < nF; i++) {
     const xc = (i - (nF - 1) / 2) * sp;
     shape.lineTo(xc - rf, -d);
-    shape.absarc(xc, -d, rf, Math.PI, 0, true);
+    // shallow elliptical flutes: a gentle crease at each arris (deep half-round flutes flicker
+    // and stair-step under the gas light at a distance)
+    shape.absellipse(xc, -d, rf, 0.0075, Math.PI, 0, true);
   }
   shape.lineTo(w / 2, -d); shape.lineTo(w / 2, 0); shape.lineTo(-w / 2, 0);
-  const sg = new THREE.ExtrudeGeometry(shape, { depth: top - y0, bevelEnabled: false, curveSegments: 6 });
+  const sg = new THREE.ExtrudeGeometry(shape, { depth: top - y0, bevelEnabled: false, curveSegments: 10 });
   sg.rotateX(-Math.PI / 2);
   const shaft = new THREE.Mesh(G.applyBoxUVs(sg, 1), mat.pilasterWood);
   shaft.position.y = y0;

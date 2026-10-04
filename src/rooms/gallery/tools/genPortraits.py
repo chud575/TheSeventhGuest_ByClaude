@@ -419,8 +419,8 @@ def toymaker_extra(img, W, H, u, v):
     # carries readable paint (brushwork, a glow behind the head), not a black square
     scum = (0.85 + 0.3 * noise(H, W, 70, 73))[..., None]
     lum = img @ np.array([0.3, 0.59, 0.11], np.float32)
-    dark = smoothstep(0.3, 0.05, lum)[..., None]
-    ground = np.array([0.34, 0.235, 0.15]) * scum * (0.65 + 0.6 * np.exp(-(((u - 0.45) / 0.45) ** 2 + ((v - 0.35) / 0.42) ** 2)))[..., None]
+    dark = smoothstep(0.42, 0.06, lum)[..., None]
+    ground = np.array([0.5, 0.35, 0.22]) * scum * (0.65 + 0.6 * np.exp(-(((u - 0.45) / 0.45) ** 2 + ((v - 0.35) / 0.42) ** 2)))[..., None]
     img = img * (1 - dark * 0.8) + np.maximum(img, ground) * dark * 0.8
     glow = np.exp(-(((u - 0.4) / 0.35) ** 2 + ((v - 0.3) / 0.3) ** 2))[..., None] * np.array([0.07, 0.045, 0.02])
     return np.clip(img * vig[..., None] + glow, 0, 1)
