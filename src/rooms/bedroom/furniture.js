@@ -371,7 +371,7 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
       const near = sx < 0 && sz > 0;                // the one nearest the room: dragged right back to its post, so the bed shows
       const lenK = specs[`${sx},${sz}`];
       const cg = velvetCurtain({
-        width: foot ? 0.62 : 0.7, height: (ty - 0.02) * lenK, folds: foot ? 8 : 7, depth: 0.14, noise: 0.8, ripple: 0,
+        width: foot ? 0.62 : 0.7, height: (ty - 0.02) * lenK, folds: foot ? 7 : 6, depth: 0.1, noise: 0.8, ripple: 0,
         tieback: foot ? (near ? 0.85 : 0.72) : 0.12, tiebackV: foot ? 0.5 : 0.6, waist: foot ? (near ? 0.16 : 0.28) : 0.85, flare: foot ? (near ? 0.4 : 0.62) : 0.95,
         pool: 0, seed: 30 + sx * 3 + sz, segX: 150, segY: 110, uv01: true, jitter: 1.1,
       });
