@@ -102,7 +102,7 @@ export default {
     // ------------------------------------------------------------ materials
     const TX = makeTextures(ctx);
     const M = {
-      siding: pbr(TX.siding, { name: 'siding', color: 0xb4bcae, normalScale: 1.6 }),
+      siding: pbr(TX.siding, { name: 'siding', color: 0xa0a89a, normalScale: 1.25 }),
       trim: pbr(TX.trim, { name: 'trim', color: 0xb8b0a0 }),
       stepStone: pbr(TX.stepStone, { name: 'stepStone', color: 0xaeaca6 }),
       stepRiser: pbr(TX.stepStone, { name: 'stepRiser', color: 0x8a8884 }),
@@ -217,6 +217,7 @@ export default {
         { x0: -5, x1: 10, z0: 36, z1: 52, weight: 3 },
         { x0: -10, x1: 10, z0: 13, z1: 31, weight: 3 },
         { x0: -16, x1: -5, z0: 16, z1: 30, weight: 2.6, scale: 0.42 },   // the family plot: cropped short between the stones
+        { x0: -2.5, x1: 5.0, z0: 23.0, z1: 28.5, weight: 1.6 },   // the drive camera's feet: no bare slab below the frame
       ],
       avoid,
     }));
@@ -273,6 +274,7 @@ export default {
     barkMat.userData.rim = 0.45;
     barkMat.userData.moss = 0.7;
     barkMat.userData.flashRim = 0.12;
+    barkMat.userData.specScale = 0.25;   // backlit twigs: no sub-pixel specular glints (white dotted branches)
     barkMat.normalScale.set(1.0, 1.0);
     const trees = [
       { seed: 11, x: 10.2, z: 34.4, ry: 2.6, s: 1.1, height: 11, trunkR: 0.82, spread: 1.15, rootScale: 1.7 },     // hero foreground, frames the right
@@ -303,7 +305,7 @@ export default {
     M.bark = barkMat;
     root.add(buildDressing(ctx, M, {
       rocks: [[7.0, 41.5, 0.9, 0.3], [8.3, 42.7, 0.5, 1.2], [6.1, 42.4, 0.32, 2.0], [-0.9, 40.4, 0.55, 0.8], [-1.7, 39.6, 0.3, 1.4], [9.5, 44.5, 1.1, 0.3],
-        [2.6, 34.2, 0.4, 0.5], [-2.9, 34.6, 0.5, 2.3], [14.5, 40.0, 1.4, 0.7], [-9, 38.5, 1.2, 1.9], [6.5, 51.5, 0.5, 0.2]],
+        [2.6, 34.2, 0.4, 0.5], [-2.9, 34.6, 0.5, 2.3], [14.5, 40.0, 1.4, 0.7], [-9, 38.5, 1.2, 1.9], [6.5, 51.5, 0.5, 0.2], [2.4, 26.4, 0.45, 1.0], [3.6, 25.2, 0.28, 2.2]],
       bushes: [[7.7, 40.6, 1.0, 5], [-1.3, 39.0, 0.9, 8], [9.6, 38.4, 1.1, 31], [12.8, 41.5, 1.2, 12], [-6.5, 40.2, 1.1, 17], [3.4, 35.5, 0.7, 21], [-1.8, 35.2, 0.8, 26]],
     }));
 
@@ -421,6 +423,11 @@ export default {
       const cone = lightCone(2.0, 1.0, undefined, 0.09);
       cone.position.y = -0.05; H.add(cone);
       root.add(H);
+      // the lantern also throws a warm pool down the front steps (no shadow: cheap)
+      const stepPool = new THREE.SpotLight(0xffa458, 7.0, 9, 0.75, 0.8, 2);
+      stepPool.position.set(0, PORCH.roof - 1.0, TOWER.z1 + 1.55);
+      stepPool.target.position.set(0, F * 0.4, PORCH.z1 + 1.1);
+      root.add(stepPool, stepPool.target);
       const hl = new THREE.PointLight(0xffa458, Number(P.get('plk') || 4.6), 7.5, 2);
       hl.position.set(0, PORCH.roof - 0.8, TOWER.z1 + 1.55);
       root.add(hl);

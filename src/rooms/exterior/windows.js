@@ -99,6 +99,14 @@ export class WindowKit {
       const ks = new THREE.BoxGeometry(0.16, 0.26, cd + 0.05);
       put(ks, T, 0, h + 0.05, (cd + 0.05) / 2);
     }
+    // back-band: a proud outer bead round the casing (stepped profile -> a crisp shadow line)
+    {
+      const bb = 0.045, bdp = cd + 0.045, ht = hs + (round ? 0 : cw + bb);
+      for (const sx of [-1, 1]) box(T, bb, ht, bdp, sx * (w / 2 + cw + bb / 2), ht / 2, bdp / 2);
+      if (!round) box(T, w + (cw + bb) * 2, bb, bdp, 0, h + cw + bb / 2, bdp / 2);
+      // inner stop bead against the sash
+      for (const sx of [-1, 1]) box(T, 0.025, hs, 0.03, sx * (w / 2 - 0.0125), hs / 2, 0.05);
+    }
     // sill + apron + little corbels
     box(T, w + 0.38, 0.075, 0.2, 0, -0.04, 0.1);
     box(T, w + 0.06, 0.16, 0.035, 0, -0.16, 0.018);
