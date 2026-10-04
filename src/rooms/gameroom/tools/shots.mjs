@@ -25,6 +25,9 @@ const SHOTS = {
   c_drape2: 'node=main&pos=-1.2,1.65,-1.6&target=-1.45,1.75,-4.0&fov=55',
   c_chest: 'node=hearth&pos=0.95,1.3,-0.95&target=2.0,0.5,-2.08&fov=50',
   c_wall: 'node=hearth&pos=1.6,2.2,1.6&target=3.3,2.2,1.6&fov=45',
+  c_fire2: 'node=hearth&pos=2.2,1.0,-0.2&target=3.3,0.8,-0.45&fov=45',
+  c_print: 'node=back&pos=1.9,1.95,3.2&target=2.4,2.1,4.0&fov=45',
+  c_portrait: 'node=main&pos=0.0,2.15,-2.6&target=0.0,2.2,-4.0&fov=40',
   c_stag2: 'node=hearth&pos=1.2,2.2,-2.4&target=3.3,2.3,-2.62&fov=38',
 };
 const OPTIONAL = new Set(Object.keys(SHOTS).filter((k) => k.startsWith('c_')));

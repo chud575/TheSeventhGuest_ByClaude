@@ -140,7 +140,7 @@ export default {
       // re-authored nero: wide soft veins + sparse fine ones, white-grey, ~10% cover; three seeded variants so
       // neighbouring slabs do not repeat the same figure
       const neroV = [0, 1, 2].map((k) => marbleNero3Texture(ctx.textures, { key: `gameroom:nero3:${k}`, seed: k * 1.7 }));
-      const mk = (rep, tint = 1, k = 0) => { const t = neroV[k].withRepeat(rep, rep); return new THREE.MeshPhysicalMaterial({ map: t.map, normalMap: t.normalMap, normalScale: new THREE.Vector2(0.5, 0.5), roughnessMap: t.ormMap, roughness: 1, metalness: 0, clearcoat: 0.55, clearcoatRoughness: 0.2, envMapIntensity: 0.8, color: new THREE.Color(tint, tint, tint), name: `nero${k}` }); };
+      const mk = (rep, tint = 1, k = 0) => { const t = neroV[k].withRepeat(rep, rep); return new THREE.MeshPhysicalMaterial({ map: t.map, normalMap: t.normalMap, normalScale: new THREE.Vector2(0.5, 0.5), roughnessMap: t.ormMap, roughness: 1, metalness: 0, clearcoat: 0.4, clearcoatRoughness: 0.24, envMapIntensity: 0.7, color: new THREE.Color(tint, tint, tint), name: `nero${k}` }); };
       mat.marble = mk(1.4); mat.marbleDark = mk(1.9, 0.85, 1);
       mat.marbleVariants = [mat.marble, mk(1.4, 1, 1), mk(1.4, 1, 2)];
       const logs = logTextures(ctx.textures);
@@ -165,7 +165,7 @@ export default {
       mat.noseLeather = new THREE.MeshPhysicalMaterial({ color: 0x090706, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.12, name: 'noseLeather' });
       mat.nostril = new THREE.MeshStandardMaterial({ color: 0x020101, roughness: 0.9, name: 'nostril' });
       mat.snout = new THREE.MeshPhysicalMaterial({ color: 0x6a5048, roughness: 0.45, clearcoat: 0.5, clearcoatRoughness: 0.3, name: 'snout' });
-      const eyeT = glassEyeTexture(ctx.textures, { iris: [0.3, 0.15, 0.05], pupilW: 0.48, pupilH: 0.2 });
+      const eyeT = glassEyeTexture(ctx.textures, { iris: [0.17, 0.085, 0.03], pupilW: 0.5, pupilH: 0.22, key: 'gameroom:eyeStag2' });
       mat.glassEye = new THREE.MeshPhysicalMaterial({ map: eyeT.map, roughness: 0.25, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.0, transmission: 0, envMapIntensity: 1.5, name: 'glassEye' });
       const eyeB = glassEyeTexture(ctx.textures, { iris: [0.34, 0.2, 0.06], pupilW: 0.32, pupilH: 0.32, key: 'gameroom:eyeBoar' });
       mat.glassEyeBoar = new THREE.MeshPhysicalMaterial({ map: eyeB.map, roughness: 0.25, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.0, envMapIntensity: 1.5, name: 'glassEyeBoar' });
@@ -406,7 +406,7 @@ export default {
       const s = S.front;
       // mahogany (~#4a1e12, low saturation), raised-and-fielded panels, a deep moulded architrave on plinth blocks,
       // a frieze and cornice head, brass knob on a rose and a keyhole escutcheon
-      const doorWood = M.create('mahogany', { repeat: [1.2, 1.2], color: [0.2, 0.135, 0.115], clearcoat: 0.2, clearcoatRoughness: 0.5, roughness: 1.2, envMapIntensity: 0.3 });
+      const doorWood = M.create('mahogany', { repeat: [1.2, 1.2], color: [0.17, 0.12, 0.105], clearcoat: 0.2, clearcoatRoughness: 0.5, roughness: 1.2, envMapIntensity: 0.3 });
       const g = new THREE.Group(); g.position.set(lx.front(DOOR.x), 0, -0.04);
       const w = DOOR.w - 0.02, h = DOOR.h - 0.01;
       g.add(at(new THREE.Mesh(G.boxUV(w, h, 0.05, 1), doorWood), 0, h / 2, 0));
@@ -758,7 +758,7 @@ export default {
 
     // ================================================================ wall sconces
     const sconceLights = [];
-    for (const [s, x] of [['right', lx.right(FIRE_Z) - 1.15], ['right', lx.right(FIRE_Z) + 1.15], ['left', lx.left(-0.2)], ['front', lx.front(-0.8)], ['front', lx.front(-2.6)]]) {
+    for (const [s, x] of [['right', lx.right(FIRE_Z) - 1.15], ['right', lx.right(FIRE_Z) + 1.15], ['left', lx.left(-0.2)], ['front', lx.front(-0.45)], ['front', lx.front(-2.98)]]) {
       const sc = buildSconce(ctx, { brass: mat.bronze, globe: mat.globe });
       sc.position.set(x, 1.95, 0.0); S[s].grp.add(sc);
       sc.updateWorldMatrix(true, false);
@@ -861,8 +861,8 @@ export default {
       const rg = new THREE.ExtrudeGeometry(rim, { depth: 0.0012, bevelEnabled: true, bevelThickness: 0.0006, bevelSize: 0.0006, bevelSegments: 1 }); rg.rotateX(-Math.PI / 2);
       add(at(new THREE.Mesh(rg, mat.brass), C.x, boardY + th + 0.0004, TZ));
     }
-    // warm spill from the gallery beyond the door
-    root.add(fx.areaLight({ center: [DOOR.x, 1.4, Z1 - 0.05], normal: [0, 0.05, -1], width: 1.0, height: 2.4, color: 0xffc896, intensity: 1.0 }));
+    // the gallery door is shut: only a thin warm line of lamplight leaks under it onto the runner
+    root.add(fx.areaLight({ center: [DOOR.x, 0.02, Z1 - 0.06], normal: [0, 0.2, -1], width: 1.0, height: 0.03, color: 0xffc896, intensity: 6.0 }));
     ctx.onUpdate((dt, t) => {
       const f = 0.97 + 0.02 * Math.sin(t * 5.3) * Math.sin(t * 2.1) + 0.01 * Math.sin(t * 11.1);
       lampSpots.forEach((s) => { s.intensity = lampBase * f; });

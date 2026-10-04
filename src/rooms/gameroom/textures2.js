@@ -27,7 +27,7 @@ float leafD(vec2 p, vec2 c, float ang, float len, float wid, float bend) {
  * Albedo deep bottle green, motif ~18% lighter in luminance; the ORM roughness is velvet (0.9) on the flock and
  * satin (0.5) on the ground. Use the albedo also as the sheenColorMap so the flock picks up grazing light.
  */
-export function flockDamaskTexture(forge, { ground = [0.075, 0.15, 0.11], motif = [0.115, 0.225, 0.165], key = 'gameroom:flock4' } = {}) {
+export function flockDamaskTexture(forge, { ground = [0.075, 0.15, 0.11], motif = [0.115, 0.225, 0.165], key = 'gameroom:flock6' } = {}) {
   return forge.generate(key, {
     size: 1024, normalStrength: 0.35,
     uniforms: { uG: ground, uM: motif },
@@ -39,15 +39,16 @@ float mainMotif(vec2 p) {
   float dome = leafD(m, vec2(0.0, -0.02), 0.0, 0.36, 0.2, 0.0);
   float og = smin(body, dome, 0.05);
   float band = abs(og + 0.014) - 0.008;                       // flocked outline band
-  // inside: a palmette fanning from a small cup, a lily bud above it
-  float fruit = sdEllipse(m - vec2(0.0, -0.19), vec2(0.05, 0.022));
-  fruit = min(fruit, leafD(m, vec2(0.0, -0.18), 0.0, 0.2, 0.05, 0.0));
-  fruit = min(fruit, leafD(m, vec2(0.01, -0.18), 0.38, 0.17, 0.045, 0.25));
-  fruit = min(fruit, leafD(m, vec2(0.015, -0.185), 0.85, 0.12, 0.04, 0.35));
-  float vein = abs(m.x) - 0.003;
-  fruit = max(fruit, -max(vein, abs(m.y + 0.08) - 0.08));
-  fruit = min(fruit, leafD(m, vec2(0.0, 0.05), 0.0, 0.1, 0.045, 0.0));
-  fruit = min(fruit, sdCircle(m - vec2(0.0, 0.2), 0.012));
+  // inside: a tulip of three rounded petals on a small cup, a round bud above it
+  float fruit = sdEllipse(m - vec2(0.0, -0.2), vec2(0.05, 0.02));
+  fruit = min(fruit, sdEllipse(m - vec2(0.0, -0.1), vec2(0.036, 0.085)));
+  fruit = min(fruit, sdEllipse(rot2(0.42) * (m - vec2(0.05, -0.125)), vec2(0.028, 0.066)));
+  float vein = abs(m.x) - 0.0028;
+  fruit = max(fruit, -max(vein, abs(m.y + 0.1) - 0.06));
+  fruit = min(fruit, sdCircle(m - vec2(0.0, 0.04), 0.03));
+  fruit = max(fruit, -sdCircle(m - vec2(0.0, 0.04), 0.014));
+  fruit = min(fruit, sdCircle(m - vec2(0.0, 0.04), 0.007));
+  fruit = min(fruit, sdCircle(m - vec2(0.0, 0.17), 0.012));
   float inner = leafD(m, vec2(0.02, 0.07), 0.6, 0.07, 0.03, 0.3);
   inner = max(inner, og + 0.026);
   // outside: thick C-scrolls ending in curls, rounded acanthus leaves curling outward, a trefoil finial
@@ -64,7 +65,7 @@ float mainMotif(vec2 p) {
   ac = max(ac, -(og - 0.012));
   float fin = min(sdCircle(m - vec2(0.0, 0.385), 0.024), sdCircle(m - vec2(0.03, 0.36), 0.019));
   fin = min(fin, sdCircle(m - vec2(0.0, -0.3), 0.02));
-  float d = min(min(band, fruit), min(inner, min(min(scr, scr2), min(ac, fin))));
+  float d = min(min(band, fruit), min(inner, min(scr, min(ac, fin))));
   return d;
 }
 float dropMotif(vec2 p) {
@@ -210,39 +211,40 @@ void surface(vec2 uv, inout Surface s) {
  * and a sparse fine one (~0.03 m), both domain-warped along a dominant diagonal, white-grey #cfc6b8, ~10% coverage.
  * 1 tile = 0.6 m. */
 export function marbleNero3Texture(forge, { key = 'gameroom:nero3', seed = 0 } = {}) {
-  return forge.generate(key, {
-    size: 1024, normalStrength: 0.12,
+  return forge.generate(key + 'b', {
+    size: 1024, normalStrength: 0.1,
     uniforms: { uVar: seed },
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   vec2 p = uv + uVar * 0.37;
-  // dominant flow along a diagonal
-  vec2 dir = normalize(vec2(1.0, 0.45));
+  // everything flows along one dominant diagonal
+  vec2 dir = normalize(vec2(1.0, 0.42));
   vec2 per = vec2(-dir.y, dir.x);
-  float wA = fbm(p * 1.0 + 3.1, vec2(1.0), 5);
+  float wA = fbm(p * 1.0 + 3.1, vec2(1.0), 4);
   float wB = fbm(p * 2.0 + 7.7, vec2(2.0), 4);
-  vec2 pw = p + vec2(wA, wB) * 0.18;
+  vec2 pw = p + vec2(wA, wB) * 0.08;
   float along = dot(pw, dir), across = dot(pw, per);
-  // wide soft veins: few iso-bands of a slowly varying field
-  float fW = fbm(vec2(along * 0.5, across * 2.0) + wA * 0.6, vec2(2.0), 5);
-  float veinW = exp(-pow((fW - 0.08) / 0.035, 2.0));
-  float veinWcore = exp(-pow((fW - 0.08) / 0.008, 2.0));
-  // fine sparse veins (crackle-like, only in some regions)
-  float fF = fbm(vec2(along * 2.0, across * 6.0) + wB * 1.3 + 11.0, vec2(4.0, 6.0), 5);
-  float veinF = exp(-pow(fF / 0.006, 2.0)) * smoothstep(0.45, 0.7, fbmv(p * 2.0 + 5.0, vec2(2.0), 3));
-  float hair = exp(-pow(fbm(pw * 4.0 + 21.0, vec2(4.0), 5) / 0.003, 2.0)) * 0.4;
-  // clouds: mid-grey drifts beneath the veins
-  float cloud = fbmv(vec2(along * 1.5, across * 3.0) + 2.0, vec2(3.0), 5);
-  vec3 base = vec3(0.035, 0.034, 0.038);
-  base = mix(base, vec3(0.11, 0.105, 0.105), smoothstep(0.5, 0.85, cloud) * 0.65);
-  base = mix(base, vec3(0.16, 0.155, 0.15), veinW * 0.45);
+  // wide soft veins (~0.3 m apart): long gently-waving bands, a bright core inside a grey halo
+  float fW = across * 2.0 + 0.35 * wA + 0.08 * sin(along * 6.2831 + wB * 2.0);
+  float bandW = abs(fract(fW) - 0.5) * 2.0;                       // 0 at the vein centre line
+  float veinW = exp(-pow((1.0 - bandW) / 0.09, 2.0));
+  float coreW = exp(-pow((1.0 - bandW) / 0.018, 2.0)) * smoothstep(0.35, 0.65, fbmv(p * 2.0 + 1.3, vec2(2.0), 3));
+  // fine fracture veins (~3 cm cells), straight-ish segments stretched along the flow, kept sparse
+  vec2 fq = vec2(along * 10.0, across * 26.0) + vec2(wB, wA) * 1.5;
+  float fe = voronoiEdge(fq, vec2(1000.0), 1.0);
+  float veinF = (1.0 - smoothstep(0.0, 0.035, fe)) * smoothstep(0.62, 0.8, fbmv(p * 3.0 + 5.0, vec2(3.0), 3));
+  // clouded mid-grey drifts under the veins
+  float cloud = fbmv(vec2(along * 1.5, across * 3.0) + 2.0, vec2(1000.0), 5);
+  vec3 base = vec3(0.034, 0.033, 0.036);
+  base = mix(base, vec3(0.1, 0.098, 0.1), smoothstep(0.52, 0.85, cloud) * 0.7);
+  base = mix(base, vec3(0.15, 0.145, 0.14), veinW * 0.5);
   vec3 vein = vec3(0.81, 0.776, 0.72);
-  float v = max(max(veinWcore * 0.8, veinF * 0.75), hair);
-  v *= 0.7 + 0.3 * vnoise(p * 60.0, vec2(60.0));
+  float v = max(coreW * 0.85, veinF * 0.6);
+  v *= 0.75 + 0.25 * vnoise(p * 80.0, vec2(80.0));
   vec3 col = mix(base, vein, v);
   s.albedo = col;
-  s.height = 0.5 - v * 0.02;
-  s.rough = 0.1 + 0.06 * v + 0.04 * cloud;
+  s.height = 0.5 - v * 0.015;
+  s.rough = 0.12 + 0.05 * v + 0.04 * cloud;
   s.metal = 0.0;
   s.ao = 1.0;
 }`,
@@ -254,115 +256,98 @@ void surface(vec2 uv, inout Surface s) {
  * of the coat falling into shadow, side-whiskers and a moustache, a pale stock at the throat, a warm glow on the
  * ground behind the lit side. Brushwork, craquelure and yellowed varnish. uv 0..1 over the canvas, uAspect = w/h.
  */
-export function oilPortraitTexture(forge, { aspect = 0.756, key = 'gameroom:portrait' } = {}) {
+export function oilPortraitTexture(forge, { aspect = 0.756, key = 'gameroom:portrait3' } = {}) {
   return forge.generate(key, {
-    size: 1024, aspect, tile: false, normalStrength: 0.9,
+    size: 1024, aspect, tile: false, normalStrength: 0.35,
     glsl: /* glsl */ `
 float sstep(float a, float b, float x) { return smoothstep(a, b, x); }
+float g2(vec2 p, vec2 c, vec2 r) { vec2 d = (p - c) / r; return exp(-dot(d, d)); }
 void surface(vec2 uv, inout Surface s) {
   vec2 p = vec2((uv.x - 0.5) * uAspect, uv.y);
-  float bw = fbm(uv * vec2(3.0, 3.0), vec2(1000.0), 4);
+  float bw = fbm(uv * 3.0, vec2(1000.0), 4);
   float brush = vnoise(vec2(uv.x * 30.0 + bw * 3.0, uv.y * 140.0), vec2(1000.0));
   float brush2 = vnoise(rot2(0.7) * uv * vec2(160.0, 26.0), vec2(1000.0));
-  // ---- ground: dark umber with a warm glow behind the lit side of the head
-  float glow = exp(-dot((p - vec2(-0.12, 0.66)) * vec2(2.2, 1.6), (p - vec2(-0.12, 0.66)) * vec2(2.2, 1.6)) * 2.5);
-  vec3 col = mix(vec3(0.035, 0.028, 0.02), vec3(0.2, 0.14, 0.075), glow * 0.85);
+  // ground: dark umber; a warm glow behind the lit (left) side of the head so the silhouette reads
+  float glow = g2(p, vec2(-0.1, 0.64), vec2(0.32, 0.4));
+  vec3 col = mix(vec3(0.03, 0.024, 0.018), vec3(0.3, 0.2, 0.1), glow * 0.8);
   col *= 0.85 + 0.25 * bw + 0.08 * brush;
-  // ---- head geometry: an ellipsoid turned 3/4 to the left
-  vec2 hc = vec2(0.02, 0.62);
-  vec2 hr = vec2(0.098, 0.13);
+  // ---- coat: broad shoulders rising to the neck, lit rim along the near shoulder
+  float shoulder = p.y - (0.43 - 0.75 * p.x * p.x - 0.04 * p.x);
+  float coat = 1.0 - sstep(-0.012, 0.012, shoulder);
+  vec3 coatC = vec3(0.02, 0.018, 0.02) * (0.8 + 0.4 * brush2);
+  coatC += vec3(0.16, 0.12, 0.09) * exp(-pow(shoulder / 0.02, 2.0)) * sstep(0.02, 0.25, -p.x);
+  float lapel = exp(-pow((abs(p.x) - (0.035 + (0.42 - p.y) * 0.5)) / 0.008, 2.0)) * sstep(0.08, 0.38, p.y) * (1.0 - sstep(0.39, 0.42, p.y));
+  coatC += vec3(0.05, 0.042, 0.035) * lapel * sstep(0.1, -0.1, p.x);
+  // soft cravat and shirt front, grey in shadow and warm in the light
+  float shirt = g2(p, vec2(-0.005, 0.36), vec2(0.04, 0.07)) + 0.6 * g2(p, vec2(0.0, 0.27), vec2(0.025, 0.08));
+  vec3 shirtC = mix(vec3(0.18, 0.16, 0.13), vec3(0.62, 0.55, 0.43), sstep(0.03, -0.04, p.x));
+  coatC = mix(coatC, shirtC, clamp(shirt, 0.0, 1.0) * 0.85);
+  float chain = exp(-pow((p.y - (0.14 + 0.6 * pow(p.x + 0.02, 2.0))) / 0.003, 2.0)) * sstep(-0.12, -0.03, p.x) * (1.0 - sstep(0.05, 0.11, p.x));
+  coatC += vec3(0.4, 0.3, 0.1) * chain * (0.5 + 0.5 * sin(p.x * 420.0));
+  col = mix(col, coatC, coat);
+  // neck in shadow
+  float neck = (1.0 - sstep(0.03, 0.048, abs(p.x - 0.006))) * sstep(0.38, 0.42, p.y) * (1.0 - sstep(0.52, 0.55, p.y));
+  col = mix(col, vec3(0.09, 0.05, 0.035), neck * (1.0 - coat * 0.0));
+  // ---- head: an ellipsoid turned three-quarters to the left, lit from the upper left; most of the far side in shadow
+  vec2 hc = vec2(0.012, 0.625);
+  vec2 hr = vec2(0.088, 0.118);
   vec2 hp = (p - hc) / hr;
   float hd = length(hp);
-  float headM = 1.0 - sstep(0.94, 1.03, hd);
-  // pseudo normal of the turned ellipsoid with sculpted features
-  float turn = -0.35;
-  vec2 fp = hp; fp.x -= turn * (1.0 - fp.y * fp.y) * 0.25;
-  float z = sqrt(max(0.0, 1.0 - min(1.0, dot(hp, hp))));
-  vec3 n = normalize(vec3(hp.x + 0.25 * turn, hp.y * 0.85, z + 0.2));
-  // features (in face coords fp: x right, y up, ~-1..1)
-  float midX = -0.22;                                         // facial midline shifted by the turn
-  float brow = exp(-pow((fp.y - 0.12) / 0.09, 2.0)) * (1.0 - sstep(0.5, 0.75, abs(fp.x - midX)));
-  float sockL = exp(-(pow((fp.x - (midX - 0.36)) / 0.17, 2.0) + pow((fp.y + 0.02) / 0.1, 2.0)));
-  float sockR = exp(-(pow((fp.x - (midX + 0.3)) / 0.19, 2.0) + pow((fp.y + 0.02) / 0.11, 2.0)));
-  float noseRidge = exp(-pow((fp.x - (midX - 0.04 + (0.0 - fp.y) * 0.05)) / 0.07, 2.0)) * sstep(-0.42, -0.05, -abs(fp.y + 0.18) * 2.0 + 0.0) ;
-  noseRidge *= sstep(-0.45, -0.3, fp.y) * (1.0 - sstep(0.0, 0.08, fp.y));
-  float noseShadow = exp(-(pow((fp.x - (midX + 0.12)) / 0.09, 2.0) + pow((fp.y + 0.2) / 0.16, 2.0)));
-  float cheek = exp(-(pow((fp.x - (midX - 0.45)) / 0.25, 2.0) + pow((fp.y + 0.28) / 0.2, 2.0)));
-  float mouth = exp(-(pow((fp.x - (midX - 0.02)) / 0.2, 2.0) + pow((fp.y + 0.55) / 0.025, 2.0)));
-  float lip = exp(-(pow((fp.x - (midX - 0.04)) / 0.15, 2.0) + pow((fp.y + 0.63) / 0.04, 2.0)));
-  // light from the upper left, a touch from the front
-  vec3 L = normalize(vec3(-0.75, 0.55, 0.45));
-  float lam = max(0.0, dot(n, L));
-  lam *= 1.0 - 0.75 * max(sockL, sockR) * 0.9;
-  lam += 0.25 * brow * sstep(0.0, 0.3, -fp.x + midX + 0.5);
-  lam *= 1.0 - 0.7 * noseShadow;
-  lam += 0.35 * noseRidge;
-  lam += 0.15 * cheek;
-  lam *= 1.0 - 0.6 * mouth;
-  lam += 0.08 * lip;
-  lam = clamp(lam, 0.0, 1.2);
-  // Rembrandt triangle under the far eye
-  float tri = exp(-(pow((fp.x - (midX + 0.32)) / 0.1, 2.0) + pow((fp.y + 0.2) / 0.08, 2.0)));
-  lam = max(lam, 0.38 * tri);
-  vec3 skinS = vec3(0.07, 0.035, 0.022), skinM = vec3(0.5, 0.3, 0.2), skinH = vec3(0.86, 0.66, 0.5);
-  vec3 skin = mix(skinS, skinM, sstep(0.05, 0.55, lam));
-  skin = mix(skin, skinH, sstep(0.6, 1.1, lam));
-  skin = mix(skin, skin * vec3(1.08, 0.86, 0.82), cheek * 0.35 * sstep(0.2, 0.6, lam));   // ruddy cheek
-  // eyes: small dark irises deep in the sockets, one catch-light on the lit eye only
-  float eyeL = exp(-(pow((fp.x - (midX - 0.36)) / 0.07, 2.0) + pow((fp.y + 0.02) / 0.035, 2.0)));
-  float eyeR = exp(-(pow((fp.x - (midX + 0.28)) / 0.06, 2.0) + pow((fp.y + 0.02) / 0.03, 2.0)));
-  skin = mix(skin, vec3(0.03, 0.02, 0.015), (eyeL * 0.75 + eyeR * 0.6));
-  float catchL = exp(-(pow((fp.x - (midX - 0.39)) / 0.014, 2.0) + pow((fp.y - 0.0) / 0.012, 2.0)));
-  skin += vec3(0.5, 0.45, 0.38) * catchL * 0.55;
-  // ---- hair: dark, swept, receding at the temples, with a sheen on the lit crown
-  float hairTop = sstep(0.32, 0.5, fp.y + 0.12 * fp.x * fp.x - 0.05 * fp.x);
-  float whisk = (1.0 - sstep(0.35, 0.6, abs(fp.x - midX))) * 0.0;
-  // side-whiskers down the far and near jaw, a moustache
-  float sideW = sstep(0.55, 0.75, abs(fp.x - midX + 0.05)) * sstep(-0.8, -0.2, fp.y) * (1.0 - sstep(0.25, 0.4, fp.y));
-  float mous = exp(-(pow((fp.x - (midX - 0.03)) / 0.22, 2.0) + pow((fp.y + 0.45) / 0.05, 2.0)));
-  float hairM = clamp(hairTop + sideW * 0.95 + mous * 0.9, 0.0, 1.0);
-  float hairStr = vnoise(vec2(fp.x * 40.0 + fp.y * 10.0, fp.y * 6.0), vec2(1000.0));
-  vec3 hairC = vec3(0.04, 0.028, 0.02) * (0.7 + 0.6 * hairStr);
-  hairC += vec3(0.16, 0.11, 0.07) * sstep(0.4, 0.9, lam) * hairStr * hairTop;
+  float headM = 1.0 - sstep(0.86, 1.04, hd);
+  float z = sqrt(max(0.0, 1.0 - min(1.0, hd * hd)));
+  vec3 n = normalize(vec3(hp.x * 0.9 + 0.12, hp.y * 0.8, z));
+  // features as gentle normal/occlusion modulations around the midline (shifted left by the turn)
+  float mx = -0.28;
+  float sock = g2(hp, vec2(mx - 0.34, 0.08), vec2(0.2, 0.11)) + 0.8 * g2(hp, vec2(mx + 0.3, 0.08), vec2(0.18, 0.1));
+  float nose = g2(hp, vec2(mx - 0.06, -0.18), vec2(0.07, 0.2));
+  float noseSh = g2(hp, vec2(mx + 0.1, -0.24), vec2(0.08, 0.16));
+  float cheekbone = g2(hp, vec2(mx - 0.42, -0.12), vec2(0.18, 0.12));
+  float mouth = g2(hp, vec2(mx - 0.02, -0.56), vec2(0.18, 0.03));
+  vec3 L = normalize(vec3(-0.8, 0.5, 0.35));
+  float lam = clamp(dot(n, L) * 0.85 + 0.15, 0.0, 1.0);
+  lam *= 1.0 - 0.45 * sock;
+  lam += 0.18 * nose * sstep(0.0, 0.2, -hp.x + mx + 0.15);
+  lam *= 1.0 - 0.5 * noseSh;
+  lam += 0.12 * cheekbone;
+  lam *= 1.0 - 0.45 * mouth;
+  lam = max(lam, 0.3 * g2(hp, vec2(mx + 0.3, -0.12), vec2(0.09, 0.07)));      // Rembrandt triangle
+  vec3 skinS = vec3(0.06, 0.03, 0.02), skinM = vec3(0.42, 0.25, 0.17), skinH = vec3(0.78, 0.6, 0.45);
+  vec3 skin = mix(skinS, skinM, sstep(0.08, 0.5, lam));
+  skin = mix(skin, skinH, sstep(0.55, 0.95, lam));
+  skin = mix(skin, skin * vec3(1.1, 0.88, 0.82), cheekbone * 0.4);
+  // eyes: a dark glint deep in each socket, a single catch-light on the lit eye
+  skin = mix(skin, vec3(0.04, 0.025, 0.018), g2(hp, vec2(mx - 0.34, 0.06), vec2(0.07, 0.03)) * 0.55);
+  skin = mix(skin, vec3(0.03, 0.02, 0.015), g2(hp, vec2(mx + 0.28, 0.06), vec2(0.06, 0.028)) * 0.4);
+  skin += vec3(0.4, 0.36, 0.3) * g2(hp, vec2(mx - 0.37, 0.075), vec2(0.016, 0.013)) * 0.5;
+  // hair: dark mass over the crown and down to the ears, sheen where the light catches it; side-whiskers, moustache
+  float hairTop = sstep(0.18, 0.42, hp.y + 0.1 * hp.x * hp.x + 0.12 * hp.x);
+  float whisk = sstep(0.5, 0.78, abs(hp.x - mx + 0.08)) * sstep(-0.75, -0.25, hp.y) * (1.0 - sstep(0.15, 0.35, hp.y));
+  float mous = g2(hp, vec2(mx - 0.03, -0.44), vec2(0.24, 0.055));
+  float hairM = clamp(hairTop + whisk * 0.9 + mous * 0.85, 0.0, 1.0);
+  float strand = vnoise(vec2(hp.x * 30.0 + hp.y * 12.0, hp.y * 5.0), vec2(1000.0));
+  vec3 hairC = vec3(0.035, 0.025, 0.018) * (0.7 + 0.6 * strand);
+  hairC += vec3(0.2, 0.14, 0.08) * sstep(0.45, 0.95, lam) * strand * hairTop;
   vec3 face = mix(skin, hairC, hairM * 0.92);
-  // extend the hair mass beyond the skull ellipse on top and at the back
-  float skull = 1.0 - sstep(0.95, 1.05, length((p - (hc + vec2(0.03, 0.035))) / (hr * vec2(1.08, 1.02))));
-  float hairBeyond = skull * (1.0 - headM) * sstep(0.1, 0.3, (p.y - hc.y) / hr.y + 0.3 * (p.x - hc.x) / hr.x);
-  col = mix(col, hairC, hairBeyond);
+  // hair mass beyond the face oval at the crown and the back of the head, catching a rim of light
+  float skull = 1.0 - sstep(0.9, 1.06, length((p - (hc + vec2(0.03, 0.028))) / (hr * vec2(1.12, 1.04))));
+  float beyond = skull * (1.0 - headM) * sstep(-0.1, 0.25, (p.y - hc.y) / hr.y + 0.5 * (p.x - hc.x) / hr.x);
+  col = mix(col, hairC + vec3(0.05, 0.035, 0.02) * sstep(0.0, -0.08, p.x - hc.x), beyond);
   col = mix(col, face, headM);
-  // ---- neck, stock and coat
-  float neck = (1.0 - sstep(0.035, 0.05, abs(p.x - 0.005))) * sstep(0.38, 0.42, p.y) * (1.0 - sstep(0.5, 0.53, p.y)) * (1.0 - headM);
-  col = mix(col, skinS * 1.6, neck);
-  // shoulders: a broad dark mass rising to the collar
-  float shoulder = p.y - (0.42 - 0.9 * p.x * p.x - 0.05 * p.x);
-  float coat = 1.0 - sstep(-0.01, 0.01, shoulder);
-  vec3 coatC = vec3(0.022, 0.02, 0.022) * (0.8 + 0.4 * brush2);
-  // a lit edge along the near (left) shoulder and lapel folds
-  coatC += vec3(0.12, 0.1, 0.085) * exp(-pow(shoulder / 0.012, 2.0)) * sstep(0.0, 0.2, -p.x);
-  float lapel = exp(-pow((abs(p.x) - (0.03 + (0.42 - p.y) * 0.45)) / 0.006, 2.0)) * sstep(0.1, 0.4, p.y) * (1.0 - sstep(0.4, 0.43, p.y));
-  coatC += vec3(0.05, 0.045, 0.04) * lapel;
-  // the stock and shirt front: a pale V, warm in the light, grey in shadow
-  float shirtV = (1.0 - sstep(0.0, 0.006, abs(p.x) - (0.42 - p.y) * 0.32)) * sstep(0.2, 0.25, p.y) * (1.0 - sstep(0.42, 0.44, p.y));
-  vec3 shirtC = mix(vec3(0.3, 0.27, 0.22), vec3(0.75, 0.68, 0.55), sstep(0.03, -0.05, p.x)) * (0.85 + 0.2 * brush);
-  coatC = mix(coatC, shirtC, shirtV);
-  // watch chain glint
-  float chain = exp(-pow((p.y - (0.12 + 0.6 * pow(p.x + 0.02, 2.0))) / 0.003, 2.0)) * sstep(-0.12, -0.02, p.x) * (1.0 - sstep(0.06, 0.12, p.x));
-  coatC += vec3(0.45, 0.33, 0.12) * chain * (0.6 + 0.4 * sin(p.x * 400.0));
-  col = mix(col, coatC, coat * (1.0 - headM));
-  // ---- paint, craquelure, varnish
+  // an ear at the far edge of the turned head, mostly in shadow
+  col = mix(col, vec3(0.16, 0.09, 0.06), g2(p, hc + vec2(0.07, -0.005), vec2(0.014, 0.026)) * 0.8 * (1.0 - hairM));
+  // ---- paint layer, fine craquelure, yellowed varnish, darkened edges
   col *= 0.94 + 0.12 * brush;
-  vec4 vor = voronoi(uv * vec2(55.0 * uAspect, 55.0), vec2(1000.0), 0.9);
-  float crack = 1.0 - smoothstep(0.0, 0.035, voronoiEdge(uv * vec2(55.0 * uAspect, 55.0), vec2(1000.0), 0.9));
-  float crack2 = 1.0 - smoothstep(0.0, 0.05, voronoiEdge(uv * vec2(140.0 * uAspect, 140.0) + 3.0, vec2(1000.0), 0.9));
-  col *= 1.0 - 0.35 * crack - 0.15 * crack2 * 0.6;
-  col *= mix(vec3(1.0), vec3(1.0, 0.86, 0.6), 0.55);                       // yellowed varnish
-  float vig = sstep(0.0, 0.32, uv.x) * sstep(1.0, 0.68, uv.x) * sstep(0.0, 0.25, uv.y) * sstep(1.0, 0.75, uv.y);
-  col *= 0.55 + 0.45 * vig;
+  float crack = 1.0 - smoothstep(0.0, 0.03, voronoiEdge(uv * vec2(90.0 * uAspect, 90.0), vec2(1000.0), 0.9));
+  float crack2 = 1.0 - smoothstep(0.0, 0.04, voronoiEdge(uv * vec2(220.0 * uAspect, 220.0) + 3.0, vec2(1000.0), 0.9));
+  col *= 1.0 - 0.22 * crack - 0.08 * crack2;
+  col *= mix(vec3(1.0), vec3(1.0, 0.86, 0.6), 0.5);
+  float vig = sstep(0.0, 0.3, uv.x) * sstep(1.0, 0.7, uv.x) * sstep(0.0, 0.25, uv.y) * sstep(1.0, 0.8, uv.y);
+  col *= 0.6 + 0.4 * vig;
   s.albedo = col;
-  s.height = 0.5 + 0.12 * brush + 0.08 * brush2 - 0.25 * crack - 0.1 * crack2;
-  s.rough = 0.4 + 0.2 * crack + 0.1 * brush;
+  s.height = 0.5 + 0.1 * brush + 0.06 * brush2 - 0.06 * crack - 0.03 * crack2;
+  s.rough = 0.4 + 0.15 * crack + 0.1 * brush;
   s.metal = 0.0;
-  s.ao = 1.0 - 0.3 * crack;
+  s.ao = 1.0 - 0.15 * crack;
 }`,
   });
 }

@@ -584,9 +584,9 @@ export function buildBoar(ctx, mats) {
   }
   // tusks: lower pair (~75 mm) curling up past the snout, upper whetters
   const bone = [];
-  const ivB = new THREE.Color().setRGB(0.62, 0.55, 0.42), ivM = new THREE.Color().setRGB(0.88, 0.84, 0.74), ivT = new THREE.Color().setRGB(0.97, 0.95, 0.9);
+  const ivB = new THREE.Color().setRGB(0.42, 0.35, 0.24), ivM = new THREE.Color().setRGB(0.72, 0.65, 0.52), ivT = new THREE.Color().setRGB(0.86, 0.82, 0.72);
   for (const sx of [-1, 1]) {
-    const lower = new THREE.CatmullRomCurve3([V3(sx * 0.03, -0.092, 0.398), V3(sx * 0.058, -0.088, 0.44), V3(sx * 0.08, -0.058, 0.458), V3(sx * 0.088, -0.02, 0.452), V3(sx * 0.082, 0.008, 0.434), V3(sx * 0.07, 0.02, 0.418)]);
+    const lower = new THREE.CatmullRomCurve3([V3(sx * 0.03, -0.092, 0.398), V3(sx * 0.062, -0.088, 0.44), V3(sx * 0.092, -0.06, 0.462), V3(sx * 0.108, -0.022, 0.458), V3(sx * 0.106, 0.012, 0.44), V3(sx * 0.094, 0.03, 0.418)]);
     bone.push(antlerTube(lower, 36, 0.0115, 0.0035, 14, ivB, ivM, 0.9, { gutters: 0.03, pearl: 0.0, seed: sx, c2: ivT }));
     const upper = new THREE.CatmullRomCurve3([V3(sx * 0.038, -0.066, 0.405), V3(sx * 0.056, -0.07, 0.432), V3(sx * 0.07, -0.056, 0.444), V3(sx * 0.078, -0.036, 0.44)]);
     bone.push(antlerTube(upper, 16, 0.0075, 0.003, 10, ivB, ivM, 0.9, { gutters: 0.03, pearl: 0.0, seed: sx + 3, c2: ivT }));
