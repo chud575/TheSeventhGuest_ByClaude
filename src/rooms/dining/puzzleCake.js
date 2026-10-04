@@ -177,6 +177,9 @@ function dripGeometry(len) {
   return g;
 }
 
+/** decorations face the doorway (+z) but turn partly outward over their own rim */
+const faceYaw = (c) => { const l = Math.hypot(c.c[0], c.c[1]) || 1; return Math.atan2((c.c[0] / l) * 0.8, (-c.c[1] / l) * 0.8 + 1.3); };
+
 export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0.1, plates, mats, camera, onSolved, onChange, onSetup, onTeardown, onBeat }) {
   const G = ctx.geometry;
   const cells = buildCells(side);
@@ -265,27 +268,26 @@ export function createCakePuzzle(ctx, { parent, origin, side = 0.088, height = 0
       const sk = new THREE.Mesh(skullG, mats.sugar); sk.castShadow = true;
       sk.add(new THREE.Mesh(socketG, mats.socket));
       sk.position.set(0, height + 0.001, 0); sk.scale.setScalar(1.95);
-      sk.rotation.set(-0.5, ((c.i * 37) % 7 - 3) * 0.08, 0, 'YXZ');
+      sk.rotation.set(-0.5, faceYaw(c) + ((c.i * 37) % 7 - 3) * 0.08, 0, 'YXZ');   // grinning toward the doorway, turned a little out over its own rim
       m.add(sk);
     } else if (mk === 2) {
       const tb = new THREE.Mesh(tombG, mats.stone); tb.castShadow = true; tb.scale.setScalar(1.75);
       tb.position.set(0, height, 0.002);
-      tb.rotation.set(-0.12 + ((c.i * 13) % 5) * 0.03, ((c.i * 29) % 7 - 3) * 0.1, ((c.i * 7) % 5 - 2) * 0.04);
+      tb.rotation.set(-0.12 + ((c.i * 13) % 5) * 0.03, faceYaw(c) + ((c.i * 29) % 7 - 3) * 0.1, ((c.i * 7) % 5 - 2) * 0.04, 'YXZ');
       m.add(tb);
     }
     // glow overlay
     // selection glow: a hot ember line traced along the knife cuts (the cell's edges), with only a
     // faint warmth over the icing inside, so a marked slice reads as scored, not painted
     const og = new THREE.BufferGeometry();
-    const ring = [0.985, 0.86, 0.0];
+    const hot = [2.2, 1.1, 0.34], dim = [0.04, 0.02, 0.006];
+    const rings = [[0.985, hot], [0.9, hot.map((v) => v * 0.5)], [0.8, dim], [0.0, dim]];
     const vpos = [], vcol = [];
-    const hot = [2.2, 1.1, 0.34], dim = [0.05, 0.025, 0.008];
-    for (const k of ring) for (let q = 0; q < 3; q++) { vpos.push(P[q].x * k, 0, P[q].y * k); vcol.push(...(k > 0.5 ? hot : dim)); }
-    vcol.splice(3 * 3, 9, ...hot.map((v) => v * 0.55), ...hot.map((v) => v * 0.55), ...hot.map((v) => v * 0.55));
+    for (const [k, col] of rings) for (let q = 0; q < 3; q++) { vpos.push(P[q].x * k, 0, P[q].y * k); vcol.push(...col); }
     og.setAttribute('position', new THREE.Float32BufferAttribute(vpos, 3));
     og.setAttribute('color', new THREE.Float32BufferAttribute(vcol, 3));
     const oi = [];
-    for (let q = 0; q < 3; q++) { const q1 = (q + 1) % 3; oi.push(q, q1, 3 + q1, q, 3 + q1, 3 + q, 3 + q, 3 + q1, 6 + q1, 3 + q, 6 + q1, 6 + q); }
+    for (let rr = 0; rr < 3; rr++) for (let q = 0; q < 3; q++) { const q1 = (q + 1) % 3, a = rr * 3, b = a + 3; oi.push(a + q, a + q1, b + q1, a + q, b + q1, b + q); }
     og.setIndex(oi);
     const om = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
     overlayMats.push(om);
