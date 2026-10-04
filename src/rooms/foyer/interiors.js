@@ -139,13 +139,21 @@ export function roomBeyond(ctx, kind, d, color, gain = 1) {
   const g = new THREE.Group();
   g.name = `beyond:${kind}`;
   const W = d.w + 2.2, Hh = d.h + 0.9, D = 3.4, z0 = -0.36;
-  const mk = (face) => new THREE.MeshBasicMaterial({ map: wallFace(ctx, kind, face), color: new THREE.Color(color).multiplyScalar(gain * (face === 'back' ? 4.0 : 3.0)), side: THREE.BackSide, toneMapped: true, fog: false });
+  // lit for real by one warm, low lamp inside the room (no more self-lit cardboard): a desaturated tint keeps
+  // the painted paper and woodwork from going candy-red under the coloured light
+  const tint = new THREE.Color(color).lerp(new THREE.Color(1, 1, 1), 0.55);
+  const mk = (face) => new THREE.MeshStandardMaterial({ map: wallFace(ctx, kind, face), color: tint, roughness: face === 'floor' ? 0.55 : 0.85, metalness: 0, side: THREE.BackSide, envMapIntensity: 0.1 });
   // BoxGeometry material order: +x, -x, +y, -y, +z, -z
   const front = new THREE.MeshBasicMaterial({ visible: false });
   const box = new THREE.Mesh(new THREE.BoxGeometry(W, Hh, D), [mk('right'), mk('left'), mk('ceiling'), mk('floor'), front, mk('back')]);
   box.position.set(0, Hh / 2 - 0.02, z0 - D / 2);
   box.userData.noShadow = true; box.userData.noBake = true;
   g.add(box);
+  const lamp = new THREE.PointLight(color, 5.5 * gain, 4.2, 2);
+  lamp.position.set(W * 0.22, Hh * 0.55, z0 - D * 0.62);
+  lamp.name = `beyondLamp:${kind}`;
+  g.add(lamp);
+  if (kind === 'library') g.add(bookcase(ctx, W, Hh, z0 - D + 0.02));
   // silhouettes: one mid-room, one near the back wall, both nearly black against the lit wall
   const pm = new THREE.MeshBasicMaterial({ map: propTex(ctx, kind), alphaMap: propTex(ctx, kind), color: new THREE.Color(color).multiplyScalar(gain * 0.05), alphaTest: 0.5, side: THREE.DoubleSide });
   const p1 = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), pm);
@@ -157,8 +165,54 @@ export function roomBeyond(ctx, kind, d, color, gain = 1) {
     gr.addColorStop(0, 'rgba(255,255,255,0.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
     q.fillStyle = gr; q.fillRect(0, 0, w, h);
   });
-  const haze = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.2), new THREE.MeshBasicMaterial({ map: hz, color: new THREE.Color(color).multiplyScalar(gain * 0.25), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  const haze = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.2), new THREE.MeshBasicMaterial({ map: hz, color: new THREE.Color(color).multiplyScalar(gain * 0.12), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
   haze.position.set(0.5, 1.4, z0 - D * 0.75); haze.userData.noShadow = true; haze.userData.noBake = true;
   g.add(haze);
   return g;
+}
+
+/** real shelves of books against the library's back wall: instanced spines with gilt bands, catching the lamp */
+function bookcase(ctx, W, Hh, zBack) {
+  const grp = new THREE.Group();
+  const spine = ctx.textures.canvas('foyer:int:spine', 64, 256, (g, w, h) => {
+    g.fillStyle = '#d8d0c4'; g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, 0, 6, h); g.fillRect(w - 6, 0, 6, h);
+    g.fillStyle = '#c9a050';
+    for (const y of [18, 26, 222, 230]) g.fillRect(4, y, w - 8, 4);
+    g.fillRect(10, 60, w - 20, 26); g.fillStyle = '#3a2a10'; g.fillRect(14, 64, w - 28, 18);
+    g.fillStyle = '#c9a050'; for (let i = 0; i < 5; i++) g.fillRect(18 + i * 6, 70, 3, 6);
+    g.fillStyle = 'rgba(201,160,80,0.8)'; g.fillRect(10, 120, w - 20, 3); g.fillRect(10, 170, w - 20, 3);
+  }, { tile: false });
+  const wood = new THREE.MeshStandardMaterial({ color: 0x2a1609, roughness: 0.6 });
+  const width = Math.min(W - 0.5, 2.6), x0 = -width / 2;
+  const shelfGeo = new THREE.BoxGeometry(width, 0.025, 0.26);
+  const rows = [];
+  for (let y = 0.12; y < Hh - 0.45; y += 0.4) rows.push(y);
+  for (const y of rows) { const sh = new THREE.Mesh(shelfGeo, wood); sh.position.set(0, y, zBack + 0.13); grp.add(sh); }
+  for (const sx of [-1, 1]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.05, rows[rows.length - 1] + 0.42, 0.28), wood); st.position.set(sx * (width / 2 + 0.025), (rows[rows.length - 1] + 0.42) / 2, zBack + 0.14); grp.add(st); }
+  let sd = 31; const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+  const mats = [];
+  for (const y of rows) {
+    let x = x0 + 0.02;
+    while (x < -x0 - 0.06) {
+      const bw = 0.028 + rnd() * 0.05, bh = 0.24 + rnd() * 0.1, bd = 0.17 + rnd() * 0.06;
+      const lean = rnd() < 0.06 ? (rnd() - 0.5) * 0.3 : 0;
+      mats.push({ x: x + bw / 2, y: y + 0.0125 + bh / 2, w: bw, h: bh, d: bd, lean, c: rnd() });
+      x += bw + 0.002 + (rnd() < 0.04 ? 0.08 : 0);
+    }
+  }
+  const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: spine, roughness: 0.6, metalness: 0.05 }), mats.length);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), col = new THREE.Color();
+  const pal = [[0.32, 0.07, 0.05], [0.09, 0.16, 0.08], [0.22, 0.13, 0.06], [0.08, 0.1, 0.2], [0.36, 0.26, 0.14], [0.14, 0.05, 0.06], [0.05, 0.05, 0.05]];
+  mats.forEach((b, i) => {
+    q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), b.lean);
+    m.compose(new THREE.Vector3(b.x, b.y, zBack + 0.03 + b.d / 2), q, new THREE.Vector3(b.w, b.h, b.d));
+    im.setMatrixAt(i, m);
+    const p = pal[Math.floor(b.c * pal.length)];
+    col.setRGB(p[0], p[1], p[2]).multiplyScalar(0.8 + 0.4 * ((b.c * 97) % 1));
+    im.setColorAt(i, col);
+  });
+  grp.add(im);
+  grp.traverse((o) => { o.userData.noShadow = true; o.userData.noBake = true; });
+  return grp;
 }

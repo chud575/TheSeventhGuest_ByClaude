@@ -355,17 +355,18 @@ void surface(vec2 uv, inout Surface s) {
 
 /** Stair runner: crimson Wilton carpet with gold guilloche borders. u across (1.2 m), v along (period 0.6 m). */
 export function carpetTexture(forge) {
-  return forge.generate('foyer:carpet4', {
+  return forge.generate('foyer:carpet5', {
     size: 1024, aspect: 2, tile: true, normalStrength: 1.6,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   float u = uv.x;                    // 0..1 across
   float v = uv.y;                    // 0..1 along (one period)
   // navy Wilton field (reads against the mahogany treads), oxblood outer guard, gold borders
-  vec3 crimson = vec3(0.04, 0.055, 0.14);
-  vec3 deep = vec3(0.012, 0.016, 0.045);
-  vec3 gold = vec3(0.46, 0.33, 0.13);
-  vec3 navy = vec3(0.16, 0.025, 0.03);
+  // burgundy Wilton field, navy outer guard, old-gold borders and motifs
+  vec3 crimson = vec3(0.24, 0.035, 0.04);
+  vec3 deep = vec3(0.075, 0.012, 0.016);
+  vec3 gold = vec3(0.5, 0.36, 0.15);
+  vec3 navy = vec3(0.025, 0.035, 0.1);
   float e = min(u, 1.0 - u);
   vec3 col;
   float pile = vnoise(uv * vec2(420.0, 210.0), vec2(420.0, 210.0));
@@ -931,7 +932,7 @@ vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
  * grout is dark and grimy; the chamfered edges are slightly lifted; light scuffing.
  */
 export function floorTexture(forge, size = 1024) {
-  return forge.generate('foyer:floor2', {
+  return forge.generate('foyer:floor3', {
     size, aspect: 1, tile: true, normalStrength: 1.0,
     glsl: /* glsl */ `
 // domain-warped marble in tile-local space: soft cloudy drifts, a few wandering veins with a crisp core
@@ -965,9 +966,9 @@ void surface(vec2 uv, inout Surface s) {
     // aged Carrara: ivory with grey drifts, the odd grey vein; never paper white
     vec3 base = vec3(0.6, 0.58, 0.53) * (0.9 + 0.14 * h1) * vec3(1.0 + (h2 - 0.5) * 0.05, 1.0, 1.0 - (h2 - 0.5) * 0.09);
     col = base * (0.86 + 0.2 * cloud);
-    col = mix(col, vec3(0.4, 0.4, 0.41), halo * 0.32);
-    col = mix(col, vec3(0.26, 0.27, 0.29), vein * (0.45 + 0.3 * h3));
-    col = mix(col, vec3(0.45, 0.45, 0.45), (halo2 * 0.12 + vein2 * 0.2) * step(0.4, h4));
+    col = mix(col, vec3(0.36, 0.37, 0.39), halo * 0.42);
+    col = mix(col, vec3(0.16, 0.17, 0.19), vein * (0.62 + 0.3 * h3));
+    col = mix(col, vec3(0.34, 0.35, 0.36), halo2 * 0.22 + vein2 * 0.42);
     col = mix(col, col * vec3(0.95, 0.88, 0.74), smoothstep(0.6, 0.95, cloud) * 0.45);
     col = mix(col, vec3(0.5, 0.5, 0.5), crackle * 0.08);
     rough = 0.25 + 0.06 * (h2 - 0.5);
@@ -975,17 +976,18 @@ void surface(vec2 uv, inout Surface s) {
     // Nero Marquina: a deep black body, sparse white calcite veins with soft milky halos
     vec3 base = vec3(0.028, 0.027, 0.03) * (0.85 + 0.3 * h1);
     col = base * (0.85 + 0.3 * cloud);
-    float strong = step(0.35, h4);
-    col = mix(col, vec3(0.2, 0.2, 0.2), halo * 0.12 * strong);
-    col = mix(col, vec3(0.55, 0.54, 0.51), vein * (0.25 + 0.35 * h3) * strong);
-    col = mix(col, vec3(0.3, 0.3, 0.29), vein2 * 0.18);
+    float strong = step(0.2, h4);
+    col = mix(col, vec3(0.16, 0.16, 0.16), halo * 0.18 * strong);
+    col = mix(col, vec3(0.62, 0.61, 0.58), vein * (0.45 + 0.4 * h3) * strong);
+    col = mix(col, vec3(0.36, 0.36, 0.35), vein2 * 0.32);
     col = mix(col, vec3(0.12, 0.12, 0.12), crackle * 0.12);
     rough = 0.15 + 0.05 * (h2 - 0.5);
   }
   // grout + a bevelled arris on every slab
   float e = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)) / T;
-  float groutM = 1.0 - smoothstep(0.0008, 0.0015, e);
-  float bevel = smoothstep(0.0008, 0.0045, e);
+  // 3 mm recessed grout line (texture spans 3.2 m: 1 mm = 0.0003 uv)
+  float groutM = 1.0 - smoothstep(0.0005, 0.0009, e);
+  float bevel = smoothstep(0.0006, 0.004, e);
   col = mix(col, vec3(0.07, 0.064, 0.056), groutM);
   col *= mix(0.84, 1.0, smoothstep(0.0, 0.007, e));
   float sc = fbm(uv * vec2(9.0, 40.0) + h1 * 3.0, vec2(9.0, 40.0), 3) * 0.5 + 0.5;

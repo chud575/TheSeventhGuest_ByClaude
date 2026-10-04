@@ -9,8 +9,8 @@ import * as THREE from 'three';
  * Offsets are measured to the climber's LEFT (positive = inner / hall side).
  */
 export const STAIR = {
-  x0: 5.0, z0: 1.8, straight: 3.4, cx: 1.4, cz: -1.6, R: 3.6,
-  half: 0.9, rise: 4.2, N: 28, nose: 0.035, slab: 0.045,
+  x0: 4.75, z0: 1.8, straight: 3.9, cx: 1.4, cz: -2.1, R: 3.35,
+  half: 1.15, rise: 4.2, N: 28, nose: 0.035, slab: 0.045,
 };
 STAIR.L = STAIR.straight + STAIR.R * Math.PI / 2;
 STAIR.h = STAIR.rise / STAIR.N;
@@ -102,7 +102,8 @@ export function buildStaircase(ctx, mats) {
     const inArc = sB > S.straight;
     const samples = inArc ? 6 : 2;
     let offIn = S.half + 0.03, offOut = -S.half - 0.06;    // inner end housed in the closed string
-    const flare = k === 0 ? 0.62 : 0;
+    // curtail: the bottom three steps flare out round the newel, the first in a full bullnose
+    const flare = [0.82, 0.52, 0.26][k] ?? 0;
     const pts = [];
     // outer edge from sA-nose -> sB, then inner edge back
     for (let i = 0; i <= samples; i++) { const s = sA - S.nose + (sB - sA + S.nose) * (i / samples); pts.push(stairXZ(s, offOut)); }
@@ -149,7 +150,7 @@ export function buildStaircase(ctx, mats) {
 
   // -------------------------------------------------------------- carpet runner
   {
-    const half = 0.62, cols = 10, list = [];
+    const half = S.half - 0.33, cols = 12, list = [];
     let v = 0;
     const P = (s, off, y) => V3(stairXZ(s, off), y);
     const lift = 0.006;
@@ -191,7 +192,7 @@ export function buildStaircase(ctx, mats) {
 
   // -------------------------------------------------------------- stair rods (instanced)
   {
-    const rodGeo = new THREE.CylinderGeometry(0.0085, 0.0085, 1.34, 12);
+    const rodGeo = new THREE.CylinderGeometry(0.0085, 0.0085, (S.half - 0.33) * 2 + 0.1, 12);
     rodGeo.rotateZ(Math.PI / 2);
     // acorn finials on the rod eyes
     const capGeo = G.latheFromProfile([[0, -0.018], [0.008, -0.016], [0.014, -0.008], [0.015, 0.0], [0.012, 0.008], [0.006, 0.014], [0.0, 0.022]], 12);
@@ -209,7 +210,7 @@ export function buildStaircase(ctx, mats) {
       const c = stairXZ(s, 0);
       m.compose(new THREE.Vector3(c.x, y, c.y), q, new THREE.Vector3(1, 1, 1));
       rods.setMatrixAt(k - 1, m);
-      for (const [i, off] of [[0, 0.68], [1, -0.68]]) {
+      for (const [i, off] of [[0, S.half - 0.27], [1, -(S.half - 0.27)]]) {
         const e = stairXZ(s, off);
         m.compose(new THREE.Vector3(e.x, y, e.y), q, new THREE.Vector3(off > 0 ? -1 : 1, 1, 1));
         caps.setMatrixAt((k - 1) * 2 + i, m);
@@ -301,7 +302,7 @@ export function buildStaircase(ctx, mats) {
       const sA = k * S.g;
       const y = (k + 1) * S.h - S.slab + 0.001;
       // only where the wood shows either side of the runner (profile x faces the climber)
-      for (const [o0, o1] of [[-S.half - 0.04, -0.63], [0.63, S.half + 0.03]]) {
+      for (const [o0, o1] of [[-S.half - 0.04, -(S.half - 0.32)], [S.half - 0.32, S.half + 0.03]]) {
         const a = stairXZ(sA - 0.001, o0), b = stairXZ(sA - 0.001, o1);
         const g = G.sweepProfile(cove, [V3(a, y), V3(b, y)], { uvScale: 1 });
         geos.push(g.index ? g.toNonIndexed() : g);
@@ -347,8 +348,8 @@ export function buildStaircase(ctx, mats) {
     group.add(soffit);
     // panelled soffit: moulded ribs across the underside every ~0.8 m and a bead along each edge
     const ribs = [];
-    const rib = [[-0.035, 0], [0.035, 0], [0.035, -0.02], [0.022, -0.034], [0.0, -0.04], [-0.022, -0.034], [-0.035, -0.02], [-0.035, 0]].map(([x, y]) => new THREE.Vector2(x, y));
-    for (let sv = sStart + 0.6; sv < S.L - 0.3; sv += 0.8) {
+    const rib = [[-0.06, 0], [0.06, 0], [0.06, -0.025], [0.045, -0.04], [0.04, -0.055], [0.022, -0.068], [0.0, -0.072], [-0.022, -0.068], [-0.04, -0.055], [-0.045, -0.04], [-0.06, -0.025], [-0.06, 0]].map(([x, y]) => new THREE.Vector2(x, y));
+    for (let sv = sStart + 0.6; sv < S.L - 0.3; sv += 0.62) {
       const y = pitchY(sv) - 0.34;
       if (y < 1.0) continue;
       const g = G.sweepProfile(rib, [V3(stairXZ(sv, outer + 0.02), y), V3(stairXZ(sv, inner - 0.04), y)], { uvScale: 1 });
