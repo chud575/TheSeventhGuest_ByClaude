@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createForge } from './forge.js';
 
 /**
  * Procedural PBR texture definitions for the exterior (rendered by the engine's
@@ -6,7 +7,7 @@ import * as THREE from 'three';
  */
 
 export function makeTextures(ctx) {
-  const T = ctx.textures;
+  const T = createForge(ctx);   // 16-bit height -> no contour-ring artefacts in the normals
   const big = ctx.quality.textureSize >= 2048 ? 2048 : 1024;
 
   // Clapboard siding: 1 tile = 2 m x 2 m, 15 boards. Deep grey-green paint gone chalky,
@@ -96,8 +97,8 @@ void surface(vec2 uv, inout Surface s) {
 }` });
 
   // Bark: deep vertical fissures, ridges, lichen. 1 tile = 1 m around x 2 m along.
-  const bark = T.generate('ext:bark2', {
-    size: 1024, aspect: 0.5, normalStrength: 5.0,
+  const bark = T.generate('ext:bark3', {
+    size: 1024, aspect: 0.5, normalStrength: 6.5,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   vec2 p = uv * vec2(1.0, 1.0);
@@ -106,7 +107,8 @@ void surface(vec2 uv, inout Surface s) {
   float plates = voronoiEdge(vec2(p.x * 9.0 + warp, p.y * 4.0), vec2(9.0, 4.0), 0.9);
   float fiss = smoothstep(0.02, 0.2, plates);
   float n = fbm(p, vec2(16.0, 32.0), 5) * 0.5 + 0.5;
-  float h = r * 0.6 + fiss * 0.4 + n * 0.1;
+  float h = r * 0.45 + fiss * 0.55 + n * 0.1;
+  h = pow(h, 1.4);   // deep, narrow fissures between broad corky plates
   vec3 col = mix(vec3(0.05, 0.045, 0.04), vec3(0.24, 0.22, 0.2), h);
   float li = smoothstep(0.6, 0.85, fbm(p + 4.0, vec2(6.0, 12.0), 5) * 0.5 + 0.5);
   col = mix(col, vec3(0.38, 0.4, 0.33), li * 0.5 * fiss);
@@ -120,21 +122,24 @@ void surface(vec2 uv, inout Surface s) {
   // Ground: matted dead turf combed flat by wind and rain (long strands in a slowly
   // turning direction field, not a cross-hatch), damp bare soil in patches, domed
   // pebbles, fallen twigs and leaf fragments. 1 tile = 6 m.
-  const ground = T.generate('ext:ground6', {
+  const ground = T.generate('ext:ground7', {
     size: big, normalStrength: 1.8,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   float n1 = fbm(uv, vec2(4.0), 6) * 0.5 + 0.5;
   float n2 = fbm(uv + 3.0, vec2(16.0), 5) * 0.5 + 0.5;
   float n3 = fbm(uv + 7.0, vec2(48.0), 4) * 0.5 + 0.5;
-  // combed strands: direction drifts smoothly across the tile
-  float ang = fbm(uv + 1.3, vec2(3.0), 3) * 2.4;
-  vec2 dir = vec2(cos(ang), sin(ang));
+  // matted straw: clumps (Voronoi cells) each flattened in its own direction, two
+  // overlapping clump scales so no coherent swirl/contour pattern can form
+  vec4 cA = voronoi(uv * 18.0, vec2(18.0), 1.0);
+  vec4 cB = voronoi(uv * 31.0 + 0.5, vec2(31.0), 1.0);
+  float aA = hash12(cA.zw) * 6.2831, aB = hash12(cB.zw + 3.0) * 6.2831;
   vec2 q = uv * 160.0;
-  float along = dot(q, dir), acr = dot(q, vec2(-dir.y, dir.x));
-  float str1 = vnoise(vec2(acr * 3.2, along * 0.22), vec2(1e4));
-  float str2 = vnoise(vec2(acr * 6.5 + 17.0, along * 0.45), vec2(1e4));
-  float strands = smoothstep(0.35, 0.9, str1 * 0.6 + str2 * 0.4);
+  vec2 dA = vec2(cos(aA), sin(aA)), dB = vec2(cos(aB), sin(aB));
+  float str1 = vnoise(vec2(dot(q, vec2(-dA.y, dA.x)) * 3.4, dot(q, dA) * 0.3) + cA.zw * 13.0, vec2(1e4));
+  float str2 = vnoise(vec2(dot(q, vec2(-dB.y, dB.x)) * 5.0, dot(q, dB) * 0.4) + cB.zw * 7.0, vec2(1e4));
+  float wB = smoothstep(0.35, 0.65, hash12(cB.zw + 9.0));
+  float strands = smoothstep(0.4, 0.9, mix(str1, str2, wB * 0.6));
   vec3 straw = mix(vec3(0.13, 0.115, 0.08), vec3(0.25, 0.22, 0.15), strands) * (0.75 + 0.4 * n2);
   straw = mix(straw, vec3(0.08, 0.09, 0.06), smoothstep(0.5, 0.78, n1) * 0.55);   // damp greener hollows
   // bare soil patches with fine grit
@@ -170,47 +175,55 @@ void surface(vec2 uv, inout Surface s) {
 
   // Carriage drive: packed gravel with two wheel ruts (puddled, mirror-wet), a mossy crown
   // between them, scattered larger cobbles, ragged grass-eaten verges. u across (2.5 m), v along (5 m/tile).
-  const path = T.generate('ext:path4', {
-    size: 1024, aspect: 0.5, tile: true, normalStrength: 3.2,
+  const path = T.generate('ext:path5', {
+    size: 1024, aspect: 0.5, tile: true, normalStrength: 2.6,
     glsl: /* glsl */ `
 void surface(vec2 uv, inout Surface s) {
   vec2 p = vec2(uv.x * 1.0, uv.y * 2.0);
   float n = fbm(p, vec2(8.0, 16.0), 5) * 0.5 + 0.5;
+  float nf = fbm(p + 1.9, vec2(40.0, 80.0), 3) * 0.5 + 0.5;
   float wob = (fbm(vec2(0.0, p.y * 3.0), vec2(1.0, 6.0), 3)) * 0.035;
   float u = uv.x + wob;
   float rutD = min(abs(u - 0.29), abs(u - 0.71));
-  float rut = 1.0 - smoothstep(0.035, 0.085, rutD + (n - 0.5) * 0.02);
-  float crown = smoothstep(0.12, 0.05, abs(u - 0.5) + (n - 0.5) * 0.06);
-  // gravel: three sizes of stones
-  vec4 g1 = voronoi(p * vec2(55.0, 55.0), vec2(55.0, 110.0), 1.0);
-  vec4 g2 = voronoi(p * vec2(22.0, 22.0), vec2(22.0, 44.0), 0.9);
-  vec4 g3 = voronoi(p * vec2(7.0, 7.0), vec2(7.0, 14.0), 0.8);
-  float s1 = smoothstep(0.55, 0.15, g1.x);
-  float s2 = smoothstep(0.42, 0.18, g2.x) * step(0.55, hash12(g2.zw));
-  float s3 = smoothstep(0.3, 0.16, g3.x) * step(0.8, hash12(g3.zw + 2.0));
-  vec3 grav = mix(vec3(0.12, 0.115, 0.105), vec3(0.42, 0.40, 0.37), s1 * (0.5 + 0.5 * hash12(g1.zw)));
-  grav = mix(grav, vec3(0.46, 0.44, 0.41) * (0.7 + 0.5 * hash12(g2.zw + 1.0)), s2);
-  grav = mix(grav, vec3(0.5, 0.48, 0.45) * (0.75 + 0.4 * hash12(g3.zw + 3.0)), s3);
-  grav *= 0.8 + 0.35 * n;
-  // ruts: compacted dark mud, puddles in the low spots
-  vec3 mud = vec3(0.06, 0.05, 0.04) * (0.8 + 0.4 * n);
-  float pud = smoothstep(0.5, 0.56, fbm(p * vec2(1.0, 1.0) + 3.3, vec2(4.0, 8.0), 5) * 0.5 + 0.5) * smoothstep(0.3, 0.9, rut + crown * 0.0);
-  vec3 col = mix(grav, mud, rut * 0.92);
-  // mossy crown with a few straw blades
+  float rut = 1.0 - smoothstep(0.03, 0.09, rutD + (n - 0.5) * 0.03);
+  float crown = smoothstep(0.13, 0.05, abs(u - 0.5) + (n - 0.5) * 0.06);
+  // gravel: fine grit, pea gravel, and a few half-buried cobbles (domed Voronoi cells)
+  vec4 g1 = voronoi(p * 70.0, vec2(70.0, 140.0), 1.0);
+  vec4 g2 = voronoi(p * 26.0, vec2(26.0, 52.0), 0.95);
+  vec4 g3 = voronoi(p * 8.0, vec2(8.0, 16.0), 0.85);
+  float d1 = clamp(1.0 - g1.x / 0.5, 0.0, 1.0);
+  float d2 = clamp(1.0 - g2.x / (0.32 + 0.12 * hash12(g2.zw + 4.0)), 0.0, 1.0) * step(0.35, hash12(g2.zw));
+  float d3 = clamp(1.0 - g3.x / 0.3, 0.0, 1.0) * step(0.78, hash12(g3.zw + 2.0)) * (1.0 - rut);
+  float s1 = sqrt(d1), s2 = sqrt(d2), s3 = sqrt(d3);
+  vec3 grit = vec3(0.10, 0.095, 0.088) * (0.7 + 0.6 * nf);
+  vec3 grav = mix(grit, vec3(0.30, 0.29, 0.27) * (0.6 + 0.7 * hash12(g1.zw)), smoothstep(0.05, 0.4, s1) * 0.8);
+  vec3 pebC = mix(vec3(0.36, 0.34, 0.31), vec3(0.28, 0.29, 0.31), hash12(g2.zw + 7.0)) * (0.65 + 0.6 * hash12(g2.zw + 1.0));
+  grav = mix(grav, pebC, smoothstep(0.02, 0.3, s2));
+  grav = mix(grav, vec3(0.38, 0.37, 0.35) * (0.7 + 0.45 * hash12(g3.zw + 3.0)), smoothstep(0.02, 0.2, s3));
+  grav *= 0.78 + 0.35 * n;
+  // ruts: compacted dark mud, puddles in the low spots (mirror-wet), damp rims round them
+  vec3 mud = vec3(0.055, 0.048, 0.04) * (0.8 + 0.4 * n);
+  float pn = fbm(p + 3.3, vec2(4.0, 8.0), 5) * 0.5 + 0.5;
+  float pud = smoothstep(0.47, 0.53, pn + rut * 0.08 - crown * 0.2) * smoothstep(0.2, 0.8, rut + 0.15 * (1.0 - crown));
+  float damp = smoothstep(0.38, 0.5, pn) * (1.0 - pud);
+  vec3 col = mix(grav, mud, rut * 0.85);
+  // mossy crown with straw
   float straw = vnoise(vec2(p.x * 300.0, p.y * 30.0), vec2(1e4));
-  vec3 moss = mix(vec3(0.06, 0.07, 0.04), vec3(0.16, 0.15, 0.1), straw);
-  col = mix(col, moss, crown * smoothstep(0.35, 0.65, n) * 0.85);
-  col = mix(col, vec3(0.012, 0.014, 0.018), pud);
+  vec3 moss = mix(vec3(0.05, 0.065, 0.035), vec3(0.15, 0.14, 0.09), straw);
+  col = mix(col, moss, crown * smoothstep(0.35, 0.65, n) * 0.8);
+  col *= 1.0 - damp * 0.35;
+  col = mix(col, vec3(0.02, 0.022, 0.026), pud * 0.92);
   // ragged edges, eaten by grass
   float e = min(uv.x, 1.0 - uv.x);
-  float rag = fbm(vec2(uv.x * 0.2, p.y * 3.0), vec2(1.0, 6.0), 5) * 0.06;
-  s.alpha = smoothstep(0.03, 0.09, e + rag);
-  col = mix(vec3(0.09, 0.085, 0.06), col, smoothstep(0.05, 0.16, e + rag));
+  float rag = fbm(vec2(uv.x * 0.2, p.y * 3.0), vec2(1.0, 6.0), 5) * 0.07 + (nf - 0.5) * 0.03;
+  s.alpha = smoothstep(0.03, 0.1, e + rag);
+  col = mix(vec3(0.085, 0.08, 0.055), col, smoothstep(0.05, 0.18, e + rag));
   s.albedo = col;
-  s.height = 0.55 + s1 * 0.12 + s2 * 0.2 + s3 * 0.3 - rut * 0.35 - pud * 0.1;
-  s.rough = mix(mix(0.92, 0.75, rut), 0.04, pud);
+  float hgt = 0.35 + s1 * 0.05 + s2 * 0.12 + s3 * 0.22 + nf * 0.02 - rut * 0.12;
+  s.height = mix(hgt, 0.3 - rut * 0.1, pud);   // puddles are flat
+  s.rough = mix(mix(0.86, 0.66, rut) - damp * 0.25 - s2 * 0.08, 0.06, pud);
   s.metal = 0.0;
-  s.ao = mix(0.55, 1.0, s1 * 0.5 + 0.5) * (1.0 - rut * 0.2);
+  s.ao = mix(0.5, 1.0, max(s1, s2)) * (1.0 - rut * 0.15);
 }` });
 
   // Weathered dressed stone blocks for the foundation, piers, steps. 1 tile = 2 m.

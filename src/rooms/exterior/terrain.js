@@ -116,7 +116,7 @@ export function buildPath({ material, width = 2.5, from = 0, to = 1 }) {
     for (let j = 0; j <= across; j++) {
       const u = j / across;
       const q = p.clone().addScaledVector(side, (u - 0.5) * wv);
-      q.y = height(q.x, q.z) + 0.035;
+      q.y = height(q.x, q.z) + 0.07;
       pos.push(q.x, q.y, q.z);
       uvs.push(u, along / (width * 2));
     }
