@@ -77,16 +77,16 @@ function surfaceNets(f, min, max, h) {
 }
 
 const parts = [
-  { name: 'head', f: headSdf, min: [-0.1, -0.115, -0.115], max: [0.1, 0.2, 0.14], h: H * 0.8, region: 'skin' },
+  { name: 'head', f: headSdf, min: [-0.1, -0.115, -0.115], max: [0.1, 0.2, 0.14], h: H * 0.95, region: 'skin' },
   {
-    name: 'hair', h: H * 0.75,
+    name: 'hair', h: H * 0.95,
     f: (x, y, z) => smax(Math.min(hairSdf(x, y, z), browSdf(x, y, z)), -(headSdf(x, y, z) + 0.0002), 0.0006),
     min: [-0.13, 0.02, -0.14], max: [0.13, 0.2, 0.115], region: 'hair',
   },
-  { name: 'eyes', f: eyeSdf, min: [-0.05, 0.05, 0.06], max: [0.05, 0.09, 0.095], h: H * 0.35, region: 'eye' },
-  { name: 'cravat', f: cravatSdf, min: [-0.1, -0.29, -0.07], max: [0.1, -0.02, 0.135], h: H * 0.7, region: 'cravat' },
+  { name: 'eyes', f: eyeSdf, min: [-0.05, 0.05, 0.06], max: [0.05, 0.09, 0.095], h: H * 0.5, region: 'eye' },
+  { name: 'cravat', f: cravatSdf, min: [-0.1, -0.29, -0.07], max: [0.1, -0.02, 0.135], h: H * 1.05, region: 'cravat' },
   { name: 'waistcoat', f: (x, y, z) => smax(waistcoatSdf(x, y, z), -(cravatSdf(x, y, z) + 0.0015), 0.003), min: [-0.15, -0.52, -0.06], max: [0.15, -0.1, 0.13], h: H * 1.4, region: 'waistcoat' },
-  { name: 'coat', f: (x, y, z) => smax(coatSdf(x, y, z), -(cravatSdf(x, y, z) + 0.002), 0.004), min: [-0.26, -0.56, -0.16], max: [0.26, -0.04, 0.15], h: H * 1.8, region: 'coat' },
+  { name: 'coat', f: (x, y, z) => smax(coatSdf(x, y, z), -(cravatSdf(x, y, z) + 0.002), 0.004), min: [-0.26, -0.56, -0.16], max: [0.26, -0.04, 0.15], h: H * 2.3, region: 'coat' },
 ];
 // whole-figure field for ambient occlusion (creases, the stock shading the jaw, etc.)
 const all = (x, y, z) => Math.min(headSdf(x, y, z), cravatSdf(x, y, z), coatSdf(x, y, z), waistcoatSdf(x, y, z));

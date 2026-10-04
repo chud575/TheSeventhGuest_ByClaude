@@ -233,38 +233,27 @@ export default {
     gk.position.copy(GHOST_POS).add(V3(-0.55, 1.05, 1.05));
     gk.target.position.copy(GHOST_POS).add(V3(0, 0.08, 0));
     root.add(gk, gk.target);
-    const gw = new THREE.SpotLight(0xffb27a, 2.5, 4, 0.3, 1.0, 2);
-    gw.position.copy(GHOST_POS).add(V3(0.9, -0.5, 0.6));
-    gw.target.position.copy(GHOST_POS).add(V3(0, 0.05, 0));
-    root.add(gw, gw.target);
     // warm spill so the foreground wing chair and desk aren't black holes
-    const fillW = new THREE.PointLight(0xffa060, 1.3, 4.0, 2);
-    fillW.position.set(-0.3, 1.0, 0.5);
+    const fillW = new THREE.PointLight(0xffa060, 1.8, 4.2, 2);
+    fillW.position.set(0.0, 1.1, 0.0);
     root.add(fillW);
     // cold moon fill through the bay onto the telescope and floor (aimed away from the entrance doors)
     const bayKey = new THREE.SpotLight(0x9fb2e0, 380, 6, 0.85, 0.9, 2);
     bayKey.position.set(-4.0, 2.2, 1.5);
     bayKey.target.position.set(-2.4, 0.9, 0.9);
     root.add(bayKey, bayKey.target);
-    // moon spill inside the bay recess: rims the curtain folds and the reveal
-    const bayRim = new THREE.PointLight(0x8ea4d8, 2.6, 2.2, 2);
-    bayRim.position.set(-4.1, 1.7, 1.55);
-    root.add(bayRim);
     // the music-room door would otherwise be a black hole: a low warm glow from the sconce side
     const doorGlow = new THREE.PointLight(0xffa060, 3.5, 3.5, 2);
     doorGlow.position.copy(wallToWorld('right', OPEN.rightDoor.x + OPEN.rightDoor.w * 0.9, 1.5, 0.9));
     root.add(doorGlow);
     // cold fill in the bay so the curtains and reveal read
-    const bayFill = new THREE.PointLight(0x8094c0, 1.8, 2.8, 2);
-    bayFill.position.set(-3.5, 1.9, 0.8);
+    const bayFill = new THREE.PointLight(0x8094c0, 2.4, 2.6, 2);
+    bayFill.position.set(-3.9, 1.8, 1.2);
     root.add(bayFill);
     // a low warm glow by the entrance doors (the foyer's lamps leak under them)
     const entGlow = new THREE.PointLight(0xffa868, 1.6, 3.5, 2);
     entGlow.position.set(-1.7, 1.2, Z1 - 0.9);
     root.add(entGlow);
-    const fillC = new THREE.PointLight(0xffa466, 1.0, 3.0, 2);
-    fillC.position.set(0.25, 1.2, -0.2);
-    root.add(fillC);
 
     // ================================================================ volumetrics: shafts from the skylights + dust + floor mist
     const moonDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();

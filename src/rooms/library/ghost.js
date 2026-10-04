@@ -102,7 +102,7 @@ export async function buildGhost(ctx, root) {
     head: spectralMaterial({ coreAlpha: 1.0, edgeAlpha: 0.72, rimStrength: 0.35, glow: 0.02, fadeY: -0.1, fadeSoft: 0.02, roughness: 0.5, tint: 0xc8ccd4, bump: 0.00022, bumpFreq: 320, breakup: 0.0, desat: 0.28, time }),
     hair: spectralMaterial({ coreAlpha: 0.9, edgeAlpha: 0.3, rimStrength: 1.0, glow: 0.12, roughness: 0.55, tint: 0xe4e8f0, breakup: 0.25, desat: 0.4, time }),
     eyes: spectralMaterial({ coreAlpha: 0.97, edgeAlpha: 0.9, rimStrength: 0.05, glow: 0.02, roughness: 0.06, tint: 0xe8ecf2, breakup: 0.0, desat: 0.2, time }),
-    cravat: spectralMaterial({ coreAlpha: 0.95, edgeAlpha: 0.45, rimStrength: 0.35, glow: 0.04, fadeY: -0.235, fadeSoft: 0.045, roughness: 0.6, tint: 0xf0ece4, bump: 0.0006, bumpFreq: 220, breakup: 0.2, desat: 0.25, time }),
+    cravat: spectralMaterial({ coreAlpha: 0.95, edgeAlpha: 0.45, rimStrength: 0.3, glow: 0.025, fadeY: -0.235, fadeSoft: 0.045, roughness: 0.7, tint: 0xcfcdc8, bump: 0.0006, bumpFreq: 220, breakup: 0.2, desat: 0.25, time }),
     waistcoat: spectralMaterial({ coreAlpha: 0.42, edgeAlpha: 0.45, rimStrength: 0.8, glow: 0.16, fadeY: -0.37, fadeSoft: 0.1, roughness: 0.7, tint: 0xd8e0ee, breakup: 0.35, depthWrite: false, desat: 0.4, time }),
     coat: spectralMaterial({ coreAlpha: 0.3, edgeAlpha: 0.55, rimStrength: 1.0, glow: 0.18, fadeY: -0.32, fadeSoft: 0.13, roughness: 0.75, tint: 0xd8e0ee, breakup: 0.6, depthWrite: false, desat: 0.4, time }),
   };
