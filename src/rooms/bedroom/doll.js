@@ -15,12 +15,15 @@ const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 
 // all head shapes are in units of the head radius, face toward +z
 function headSDF(v) {
-  const chub = 0.28 + v * 0.05, jaw = 0.7 + v * 0.03;
+  // four faces: round baby, long-faced girl, heavy-browed, pinched little mouth
+  const chub = [0.28, 0.24, 0.33, 0.27][v], jaw = [0.7, 0.64, 0.74, 0.66][v];
+  const crH = [0.98, 1.04, 0.95, 1.0][v], crW = [0.92, 0.88, 0.96, 0.9][v];
+  const chinY = [0.72, 0.8, 0.7, 0.76][v], nose = [1.0, 0.85, 1.15, 0.9][v];
   return (x, y, z) => {
     const ax = Math.abs(x);
-    let d = sdEllipsoid(x, y - 0.08, z + 0.05, 0.92, 0.98, 0.97);                           // cranium
+    let d = sdEllipsoid(x, y - 0.08, z + 0.05, crW, crH, 0.97);                             // cranium
     d = smin(d, sdEllipsoid(x, y + 0.28, z - 0.12, jaw, 0.72, 0.78), 0.3);                  // lower face
-    d = smin(d, sdSphere(x, y + 0.72, z - 0.46, 0.22), 0.26);                                // chin
+    d = smin(d, sdSphere(x, y + chinY, z - 0.46, 0.22), 0.26);                               // chin
     d = smin(d, sdSphere(ax - 0.4, y + 0.3, z - 0.5, chub), 0.25);                           // plump cheeks
     d = smin(d, sdCapsule(x, y, z, [-0.4, 0.16, 0.74], [0.4, 0.16, 0.74], 0.12), 0.22);     // brow ridge
     d = ssub(d, sdEllipsoid(ax - 0.32, y - 0.0, z - 0.92, 0.2, 0.16, 0.22), 0.07);           // eye sockets
@@ -29,7 +32,7 @@ function headSDF(v) {
     d = smin(d, lid, 0.03);
     // lower lid rim
     d = smin(d, sdCapsule(x, y, z, [Math.sign(x) * 0.2, -0.15, 0.82], [Math.sign(x) * 0.45, -0.13, 0.78], 0.035), 0.05);
-    d = smin(d, sdRoundCone(x, y, z, [0, -0.02, 0.88], [0, -0.22, 0.98], 0.06, 0.105), 0.09);  // button nose
+    d = smin(d, sdRoundCone(x, y, z, [0, -0.02, 0.88], [0, -0.22, 0.98], 0.06 * nose, 0.105 * nose), 0.09);  // button nose
     d = ssub(d, sdSphere(ax - 0.05, y + 0.25, z - 0.985, 0.028), 0.02);                      // nostrils
     d = smin(d, sdEllipsoid(x, y + 0.4, z - 0.87, 0.16, 0.055, 0.08), 0.05);                 // upper lip (cupid's bow)
     d = smin(d, sdEllipsoid(x, y + 0.49, z - 0.85, 0.12, 0.05, 0.07), 0.045);                // lower lip
@@ -61,23 +64,37 @@ function hairSDF(v) {
     return d;
   };
 }
-// brimmed bonnet: a silk shell round the skull, open to the face, the brim flaring into a goffered frill
+// poke bonnet: a silk shell round the back of the skull, and a deep brim that runs forward from the
+// face opening like a hood, flaring as it goes, framing the brow and cheeks (open under the chin),
+// its lip edged with a goffered ruffle. Not a flat ring: seen from the side it projects past the face.
 function bonnetSDF(back) {
   // the face opening plane: n·p = c  (tilted back when the bonnet has slipped off the crown)
-  const ny = back ? 0.62 : 0.32, nz = back ? 0.78 : 0.95, c = back ? 0.18 : 0.36;
+  let ny = back ? 0.62 : 0.32, nz = back ? 0.78 : 0.95;
+  const nl = Math.hypot(ny, nz); ny /= nl; nz /= nl;
+  const c = back ? 0.18 : 0.34;
+  const t0 = c - (ny * 0.12 + nz * -0.08);
+  const cy = 0.12 + ny * t0, cz = -0.08 + nz * t0;          // centre of the opening
+  const L = back ? 0.3 : 0.42;
   return (x, y, z) => {
     const pv = y * ny + z * nz - c;
     const e = sdEllipsoid(x, y - 0.12, z + 0.08, 1.12, 1.16, 1.12);
     let d = Math.abs(e) - 0.035;
     d = smax(d, pv, 0.02);
-    // brim: a flared band lying just in front of the opening, edged with a ruffle
-    const ang = Math.atan2(y - 0.1, x);
-    const ruffle = 0.03 * Math.sin(ang * 12);
-    const ring = Math.abs(pv - 0.02 - ruffle * 0.6) - 0.024;
-    const rr = sdEllipsoid(x, y - 0.12, z + 0.08, 1.42, 1.45, 1.42) - ruffle * 0.5;
-    const brim = smax(smax(ring, rr, 0.02), -(e + 0.02), 0.02);
-    d = smin(d, brim, 0.02);
-    // gathered crown seam at the back
+    // brim, in the opening's frame: w forward along n, (rx, ru) across it
+    const w = pv;
+    const ry = y - cy - ny * w, rz = z - cz - nz * w;
+    const ru = ry * nz - rz * ny;                              // 'up' across the opening
+    const rad = Math.hypot(x, ru);
+    const a = Math.atan2(ru, x);                               // pi/2 = top of the face
+    const sa = Math.sin(a);
+    const len = L * (0.45 + 0.55 * clamp((sa + 0.3) / 1.0, 0, 1));        // deepest over the brow
+    const lipK = clamp((w - (len - 0.14)) / 0.14, 0, 1);
+    const R = 1.08 + 0.42 * w + 0.05 * lipK * Math.sin(a * 22) + 0.03 * lipK * lipK;
+    let brim = Math.abs(rad - R) - (0.028 + 0.012 * lipK);
+    brim = smax(brim, Math.max(-w - 0.02, w - len), 0.02);
+    brim = smax(brim, -(sa + 0.42) * 0.35, 0.03);              // open under the chin
+    d = smin(d, brim, 0.03);
+    // gathered crown seam at the back + a bow of silk over it
     d = smin(d, sdSphere(x, y - 0.25, z + 1.12, 0.12), 0.06);
     return Math.max(d, -0.95 - y);
   };
@@ -187,7 +204,7 @@ export function buildDoll(ctx, mats, { size = 0.3, seed = 0, dress = 0xb08080, h
   // ---- head
   const head = new THREE.Group(); head.position.set(0, 0.268 * s, 0); head.rotation.set(0.04, headYaw, tilt); g.add(head);
   const hr = 0.06 * s;
-  const hv = v % 2;
+  const hv = (seed * 3 + 1) % 4;
   const headG = cached(`head${hv}`, () => sdfGeometry(headSDF(hv), { min: [-1.1, -1.25, -1.15], max: [1.1, 1.15, 1.15], step: 0.034, project: 4, ao: 0.22, aoStrength: 1.0, uv: 'sphere' }));
   const hm = add(headG, face.mat, 0, 0, 0, head); hm.scale.setScalar(hr);
   const eyesM = [];
@@ -208,7 +225,7 @@ export function buildDoll(ctx, mats, { size = 0.3, seed = 0, dress = 0xb08080, h
     r.scale.setScalar(hr * (0.7 + ((i * 7) % 3) * 0.08)); r.rotation.set(Math.sin(a) * 0.2, i * 1.3, Math.cos(a) * 0.25);
   }
   if (bonnet) {
-    const bg = cached('bonnet', () => sdfGeometry(bonnetSDF(false), { min: [-1.6, -1.0, -1.6], max: [1.6, 1.75, 1.6], step: 0.032, project: 3, ao: 0.2, aoStrength: 0.8, uv: 'planar', uvScale: 0.25 }));
+    const bg = cached(`bonnet${bonnetBack ? 'b' : ''}`, () => sdfGeometry(bonnetSDF(bonnetBack), { min: [-1.7, -1.0, -1.6], max: [1.7, 1.85, 1.75], step: 0.03, project: 3, ao: 0.2, aoStrength: 0.8, uv: 'planar', uvScale: 0.25 }));
     add(bg, mats.dollBonnet ? mats.dollBonnet(dress) : dressM, 0, 0, 0, head).scale.setScalar(hr);
     // ribbon ties hanging under the chin
     for (const sx of [-1, 1]) {

@@ -239,13 +239,17 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
         const f = d / drop;
         const ph = rnd(sg > 0 ? 1 : 2) * 6;
         const fold = Math.sin(zz * 5.3 + ph) * 0.55 + Math.sin(zz * 11.7 + ph * 1.7) * 0.3 + Math.sin(zz * 27.0 + rnd(3) * 6) * 0.12;
-        x = sg * (cw / 2 + f * f * 0.06 + fold * f * 0.05); y = -r - d;
+        x = sg * (cw / 2 + f * f * 0.07 + fold * f * 0.085); y = -r - d * (1 - 0.06 * Math.abs(fold));
         // the hem hangs unevenly, lower where the folds are deep
         y -= f * (0.02 + 0.02 * Math.sin(zz * 3.1 + ph)) * (0.5 + 0.5 * Math.abs(fold));
       }
       // soft wrinkles and the body's dent on top (low frequency, cloth not upholstery)
       const top = as < cw / 2 ? 1 : 0.35;
-      y += (Math.sin(s * 7.0 + zz * 2.3) * Math.sin(zz * 4.1 + 1.3) * 0.014 + Math.sin(s * 17 + zz * 5) * Math.sin(zz * 13 - s * 3) * 0.005 + Math.sin(s * 3.1 - zz * 1.7 + 2.0) * 0.008) * top;
+      y += (Math.sin(s * 7.0 + zz * 2.3) * Math.sin(zz * 4.1 + 1.3) * 0.02 + Math.sin(s * 17 + zz * 5) * Math.sin(zz * 13 - s * 3) * 0.007 + Math.sin(s * 3.1 - zz * 1.7 + 2.0) * 0.012) * top;
+      // long diagonal drag-wrinkles where the cover has been pulled toward the foot
+      y += 0.012 * Math.pow(Math.max(0, Math.sin((s * 0.8 + zz) * 6.0 + Math.sin(s * 3.0) * 1.5)), 3) * top * (0.4 + 0.6 * Math.max(0, zz / cl + 0.5));
+      // the mattress edge: the cover sags into the gap between the mattress and the rails
+      y -= 0.018 * Math.max(0, 1 - Math.abs(as - (cw / 2 - 0.04)) / 0.08);
       y -= 0.012 * Math.exp(-((s + 0.15) ** 2) / 0.08 - ((zz + 0.2) ** 2) / 0.35) * top;
       // crumpled where it was dragged toward the near foot corner
       const cm = Math.max(0, Math.min(1, (zz - (cl / 2 - 0.6)) / 0.4)) * Math.max(0, Math.min(1, (-s - 0.1) / 0.3));
@@ -260,11 +264,12 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
     // turned-down sheet at the head: the top sheet folded back over the counterpane in a soft roll,
     // its band rumpled, hanging down over both sides with the cover
     {
-      const bandD = 0.3, r = 0.016, segX = 90;
+      // thin cloth (6 mm) whose fold edge rolls over softly; the band droops toward the fold
+      const bandD = 0.3, r = 0.016, segX = 140;
       const prof = [];
-      prof.push([0.0, 2 * r + 0.004]);
-      for (let i = 0; i <= 10; i++) { const a = Math.PI / 2 - (i / 10) * Math.PI; prof.push([bandD + Math.cos(a) * r, r + Math.sin(a) * r]); }
-      prof.push([0.0, 0.0]);
+      for (let i = 0; i <= 8; i++) { const t = i / 8; prof.push([t * (bandD - 0.01), 0.006 + 0.012 * t * t]); }
+      for (let i = 1; i <= 12; i++) { const a = Math.PI / 2 - (i / 12) * Math.PI; prof.push([bandD - 0.01 + Math.cos(a) * r, 0.018 - r + Math.sin(a) * r + r * 0.0]); }
+      for (let i = 8; i >= 0; i--) { const t = i / 8; prof.push([t * (bandD - 0.016), Math.max(0, 0.018 - 2 * r + 0.008 * t)]); }
       const shape = new THREE.Shape(prof.map(([z, y]) => V2(z, y)));
       const sw = cw + 2 * 0.06;
       const sgm = new THREE.ExtrudeGeometry(shape, { depth: sw, bevelEnabled: false, steps: segX, curveSegments: 12 });
@@ -277,8 +282,8 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
         let yy = y, xx = x;
         if (ax > cw / 2 - 0.06) { const d = ax - (cw / 2 - 0.06); const a = Math.min(d / 0.06, 1) * Math.PI / 2; xx = Math.sign(x) * (cw / 2 - 0.06 + Math.sin(a) * 0.06 + Math.max(0, d - 0.094) * 0.1); yy = y - (1 - Math.cos(a)) * 0.06 - Math.max(0, d - 0.094) * 1.0; }
         // rumples along the band
-        yy += 0.007 * Math.sin(x * 11.0 + z * 9.0) * Math.sin(x * 4.3 + 1.3) + 0.003 * Math.sin(x * 19.0 - z * 14.0) * Math.sin(x * 2.1);
-        const zz = z + 0.012 * Math.sin(x * 5.3 + 0.7) + 0.008 * Math.sin(x * 17.0);
+        yy += 0.012 * Math.sin(x * 11.0 + z * 9.0) * Math.sin(x * 4.3 + 1.3) + 0.005 * Math.sin(x * 19.0 - z * 14.0) * Math.sin(x * 2.1) + 0.008 * Math.max(0, Math.sin(x * 7.3 + 0.4)) * (z / bandD);
+        const zz = z + (0.02 * Math.sin(x * 5.3 + 0.7) + 0.012 * Math.sin(x * 17.0)) * (0.3 + z / bandD);
         p.setXYZ(i, xx, yy, zz);
       }
       sgm.computeVertexNormals();
@@ -289,14 +294,14 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
   }
   // ---- pillows: soft stuffed cases with corded piping round the seam, a head-dent in the middle
   {
-    const PW = 0.66, PH = 0.2, PD = 0.42;
-    const pg = new G.RoundedBoxGeometry(PW, PH, PD, 6, 0.09);
+    const PW = 0.68, PH = 0.27, PD = 0.44;
+    const pg = new G.RoundedBoxGeometry(PW, PH, PD, 10, 0.12);
     const p = pg.attributes.position;
     const prof = (x, z) => { const k = (1 - Math.min(1, (x / (PW / 2)) ** 2)) * (1 - Math.min(1, (z / (PD / 2)) ** 2)); return Math.sqrt(Math.max(0, k)); };
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
       const k = prof(x, z);
-      let yy = y * (0.3 + 0.7 * k);
+      let yy = y * (0.2 + 0.8 * Math.pow(k, 0.55));
       // the dent where a head has lain, and wrinkles radiating from it
       if (y > 0) {
         const dent = Math.exp(-((x + 0.04) ** 2) / 0.02 - ((z - 0.02) ** 2) / 0.012);
@@ -366,9 +371,9 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
       const near = sx < 0 && sz > 0;                // the one nearest the room: dragged right back to its post, so the bed shows
       const lenK = specs[`${sx},${sz}`];
       const cg = velvetCurtain({
-        width: foot ? 0.62 : 0.7, height: (ty - 0.02) * lenK, folds: foot ? 6 : 5, depth: 0.07,
+        width: foot ? 0.62 : 0.7, height: (ty - 0.02) * lenK, folds: foot ? 8 : 7, depth: 0.14, noise: 0.35,
         tieback: foot ? (near ? 0.85 : 0.72) : 0.12, tiebackV: foot ? 0.5 : 0.6, waist: foot ? (near ? 0.16 : 0.28) : 0.85, flare: foot ? (near ? 0.4 : 0.62) : 0.95,
-        pool: 0, seed: 30 + sx * 3 + sz, segX: 96, segY: 72, uv01: true, jitter: 1.1,
+        pool: 0, seed: 30 + sx * 3 + sz, segX: 150, segY: 110, uv01: true, jitter: 1.1,
       });
       const m = mesh(cg, sz > 0 ? drape : drape2, sx * (hw + 0.045), ty + 0.04, sz * (hl - 0.02), g);
       m.rotation.y = sx > 0 ? Math.PI / 2 : -Math.PI / 2;
@@ -380,6 +385,31 @@ export function buildBed(ctx, mats, { W = 1.75, L = 2.2, postH = 2.45, seed = 3 
         const pts = []; for (let i = 0; i <= 24; i++) { const a = (i / 24) * Math.PI * 2; pts.push(V3(Math.cos(a) * (wi.w * 0.5 + 0.015) + wi.w * 0.5, 0, Math.sin(a) * 0.06 + 0.02)); }
         const cord = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 48, 0.007, 6, true), mats.gilt);
         cord.position.y = wi.y; m.add(cord);
+      }
+    }
+    // rags: long strips torn from the hangings, still hanging from the tester rail behind the valance,
+    // each twisting a little as it falls, ending in a ragged point
+    if (mats.drapeStrip) {
+      const SW = 0.16, SL = 1.4;
+      const rag = (seed, len) => {
+        const sg = new THREE.PlaneGeometry(SW, SL, 8, 60); sg.translate(0, -SL / 2, 0);
+        const p = sg.attributes.position;
+        const r = (k) => { const x = Math.sin(k * 91.7 + seed * 13.3) * 43758.5453; return x - Math.floor(x); };
+        const tw = (r(1) - 0.5) * 1.6, sw = 0.03 + r(2) * 0.05;
+        for (let i = 0; i < p.count; i++) {
+          const x = p.getX(i), y = p.getY(i);
+          const t = -y / SL;                                    // 0 top .. 1 tip
+          const a = tw * t * t;                                 // the twist grows down the rag
+          const cup = 0.02 * (1 - (2 * x / SW) ** 2) * (0.4 + 0.6 * t);       // the cloth cups across its width
+          const z0 = cup + sw * Math.sin(t * Math.PI * 0.9) + 0.015 * Math.sin(t * 9 + seed);
+          p.setXYZ(i, x * Math.cos(a) - z0 * Math.sin(a), y * len / SL, x * Math.sin(a) + z0 * Math.cos(a));
+        }
+        sg.computeVertexNormals();
+        return sg;
+      };
+      // [x, z, rotY, length, seed] in the bed frame (the -x side faces the room)
+      for (const [x, z, ry, len, sd] of [[-hw - 0.02, 0.35, -Math.PI / 2, 1.25, 1], [-hw - 0.02, -0.25, -Math.PI / 2 + 0.2, 0.95, 2], [0.35, hl + 0.02, 0.15, 1.15, 3], [-0.42, hl + 0.02, -0.1, 0.8, 4]]) {
+        const m = mesh(rag(sd, len), mats.drapeStrip, x, ty - 0.06, z, g); m.rotation.y = ry; m.name = 'cloth';
       }
     }
   }
@@ -468,6 +498,14 @@ export function buildChest(ctx, mats, { w = 1.18, d = 0.58, h = 0.56, fieldSize 
     fg.computeVertexNormals();
     mesh(fg, mats.board, 0, boardTop - 0.0002, 0, g).name = 'boardFrame';
   }
+  // a carved bead-and-cove moulding framing the board recess, so the board sits *in* the lid
+  {
+    const o = 0.41 * (d + 0.03) + 0.012;
+    const prof = [V2(-0.012, 0)]; for (let i = 0; i <= 10; i++) { const a = Math.PI - (i / 10) * Math.PI; prof.push(V2(-0.004 + Math.cos(a) * 0.008, 0.002 + Math.sin(a) * 0.008)); }
+    prof.push(V2(0.006, 0.004), V2(0.012, 0.0015), V2(0.016, 0));
+    const loop = [V3(-o, topY, -o), V3(o, topY, -o), V3(o, topY, o), V3(-o, topY, o)];
+    mesh(G.sweepProfile(prof, loop, { closed: true, uvScale: 2 }), mats.walnut, 0, 0, 0, g);
+  }
   // carved rosettes in the lid fields either side of the board
   {
     const roseX = 0.705 * (d + 0.03);
@@ -522,8 +560,8 @@ export function buildChest(ctx, mats, { w = 1.18, d = 0.58, h = 0.56, fieldSize 
  * into 8 domed outer petals with grooves between them, 8 inner petals offset by half a petal, and a
  * domed boss with a ring. Lies on y = 0, faces +Y, radius r. Normals are smooth (welded).
  */
-function carvedRosette(r) {
-  const seg = 64, rings = 26;
+function carvedRosette(r, relief = 1.7) {
+  const seg = 96, rings = 34;
   const pos = [], idx = [], uv = [];
   for (let j = 0; j <= rings; j++) {
     const t = j / rings;                               // 0 centre .. 1 rim
@@ -537,6 +575,7 @@ function carvedRosette(r) {
       else if (t < 0.6) { const k = (t - 0.28) / 0.32; y = r * (0.05 + 0.12 * Math.sin(k * Math.PI) * (0.35 + 0.65 * inner)); }   // inner petals
       else { const k = (t - 0.6) / 0.4; rr = r * (0.6 + 0.4 * k * (0.86 + 0.14 * outer)); y = r * (0.03 + 0.14 * Math.sin(Math.min(1, k * 1.1) * Math.PI) * (0.25 + 0.75 * outer)) * (1 - k * k * 0.3); }
       if (j === rings) y = 0;
+      y *= relief;
       pos.push(Math.cos(a) * rr, y, Math.sin(a) * rr);
       uv.push(Math.cos(a) * rr * 4 + 0.5, Math.sin(a) * rr * 4 + 0.5);
     }
@@ -657,7 +696,7 @@ export function buildFireplace(ctx, mats, { H = 3.6, breastW = 2.1, depth = 0.42
     const p = [V3(-ow / 2 - 0.36, 0.06, depth + 0.02), V3(-ow / 2 - 0.36, 0.06, depth + 0.42), V3(ow / 2 + 0.36, 0.06, depth + 0.42), V3(ow / 2 + 0.36, 0.06, depth + 0.02)];
     const prof = []; for (let i = 0; i <= 10; i++) { const a = -Math.PI / 2 + (i / 10) * Math.PI; prof.push(V2(0.012 + Math.cos(a) * 0.012, 0.03 + Math.sin(a) * 0.03)); }
     prof.unshift(V2(0, 0)); prof.push(V2(0, 0.06));
-    mesh(G.sweepProfile(prof, p, { uvScale: 2 }), mats.brass, 0, -0.02, 0, g);
+    mesh(G.sweepProfile(prof, p, { uvScale: 2 }), mats.brassDull || mats.brassOld || mats.brass, 0, -0.02, 0, g);
   }
   // grate, coals, logs, flames
   const fz = depth - fbD * 0.45;
@@ -665,7 +704,8 @@ export function buildFireplace(ctx, mats, { H = 3.6, breastW = 2.1, depth = 0.42
     for (let i = -4; i <= 4; i++) mesh(new THREE.BoxGeometry(0.012, 0.012, 0.22), mats.castIron, i * 0.06, 0.16, fz, g);
     for (const k of [0, 1, 2]) mesh(new THREE.BoxGeometry(0.56, 0.012, 0.012), mats.castIron, 0, 0.16 + k * 0.06, fz + 0.11, g);
     for (const sx of [-1, 1]) mesh(rbox(G, 0.03, 0.3, 0.03, 0.006), mats.castIron, sx * 0.3, 0.15, fz + 0.11, g);
-    for (const sx of [-1, 1]) mesh(new THREE.SphereGeometry(0.025, 12, 8), mats.brass, sx * 0.3, 0.32, fz + 0.11, g);
+    // (blackened iron finials: polished brass this close to the fire light read as two floating orbs)
+    for (const sx of [-1, 1]) mesh(G.latheFromProfile([[0, 0], [0.018, 0.0], [0.022, 0.012], [0.012, 0.03], [0.006, 0.045], [0, 0.05]], 16), mats.castIron, sx * 0.3, 0.3, fz + 0.11, g);
   }
   const coalG = new THREE.SphereGeometry(0.3, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2);
   coalG.scale(0.95, 0.18, 0.4);
@@ -708,6 +748,28 @@ export function buildFireplace(ctx, mats, { H = 3.6, breastW = 2.1, depth = 0.42
     m.renderOrder = 10; m.userData.noBake = true; m.userData.noShadow = true; m.frustumCulled = false;
     g.add(m); flames.push(m);
   }
+  // a faint, slow smoke sheet curling up into the throat (normal-blended, dark, very transparent)
+  {
+    const smokeMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: ctx.time },
+      vertexShader: /* glsl */ `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: /* glsl */ `uniform float uTime; varying vec2 vUv;
+        float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+        float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
+        float fbm(vec2 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * vn(p); p = p * 2.03 + 1.7; a *= 0.5; } return s; }
+        void main() {
+          vec2 p = vUv; float t = uTime;
+          p.x += (fbm(vec2(p.y * 2.0 - t * 0.4, 3.0)) - 0.5) * 0.35 * p.y;
+          float n = fbm(vec2(p.x * 3.0, p.y * 2.2 - t * 0.55));
+          float a = smoothstep(0.45, 0.8, n) * smoothstep(0.0, 0.35, p.y) * (1.0 - smoothstep(0.6, 1.0, p.y)) * (1.0 - smoothstep(0.25, 0.5, abs(p.x - 0.5)));
+          gl_FragColor = vec4(vec3(0.05, 0.045, 0.04), a * 0.35);
+        }`,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    });
+    const sm = mesh(new THREE.PlaneGeometry(0.6, 0.6), smokeMat, 0, 0.62, fz - 0.02, g);
+    sm.renderOrder = 9; sm.userData.noBake = true; sm.userData.noShadow = true; sm.frustumCulled = false;
+  }
   // a soft glow card on the firebox back + rising embers
   const glowTex = ctx.textures.canvas('bedroom:fireglow', 128, 128, (c2, w) => {
     const gr = c2.createRadialGradient(w / 2, w * 0.7, 2, w / 2, w * 0.7, w * 0.55);
@@ -725,7 +787,7 @@ export function buildFireplace(ctx, mats, { H = 3.6, breastW = 2.1, depth = 0.42
 /** Fire shader: fbm-eroded flame sheet, white-yellow core -> orange -> deep red edges (HDR, additive). */
 export function fireMaterial(timeUniform) {
   return new THREE.ShaderMaterial({
-    uniforms: { uTime: timeUniform || { value: 0 }, uSeed: { value: 0 }, uIntensity: { value: 3.2 } },
+    uniforms: { uTime: timeUniform || { value: 0 }, uSeed: { value: 0 }, uIntensity: { value: 1.45 } },
     vertexShader: /* glsl */ `varying vec2 vUv; varying float vFace;
       void main() { vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.0);
         vFace = abs(dot(normalize(normalMatrix * vec3(0.0, 0.0, 1.0)), normalize(-mv.xyz)));
@@ -752,10 +814,14 @@ export function fireMaterial(timeUniform) {
         float e = hgt - p.y * 1.05 - (n - 0.5) * 0.55 - (n2 - 0.5) * 0.25;
         float a = smoothstep(0.0, 0.18, e);
         float core = smoothstep(0.18, 0.55, e) * (1.0 - smoothstep(0.0, 0.7, p.y));
-        vec3 col = mix(vec3(0.55, 0.06, 0.01), vec3(1.0, 0.38, 0.06), smoothstep(0.0, 0.25, e));
-        col = mix(col, vec3(1.0, 0.86, 0.5), core);
-        col += vec3(1.0, 0.97, 0.88) * smoothstep(0.42, 0.75, e) * (1.0 - p.y) * 1.1;
-        col = mix(col, vec3(0.35, 0.03, 0.005), smoothstep(0.12, 0.0, e) * a);
+        // deep red licks -> orange body -> a capped amber core (never white: it would blow out and bloom)
+        vec3 col = mix(vec3(0.42, 0.045, 0.008), vec3(0.95, 0.3, 0.045), smoothstep(0.0, 0.25, e));
+        col = mix(col, vec3(1.0, 0.5, 0.13), core * 0.75);
+        col = mix(col, vec3(0.3, 0.025, 0.004), smoothstep(0.12, 0.0, e) * a);
+        // internal turbulence: darker cells drifting up through the sheet so it has body, not a flat card
+        col *= 0.7 + 0.45 * smoothstep(0.3, 0.7, fbm(vec2(p.x * 7.0 + uSeed * 3.0, p.y * 5.0 - t * 3.3)));
+        // tips cool and thin out into soot
+        col *= 1.0 - 0.55 * smoothstep(0.45, 0.95, p.y);
         // blue-ish roots right at the coals
         col = mix(col, vec3(0.35, 0.3, 0.6), smoothstep(0.08, 0.0, p.y) * 0.5 * a);
         float alpha = a * smoothstep(0.0, 0.05, p.y) * smoothstep(0.3, 0.8, vFace);
@@ -862,8 +928,8 @@ export function buildVanity(ctx, mats, { w = 1.15, d = 0.5 } = {}) {
       }
       if (poly.length < 3) return;
       const c = poly.reduce((acc, q) => acc.add(q), new THREE.Vector2()).multiplyScalar(1 / poly.length);
-      // pull each edge in a hair (0.9 mm) so the seams open onto black
-      const shrunk = poly.map((q) => { const d = q.clone().sub(c); const l = d.length(); return c.clone().add(d.multiplyScalar(Math.max(0, l - 0.0009) / l)); });
+      // pull each edge in a hair (0.4 mm) so the seams open onto black
+      const shrunk = poly.map((q) => { const d = q.clone().sub(c); const l = d.length(); return c.clone().add(d.multiplyScalar(Math.max(0, l - 0.0004) / l)); });
       const sg = new THREE.ShapeGeometry(new THREE.Shape(shrunk.map((q) => new THREE.Vector2(q.x - c.x, q.y - c.y))));
       const sp2 = sg.attributes.position, su = sg.attributes.uv;
       for (let i = 0; i < sp2.count; i++) su.setXY(i, (sp2.getX(i) + c.x) / (W2 * 2) + 0.5, (sp2.getY(i) + c.y) / (H2 * 2) + 0.5);
@@ -1037,7 +1103,10 @@ export function buildWardrobe(ctx, mats, { w = 1.42, h = 2.32, d = 0.62 } = {}) 
     pivot.userData.keep = true;
     const leaf = new THREE.Group(); leaf.position.x = -sx * dw / 2; pivot.add(leaf);
     // a proper 45 mm leaf: stiles and rails, two fielded panels each framed by a bolection moulding
-    mesh(rbox(G, dw - 0.005, dh, 0.045, 0.006), mats.mahogany, 0, dh / 2, 0, leaf);
+    mesh(rbox(G, dw - 0.005, dh, 0.045, 0.012, 3), mats.mahogany, 0, dh / 2, 0, leaf);
+    // a cock-bead run round the leaf's edge (catches the light on the edge when the door stands open)
+    { const bw = (dw - 0.005) / 2 - 0.004, bh = dh / 2 - 0.004;
+      for (const zf of [0.0235, -0.0235]) mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V3(-bw, -bh, 0), V3(bw, -bh, 0), V3(bw, bh, 0), V3(-bw, bh, 0)], true, 'catmullrom', 0.0), 64, 0.004, 6, true), mats.rail || mats.mahogany, 0, dh / 2, zf, leaf); }
     for (const [py, ph, bd] of [[dh * 0.62, dh * 0.62, 0.05], [dh * 0.16, dh * 0.25, 0.04]]) {
       mesh(G.raisedPanel(dw - 0.12, ph, { border: bd, bevel: 0.035 }), mats.panel, 0, py, 0.0225, leaf);
       mesh(G.frameGeometry(dw - 0.12, ph, { width: 0.022, depth: 0.014, uvScale: 1 }), mats.mahogany, 0, py, 0.0225, leaf);
@@ -1045,15 +1114,23 @@ export function buildWardrobe(ctx, mats, { w = 1.42, h = 2.32, d = 0.62 } = {}) 
     // three brass butt hinges on the hanging stile: leaves on the edge + a knuckle with a finial pin
     for (const hy of [0.12, dh * 0.5, dh - 0.12]) {
       const hx = sx * (dw / 2 - 0.0025);
-      mesh(rbox(G, 0.004, 0.09, 0.03, 0.001), mats.brass, hx, hy, 0.0, leaf);
-      mesh(new THREE.CylinderGeometry(0.0065, 0.0065, 0.09, 14), mats.brass, hx + sx * 0.004, hy, 0.024, leaf);
-      for (const e of [-1, 1]) mesh(new THREE.SphereGeometry(0.0065, 10, 6), mats.brass, hx + sx * 0.004, hy + e * 0.047, 0.024, leaf);
+      mesh(rbox(G, 0.004, 0.1, 0.034, 0.001), mats.brassOld || mats.brass, hx, hy, 0.0, leaf);
+      mesh(new THREE.CylinderGeometry(0.0085, 0.0085, 0.1, 16), mats.brassOld || mats.brass, hx + sx * 0.005, hy, 0.026, leaf);
+      for (const k of [-1, 0, 1]) mesh(new THREE.TorusGeometry(0.0086, 0.0012, 4, 16).rotateX(Math.PI / 2), mats.brassOld || mats.brass, hx + sx * 0.005, hy + k * 0.033, 0.026, leaf);
+      for (const e of [-1, 1]) mesh(G.latheFromProfile([[0, 0], [0.0085, 0], [0.006, 0.006], [0.002, 0.012], [0, 0.013]], 12), mats.brassOld || mats.brass, hx + sx * 0.005, hy + e * 0.05, 0.026, leaf).rotation.x = e < 0 ? Math.PI : 0;
     }
     // the latch: a keeper plate on the meeting stile (left leaf) and the bolt housing (right leaf)
     if (sx < 0) mesh(rbox(G, 0.018, 0.11, 0.004, 0.0015), mats.brass, -sx * (dw / 2 - 0.012), dh * 0.48, 0.024, leaf);
     else { mesh(rbox(G, 0.02, 0.06, 0.012, 0.002), mats.brass, -sx * (dw / 2 - 0.014), dh * 0.48, 0.028, leaf); mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.012, 10).rotateX(Math.PI / 2), mats.black, -sx * (dw / 2 - 0.014), dh * 0.48 - 0.018, 0.035, leaf); }
     // inside face of the leaf
-    mesh(G.raisedPanel(dw - 0.12, dh * 0.8, { border: 0.05, bevel: 0.03 }), mats.walnut, 0, dh * 0.5, -0.0225, leaf).rotation.y = Math.PI;
+    for (const [py, ph] of [[dh * 0.62, dh * 0.62], [dh * 0.16, dh * 0.25]]) {
+      mesh(G.raisedPanel(dw - 0.12, ph, { border: 0.045, bevel: 0.03 }), mats.walnut, 0, py, -0.0225, leaf).rotation.y = Math.PI;
+      mesh(G.frameGeometry(dw - 0.12, ph, { width: 0.02, depth: 0.012, uvScale: 1 }), mats.walnut, 0, py, -0.0225, leaf).rotation.y = Math.PI;
+    }
+    // a brass coat hook on the inside of each leaf
+    { const hk = []; for (let i = 0; i <= 16; i++) { const t = i / 16; hk.push(V3(0, -0.04 * Math.sin(t * Math.PI * 1.2) - t * 0.01, -0.06 * t)); }
+      mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(hk), 24, 0.004, 6, false), mats.brassOld || mats.brass, 0, dh * 0.86, -0.024, leaf);
+      mesh(rbox(G, 0.025, 0.04, 0.004, 0.0015), mats.brassOld || mats.brass, 0, dh * 0.86, -0.0245, leaf); }
     mesh(lathe(G, [[0, 0], [0.012, 0], [0.016, 0.02], [0.008, 0.035], [0, 0.04]], 12).rotateX(Math.PI / 2), mats.brass, -sx * (dw / 2 - 0.05), dh * 0.48, 0.0225, leaf);
     g.add(pivot); doors.push(pivot);
   }
@@ -1210,23 +1287,116 @@ export function buildSconce(ctx, mats, { out = 0.2, seed = 1 } = {}) {
 }
 
 // ============================================================================ armchair
-/** Buttoned wing armchair. Local: floor y=0, faces +Z. */
+/**
+ * Upholstered surface: a sphere pushed out to a rounded box (superellipsoid, exponent e), so it is
+ * evenly tessellated across its faces and can be tufted / crowned by `disp(x, y, z) -> [x, y, z]`.
+ */
+function cushion(G, w, h, d, { e = 0.3, sx = 72, sy = 54, disp = null } = {}) {
+  const g = new THREE.SphereGeometry(1, sx, sy);
+  const p = g.attributes.position;
+  const f = (v) => Math.sign(v) * Math.pow(Math.abs(v), e);
+  for (let i = 0; i < p.count; i++) {
+    let x = f(p.getX(i)) * w / 2, y = f(p.getY(i)) * h / 2, z = f(p.getZ(i)) * d / 2;
+    if (disp) [x, y, z] = disp(x, y, z);
+    p.setXYZ(i, x, y, z);
+  }
+  g.computeVertexNormals();
+  return G.applyBoxUVs(g, 1);
+}
+
+/**
+ * Buttoned wing armchair, worn oxblood velvet. Local: floor y=0, faces +Z.
+ * Sprung seat frame with a crowned loose cushion, a deep-buttoned arched back (the pile dimpled into
+ * diamond tufts round each button), scrolled arms whose rolls end in round scroll faces outlined with
+ * piping, shaped wings piped along their front edge, a row of brass nailheads along the seat rail and
+ * turned walnut legs on brass castors.
+ */
 export function buildWingChair(ctx, mats) {
   const G = ctx.geometry; const g = new THREE.Group(); g.name = 'wingchair';
-  const v = mats.velvetChair;
-  mesh(rbox(G, 0.74, 0.16, 0.7, 0.05, 3), v, 0, 0.42, 0.02, g);
-  mesh(rbox(G, 0.6, 0.1, 0.58, 0.05, 3), v, 0, 0.53, 0.06, g);
-  const back = mesh(rbox(G, 0.72, 0.78, 0.16, 0.06, 3), v, 0, 0.88, -0.28, g); back.rotation.x = -0.12;
-  for (const sx of [-1, 1]) {
-    const wing = mesh(rbox(G, 0.1, 0.5, 0.36, 0.05, 3), v, sx * 0.36, 1.0, -0.15, g); wing.rotation.y = sx * 0.25;
-    mesh(rbox(G, 0.12, 0.22, 0.66, 0.05, 3), v, sx * 0.33, 0.6, 0.03, g);
-    const scroll = mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.12, 20).rotateZ(Math.PI / 2), v, sx * 0.33, 0.69, 0.33, g); void scroll;
+  const v = mats.velvetChair, pipeM = mats.velvetChairPipe || v;
+  // ---- legs: turned, on brass cup castors
+  const leg = lathe(G, [[0.026, 0.035], [0.022, 0.06], [0.03, 0.1], [0.034, 0.14], [0.026, 0.19], [0.03, 0.22], [0.036, 0.25], [0.036, 0.27], [0, 0.27]], 20);
+  const cup = lathe(G, [[0, 0], [0.012, 0], [0.02, 0.012], [0.027, 0.03], [0.027, 0.04], [0, 0.04]], 16);
+  for (const sx of [-1, 1]) for (const sz of [-0.29, 0.29]) {
+    mesh(leg, mats.walnut, sx * 0.32, 0, sz, g);
+    mesh(cup, mats.brassOld || mats.brass, sx * 0.32, 0, sz, g);
+    mesh(new THREE.SphereGeometry(0.018, 12, 8), mats.castIron, sx * 0.32, 0.017, sz + 0.01, g);
   }
-  const leg = lathe(G, [[0.025, 0], [0.02, 0.06], [0.03, 0.14], [0.026, 0.34], [0, 0.34]], 12);
-  for (const sx of [-1, 1]) for (const sz of [-0.28, 0.3]) mesh(leg, mats.walnut, sx * 0.3, 0, sz, g);
-  // buttons on the back
-  const bt = new THREE.SphereGeometry(0.01, 8, 6);
-  for (let r = 0; r < 3; r++) for (let c = -2; c <= 2; c++) if ((r + c) % 2 === 0) mesh(bt, mats.buttons, c * 0.12, 0.7 + r * 0.18, -0.19 + r * 0.02, g);
+  // ---- seat frame (the sprung base), a little bowed at the front
+  const frame = cushion(G, 0.8, 0.2, 0.74, { e: 0.2, disp: (x, y, z) => [x, y, z + (z > 0 ? 0.025 * (1 - (x / 0.4) ** 2) : 0)] });
+  mesh(frame, v, 0, 0.37, 0.02, g);
+  // brass nailheads along the bottom of the seat rail
+  const nail = new THREE.SphereGeometry(0.0075, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2); nail.rotateX(Math.PI / 2);
+  for (let i = 0; i <= 26; i++) { const x = -0.36 + (i / 26) * 0.72; mesh(nail, mats.brassOld || mats.brass, x, 0.295, 0.02 + 0.37 + 0.025 * (1 - (x / 0.4) ** 2) - 0.004, g); }
+  // piping along the seat rail's top front edge
+  {
+    const pts = []; for (let i = 0; i <= 40; i++) { const x = -0.38 + (i / 40) * 0.76; pts.push(V3(x, 0.462, 0.02 + 0.355 + 0.025 * (1 - (x / 0.4) ** 2))); }
+    mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 80, 0.008, 8, false), pipeM, 0, 0, 0, g);
+  }
+  // ---- loose seat cushion: crowned, the front edge rolled, a dent where someone sat
+  const seat = cushion(G, 0.56, 0.13, 0.62, { e: 0.32, disp: (x, y, z) => {
+    const k = (1 - Math.min(1, (x / 0.28) ** 2)) * (1 - Math.min(1, (z / 0.31) ** 2));
+    let yy = y + (y > 0 ? 0.03 * k - 0.022 * Math.exp(-((x + 0.03) ** 2) / 0.02 - ((z + 0.03) ** 2) / 0.03) : 0);
+    return [x, yy, z];
+  } });
+  mesh(seat, v, 0, 0.53, 0.07, g);
+  // ---- back: deep-buttoned, arched crest
+  {
+    const bw = 0.64, bh = 0.84, bd = 0.17;
+    const tufts = [];
+    for (let r = 0; r < 4; r++) for (let c = -2; c <= 2; c++) { if ((r + c) % 2 !== 0) continue; tufts.push([c * 0.115, -0.22 + r * 0.16]); }
+    const bg = cushion(G, bw, bh, bd, { e: 0.3, sx: 96, sy: 80, disp: (x, y, z) => {
+      let yy = y, zz = z;
+      if (y > 0) yy += 0.07 * Math.cos(Math.min(1, Math.abs(x) / (bw / 2)) * Math.PI / 2) * (y / (bh / 2)) ** 2;     // arched crest
+      if (z > 0) {
+        zz += 0.02 * (1 - (x / (bw / 2)) ** 2);                    // crowned face
+        let dimp = 0; for (const [tx, ty] of tufts) dimp = Math.max(dimp, Math.exp(-((x - tx) ** 2 + (y - ty) ** 2) / 0.0012));
+        zz -= 0.028 * dimp * Math.min(1, z / (bd * 0.3));
+        // pleats running between the buttons (diagonal creases)
+        const dd = Math.min(...tufts.map(([tx, ty]) => Math.abs(Math.abs(x - tx) - Math.abs(y - ty)) + Math.max(Math.abs(x - tx), Math.abs(y - ty)) * 0.0));
+        zz -= 0.006 * Math.exp(-dd * dd / 0.0002) * Math.min(1, z / (bd * 0.3)) * (1 - dimp);
+      }
+      return [x, yy, zz];
+    } });
+    const back = mesh(bg, v, 0, 0.93, -0.27, g); back.rotation.x = -0.13;
+    const bt = new THREE.SphereGeometry(0.012, 12, 8); bt.scale(1, 1, 0.6);
+    for (const [tx, ty] of tufts) mesh(bt, mats.buttons, tx, ty, bd / 2 + 0.02 * (1 - (tx / (bw / 2)) ** 2) - 0.022, back);
+  }
+  // ---- scrolled arms: an extruded roll profile, the front face a round scroll outlined in piping
+  for (const sx of [-1, 1]) {
+    const pts = [];
+    const cx = 0.025, cy = 0.235, r = 0.078;
+    pts.push([-0.05, 0.0], [0.045, 0.0], [0.05, 0.16]);
+    for (let i = 0; i <= 18; i++) { const a = -Math.PI * 0.32 + (i / 18) * Math.PI * 1.45; pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); }
+    pts.push([-0.052, 0.2]);
+    const shape = new THREE.Shape(pts.map(([x, y]) => V2(x * sx, y)));
+    const len = 0.64;
+    const ag = new THREE.ExtrudeGeometry(shape, { depth: len, bevelEnabled: true, bevelThickness: 0.025, bevelSize: 0.018, bevelSegments: 5, curveSegments: 24, steps: 1 });
+    ag.translate(0, 0, -len / 2);
+    // (ExtrudeGeometry re-winds a clockwise outline itself, so the mirrored arm needs nothing extra)
+    mesh(G.applyBoxUVs(ag, 1), v, sx * 0.335, 0.44, 0.03, g);
+    // round scroll face + spiral piping on the front of the roll
+    const fz = 0.03 + len / 2 + 0.026;
+    const disc = new THREE.CircleGeometry(r * 0.92, 32);
+    mesh(disc, pipeM, sx * (0.335 + cx * sx), 0.44 + cy, fz, g);
+    const sp = []; for (let i = 0; i <= 70; i++) { const t = i / 70; const a = t * Math.PI * 2 * 1.6; const rr = r * (1.02 - t * 0.75); sp.push(V3(Math.cos(a) * rr * sx, Math.sin(a) * rr, 0.004 * t)); }
+    mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(sp), 140, 0.0075, 8, false), pipeM, sx * (0.335 + cx * sx), 0.44 + cy, fz, g);
+    // piping down the arm front below the roll
+    mesh(new THREE.CylinderGeometry(0.0075, 0.0075, 0.17, 8), pipeM, sx * (0.335 + 0.045 * sx + 0.012 * sx), 0.44 + 0.085, fz - 0.004, g);
+  }
+  // ---- wings: shaped side panels flaring out from the back, piped along the front edge
+  for (const sx of [-1, 1]) {
+    const wsh = new THREE.Shape();
+    wsh.moveTo(0.0, 0.0); wsh.bezierCurveTo(0.14, 0.02, 0.2, 0.2, 0.16, 0.36); wsh.bezierCurveTo(0.12, 0.5, 0.0, 0.56, -0.12, 0.55); wsh.lineTo(-0.14, 0.0); wsh.lineTo(0, 0);
+    const wg = new THREE.ExtrudeGeometry(wsh, { depth: 0.07, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.022, bevelSegments: 5, curveSegments: 28 });
+    wg.translate(0, 0, -0.035); wg.rotateY(-Math.PI / 2);          // shape x -> +z (toward the front), extrusion -> x
+    const w = mesh(G.applyBoxUVs(wg, 1), v, sx * 0.355, 0.7, -0.24, g); w.rotation.y = sx * 0.22;
+    // front-edge piping, sitting on the bevelled edge (outline pushed out along its normal)
+    const ep = [];
+    const cvs = [new THREE.CubicBezierCurve(V2(0.0, 0.0), V2(0.14, 0.02), V2(0.2, 0.2), V2(0.16, 0.36)), new THREE.CubicBezierCurve(V2(0.16, 0.36), V2(0.12, 0.5), V2(0.0, 0.56), V2(-0.12, 0.55))];
+    cvs.forEach((cv, ci) => { for (let i = ci ? 1 : 0; i <= 24; i++) { const q = cv.getPoint(i / 24), t = cv.getTangent(i / 24); ep.push(V3(0, q.y - t.x * 0.02, q.x + t.y * 0.02)); } });
+    const pp = mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ep), 120, 0.009, 8, false), pipeM, sx * 0.355, 0.7, -0.24, g); pp.rotation.y = sx * 0.22;
+  }
   return g;
 }
 
@@ -1271,6 +1441,10 @@ export function buildCeilingRose(G) {
   lg0.rotateX(-Math.PI / 2);
   { const p = lg0.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i); p.setY(i, p.getY(i) - x * x * 1.2 + Math.abs(p.getZ(i)) * 0.3); } lg0.computeVertexNormals(); }
   for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; const l = lg0.clone(); l.rotateY(-a); l.translate(Math.cos(a) * 0.12, -0.075, Math.sin(a) * 0.12); parts.push(l); }
+  // an outer ring of smaller leaves, turned the other way, between the bead ring and the rim
+  for (let i = 0; i < 24; i++) { const a = (i / 24) * Math.PI * 2 + 0.13; const l = lg0.clone(); l.scale(0.55, 0.7, 0.6); l.rotateY(-a + Math.PI); l.translate(Math.cos(a) * 0.5, -0.028, Math.sin(a) * 0.5); parts.push(l); }
+  // egg-and-dart on the outer step
+  for (let i = 0; i < 40; i++) { const a = (i / 40) * Math.PI * 2; const e = new THREE.SphereGeometry(0.012, 10, 8); e.scale(1.0, 0.8, 1.5); e.rotateY(-a); e.translate(Math.cos(a) * 0.36, -0.045, Math.sin(a) * 0.36); parts.push(e); }
   const norm = parts.map((q) => { let g = q.index ? q.toNonIndexed() : q; for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k); return g; });
   return G.applyBoxUVs(G.mergeGeometries(norm), 1);
 }
@@ -1289,15 +1463,103 @@ export function buildGasolier(ctx, mats) {
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
     const c = new THREE.CubicBezierCurve3(V3(0.08, -0.85, 0), V3(0.3, -0.98, 0), V3(0.36, -0.7, 0), V3(0.42, -0.78, 0));
-    const tg = new THREE.TubeGeometry(c, 40, 0.011, 8, false); tg.rotateY(-a);
+    const tg = new THREE.TubeGeometry(c, 48, 0.017, 12, false); tg.rotateY(-a);
     mesh(tg, B, 0, 0, 0, g);
+    // cast acanthus collar where the arm leaves the body, and a leafy cup under each burner
+    const acan = (r, h, n) => { const lg = G.latheFromProfile([[0, 0], [r * 0.5, 0], [r, h * 0.35], [r * 0.85, h * 0.7], [r * 0.35, h], [0, h]], 48); const pp = lg.attributes.position; for (let k = 0; k < pp.count; k++) { const x = pp.getX(k), z = pp.getZ(k), y = pp.getY(k); const an = Math.atan2(z, x); const f = 1 + 0.22 * Math.pow(Math.abs(Math.cos(an * n / 2)), 0.5) * Math.sin(Math.min(1, y / h) * Math.PI); pp.setX(k, x * f); pp.setZ(k, z * f); } lg.computeVertexNormals(); return lg; };
+    { const col = mesh(acan(0.03, 0.05, 8), B, 0, 0, 0, g); col.geometry = col.geometry.clone().rotateZ(-Math.PI / 2).translate(0.08, -0.85, 0).rotateY(-a); }
+    { const cp = mesh(acan(0.034, 0.04, 10), B, Math.cos(a) * 0.42, -0.83, Math.sin(a) * 0.42, g); void cp; }
     // decorative curl under the arm
     const c2 = new THREE.CubicBezierCurve3(V3(0.16, -0.93, 0), V3(0.2, -1.02, 0), V3(0.28, -1.0, 0), V3(0.25, -0.95, 0));
-    const t2 = new THREE.TubeGeometry(c2, 20, 0.006, 6, false); t2.rotateY(-a); mesh(t2, B, 0, 0, 0, g);
+    const t2 = new THREE.TubeGeometry(c2, 24, 0.008, 8, false); t2.rotateY(-a); mesh(t2, B, 0, 0, 0, g);
     const px = Math.cos(a) * 0.42, pz = Math.sin(a) * 0.42;
     mesh(G.latheFromProfile([[0, 0], [0.03, 0], [0.034, 0.02], [0.022, 0.03], [0, 0.03]], 18), B, px, -0.79, pz, g);
     const sh = mesh(G.latheFromProfile([[0.022, 0], [0.05, 0.03], [0.062, 0.08], [0.06, 0.12], [0.07, 0.15], [0.064, 0.152]], 24), mats.frostGlass, px, -0.77, pz, g);
     sh.userData.noShadow = true;
   }
   return g;
+}
+
+// ============================================================================ trunk + dust sheet
+/**
+ * Domed steamer trunk: slatted oak body over canvas, a barrel lid, brass corner caps, leather straps
+ * with buckles, a lock plate and drop handles. Local: floor y=0, long axis X, front +Z.
+ * userData: { w, d, h, top(x,z) -> height of the lid surface }.
+ */
+export function buildTrunk(ctx, mats, { w = 0.74, d = 0.44, h = 0.38, dome = 0.09 } = {}) {
+  const G = ctx.geometry; const g = new THREE.Group(); g.name = 'trunk';
+  const body = mats.trunkCanvas || mats.walnut;
+  mesh(rbox(G, w, h, d, 0.012), body, 0, h / 2, 0, g);
+  // barrel lid: an extruded arch
+  const s = new THREE.Shape(); s.moveTo(-d / 2, 0); for (let i = 0; i <= 16; i++) { const t = i / 16; s.lineTo(-d / 2 + t * d, Math.sin(t * Math.PI) * dome); } s.lineTo(-d / 2, 0);
+  const lg = new THREE.ExtrudeGeometry(s, { depth: w, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 2, curveSegments: 16 });
+  lg.translate(0, 0, -w / 2); lg.rotateY(Math.PI / 2);
+  mesh(G.applyBoxUVs(lg, 1), body, 0, h + 0.002, 0, g);
+  // oak slats round the body and over the lid
+  for (const x of [-w / 2 + 0.06, -w / 6, w / 6, w / 2 - 0.06]) {
+    mesh(rbox(G, 0.045, h + 0.004, d + 0.012, 0.004), mats.walnut, x, h / 2, 0, g);
+    const arc = []; for (let i = 0; i <= 16; i++) { const t = i / 16; arc.push(V3(0, h + Math.sin(t * Math.PI) * dome + 0.009, -d / 2 + t * d)); }
+    mesh(G.sweepProfile([V2(-0.022, 0), V2(0.022, 0), V2(0.022, 0.008), V2(-0.022, 0.008), V2(-0.022, 0)], arc, { up: V3(1, 0, 0) }), mats.walnut, x, 0, 0, g);
+  }
+  for (const y of [0.03, h - 0.03]) mesh(rbox(G, w + 0.012, 0.04, d + 0.012, 0.004), mats.walnut, 0, y, 0, g);
+  // brass corner caps
+  const B = mats.brassOld || mats.brass;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (const y of [0.025, h - 0.02]) mesh(rbox(G, 0.05, 0.05, 0.05, 0.01), B, sx * (w / 2 - 0.02), y, sz * (d / 2 - 0.02), g);
+  // leather straps + buckles
+  for (const x of [-w / 4, w / 4]) {
+    const arc = [V3(0, 0.0, d / 2 + 0.007), V3(0, h, d / 2 + 0.007)];
+    for (let i = 0; i <= 16; i++) { const t = i / 16; arc.push(V3(0, h + Math.sin(t * Math.PI) * (dome + 0.01) + 0.012 * Math.sin(t * Math.PI), d / 2 + 0.007 - t * (d + 0.014))); }
+    arc.push(V3(0, 0.0, -d / 2 - 0.007));
+    mesh(G.sweepProfile([V2(-0.025, 0), V2(0.025, 0), V2(0.025, 0.004), V2(-0.025, 0.004), V2(-0.025, 0)], arc, { up: V3(1, 0, 0) }), mats.trunkStrap || mats.black, x, 0, 0, g);
+    const bk = new THREE.TorusGeometry(0.022, 0.004, 6, 4); bk.rotateZ(Math.PI / 4); bk.scale(1.2, 1, 1);
+    mesh(bk, B, x, h - 0.07, d / 2 + 0.012, g);
+  }
+  // lock plate + drop handles
+  mesh(rbox(G, 0.07, 0.08, 0.008, 0.003), B, 0, h - 0.03, d / 2 + 0.005, g);
+  mesh(new THREE.CircleGeometry(0.008, 12), mats.black, 0, h - 0.04, d / 2 + 0.0095, g);
+  for (const sx of [-1, 1]) { const hd = mesh(new THREE.TorusGeometry(0.05, 0.006, 8, 20, Math.PI), mats.iron, sx * (w / 2 + 0.012), h * 0.62, 0, g); hd.rotation.set(0, Math.PI / 2, Math.PI); }
+  g.userData = { w, d, h, top: (x, z) => (Math.abs(x) <= w / 2 + 0.01 && Math.abs(z) <= d / 2 + 0.01 ? h + Math.sin(Math.max(0, Math.min(1, (z + d / 2) / d)) * Math.PI) * dome + 0.012 : -1) };
+  return g;
+}
+
+/**
+ * A dust sheet thrown over a box-like object: a cloth grid that lies on `top(x, z)` where the object
+ * is and hangs straight down past its edges in uneven folds, flaring and pooling on the floor.
+ * `cover` = { w, d } of the object; the sheet is `size` = [sw, sd] and shifted by `offset`.
+ */
+export function dustSheet(G, { cover, top, size = [1.1, 0.9], offset = [0.12, 0.0], seed = 1, seg = [90, 80] } = {}) {
+  const [sw, sd] = size;
+  const geo = new THREE.PlaneGeometry(sw, sd, seg[0], seg[1]); geo.rotateX(-Math.PI / 2);
+  const p = geo.attributes.position;
+  const hw = cover.w / 2, hd = cover.d / 2;
+  const rr = (k) => { const x = Math.sin(k * 12.9898 + seed * 78.233) * 43758.5453; return x - Math.floor(x); };
+  for (let i = 0; i < p.count; i++) {
+    const u = p.getX(i) + offset[0], v = p.getZ(i) + offset[1];
+    const ex = Math.max(0, Math.abs(u) - hw), ez = Math.max(0, Math.abs(v) - hd);
+    let x = u, z = v, y;
+    if (ex === 0 && ez === 0) {
+      y = top(u, v) + 0.004 + 0.006 * Math.sin(u * 23 + v * 7) * Math.sin(v * 19 - u * 5);
+    } else {
+      // over the edge: hang down the side by the distance travelled past it (pinned to the edge)
+      const cu = Math.max(-hw, Math.min(hw, u)), cv = Math.max(-hd, Math.min(hd, v));
+      const ty = top(cu, cv) + 0.004;
+      const out = Math.hypot(ex, ez);
+      const along = ex > ez ? v : u;
+      const fold = Math.sin(along * 21 + rr(1) * 6) * 0.6 + Math.sin(along * 47 + rr(2) * 6) * 0.25 + Math.sin(along * 9 + rr(3) * 6) * 0.4;
+      const r0 = 0.03;
+      const roll = Math.min(out, r0 * Math.PI / 2);
+      const drop = Math.max(0, out - roll);
+      y = ty - (out < r0 * Math.PI / 2 ? r0 * (1 - Math.cos(out / r0)) : r0 + drop);
+      const push = (out < r0 * Math.PI / 2 ? r0 * Math.sin(out / r0) : r0) + 0.02 * fold * Math.min(1, drop / 0.15) + drop * 0.06;
+      const nx = ex > 0 ? Math.sign(u) : 0, nz = ez > 0 ? Math.sign(v) : 0;
+      const nl = Math.hypot(nx, nz) || 1;
+      x = cu + nx / nl * push; z = cv + nz / nl * push;
+      // pools on the floor
+      if (y < 0.004) { const extra = 0.004 - y; y = 0.004 + 0.008 * Math.abs(fold) * Math.min(1, extra / 0.05); x += nx / nl * extra * 0.9; z += nz / nl * extra * 0.9; }
+    }
+    p.setXYZ(i, x - offset[0], y, z - offset[1]);
+  }
+  geo.computeVertexNormals();
+  geo.translate(offset[0], 0, offset[1]);
+  return geo;
 }

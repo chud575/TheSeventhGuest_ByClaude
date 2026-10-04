@@ -34,16 +34,19 @@ function horseSDF(x, y, z) {
   // dished face: shave a little off the nose bridge between the eyes and the muzzle
   d = smax(d, -sdEllipsoid(x, y - 0.795, z - 0.29, 0.12, 0.038, 0.075) - 0.004, 0.02);
   // ---- forelock and ears
-  d = smin(d, sdEllipsoid(x, y - 0.868, z - 0.07, 0.034, 0.028, 0.05), 0.018);
+  // a full forelock tumbling forward over the brow, parted into three locks
+  for (const k of [-1, 0, 1]) d = smin(d, sdEllipsoid(x - k * 0.022, y - 0.868 + Math.abs(k) * 0.008, z - 0.085 - (1 - Math.abs(k)) * 0.012, 0.022, 0.026, 0.05), 0.016);
+  // short, broad, leaf-shaped ears laid back along the poll (not upright spikes)
   for (const s of [-1, 1]) {
-    const ear = sdRoundCone(x, y, (z - 0.012) * 1.7, [s * 0.04, 0.845, 0.0], [s * 0.052, 1.0, 0.04], 0.034, 0.006);
-    d = smin(d, ear / 1.3, 0.02);
-    d = ssub(d, sdEllipsoid(x - s * 0.047, y - 0.935, z - 0.04, 0.014, 0.048, 0.016), 0.006);
+    const ear = sdRoundCone(x, y, (z + 0.01) * 1.25, [s * 0.045, 0.85, -0.015], [s * 0.066, 0.94, -0.06], 0.032, 0.014);
+    d = smin(d, ear / 1.15, 0.02);
+    d = ssub(d, sdEllipsoid(x - s * 0.058, y - 0.905, z + 0.03, 0.014, 0.034, 0.02), 0.006);
   }
   // ---- eyes: socket, eyeball, brow
   for (const s of [-1, 1]) {
     d = ssub(d, sdSphere(x - s * 0.09, y - 0.805, z - 0.145, 0.03), 0.012);
-    d = smin(d, sdSphere(x - s * 0.062, y - 0.803, z - 0.147, 0.021), 0.004);
+    // the eyeball sits deep in its socket under the brow (no glossy bead to catch a light)
+    d = smin(d, sdSphere(x - s * 0.06, y - 0.8, z - 0.145, 0.018), 0.006);
     // nostrils
     d = ssub(d, sdEllipsoid(x - s * 0.033, y - 0.68, z - 0.43, 0.011, 0.017, 0.02), 0.006);
     // the cheek-plate edge, a shallow carved line sweeping up behind the jowl

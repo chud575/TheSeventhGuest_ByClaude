@@ -79,82 +79,136 @@ export function nightSky(ctx) {
 }
 
 /**
- * Rotted velvet for the bed hangings. uv 0..1 over one panel (u across, v bottom->top).
- * Alpha (use alphaTest 0.5): the hem is torn off in tatters at uneven heights, long rips run up
- * from it, a few ragged diagonal slashes cut the body, and loose threads hang from every torn
- * edge. No round holes, no wood-like streaks: the nap is a soft isotropic pile with crushed patches.
- * Dust settles toward the top (lighter, greyer), grime and fraying darken the torn edges.
+ * Rotted velvet for the bed hangings. uv 0..1 over one panel (u across, v bottom->top); `dim` is the
+ * panel's size in metres so every feature (threads, fray, tears) is metric whatever the panel shape.
+ * Alpha (alphaTest 0.5):
+ *  - the hem is torn off in tatters at uneven heights, with rips running up from between them;
+ *  - a few jagged rents in the body: a ragged main slit with a branch, edges chewed by noise, and
+ *    the weft threads that bridged the gap left dangling from either lip into the opening;
+ *  - every torn edge is surrounded by a 2-4 cm threadbare band where the pile has rubbed off and the
+ *    weave itself is opening up (warp and weft thinning, whole weft threads gone near the lip), so the
+ *    light shows through a sparse grid of threads before the cloth gives out;
+ *  - short loose threads hang from every edge.
+ * strip: a single long rag (torn on both sides, ending in a ragged point) for the strips hanging
+ * from the tester.
  */
-export function tornDrape(ctx, { seed = 1, color = [0.3, 0.085, 0.09], valance = false } = {}) {
-  return ctx.textures.generate(`bedroom:velvetDrape${seed}${valance ? 'v' : ''}`, {
-    size: 1024, aspect: valance ? 3.0 : 0.5, tile: false, normalStrength: 1.1, seed,
-    uniforms: { uCol: color, uS: seed * 7.13, uVal: valance ? 1 : 0 },
+export function tornDrape(ctx, { seed = 1, color = [0.3, 0.085, 0.09], valance = false, strip = false, dim = null } = {}) {
+  const D = dim || (valance ? [2.3, 0.52] : strip ? [0.16, 1.4] : [0.7, 2.4]);
+  const asp = D[0] / D[1];
+  return ctx.textures.generate(`bedroom:rotVelvet${seed}${valance ? 'v' : ''}${strip ? 's' : ''}${D.join('x')}`, {
+    size: 2048, aspect: Math.max(0.12, Math.min(4, asp)), tile: false, normalStrength: 1.0, seed,
+    uniforms: { uCol: color, uS: seed * 7.13, uVal: valance ? 1 : 0, uStrip: strip ? 1 : 0, uDim: D },
     glsl: /* glsl */ `
     float n01(vec2 p, float per, int o) { return fbm(p, vec2(per), o) * 0.5 + 0.5; }
+    float nz(vec2 p) { return fbm(p, vec2(4096.0), 3); }       // ~[-1,1], aperiodic enough at these scales
     void surface(vec2 uv, inout Surface s) {
-      vec2 p = uv;
-      float xs = uVal > 0.5 ? 3.0 : 1.0;            // valance panels are wide: keep features metric
-      vec2 m = vec2(p.x * xs, p.y);
-      // ---- tattered hem: strips of random width torn off at different heights
-      float sx = m.x * 5.0 + 0.8 * n01(vec2(m.x * 0.7, 0.2) + uS, 64.0, 3);
+      vec2 M = uv * uDim;                                      // metres
+      float W = uDim.x, Hh = uDim.y;
+      // ---------------- tattered hem (in metres)
+      float sx = M.x / 0.13 + 0.8 * n01(vec2(M.x * 1.3, 0.2) + uS, 64.0, 3);
       float sid = floor(sx), sf = fract(sx);
-      float hs = uVal > 0.5 ? (0.05 + 0.32 * pow(hash11(sid * 1.7 + uS), 2.0)) : (0.02 + 0.2 * pow(hash11(sid * 1.7 + uS), 2.2));
-      // the tatter tapers toward a ragged point at its lower end
-      hs += 0.06 * pow(abs(sf - 0.5) * 2.0, 2.0) * step(0.5, hash11(sid + 9.0 + uS));
-      float rag = 0.025 * fbm(vec2(m.x * 30.0, uS), vec2(512.0), 4) + 0.01 * fbm(vec2(m.x * 140.0, uS * 2.0), vec2(2048.0), 3);
-      float hem = hs + rag;
-      float eHem = p.y - hem;                        // > 0 cloth above the torn hem
-      // ---- rips running up from between the tatters
-      float tl = min(sf, 1.0 - sf) / 5.0;            // distance (uv) to the strip boundary
-      float ripLen = step(0.35, hash11(sid + 3.3 + uS)) * (0.12 + 0.45 * hash11(sid + 5.1 + uS)) * (uVal > 0.5 ? 1.6 : 1.0);
-      float rt = clamp((p.y - hem) / max(ripLen, 1e-3), 0.0, 1.0);
-      float ripW = (0.016 * (1.0 - rt) * (1.0 - rt) + 0.0015) * step(p.y, hem + ripLen);
-      float eRip = tl + 0.004 * fbm(vec2(m.x * 60.0, p.y * 40.0) + uS, vec2(512.0), 3) - ripW;
-      // ---- ragged slashes through the body (lens-shaped, wandering)
-      float eSl = 1.0;
-      if (uVal < 0.5) {
+      float hs = uVal > 0.5 ? (0.03 + 0.2 * pow(hash11(sid * 1.7 + uS), 2.0)) : (0.03 + 0.5 * pow(hash11(sid * 1.7 + uS), 2.2));
+      hs += 0.12 * pow(abs(sf - 0.5) * 2.0, 2.0) * step(0.5, hash11(sid + 9.0 + uS));
+      float rag = 0.022 * nz(vec2(M.x * 14.0, uS)) + 0.008 * nz(vec2(M.x * 70.0, uS * 2.0)) + 0.003 * nz(vec2(M.x * 300.0, uS * 3.0));
+      float eHem = M.y - (hs + rag);
+      // rips running up from between the tatters: ragged, wandering, chewed lips (not clean slits)
+      float tl = min(sf, 1.0 - sf) * 0.13;
+      float ripLen = step(0.55, hash11(sid + 3.3 + uS)) * (0.1 + 0.35 * hash11(sid + 5.1 + uS)) * (uVal > 0.5 ? 0.6 : 1.0);
+      float rt = clamp(eHem / max(ripLen, 1e-3), 0.0, 1.0);
+      float ripW = (0.03 * (1.0 - rt) * (0.6 + 0.8 * (nz(vec2(M.y * 9.0, sid + uS)) * 0.5 + 0.5)) + 0.002) * step(eHem, ripLen);
+      float eRip = (ripLen > 0.0 && eHem < ripLen) ? tl + 0.012 * nz(vec2(M.y * 7.0, sid * 3.1 + uS)) + 0.005 * nz(M * vec2(60.0, 40.0) + uS) - ripW : 1.0;
+      eRip = max(eRip, min(1.0, eHem - ripLen));
+      float edgeD = min(eHem, eRip);
+      // ---------------- the rag strips: torn down both long sides, ending in a ragged point
+      if (uStrip > 0.5) {
+        float y01 = M.y / Hh;
+        float hw = W * 0.5 * (0.35 + 0.65 * smoothstep(0.0, 0.55, y01)) * (0.85 + 0.15 * sin(M.y * 6.0 + uS));
+        float cx = W * 0.5 + 0.012 * sin(M.y * 4.0 + uS) ;
+        float eSide = hw - abs(M.x - cx) + 0.01 * nz(vec2(M.y * 12.0, uS + sign(M.x - cx))) + 0.004 * nz(vec2(M.y * 60.0, uS * 1.3 + sign(M.x - cx)));
+        float eEnd = M.y - (0.02 + 0.18 * pow(abs(M.x - cx) / (W * 0.5), 1.5)) - 0.03 * nz(vec2(M.x * 30.0, uS));
+        edgeD = min(eSide, eEnd);
+      }
+      // ---------------- rents through the body: a jagged slit with a branch, threads bridging it
+      float eT = 1.0; float span = 0.0;
+      if (uVal < 0.5 && uStrip < 0.5) {
         for (int i = 0; i < 6; i++) {
           float fi = float(i) + uS;
           if (hash11(fi * 3.7) < 0.35) continue;
-          vec2 c = vec2(0.15 + 0.7 * hash11(fi * 1.3), 0.2 + 0.6 * hash11(fi * 2.9));
-          float ang = (hash11(fi * 5.1) - 0.5) * 0.9;
-          float len = 0.06 + 0.12 * hash11(fi * 7.7);
-          vec2 q = rot2(ang) * ((p - c) * vec2(2.0, 1.0));
-          q.x += 0.012 * fbm(vec2(q.y * 25.0, fi), vec2(256.0), 3);
-          float t = clamp(q.y / len, -1.0, 1.0);
-          float w = (0.03 + 0.05 * hash11(fi * 9.3)) * (1.0 - t * t) * (0.75 + 0.5 * (fbm(vec2(q.y * 30.0, fi), vec2(256.0), 2) * 0.5 + 0.5));
-          float d = max(abs(q.x) - w, abs(q.y) - len) * 0.5;
-          eSl = min(eSl, d + 0.003 * fbm(p * 90.0 + fi, vec2(1024.0), 3));
+          vec2 c = vec2((0.15 + 0.7 * hash11(fi * 1.3)) * W, (0.3 + 0.55 * hash11(fi * 2.9)) * Hh);
+          float ang = (hash11(fi * 5.1) - 0.5) * 1.3;
+          float len = 0.1 + 0.28 * hash11(fi * 7.7);
+          float mw = 0.025 + 0.06 * hash11(fi * 9.3);
+          for (int b = 0; b < 3; b++) {
+            vec2 cc = c; float aa = ang; float ll = len; float ww = mw;
+            if (b > 0) { float fb = float(b); cc = c + rot2(-ang) * vec2(0.0, len * (hash11(fi * 4.1 + fb) - 0.5) * 1.2); aa = ang + (hash11(fi * 6.3 + fb) > 0.5 ? 1.0 : -1.0) * (0.6 + 0.7 * hash11(fi * 8.1 + fb)); ll = len * (0.3 + 0.3 * hash11(fi * 2.2 + fb)); ww = mw * 0.5; }
+            vec2 q = rot2(aa) * (M - cc);
+            // the lips wander and are chewed into tongues and notches at the centimetre scale
+            q.x += 0.016 * nz(vec2(q.y * 9.0, fi + float(b))) ;
+            float t = clamp(q.y / ll, -1.0, 1.0);
+            float side = sign(q.x);
+            float lobes = nz(vec2(q.y * 14.0, fi * 2.0 + side * 3.0)) * 0.5 + 0.5;
+            float w = ww * pow(max(0.0, 1.0 - t * t), 0.6) * (0.2 + 1.5 * lobes * lobes);
+            float d = max(abs(q.x) - w, abs(q.y) - ll * (0.85 + 0.3 * lobes));
+            d += 0.006 * nz(M * 45.0 + fi) + 0.0025 * nz(M * 160.0 + fi);
+            if (d < eT) {
+              eT = d;
+              // weft threads left bridging / dangling across the gap: each hangs from one lip and
+              // reaches a random way across (they bridge narrow gaps, dangle in wide ones)
+              float row = floor(q.y / 0.009);
+              float h1 = hash12(vec2(row, fi + float(b) * 7.0));
+              float onRow = step(fract(q.y / 0.009), 0.3);
+              float fromSide = h1 > 0.5 ? 1.0 : -1.0;
+              float reach = fract(h1 * 7.31) * (w < 0.025 ? 2.0 : 0.9);
+              float u2 = (q.x * fromSide + w) / max(2.0 * w, 1e-3);
+              span = onRow * step(0.4, fract(h1 * 3.7)) * step(u2, reach) * step(d, 0.0);
+            }
+          }
         }
       }
-      float edgeD = min(min(eHem, eRip), eSl);       // signed distance-ish to the nearest torn edge
+      edgeD = min(edgeD, eT);
       float alpha = step(0.0, edgeD);
-      // ---- loose threads hanging below the torn hem (thin, uneven lengths)
-      float tc = m.x * 420.0;
+      // ---------------- threadbare band round every torn edge: the weave opens up toward the lip
+      float band = 0.025 + 0.025 * (nz(M * 6.0 + uS) * 0.5 + 0.5);
+      if (uStrip > 0.5) band *= 0.4;
+      float wear = clamp(1.0 - edgeD / band, 0.0, 1.0) * step(0.0, edgeD);
+      {
+        float px = 0.0068, py = 0.0078;
+        float wx = fract(M.x / px), wy = fract(M.y / py);
+        float colId = floor(M.x / px), rowId = floor(M.y / py);
+        float weftGone = step(hash11(rowId * 1.37 + uS), wear * 1.15 - 0.2);
+        float warpGone = step(hash11(colId * 2.11 + uS * 1.7), wear * 0.7 - 0.35);
+        float thick = mix(0.85, 0.32, wear);
+        float onWarp = step(wx, thick) * (1.0 - warpGone);
+        float onWeft = step(wy, thick) * (1.0 - weftGone);
+        float bare = max(onWarp, onWeft);
+        alpha *= mix(1.0, bare, smoothstep(0.12, 0.3, wear));
+      }
+      // ---------------- loose threads hanging below every lower edge, short fibre whiskers on the rest
+      float tc = (M.x + 0.004 * sin(M.y * 90.0 + M.x * 30.0)) / 0.0068;
       float thr = step(fract(tc), 0.42) * step(0.35, hash11(floor(tc) + uS));
-      float tlen = 0.035 * hash11(floor(tc) * 1.31 + uS) * (uVal > 0.5 ? 1.4 : 1.0);
-      float hang = step(-tlen, eHem) * step(eHem, 0.0) * thr * step(0.0, eRip);
-      alpha = max(alpha, hang);
-      // ---- pile: soft isotropic nap + broad crushed patches (no directional streaks)
-      float crush = n01(p * vec2(2.5 * xs, 4.0) + uS * 2.0, 32.0, 4);
-      float nap = fbm(p * vec2(xs, 2.0) * 160.0, vec2(1024.0), 3);
-      float fray = 1.0 - smoothstep(0.0, 0.03, edgeD);
+      float tlen = (0.015 + 0.06 * pow(hash11(floor(tc) * 1.31 + uS), 1.5)) * (uVal > 0.5 ? 1.2 : 1.0);
+      float hang = step(-tlen, edgeD) * step(edgeD, 0.0) * thr;
+      float whisk = step(-0.008, edgeD) * step(edgeD, 0.0) * step(0.5, hash12(floor(M / 0.0068) + uS));
+      alpha = max(alpha, max(hang, whisk));
+      alpha = max(alpha, span);
+      // ---------------- pile: soft isotropic nap + broad crushed patches
+      float crush = n01(M * vec2(3.0, 2.2) + uS * 2.0, 32.0, 4);
+      float nap = nz(M * 220.0);
       vec3 c = uCol * (0.72 + 0.45 * crush) * (0.95 + 0.05 * nap);
-      // worn threads at the torn edges go pale and greyed; grime toward the hem
+      // the pile rubbed away in the band: the bare ground weave is paler, greyer, flatter
       float dl = dot(c, vec3(0.333));
-      c = mix(c, vec3(dl) * 1.6 + vec3(0.03, 0.025, 0.02), fray * 0.55);
-      c = mix(c, c * 0.55, smoothstep(0.35, 0.0, p.y) * 0.4);
-      // dust: a grey film that thickens toward the top (and on the tatters' ends)
-      float dust = smoothstep(0.35, 1.0, p.y) * 0.45 + 0.12 * n01(p * 9.0 + uS, 64.0, 4);
-      c = mix(c, vec3(0.26, 0.24, 0.22), clamp(dust, 0.0, 0.6) * 0.55);
-      // threads are lighter, fibrous
-      c = mix(c, vec3(0.36, 0.3, 0.27), hang * step(edgeD, 0.0) * 0.6);
+      c = mix(c, vec3(dl) * 1.5 + vec3(0.05, 0.035, 0.03), wear * 0.6);
+      c = mix(c, c * 0.55, smoothstep(0.6, 0.0, M.y) * 0.35);
+      float dust = smoothstep(0.35, 1.0, uv.y) * 0.45 + 0.12 * n01(M * 4.0 + uS, 64.0, 4);
+      c = mix(c, vec3(0.26, 0.24, 0.22), clamp(dust, 0.0, 0.6) * 0.5);
+      float isThread = max(max(hang, whisk), span) * (1.0 - step(0.0, edgeD));
+      c = mix(c, vec3(0.38, 0.3, 0.26), isThread * 0.7);
       s.albedo = c;
       s.alpha = alpha;
-      s.height = 0.5 + 0.18 * crush + 0.04 * nap - fray * 0.12;
+      s.height = 0.5 + 0.16 * crush + 0.04 * nap - wear * 0.14;
       s.rough = 0.9;
       s.metal = 0.0;
-      s.ao = 1.0 - fray * 0.25;
+      s.ao = 1.0 - wear * 0.2;
     }`,
   });
 }
@@ -353,8 +407,8 @@ export function knightsBoard(ctx, { aspect = 2.0, board = 0.82 } = {}) {
 export function crackedMirror(ctx, { aspect = 0.7, impact = [0.62, 0.58], seeds = [] } = {}) {
   const S = seeds.concat(Array(10).fill([9, 9])).slice(0, 10);
   const pack = (i) => [S[i][0], S[i][1], S[i + 1][0], S[i + 1][1]];
-  return ctx.textures.generate('bedroom:mirror3', {
-    size: 1024, aspect, tile: false, normalStrength: 1.6,
+  return ctx.textures.generate('bedroom:mirror4', {
+    size: 2048, aspect, tile: false, normalStrength: 1.6,
     uniforms: { uImp: impact, uAsp: aspect, uS0: pack(0), uS1: pack(2), uS2: pack(4), uS3: pack(6), uS4: pack(8) },
     glsl: /* glsl */ `
     float lineD(vec2 p, float ang, float wob, float seed) {
@@ -395,9 +449,18 @@ export function crackedMirror(ctx, { aspect = 0.7, impact = [0.62, 0.58], seeds 
       float starA = fract(ang / 6.2832 * 19.0 + 0.3 * fbm(vec2(r * 30.0, 0.0), vec2(64.0), 2));
       float star = min(starA, 1.0 - starA) * r * 6.2832 / 19.0 + step(0.03 + 0.015 * hash11(floor(ang / 6.2832 * 19.0)), r);
       crack = min(crack, star);
+      // radial micro-fractures spraying out from the blow (short, hair-thin, uneven lengths)
+      float nr = 61.0;
+      float mfA = fract(ang / 6.2832 * nr + 0.15 * fbm(vec2(r * 60.0, 3.0), vec2(64.0), 2));
+      float mfId = floor(ang / 6.2832 * nr);
+      float mfLen = 0.03 + 0.09 * pow(hash11(mfId * 1.7 + 4.0), 2.0);
+      float micro = min(mfA, 1.0 - mfA) * r * 6.2832 / nr + step(mfLen, r) + step(hash11(mfId * 3.3), 0.35);
+      float microLine = smoothstep(0.0007, 0.0001, micro) * smoothstep(0.012, 0.03, r);
       float crushed = smoothstep(0.016, 0.0, r + 0.005 * fbm(p * 200.0, vec2(256.0), 3));
-      float line = smoothstep(0.0018, 0.0004, crack);
-      float lip = smoothstep(0.006, 0.0, seam);          // bevelled, ground edge along each seam
+      float line = smoothstep(0.0011, 0.0002, crack);
+      // the fracture faces along each seam: a hairline bright refraction glint with a thin dark shadow beside it
+      float glint = smoothstep(0.0014, 0.0003, seam);
+      float lip = smoothstep(0.0035, 0.0012, seam) * (1.0 - glint);
       // desilvering: from the frame inward, and flaking along the seams near the blow
       vec2 e = min(uv, 1.0 - uv) * vec2(uAsp, 1.0);
       float edge = min(e.x, e.y);
@@ -405,16 +468,31 @@ export function crackedMirror(ctx, { aspect = 0.7, impact = [0.62, 0.58], seeds 
       float desil = smoothstep(0.075, 0.0, edge + fn * 0.05 - 0.008);
       float blot = smoothstep(0.6, 0.7, fbm(uv * 6.0 + 3.0, vec2(64.0), 5) * 0.5 + 0.5) * smoothstep(0.2, 0.04, edge);
       float flake = smoothstep(0.55, 0.62, fbm(uv * 26.0 + 7.0, vec2(256.0), 4) * 0.5 + 0.5) * smoothstep(0.02, 0.0, min(seam, crack)) * smoothstep(0.35, 0.05, r);
+      // foxing: the silver going to brown-black freckles and clouds, densest toward the frame,
+      // the centre of the glass still clean
+      float fox = 0.0;
+      for (int k = 0; k < 3; k++) {
+        float fk = float(k);
+        vec2 cell = uv * vec2(uAsp, 1.0) * (18.0 + fk * 14.0);
+        vec2 ci = floor(cell); vec2 cf = fract(cell) - 0.5;
+        vec2 o = (hash22(ci + fk * 17.0) - 0.5) * 0.6;
+        float rr = 0.08 + 0.22 * hash12(ci * 1.3 + fk);
+        float present = step(0.86 - 0.36 * smoothstep(0.2, 0.0, edge), hash12(ci + 3.1 + fk * 5.0));
+        fox = max(fox, present * smoothstep(rr, rr * 0.4, length(cf - o) + 0.06 * fbm(uv * 90.0 + fk, vec2(256.0), 2)));
+      }
+      float cloud = smoothstep(0.55, 0.85, fbm(uv * 3.0 + 11.0, vec2(64.0), 5) * 0.5 + 0.5) * smoothstep(0.32, 0.06, edge);
       float bad = clamp(max(max(desil, blot), flake), 0.0, 1.0);
-      vec3 silver = vec3(0.8, 0.8, 0.78);
+      vec3 silver = vec3(0.82, 0.81, 0.78);
       vec3 col = mix(silver, vec3(0.025, 0.022, 0.02), bad);
-      col *= 1.0 - lip * 0.35;
-      col = mix(col, vec3(0.55), line * 0.35);
+      col = mix(col, vec3(0.2, 0.14, 0.09), fox * 0.75 * (1.0 - bad));
+      col = mix(col, col * vec3(0.55, 0.5, 0.42), cloud * 0.7);
+      col *= 1.0 - lip * 0.6;
+      col = mix(col, vec3(1.0), (glint + line * 0.8 + microLine * 0.6) * 0.5);
       col = mix(col, vec3(0.3), crushed);
       s.albedo = col;
-      s.metal = 1.0 - bad;
-      s.rough = 0.04 + lip * 0.18 + line * 0.15 + crushed * 0.5 + bad * 0.8;
-      s.height = 0.5 - line * 0.25 - lip * 0.15 - crushed * 0.2;
+      s.metal = (1.0 - bad) * (1.0 - fox * 0.8);
+      s.rough = 0.05 + lip * 0.1 + line * 0.1 + crushed * 0.5 + bad * 0.8 + fox * 0.6 + cloud * 0.12;
+      s.height = 0.5 - line * 0.2 - microLine * 0.1 - lip * 0.1 - crushed * 0.2;
       s.ao = 1.0 - lip * 0.3;
     }`,
   });
@@ -626,7 +704,7 @@ export function cobweb(ctx, { seed = 0 } = {}) {
 
 /** Carved bone for the light knights: faint longitudinal grain, Haversian pores, age-yellowing. tiles; 1 unit = piece height */
 export function boneGrain(ctx) {
-  return ctx.textures.generate('bedroom:bone', {
+  return ctx.textures.generate('bedroom:bone2', {
     size: 512, tile: true, normalStrength: 0.6,
     glsl: /* glsl */ `
     void surface(vec2 uv, inout Surface s) {
@@ -639,8 +717,13 @@ export function boneGrain(ctx) {
       c *= 0.94 + 0.06 * g;
       c = mix(c, vec3(0.93, 0.86, 0.72), smoothstep(0.2, 0.8, age) * 0.5);
       c = mix(c, vec3(0.75, 0.66, 0.52), streak * 0.18 + pore * 0.4);
+      // age checks: hairline splits running with the grain, stained brown where dirt has got in
+      float cx = uv.x * 9.0 + 0.25 * fbm(vec2(uv.y * 3.0, uv.x * 2.0), vec2(3.0, 2.0), 3);
+      float cid = floor(cx);
+      float chk = smoothstep(0.035, 0.0, abs(fract(cx) - 0.5)) * step(0.55, hash11(cid * 7.1)) * smoothstep(0.2, 0.6, fbm(vec2(cid, uv.y * 4.0), vec2(64.0, 4.0), 3) * 0.5 + 0.5);
+      c = mix(c, vec3(0.42, 0.32, 0.2), chk * 0.7);
       s.albedo = c;
-      s.height = 0.5 + 0.1 * g - pore * 0.2;
+      s.height = 0.5 + 0.1 * g - pore * 0.2 - chk * 0.2;
       s.rough = 0.34 + 0.12 * streak + pore * 0.3;
       s.metal = 0.0; s.ao = 1.0 - pore * 0.3;
     }`,
@@ -1116,6 +1199,211 @@ export function fireBrick(ctx) {
       s.rough = mix(0.95, mix(0.82, 0.35, glaze), brick);
       s.metal = 0.0;
       s.ao = mix(0.55, 1.0, brick);
+    }`,
+  });
+}
+
+/**
+ * Cut-velvet damask upholstery for the wing chair: a raised oxblood pile motif on a flatter satin
+ * ground, the pile rubbed bald and gone brown in broad patches, fine weave, crushed nap. Tiles;
+ * 1 tile = one motif repeat (~0.32 m at the repeat the room uses).
+ */
+export function cutVelvet(ctx) {
+  return ctx.textures.generate('bedroom:cutVelvet', {
+    size: 1024, tile: true, normalStrength: 1.4,
+    glsl: /* glsl */ `
+    float motif(vec2 p) {
+      p.x = abs(p.x);
+      float d = sdVesica(p - vec2(0.0, 0.04), 0.3, 0.26);
+      d = max(d, -sdVesica(p - vec2(0.0, 0.06), 0.18, 0.15));
+      d = min(d, sdVesica(p - vec2(0.0, 0.06), 0.1, 0.07));
+      d = min(d, sdVesica(rot2(-0.9) * (p - vec2(0.16, -0.12)), 0.14, 0.1));
+      d = min(d, sdVesica(rot2(-0.3) * (p - vec2(0.24, 0.12)), 0.09, 0.06));
+      d = min(d, abs(sdCircle(p - vec2(0.0, -0.3), 0.07)) - 0.014);
+      d = min(d, sdCircle(p - vec2(0.0, 0.4), 0.035));
+      vec2 q = p - vec2(0.0, -0.18);
+      for (int i = 0; i < 4; i++) { vec2 r = rot2(-1.0 + float(i) * 0.66) * q; d = min(d, sdVesica(r - vec2(0.0, -0.08), 0.06, 0.045)); }
+      return d;
+    }
+    void surface(vec2 uv, inout Surface s) {
+      float dA = motif((uv - vec2(0.5, 0.5)) * 1.15);
+      float dB = motif((fract(uv + vec2(0.5, 0.5)) - 0.5) * 1.15);
+      float mo = smoothstep(0.008, -0.008, min(dA, dB));
+      float weave = (sin(uv.x * 900.0) * sin(uv.y * 900.0)) * 0.5 + 0.5;
+      float crush = fbm(uv * 3.0 + 1.3, vec2(3.0), 5) * 0.5 + 0.5;
+      float fib = vnoise(uv * 900.0, vec2(900.0));
+      // bald patches where hands and heads have rubbed the pile away
+      float rub = smoothstep(0.55, 0.75, fbm(uv * 2.0 + 7.0, vec2(2.0), 5) * 0.5 + 0.5);
+      float pile = mo * (1.0 - rub * 0.85);
+      vec3 ground = vec3(0.17, 0.045, 0.035) * (0.92 + 0.08 * weave);
+      vec3 pileC = vec3(0.24, 0.06, 0.045) * (0.7 + 0.55 * crush) * (0.93 + 0.07 * fib);
+      vec3 c = mix(ground, pileC, pile);
+      c = mix(c, vec3(0.2, 0.11, 0.07), rub * 0.45);
+      float stain = smoothstep(0.62, 0.7, fbm(uv * 1.3 + 4.0, vec2(1.3), 5) * 0.5 + 0.5);
+      c = mix(c, c * vec3(0.7, 0.62, 0.5), stain * 0.5);
+      s.albedo = c;
+      s.height = 0.4 + 0.22 * pile + 0.05 * weave * (1.0 - pile) + 0.04 * fib * pile;
+      s.rough = mix(0.62, 0.9, pile) + rub * 0.05;
+      s.metal = 0.0;
+      s.ao = 0.85 + 0.15 * pile;
+    }`,
+  });
+}
+
+/**
+ * Oil portrait of a young woman (the lady of the room): a dark-haired sitter in a deep blue silk gown
+ * against a stormy umber ground, lit from the upper left, painted in layers (half-tone, light, shadow,
+ * accents), then re-laid in form-following brush strokes sampled from itself, varnished, cracked.
+ * 1024 x 1360 canvas.
+ */
+export function ladyPortrait(ctx) {
+  return ctx.textures.canvas('bedroom:lady1', 1024, 1360, (g, w, h) => {
+    const rnd = (i) => { const x = Math.sin(i * 37.71 + 3.3) * 43758.5453; return x - Math.floor(x); };
+    const blob = (x, y, rx, ry, col, rot = 0) => { g.fillStyle = col; g.beginPath(); g.ellipse(x, y, rx, ry, rot, 0, 7); g.fill(); };
+    const glow = (x, y, r, c0, c1 = 'rgba(0,0,0,0)', sx = 1, sy = 1) => {
+      g.save(); g.translate(x, y); g.scale(sx, sy);
+      const gr = g.createRadialGradient(0, 0, 0, 0, 0, r); gr.addColorStop(0, c0); gr.addColorStop(1, c1);
+      g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r, 0, 7); g.fill(); g.restore();
+    };
+    // ground: dark stormy umber with a cool break of sky low on the left (romantic landscape backdrop)
+    const bg = g.createRadialGradient(w * 0.38, h * 0.3, 30, w * 0.5, h * 0.45, h * 0.8);
+    bg.addColorStop(0, '#4a4034'); bg.addColorStop(0.45, '#221c16'); bg.addColorStop(1, '#090706');
+    g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    glow(w * 0.12, h * 0.62, 260, 'rgba(70,82,92,0.45)', 'rgba(0,0,0,0)', 1.3, 0.6);
+    for (let i = 0; i < 500; i++) glow(rnd(i + 2) * w, rnd(i + 3) * h, 20 + rnd(i + 4) * 90, `rgba(${46 + rnd(i) * 40},${38 + rnd(i + 1) * 26},${26 + rnd(i + 5) * 20},0.06)`);
+    const cx = w * 0.52, hy = h * 0.3;
+    // gown: deep blue silk, off the shoulder, highlights running along the folds
+    g.fillStyle = '#0f1630';
+    g.beginPath(); g.moveTo(cx - 470, h); g.bezierCurveTo(cx - 430, h * 0.72, cx - 300, h * 0.6, cx - 200, h * 0.585); g.lineTo(cx + 210, h * 0.585);
+    g.bezierCurveTo(cx + 300, h * 0.6, cx + 430, h * 0.72, cx + 460, h); g.closePath(); g.fill();
+    for (let k = 0; k < 12; k++) {
+      const x0 = cx - 380 + k * 70 + rnd(k) * 30;
+      g.strokeStyle = `rgba(${70 + rnd(k + 1) * 50},${90 + rnd(k + 1) * 50},${150 + rnd(k + 2) * 60},${0.18 + rnd(k + 3) * 0.2})`; g.lineWidth = 8 + rnd(k + 4) * 18;
+      g.beginPath(); g.moveTo(x0, h * 0.62 + rnd(k) * 30); g.bezierCurveTo(x0 + 20, h * 0.75, x0 - 20, h * 0.86, x0 + 10 - (k - 6) * 6, h); g.stroke();
+    }
+    glow(cx - 230, h * 0.66, 200, 'rgba(110,130,190,0.3)', 'rgba(0,0,0,0)', 1, 1.3);
+    // shoulders, collarbones and neck: pale, cool in the half-tones, warm in the light
+    g.fillStyle = '#b89a82';
+    g.beginPath(); g.moveTo(cx - 205, h * 0.588); g.bezierCurveTo(cx - 180, h * 0.52, cx - 90, h * 0.49, cx - 58, hy + 175);
+    g.lineTo(cx + 62, hy + 175); g.bezierCurveTo(cx + 95, h * 0.49, cx + 185, h * 0.52, cx + 212, h * 0.588); g.closePath(); g.fill();
+    glow(cx - 110, h * 0.54, 140, 'rgba(236,212,190,0.85)', 'rgba(236,212,190,0)', 1.3, 0.7);
+    glow(cx + 140, h * 0.55, 120, 'rgba(70,56,60,0.75)', 'rgba(70,56,60,0)', 1.1, 0.8);
+    g.strokeStyle = 'rgba(120,90,80,0.35)'; g.lineWidth = 5;
+    for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(cx + sd * 20, h * 0.535); g.quadraticCurveTo(cx + sd * 80, h * 0.525, cx + sd * 130, h * 0.54); g.stroke(); }
+    g.fillStyle = '#a88a74'; g.fillRect(cx - 50, hy + 130, 100, 120);
+    glow(cx + 25, hy + 165, 70, 'rgba(60,40,36,0.75)', 'rgba(0,0,0,0)', 1.1, 0.8);
+    // a black velvet ribbon at the throat with a cameo
+    g.fillStyle = '#0a0808'; g.fillRect(cx - 52, hy + 200, 104, 16);
+    blob(cx, hy + 224, 14, 17, '#d8c8b0'); blob(cx, hy + 224, 10, 13, '#7a5a48');
+    // ---- head: an oval turned a little to her right, lit from the upper left
+    blob(cx, hy, 118, 158, '#b0907a');
+    glow(cx - 50, hy - 30, 170, 'rgba(240,218,198,0.95)', 'rgba(240,218,198,0)', 0.9, 1.15);
+    glow(cx + 95, hy + 30, 130, 'rgba(70,50,46,0.88)', 'rgba(70,50,46,0)', 0.65, 1.25);
+    glow(cx + 102, hy + 50, 40, 'rgba(150,118,104,0.45)', 'rgba(0,0,0,0)', 0.6, 1.6);
+    glow(cx - 58, hy + 38, 40, 'rgba(232,170,150,0.45)');                                     // flushed cheek
+    glow(cx + 46, hy + 44, 34, 'rgba(170,110,100,0.3)');
+    glow(cx - 30, hy - 92, 60, 'rgba(246,228,208,0.55)', 'rgba(0,0,0,0)', 1.5, 0.6);           // forehead light
+    glow(cx + 8, hy + 135, 50, 'rgba(90,60,50,0.55)', 'rgba(0,0,0,0)', 1.4, 0.6);              // under the chin
+    // eyes: lids, irises, catch-lights, lashes; the far eye a little in shadow
+    for (const sd of [-1, 1]) {
+      const ex = cx + sd * 45 - 4, ey = hy - 8;
+      glow(ex, ey - 4, 40, sd < 0 ? 'rgba(120,84,72,0.55)' : 'rgba(60,40,36,0.75)', 'rgba(0,0,0,0)', 1.25, 0.85);
+      g.save(); g.beginPath(); g.ellipse(ex, ey, 22, 9.5, 0, 0, 7); g.clip();
+      g.fillStyle = sd < 0 ? '#d4c6b4' : '#8a7a6c'; g.fillRect(ex - 25, ey - 12, 50, 24);
+      blob(ex + 2, ey + 1, 9, 9, sd < 0 ? '#3e2c1e' : '#261a12');
+      blob(ex + 2, ey + 1, 4, 4, '#0a0604');
+      g.fillStyle = 'rgba(40,24,18,0.5)'; g.fillRect(ex - 25, ey - 12, 50, 7);
+      g.restore();
+      blob(ex - 1, ey - 3, 2.2, 2.2, sd < 0 ? 'rgba(255,250,240,0.95)' : 'rgba(255,250,240,0.5)');
+      g.strokeStyle = 'rgba(28,16,10,0.95)'; g.lineWidth = 3.5; g.beginPath(); g.ellipse(ex, ey + 1, 23, 10.5, 0, Math.PI * 1.04, Math.PI * 1.96); g.stroke();
+      g.strokeStyle = 'rgba(70,44,34,0.55)'; g.lineWidth = 2; g.beginPath(); g.ellipse(ex, ey - 6, 25, 12, 0, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
+      // brows: fine arches
+      for (let k = 0; k < 14; k++) { const t = k / 13; g.strokeStyle = `rgba(36,24,16,${0.35 + rnd(k + sd * 7) * 0.3})`; g.lineWidth = 2.5 + rnd(k) * 2; g.beginPath(); g.moveTo(ex + sd * (-18 + t * 44), ey - 30 - Math.sin(t * 3.1) * 9); g.lineTo(ex + sd * (-14 + t * 44), ey - 33 - Math.sin(t * 3.1) * 9); g.stroke(); }
+    }
+    // nose: a long lit bridge, the shadow plane falling right, a soft tip
+    g.fillStyle = 'rgba(96,66,56,0.5)'; g.beginPath(); g.moveTo(cx + 6, hy - 10); g.quadraticCurveTo(cx + 24, hy + 50, cx + 22, hy + 70); g.lineTo(cx + 2, hy + 72); g.closePath(); g.fill();
+    glow(cx - 6, hy + 25, 12, 'rgba(250,232,214,0.6)', 'rgba(0,0,0,0)', 0.5, 3.0);
+    glow(cx - 2, hy + 62, 12, 'rgba(250,232,214,0.55)');
+    blob(cx - 11, hy + 75, 6, 3.5, 'rgba(80,44,36,0.7)'); blob(cx + 13, hy + 75, 6, 3.5, 'rgba(50,28,22,0.8)');
+    // mouth: small, full, unsmiling
+    g.fillStyle = '#8e4a44'; g.beginPath(); g.moveTo(cx - 30, hy + 100); g.quadraticCurveTo(cx - 10, hy + 92, cx, hy + 96); g.quadraticCurveTo(cx + 10, hy + 92, cx + 28, hy + 99); g.quadraticCurveTo(cx, hy + 104, cx - 30, hy + 100); g.fill();
+    g.fillStyle = '#a65e56'; g.beginPath(); g.moveTo(cx - 26, hy + 101); g.quadraticCurveTo(cx, hy + 120, cx + 25, hy + 100); g.quadraticCurveTo(cx, hy + 106, cx - 26, hy + 101); g.fill();
+    g.strokeStyle = '#3a1a16'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(cx - 30, hy + 100.5); g.quadraticCurveTo(cx, hy + 106, cx + 28, hy + 99.5); g.stroke();
+    glow(cx - 6, hy + 110, 12, 'rgba(240,190,170,0.5)', 'rgba(0,0,0,0)', 1.4, 0.5);
+    // hair: centre-parted, smoothed over the ears into a low chignon; ringlets at the temples
+    g.fillStyle = '#17100b';
+    g.beginPath(); g.moveTo(cx, hy - 160); g.bezierCurveTo(cx - 120, hy - 168, cx - 150, hy - 60, cx - 128, hy + 40); g.bezierCurveTo(cx - 112, hy + 60, cx - 100, hy - 40, cx - 70, hy - 110); g.quadraticCurveTo(cx - 30, hy - 135, cx, hy - 138); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(cx, hy - 160); g.bezierCurveTo(cx + 120, hy - 168, cx + 152, hy - 60, cx + 130, hy + 40); g.bezierCurveTo(cx + 114, hy + 60, cx + 100, hy - 40, cx + 70, hy - 110); g.quadraticCurveTo(cx + 30, hy - 135, cx, hy - 138); g.closePath(); g.fill();
+    blob(cx + 120, hy + 70, 70, 62, '#120c08');                                                // chignon behind the far ear
+    for (let k = 0; k < 120; k++) { const sd = k % 2 ? 1 : -1; const t = rnd(k); g.strokeStyle = `rgba(${70 + rnd(k + 1) * 50},${48 + rnd(k + 1) * 30},${30 + rnd(k + 1) * 20},${sd < 0 ? 0.35 : 0.18})`; g.lineWidth = 2 + rnd(k + 2) * 2; g.beginPath(); g.moveTo(cx + sd * 4, hy - 150 + t * 6); g.bezierCurveTo(cx + sd * (60 + t * 30), hy - 150, cx + sd * (130 + t * 10), hy - 90, cx + sd * (120 + t * 14), hy + 20 + t * 20); g.stroke(); }
+    for (const sd of [-1, 1]) for (let k = 0; k < 3; k++) { const pts = []; for (let i = 0; i <= 20; i++) { const t = i / 20; pts.push([cx + sd * (128 + k * 10) + Math.sin(t * 18 + k) * 7, hy + 20 + t * 110]); } g.strokeStyle = 'rgba(30,20,14,0.9)'; g.lineWidth = 7; g.beginPath(); g.moveTo(...pts[0]); for (const p of pts) g.lineTo(...p); g.stroke(); g.strokeStyle = 'rgba(110,80,56,0.35)'; g.lineWidth = 2; g.stroke(); }
+    // pearl drop earring on the lit side
+    blob(cx - 124, hy + 72, 6, 8, '#e8e0d0'); glow(cx - 126, hy + 69, 3, 'rgba(255,255,255,0.9)');
+    // ---- re-lay in directional brush strokes sampled from itself
+    {
+      const src = g.getImageData(0, 0, w, h).data;
+      const at = (x, y) => { const i = ((Math.min(h - 1, Math.max(0, y | 0)) * w) + Math.min(w - 1, Math.max(0, x | 0))) * 4; return [src[i], src[i + 1], src[i + 2]]; };
+      for (let i = 0; i < 40000; i++) {
+        const x = rnd(i * 2 + 211) * w, y = rnd(i * 2 + 212) * h;
+        const inFace = Math.hypot((x - cx) / 125, (y - hy) / 165) < 1;
+        const nearEye = Math.abs(y - (hy - 8)) < 20 && Math.abs(Math.abs(x - cx + 4) - 45) < 30;
+        if (nearEye || (Math.abs(y - (hy + 100)) < 14 && Math.abs(x - cx) < 34)) continue;   // keep the features crisp
+        const [r, gg, b] = at(x, y);
+        const ang = inFace ? Math.atan2(y - hy, x - cx) + Math.PI / 2 + (rnd(i + 7) - 0.5) * 0.4 : 0.9 + Math.sin(x * 0.012 + y * 0.01) * 0.6 + (rnd(i + 7) - 0.5) * 0.4;
+        const len = inFace ? 4 + rnd(i + 3) * 6 : 10 + rnd(i + 3) * 24, wd = inFace ? 1.4 + rnd(i + 4) * 1.6 : 2.5 + rnd(i + 4) * 4;
+        const j = (rnd(i + 5) - 0.5) * 12;
+        g.fillStyle = `rgba(${r + j},${gg + j * 0.9},${b + j * 0.8},${inFace ? 0.5 : 0.4})`;
+        g.beginPath(); g.ellipse(x, y, len, wd, ang, 0, 7); g.fill();
+      }
+    }
+    // varnish, vignette, craquelure
+    g.fillStyle = 'rgba(120,90,30,0.16)'; g.fillRect(0, 0, w, h);
+    const vg = g.createRadialGradient(cx, h * 0.38, h * 0.2, cx, h * 0.5, h * 0.78); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.6)');
+    g.fillStyle = vg; g.fillRect(0, 0, w, h);
+    g.strokeStyle = 'rgba(10,6,4,0.38)'; g.lineWidth = 1.1;
+    for (let i = 0; i < 800; i++) {
+      let x = rnd(i * 3 + 5) * w, y = rnd(i * 3 + 6) * h; g.beginPath(); g.moveTo(x, y);
+      for (let k = 0; k < 4; k++) { x += (rnd(i * 7 + k + 3) - 0.5) * 46; y += (rnd(i * 11 + k + 3) - 0.5) * 46; g.lineTo(x, y); }
+      g.stroke();
+    }
+  }, { tile: false });
+}
+
+/**
+ * Lath and plaster for the hidden stairwell: old lime plaster, grey and water-stained, broken away
+ * in ragged patches to show the riven oak laths behind (horizontal strips with dark gaps and the
+ * lumps of plaster key squeezed between them). Tiles; 1 tile = 1 m.
+ */
+export function lathPlaster(ctx) {
+  return ctx.textures.generate('bedroom:lathPlaster', {
+    size: 1024, tile: true, normalStrength: 2.2,
+    glsl: /* glsl */ `
+    void surface(vec2 uv, inout Surface s) {
+      float n = fbm(uv * 2.0 + 3.0, vec2(2.0), 6) * 0.5 + 0.5;
+      float n2 = fbm(uv * 9.0 + 1.0, vec2(9.0), 4) * 0.5 + 0.5;
+      float hole = smoothstep(0.64, 0.66, n + (n2 - 0.5) * 0.12);                  // plaster fallen away
+      float rim = smoothstep(0.6, 0.64, n + (n2 - 0.5) * 0.12) * (1.0 - hole);     // the broken plaster edge
+      // laths: 36 mm strips with 9 mm gaps, butt joints staggered, riven (wavy, uneven)
+      float ly = uv.y * 22.0 + 0.08 * fbm(vec2(uv.x * 3.0, uv.y * 22.0), vec2(3.0, 22.0), 3);
+      float row = floor(ly), f = fract(ly);
+      float gap = smoothstep(0.78, 0.82, f);
+      float joint = smoothstep(0.012, 0.0, abs(fract(uv.x * 1.2 + hash11(row) ) - 0.5) - 0.49);
+      float grain = fbm(vec2(uv.x * 2.0, ly * 6.0), vec2(2.0, 132.0), 4) * 0.5 + 0.5;
+      vec3 lath = mix(vec3(0.24, 0.17, 0.11), vec3(0.4, 0.3, 0.2), grain) * (0.75 + 0.5 * hash11(row * 3.1));
+      float key = step(0.55, fbm(uv * vec2(40.0, 22.0), vec2(40.0, 22.0), 2) * 0.5 + 0.5) * gap;   // plaster key in the gaps
+      vec3 behind = mix(lath, vec3(0.02, 0.018, 0.016), max(gap * (1.0 - key), joint));
+      behind = mix(behind, vec3(0.45, 0.43, 0.4), key * 0.8);
+      // plaster face: lime, a little blotchy, tide-marked damp
+      float stain = smoothstep(0.55, 0.75, fbm(uv * 1.5 + 9.0, vec2(1.5), 5) * 0.5 + 0.5);
+      vec3 pl = vec3(0.5, 0.49, 0.46) * (0.88 + 0.16 * n2);
+      pl = mix(pl, pl * vec3(0.78, 0.7, 0.58), stain * 0.6);
+      pl *= 1.0 - smoothstep(0.015, 0.0, abs(stain - 0.5)) * 0.15;
+      vec3 c = mix(pl, behind, hole);
+      c = mix(c, vec3(0.62, 0.6, 0.56), rim * 0.5);                                 // fresh broken edge is paler
+      s.albedo = c;
+      s.height = mix(0.6 + 0.03 * n2, 0.3 - gap * 0.2 + grain * 0.05 + key * 0.15, hole) + rim * 0.04;
+      s.rough = mix(0.92, 0.85, hole);
+      s.metal = 0.0; s.ao = mix(1.0, 0.7 - gap * 0.4, hole);
     }`,
   });
 }
