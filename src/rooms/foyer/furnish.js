@@ -147,12 +147,17 @@ export function bustOnPlinth(ctx, { marble, plinthMat }) {
   const yaw = 0.35, cy = Math.cos(yaw), sy = Math.sin(yaw);
   const sdf = (x, y, z) => {
     // chest and shoulders
-    let d = sdEllipsoid(x, y - 0.1, z, 0.215, 0.14, 0.11);
-    d = smin(d, sdEllipsoid(x - 0.13, y - 0.17, z + 0.005, 0.085, 0.05, 0.075), 0.05);
-    d = smin(d, sdEllipsoid(x + 0.13, y - 0.17, z + 0.005, 0.085, 0.05, 0.075), 0.05);
-    // toga: diagonal folds from the left shoulder across the chest, deepest at the front
-    const fold = Math.sin((x * 0.8 + y * 1.3) * 42) * 0.0055 * Math.max(0, Math.min(1, (z + 0.02) * 12)) * (x < 0.08 ? 1 : 0.25);
-    d += fold;
+    // the classic truncated herm bust: chest tapers to the socle, shoulders cut in a curve
+    const taper = 0.62 + 0.38 * Math.min(1, Math.max(0, y / 0.17));
+    let d = sdEllipsoid(x / taper, y - 0.11, z, 0.2, 0.13, 0.1) * Math.min(1, taper);
+    d = smin(d, sdEllipsoid(x - 0.125, y - 0.175, z + 0.005, 0.075, 0.045, 0.07), 0.05);
+    d = smin(d, sdEllipsoid(x + 0.125, y - 0.175, z + 0.005, 0.075, 0.045, 0.07), 0.05);
+    d = smax(d, -(y - 0.075 + 0.25 * x * x * 4), 0.01);   // curved truncation of the arms
+    // toga: a swag of deep folds hanging diagonally from the left shoulder across the breast
+    const u = x * 0.75 + y * 0.9;
+    const front = Math.max(0, Math.min(1, (z + 0.01) * 14));
+    const swag = Math.max(0, 1 - Math.abs(x + 0.02 - (0.2 - y) * 0.9) / 0.12);
+    d -= (Math.abs(Math.sin(u * 38)) - 0.5) * 0.007 * front * swag;
     d = smax(d, -(y - 0.012), 0.004);                 // flat cut on the socle
     // neck (sterno-mastoid swell)
     d = smin(d, sdRoundCone(x, y, z, [0, 0.17, -0.005], [0, 0.3, 0.012], 0.062, 0.05), 0.03);
@@ -164,14 +169,14 @@ export function bustOnPlinth(ctx, { marble, plinthMat }) {
     h = smin(h, sdEllipsoid(hx, hy - 0.392, hz - 0.08, 0.06, 0.014, 0.02), 0.012);          // brow ridge
     h = smin(h, sdRoundCone(hx, hy, hz, [0, 0.385, 0.088], [0, 0.345, 0.11], 0.009, 0.014), 0.006); // nose
     for (const s2 of [-1, 1]) {
-      h = smax(h, -sdEllipsoid(hx - s2 * 0.031, hy - 0.37, hz - 0.088, 0.017, 0.011, 0.014), 0.008);   // eye sockets
-      h = smin(h, sdEllipsoid(hx - s2 * 0.03, hy - 0.368, hz - 0.08, 0.011, 0.008, 0.008), 0.004);     // eyeballs (blank, as in marble)
+      h = smax(h, -sdEllipsoid(hx - s2 * 0.03, hy - 0.371, hz - 0.088, 0.014, 0.008, 0.012), 0.007);   // eye sockets
+      h = smin(h, sdEllipsoid(hx - s2 * 0.029, hy - 0.37, hz - 0.079, 0.0095, 0.0068, 0.008), 0.003);  // eyeballs (blank, as in marble)
       h = smin(h, sdEllipsoid(hx - s2 * 0.081, hy - 0.36, hz + 0.004, 0.011, 0.028, 0.018), 0.008);   // ears
       h = smin(h, sdEllipsoid(hx - s2 * 0.035, hy - 0.335, hz - 0.075, 0.018, 0.02, 0.02), 0.012);     // cheekbones
     }
-    h = smin(h, sdEllipsoid(hx, hy - 0.318, hz - 0.091, 0.02, 0.006, 0.01), 0.004);          // upper lip
-    h = smin(h, sdEllipsoid(hx, hy - 0.307, hz - 0.087, 0.017, 0.0055, 0.009), 0.004);       // lower lip
-    h = smax(h, -sdEllipsoid(hx, hy - 0.312, hz - 0.098, 0.016, 0.0015, 0.01), 0.002);       // mouth line
+    h = smin(h, sdEllipsoid(hx, hy - 0.318, hz - 0.088, 0.015, 0.005, 0.008), 0.004);        // upper lip
+    h = smin(h, sdEllipsoid(hx, hy - 0.308, hz - 0.085, 0.012, 0.0045, 0.007), 0.004);       // lower lip
+    h = smax(h, -sdEllipsoid(hx, hy - 0.313, hz - 0.094, 0.011, 0.001, 0.008), 0.0015);      // mouth line
     // cap of curls over crown, temples and nape
     const hairZone = Math.max(0, Math.min(1, (hy - 0.4) * 30 + 0.5)) * (hz < 0.06 ? 1 : Math.max(0, 1 - (hz - 0.06) * 40)) + (hz < -0.02 && hy > 0.32 ? 1 : 0);
     if (hairZone > 0) {
@@ -181,12 +186,9 @@ export function bustOnPlinth(ctx, { marble, plinthMat }) {
     return smin(d, h, 0.02);
   };
   const bustGeo = sdfGeometry(sdf, { min: [-0.26, 0.0, -0.17], max: [0.26, 0.53, 0.2], step: 0.0042, ao: 0.03, aoStrength: 1.1 });
-  const bm = marble.clone();
-  bm.vertexColors = true;
-  if (bm.isMeshPhysicalMaterial || bm.isMeshStandardMaterial) {
-    bm.roughness = Math.max(0.3, bm.roughness);
-    if ('sheen' in bm) { bm.sheen = 0.55; bm.sheenRoughness = 0.6; bm.sheenColor = new THREE.Color(1.0, 0.94, 0.86); }
-  }
+  // statuary marble: an even, faintly warm white with a soft, waxy (sheen) skin; occlusion baked in the vertex colour
+  void marble;
+  const bm = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(0.78, 0.76, 0.72), vertexColors: true, roughness: 0.4, sheen: 0.6, sheenRoughness: 0.55, sheenColor: new THREE.Color(1.0, 0.93, 0.85), clearcoat: 0.15, clearcoatRoughness: 0.4, envMapIntensity: 0.8 });
   const bust = new THREE.Mesh(bustGeo, bm); bust.position.y = 1.19; g.add(bust);
   return shadowAll(g);
 }

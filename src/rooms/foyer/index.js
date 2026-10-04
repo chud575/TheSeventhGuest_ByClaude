@@ -809,7 +809,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
       const n = Math.floor((BAL_X1 - X0 - 0.2) / 0.155);
       const im = new THREE.InstancedMesh(stair.balGeo, mat.stairWood, n);
       const m = new THREE.Matrix4();
-      for (let i = 0; i < n; i++) { m.makeTranslation(X0 + 0.15 + i * 0.155, UF + 0.1, BAL_Z + 0.06); im.setMatrixAt(i, m); }
+      for (let i = 0; i < n; i++) { m.makeScale(1.25, 1, 1.25).setPosition(X0 + 0.15 + i * 0.155, UF + 0.1, BAL_Z + 0.06); im.setMatrixAt(i, m); }
       im.castShadow = true; im.receiveShadow = true;
       root.add(im);
       const railY = UF + 0.1 + stair.balusterH + 0.06;
@@ -920,7 +920,9 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
       portrait.add(canvas);
       // inner gilt slip, main carved frame, outer bead
       portrait.add(new THREE.Mesh(G.frameGeometry(pw, ph, { width: 0.035, depth: 0.03, uvScale: 1 }), mat.gilt));
-      const fr = new THREE.Mesh(G.frameGeometry(pw + 0.07, ph + 0.07, { width: 0.22, depth: 0.13, uvScale: 1 }), mat.frame);
+      // the main moulding: a deep cove and torus in burnished, rubbed gilt (no low-res printed ornament strip)
+      const stFrame = M.create('gilded', { pattern: 3, repeats: 14, wear: 0.4, dirt: 0.7, ...AGED, repeat: [1 / 0.22, 1] });
+      const fr = new THREE.Mesh(G.frameGeometry(pw + 0.07, ph + 0.07, { width: 0.22, depth: 0.13, uvScale: 1 }), stFrame);
       portrait.add(fr);
       const ob = new THREE.Mesh(G.frameGeometry(pw + 0.51, ph + 0.51, { width: 0.05, depth: 0.16, uvScale: 1 }), mat.crown);
       portrait.add(ob);
@@ -940,14 +942,22 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
         };
         edge(-bw2, -bh2, bw2, -bh2); edge(bw2, -bh2, bw2, bh2); edge(bw2, bh2, -bw2, bh2); edge(-bw2, bh2, -bw2, -bh2);
         for (const [geo, list] of [[beadG, beads], [reelG, reels]]) { const im = new THREE.InstancedMesh(geo, mat.gilt, list.length); list.forEach((m, i) => im.setMatrixAt(i, m)); portrait.add(im); }
-        const leafG = acanthusLeaf(0.16, 0.26, 0.9);
-        const lg = [];
+        // corner cartouches: a domed boss flanked by C-scrolls running along both rails; a smaller boss mid-side
         const cw2 = (pw + 0.29) / 2, ch2 = (ph + 0.29) / 2;
-        const leaf = (x, y, th, sc) => lg.push(leafG.clone().applyMatrix4(new THREE.Matrix4().makeTranslation(x, y, 0.125).multiply(new THREE.Matrix4().makeRotationZ(th)).multiply(new THREE.Matrix4().makeRotationX(0.25)).multiply(new THREE.Matrix4().makeScale(sc, sc, sc))));
-        // acanthus sprays run along both rails from every corner boss, and out both ways from each rail centre
-        for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { leaf(sx * cw2, sy * ch2, sx * Math.PI / 2, 1); leaf(sx * cw2, sy * ch2, sy > 0 ? Math.PI : 0, 1); }
-        for (const [x, y, ths] of [[0, -ch2, [-Math.PI / 2, Math.PI / 2]], [-cw2, 0, [0, Math.PI]], [cw2, 0, [0, Math.PI]]]) for (const th of ths) leaf(x, y, th, 0.8);
-        const lm = new THREE.Mesh(G.mergeGeometries(lg), mat.gilt.clone()); lm.material.side = THREE.DoubleSide; portrait.add(lm);
+        const scrollG = [];
+        const cscroll = (x, y, th, r) => {
+          const tg = new THREE.TorusGeometry(r, r * 0.28, 8, 20, Math.PI * 1.35);
+          tg.applyMatrix4(new THREE.Matrix4().makeTranslation(x, y, 0.14).multiply(new THREE.Matrix4().makeRotationZ(th)));
+          scrollG.push(tg.index ? tg.toNonIndexed() : tg);
+        };
+        for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+          cscroll(sx * (cw2 - 0.09), sy * ch2, sy > 0 ? 0 : Math.PI, 0.04);
+          cscroll(sx * cw2, sy * (ch2 - 0.09), sx > 0 ? -Math.PI / 2 : Math.PI / 2, 0.04);
+          cscroll(sx * (cw2 - 0.17), sy * ch2, sy > 0 ? Math.PI * 0.2 : Math.PI * 1.2, 0.028);
+          cscroll(sx * cw2, sy * (ch2 - 0.17), sx > 0 ? -Math.PI * 0.3 : Math.PI * 0.7, 0.028);
+        }
+        portrait.add(new THREE.Mesh(G.mergeGeometries(scrollG), mat.gilt));
+        for (const [x, y] of [[-cw2, 0], [cw2, 0]]) { const bo = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 10), mat.gilt); bo.scale.set(0.8, 1.3, 0.5); bo.position.set(x, y, 0.15); portrait.add(bo); }
         for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const bo = new THREE.Mesh(new THREE.SphereGeometry(0.035, 16, 10), mat.gilt); bo.scale.set(1, 1, 0.55); bo.position.set(sx * cw2, sy * ch2, 0.16); portrait.add(bo); }
       }
       // cresting: a carved shell-and-scroll cartouche on the top rail
@@ -1125,6 +1135,9 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
         const tc = torchere(ctx, { brass: mat.brass, seed: sx > 0 ? 3 : 7 });
         tc.position.set(MED.x + sx * 2.45, 0, MED.z - 1.4); add(tc);
         const tl = new THREE.PointLight(0xff9c55, 4.2, 9, 2); tl.position.set(MED.x + sx * 2.45, 1.75, MED.z - 1.4); root.add(tl);
+        if (sx < 0 && Q.shadows) {   // the hero-side torchère: its own pans, arms and stem throw a crown of shadow on the marble
+          tl.castShadow = true; tl.shadow.mapSize.set(512, 512); tl.shadow.camera.near = 0.05; tl.shadow.camera.far = 9; tl.shadow.bias = -0.002; tl.shadow.normalBias = 0.02; tl.shadow.radius = 4;
+        }
         ctx.onUpdate((dt, t) => { tl.intensity = 4.2 * (0.92 + 0.08 * Math.sin(t * 7.9 + sx * 2) * Math.sin(t * 2.7 + sx)); });
       }
       // console tables with lit candelabra beneath the sconces flanking the front door
@@ -1508,6 +1521,8 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     // (split round the dining-room doorway: an unshadowed panel right beside the open leaf blew its edge out to a white sliver)
     root.add(fx.areaLight({ center: [X0 + 0.25, 2.2, 3.2], normal: [1, 0.15, 0], width: 5.6, height: 3.4, color: 0x5a7ab8, intensity: 1.6 }));
     root.add(fx.areaLight({ center: [X0 + 0.25, 2.2, -4.6], normal: [1, 0.15, 0], width: 3.4, height: 3.4, color: 0x5a7ab8, intensity: 1.6 }));
+    // a soft cool wash back onto the dining-room doors from the hall (faces the wall, so it models the leaves' faces, not their edges)
+    root.add(fx.areaLight({ center: [X0 + 1.8, 2.6, -1.6], normal: [-1, -0.25, 0], width: 3.0, height: 2.0, color: 0x6a86c0, intensity: 0.7 }));
     root.add(fx.areaLight({ center: [X1 - 0.25, 2.2, 4.4], normal: [-1, 0.15, 0], width: 5.0, height: 3.4, color: 0x5a7ab8, intensity: 0.8 }));
     root.add(fx.areaLight({ center: [-2.4, UF + 1.6, -4.0], normal: [0, -0.1, -1], width: 6.0, height: 2.6, color: 0x5a7ab8, intensity: 5.2 }));
     // upper volume: cool moon bounce washing the high walls and the curved stair wall so the damask and gilt hold

@@ -429,7 +429,7 @@ export function buildStaircase(ctx, mats) {
   const instance = (geo, sp, sy = 1) => {
     const im = new THREE.InstancedMesh(geo, mats.baluster, sp.length);
     const m = new THREE.Matrix4();
-    sp.forEach((p, i) => { const xz = stairXZ(p.s, p.off); m.makeScale(1, sy, 1).setPosition(xz.x, p.y, xz.y); im.setMatrixAt(i, m); });
+    sp.forEach((p, i) => { const xz = stairXZ(p.s, p.off); m.makeScale(1.28, sy, 1.28).setPosition(xz.x, p.y, xz.y); im.setMatrixAt(i, m); });   // stouter turnings: no moire at distance
     im.name = 'balusters';
     group.add(im);
     return im;
