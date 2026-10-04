@@ -118,7 +118,7 @@ export default {
     // capitals and bases: old water-gilt, dulled by a century of lamp smoke (was reading as bright brass)
     mat.giltCap.color.multiplyScalar(0.55); mat.giltCap.roughness = 1.5;
     addPolishWear(mat.mahogany, { smudge: 0.3, scale: 7, dust: 0.25, desat: 0.25, key: 'mahog' });
-    addPolishWear(mat.floor, { smudge: 0.35, scale: 2.2, dust: 0.3, desat: 0.05, key: 'floorwear' });
+    addPolishWear(mat.floor, { smudge: 0.14, scale: 6.0, dust: 0.12, desat: 0.05, key: 'floorwear' });
     addPolishWear(mat.deskLeather, { smudge: 0.3, scale: 6, dust: 0.0, desat: 0.0, key: 'leatherwear' });
     addMacro(mat.timber, { amount: 0.25, scale: 0.8, key: 'timber' });
     // moonlight from the skylight glass washes down the sides of every coffer (the reference's lit lattice)
@@ -165,6 +165,9 @@ export default {
       blob(props.wing, 0.52, 0.5, { ry: -0.55 });
       blob(props.desk, 0.5, 0.42, { dz: -0.45 });
       blob(props.desk, 0.5, 0.42, { dz: 0.45 });
+      blob(props.desk, 0.75, 1.15, { o: 0.45 });
+      if (props.lectern) blob(props.lectern, 0.34, 0.34);
+      if (props.pricket) blob(props.pricket, 0.24, 0.24);
     }
 
     // ================================================================ telescope aim + puzzle

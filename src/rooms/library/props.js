@@ -406,10 +406,20 @@ export function buildProps(ctx, root, mat) {
     skirt.translate(0, 0.15, 0);
     up.push(skirt);
     // seat cushion (domed)
-    up.push(puff(new G.RoundedBoxGeometry(0.6, 0.13, 0.64, 5, 0.055), 0.03).translate(0, 0.44, 0.05));
+    {
+      // seat cushion: domed at the edges, slumped where a century of sitters sat
+      const cu = puff(new G.RoundedBoxGeometry(0.6, 0.13, 0.64, 14, 0.055), 0.03);
+      const pos = cu.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+        if (y > 0) pos.setY(i, y - 0.028 * Math.exp(-((x / 0.2) ** 2 + ((z - 0.06) / 0.2) ** 2)) + 0.006 * Math.sin(x * 30) * Math.exp(-(((z + 0.2) / 0.1) ** 2)));
+      }
+      cu.computeVertexNormals();
+      up.push(cu.translate(0, 0.44, 0.05));
+    }
     // camel back: padded, reclined, crest rising in the middle
     {
-      const back = new G.RoundedBoxGeometry(0.74, 0.84, 0.18, 6, 0.07);
+      const back = new G.RoundedBoxGeometry(0.74, 0.84, 0.18, 28, 0.07);
       const pos = back.attributes.position;
       for (let i = 0; i < pos.count; i++) {
         const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
@@ -421,7 +431,7 @@ export function buildProps(ctx, root, mat) {
           // deep-buttoned (tufted) diamond pattern
           for (let r = 0; r < 3; r++) for (let c = 0; c < 4 - (r % 2); c++) {
             const bx = -0.24 + c * 0.16 + (r % 2) * 0.08, by = -0.12 + r * 0.17;
-            nz -= 0.018 * Math.exp(-((x - bx) ** 2 + (y - by) ** 2) * 900);
+            nz -= 0.02 * Math.exp(-((x - bx) ** 2 + (y - by) ** 2) * 700);
           }
         }
         pos.setXYZ(i, x, ny, nz);
@@ -430,6 +440,16 @@ export function buildProps(ctx, root, mat) {
       back.rotateX(-0.16);
       back.translate(0, 0.86, -0.3);
       up.push(back);
+      // the covered buttons sitting in each tuft
+      const btn = [];
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 4 - (r % 2); c++) {
+        const bx = -0.24 + c * 0.16 + (r % 2) * 0.08, by = -0.12 + r * 0.17;
+        const zf = 0.09 + 0.035 * (1 - (bx / 0.37) ** 2) * (1 - (by / 0.42) ** 2) - 0.02 + bx * bx * 0.35;
+        const b = new THREE.SphereGeometry(0.011, 10, 6); b.scale(1, 1, 0.55);
+        b.translate(bx, by, zf + 0.002); b.rotateX(-0.16); b.translate(0, 0.86, -0.3);
+        btn.push(b);
+      }
+      g.add(mesh(merge(btn), mat.piping, 'wing-buttons'));
     }
     // wings: smooth side-profile outline, extruded thick with a big bevel, flared outward
     for (const sd of [-1, 1]) {
