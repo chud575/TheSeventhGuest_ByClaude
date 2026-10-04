@@ -146,7 +146,7 @@ function contactShadow(ctx, parent, { x, z, w, d, rotY = 0, opacity = 0.7, y = 0
 }
 const ROOM_GRADE = { grain: 0.022, exposure: 2.0, contrast: 1.1, saturation: 0.9, bloomStrength: 0.3, bloomRadius: 0.4, bloomThreshold: 2.6, shadowTint: [0.86, 0.98, 1.1], highlightTint: [1.1, 1.0, 0.86], splitAmount: 0.5, lift: [0.002, 0.0035, 0.007], godRayWeight: 0.35, godRayThreshold: 2.5, vignette: 0.45, aoIntensity: 1.7, aoRadius: 0.55 };
 const DOOR_EXPOSURE = 3.6;     // +0.6 EV on the door / wardrobe view
-const PUZZLE_EXPOSURE = 1.45;
+const PUZZLE_EXPOSURE = 1.75;
 
 export default {
   id: 'bedroom',
@@ -1130,7 +1130,8 @@ export default {
     {
       const pz = knights.puzzle, su = pz.setup, td = pz.teardown;
       // the broad cold bounce lights that model the room's fill would flood the close-up board from below: damp them while it is open
-      const dim = (k) => { ceilBounce.intensity = 4.2 * k; bedBounce.intensity = 2.5 * k; };
+      // (and the moon beam falls straight across the lid: soften it, and let the low candle on the far side carry the forms)
+      const dim = (k) => { ceilBounce.intensity = 4.2 * k; bedBounce.intensity = 2.5 * k; moon.intensity = 1500 * (0.45 + 0.55 * k); rimLight.intensity = 0.35 + (1 - k) * 1.4; };
       pz.setup = (p) => { dim(0.3); ctx.post.set({ exposure: PUZZLE_EXPOSURE, bloomThreshold: 3.0, aoRadius: 0.1, aoIntensity: 1.1 }, ctx.shot ? 0 : 0.8); su(p); };
       pz.teardown = (p) => { dim(1); ctx.post.set({ exposure: ROOM_GRADE.exposure, bloomThreshold: ROOM_GRADE.bloomThreshold, aoRadius: ROOM_GRADE.aoRadius, aoIntensity: ROOM_GRADE.aoIntensity }, ctx.shot ? 0 : 0.8); td(p); };
     }
