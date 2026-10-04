@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { sdfGeometry, sdEllipsoid, sdRoundCone, smin, smax } from '../../engine/lib/contrib/bedroom-sdf.js';
 
 /**
  * Foyer furniture and architectural set pieces. Every builder returns a Group in
@@ -421,79 +422,89 @@ export function buildCandelabrum(ctx, { brass, arms = 3, candleOpts = {} }) {
 
 // -------------------------------------------------------------------- spider (puzzle token)
 /**
- * Black widow: glossy bulbous abdomen, small cephalothorax, eight legs of three
- * jointed segments each (femur up, tibia out, tarsus down to the floor), pedipalps.
+ * Black widow, sculpted as signed distance fields and polygonised once (Surface Nets):
+ * a glossy globose abdomen on a thin pedicel (waist), a small separate cephalothorax with
+ * chelicerae, and eight legs of four jointed segments each (coxa, femur arching high,
+ * tibia/metatarsus sweeping down, a fine tarsus whose tip rests ON the floor), plus pedipalps.
  * Returns { body, legs, hourglass } geometries (local +z = forward, origin on the floor).
  */
-export function spiderGeometry(G) {
-  const parts = [];
-  const abd = new THREE.SphereGeometry(0.034, 24, 16); abd.scale(1, 0.85, 1.22); abd.translate(0, 0.036, -0.04); parts.push(abd);
-  const ped = new THREE.CylinderGeometry(0.006, 0.006, 0.014, 8); ped.rotateX(Math.PI / 2); ped.translate(0, 0.027, -0.006); parts.push(ped);
-  const ceph = new THREE.SphereGeometry(0.017, 16, 12); ceph.scale(1, 0.62, 1.2); ceph.translate(0, 0.024, 0.012); parts.push(ceph);
-  const head = new THREE.SphereGeometry(0.008, 10, 8); head.translate(0, 0.024, 0.03); parts.push(head);
-  const legs = [];
-  const seg = (a, b, r0, r1) => {
-    const d = new THREE.Vector3().subVectors(b, a);
-    const len = d.length();
-    const c = new THREE.CylinderGeometry(r1, r0, len, 6, 1);
-    c.translate(0, len / 2, 0);
-    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
-    c.applyQuaternion(q); c.translate(a.x, a.y, a.z);
-    legs.push(c);
-    const j = new THREE.SphereGeometry(r0 * 1.15, 6, 4); j.translate(a.x, a.y, a.z); legs.push(j);
-    // bristles: fine setae splayed off every segment (they catch the rim light)
-    const nH = Math.max(4, Math.round(len / 0.004));
-    const dn = d.clone();
-    const side = new THREE.Vector3(0, 1, 0).cross(dn).normalize();
-    if (side.lengthSq() < 1e-6) side.set(1, 0, 0);
-    const up = dn.clone().cross(side).normalize();
-    for (let k = 0; k < nH; k++) {
-      const t = (k + 0.5) / nH;
-      const ang = k * 2.39996 + len * 100;
-      const out = side.clone().multiplyScalar(Math.cos(ang)).addScaledVector(up, Math.sin(ang));
-      const hl = 0.004 + 0.003 * ((k * 7) % 3) / 2;
-      const hdir = out.clone().multiplyScalar(0.8).addScaledVector(dn, 0.6).normalize();
-      const hc = new THREE.ConeGeometry(0.00045, hl, 3, 1);
-      hc.translate(0, hl / 2, 0);
-      hc.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), hdir));
-      const base = a.clone().addScaledVector(dn, len * t).addScaledVector(out, (r0 + (r1 - r0) * t) * 0.8);
-      hc.translate(base.x, base.y, base.z);
-      legs.push(hc);
-    }
+export function spiderGeometry() {
+  const ABD = { c: [0, 0.03, -0.035], r: [0.024, 0.0205, 0.029] };
+  const CEP = { c: [0, 0.019, 0.011], r: [0.0115, 0.0072, 0.0138] };
+  const body = (x, y, z) => {
+    let d = sdEllipsoid(x - ABD.c[0], y - ABD.c[1], z - ABD.c[2], ...ABD.r);
+    // spinnerets: a small blunt cone at the tail
+    d = smin(d, sdRoundCone(x, y, z, [0, 0.022, -0.06], [0, 0.019, -0.066], 0.004, 0.0018), 0.003);
+    // pedicel: the narrow waist joining abdomen and cephalothorax
+    const ped = sdRoundCone(x, y, z, [0, 0.022, -0.01], [0, 0.02, 0.0], 0.0026, 0.0028);
+    let c = sdEllipsoid(x - CEP.c[0], y - CEP.c[1], z - CEP.c[2], ...CEP.r);
+    // fovea groove and a raised eye mound at the front of the carapace
+    c = smax(c, -sdEllipsoid(x, y - 0.0262, z - 0.009, 0.0016, 0.0016, 0.004), 0.001);
+    c = smin(c, sdEllipsoid(x, y - 0.0235, z - 0.021, 0.0042, 0.0025, 0.003), 0.0025);
+    // chelicerae (fangs) hanging below the eyes
+    for (const sx of [-1, 1]) c = smin(c, sdRoundCone(x, y, z, [sx * 0.0032, 0.0175, 0.022], [sx * 0.0026, 0.011, 0.026], 0.0027, 0.0012), 0.0015);
+    return Math.min(d, smin(ped, c, 0.0018));
   };
-  for (let side = -1; side <= 1; side += 2) {
+  // legs: [x, y, z, r] chains, smooth-unioned with a hint of joint bulge
+  const chains = [];
+  for (const side of [-1, 1]) {
     for (let i = 0; i < 4; i++) {
-      // legs I & II reach forward, III short and sideways, IV long and back
-      const az = [0.55, 1.15, 1.85, 2.45][i];
-      const reach = [0.105, 0.085, 0.07, 0.1][i];
-      const dir = new THREE.Vector3(Math.sin(az) * side, 0, Math.cos(az));
-      const root = new THREE.Vector3(side * 0.011, 0.024, 0.012 + Math.cos(az) * 0.006);
-      const knee = root.clone().addScaledVector(dir, reach * 0.38).add(new THREE.Vector3(0, 0.038, 0));
-      const ankle = root.clone().addScaledVector(dir, reach * 0.8).add(new THREE.Vector3(0, 0.022, 0));
-      const foot = root.clone().addScaledVector(dir, reach).setY(0.0);
-      seg(root, knee, 0.0058, 0.0046);
-      seg(knee, ankle, 0.0046, 0.0032);
-      seg(ankle, foot, 0.0032, 0.0014);
+      const az = [0.42, 1.08, 1.92, 2.6][i];           // I & II reach forward, III sideways, IV back
+      const reach = [0.112, 0.082, 0.066, 0.098][i];   // leg I longest, then IV, II, III
+      const lift = [0.036, 0.031, 0.026, 0.034][i];
+      const dir = [Math.sin(az) * side, Math.cos(az)];
+      const a = 0.85 * Math.atan2(dir[1], Math.abs(dir[0]));
+      const rx = side * CEP.r[0] * 0.92 * Math.cos(a * 0.5), rz = CEP.c[2] + CEP.r[2] * 0.6 * Math.sin(a);
+      const P = (t, y, r) => [rx + dir[0] * reach * t, y, rz + dir[1] * reach * t, r];
+      chains.push([
+        P(0.0, 0.017, 0.0032),     // coxa
+        P(0.1, 0.022, 0.0031),     // trochanter
+        P(0.4, lift, 0.0027),      // femur up to the knee (patella)
+        P(0.47, lift - 0.001, 0.0025),
+        P(0.78, lift * 0.42, 0.0019),  // tibia + metatarsus sweeping down
+        P(0.93, 0.006, 0.0012),
+        P(1.0, 0.0009, 0.0008),    // tarsus: the claw rests on the floor
+      ]);
     }
     // pedipalps
-    const pr = new THREE.Vector3(side * 0.006, 0.02, 0.034);
-    seg(pr, pr.clone().add(new THREE.Vector3(side * 0.008, 0.008, 0.012)), 0.0022, 0.0016);
+    chains.push([[side * 0.004, 0.016, 0.022, 0.0016], [side * 0.008, 0.019, 0.03, 0.0014], [side * 0.009, 0.012, 0.037, 0.0011]]);
   }
-  const body = G.mergeGeometries(parts.map((p) => (p.index ? p.toNonIndexed() : p)));
-  const legGeo = G.mergeGeometries(legs.map((p) => (p.index ? p.toNonIndexed() : p)));
-  // red hourglass, painted on the top of the abdomen (where the player can see it)
+  const boxes = chains.map((ch) => {
+    const mn = [1, 1, 1], mx = [-1, -1, -1];
+    for (const p of ch) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], p[k] - p[3]); mx[k] = Math.max(mx[k], p[k] + p[3]); }
+    return [mn, mx];
+  });
+  const legs = (x, y, z) => {
+    let d = 1e9;
+    for (let c = 0; c < chains.length; c++) {
+      const [mn, mx] = boxes[c];
+      const bx = Math.max(mn[0] - x, 0, x - mx[0]), by = Math.max(mn[1] - y, 0, y - mx[1]), bz = Math.max(mn[2] - z, 0, z - mx[2]);
+      const lb = Math.hypot(bx, by, bz);
+      if (lb > d || lb > 0.006) { d = Math.min(d, lb + 0.002); continue; }
+      const ch = chains[c];
+      for (let k = 0; k < ch.length - 1; k++) {
+        const pa = ch[k], pb = ch[k + 1];
+        d = smin(d, sdRoundCone(x, y, z, pa, pb, pa[3], pb[3]), 0.0006);
+      }
+      // joint knobs
+      for (const k of [2, 4]) if (ch[k]) d = Math.min(d, Math.hypot(x - ch[k][0], y - ch[k][1], z - ch[k][2]) - ch[k][3] * 1.18);
+    }
+    return d;
+  };
+  const bodyGeo = sdfGeometry(body, { min: [-0.03, 0.004, -0.075], max: [0.03, 0.056, 0.036], step: 0.0011, ao: 0.006 });
+  const legGeo = sdfGeometry(legs, { min: [-0.125, -0.001, -0.12], max: [0.125, 0.045, 0.135], step: 0.0009 });
+  // a red hourglass painted on the dorsal abdomen, draped onto the sculpted surface
   const hg = new THREE.Shape();
-  hg.moveTo(-0.009, 0.012); hg.lineTo(0.009, 0.012); hg.lineTo(0.0018, 0.0); hg.lineTo(0.009, -0.012); hg.lineTo(-0.009, -0.012); hg.lineTo(-0.0018, 0.0); hg.lineTo(-0.009, 0.012);
-  const hgGeo = new THREE.ShapeGeometry(hg);
+  hg.moveTo(-0.0055, 0.008); hg.lineTo(0.0055, 0.008); hg.lineTo(0.0012, 0.0); hg.lineTo(0.0055, -0.008); hg.lineTo(-0.0055, -0.008); hg.lineTo(-0.0012, 0.0); hg.lineTo(-0.0055, 0.008);
+  const hgGeo = new THREE.ShapeGeometry(hg, 4);
   hgGeo.rotateX(-Math.PI / 2);
-  // wrap it onto the abdomen's curved top
   const pp = hgGeo.attributes.position;
   for (let i = 0; i < pp.count; i++) {
-    const x = pp.getX(i), z = pp.getZ(i) - 0.042;
-    const nx = x / 0.034, nz = (z + 0.04) / (0.034 * 1.22);
-    const y = 0.036 + 0.034 * 0.85 * Math.sqrt(Math.max(0, 1 - nx * nx - nz * nz)) + 0.0006;
+    const x = pp.getX(i), z = pp.getZ(i) + ABD.c[2] - 0.004;
+    const nx = x / ABD.r[0], nz = (z - ABD.c[2]) / ABD.r[2];
+    const y = ABD.c[1] + ABD.r[1] * Math.sqrt(Math.max(0, 1 - nx * nx - nz * nz)) + 0.00045;
     pp.setXYZ(i, x, y, z);
   }
   hgGeo.computeVertexNormals();
-  return { body, legs: legGeo, hourglass: hgGeo };
+  return { body: bodyGeo, legs: legGeo, hourglass: hgGeo };
 }

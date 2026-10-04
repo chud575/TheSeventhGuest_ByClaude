@@ -243,114 +243,120 @@ void surface(vec2 uv, inout Surface s) {
  * pointsR = radius (normalised) of the eight star points.
  */
 export function medallionTexture(forge, pointsR) {
-  return forge.generate('foyer:medallion4', {
+  return forge.generate('foyer:medallion5', {
     size: 2048, aspect: 1, tile: false, uniforms: { uPR: pointsR },
-    normalStrength: 1.5,
+    normalStrength: 2.2,
     glsl: /* glsl */ `
-vec3 marbleCol(vec2 p, vec3 base, vec3 vein, float k, float sc) {
-  vec2 w = vec2(fbm(p * sc + k, vec2(64.0), 5), fbm(p * sc + k + 7.3, vec2(64.0), 5));
-  float v = fbm(p * sc * 0.7 + w * 0.9 + k, vec2(64.0), 6);
-  float veins = 1.0 - smoothstep(0.0, 0.045, abs(v));
-  float fine = 1.0 - smoothstep(0.0, 0.02, abs(fbm(p * sc * 2.3 + w * 1.4 + k * 2.0, vec2(64.0), 5)));
-  float cloud = fbm(p * sc * 0.5 + w * 0.4, vec2(64.0), 4) * 0.5 + 0.5;
-  vec3 c = base * (0.85 + 0.25 * cloud);
-  c = mix(c, vein, veins * 0.75);
-  c = mix(c, vein, fine * 0.35);
-  return c;
+// low-frequency noise helpers: fbm(uv, per) samples at uv*per, so divide to get ~1 cycle per unit
+float N(vec2 p, int o) { return fbm(p / 16.0, vec2(16.0), o); }
+float glyphStroke(vec2 g, float seed) {
+  // a rune: four strokes between points of a 3x3 lattice, chosen by hash (no two glyphs alike)
+  float d = 1e3;
+  for (int k = 0; k < 4; k++) {
+    float h1 = hash12(vec2(seed, float(k) * 7.13 + 1.0)), h2 = hash12(vec2(seed * 1.37, float(k) * 3.71 + 9.0));
+    vec2 a = vec2(floor(h1 * 3.0) - 1.0, floor(fract(h1 * 7.0) * 3.0) - 1.0) * vec2(0.55, 0.8);
+    vec2 b = vec2(floor(h2 * 3.0) - 1.0, floor(fract(h2 * 7.0) * 3.0) - 1.0) * vec2(0.55, 0.8);
+    if (length(a - b) < 0.1) b = vec2(a.x, -a.y + 0.001);
+    d = min(d, sdSegment(g, a, b));
+  }
+  // every rune hangs from a stem
+  d = min(d, sdSegment(g, vec2(0.0, -0.8), vec2(0.0, 0.8)) + step(0.5, hash12(vec2(seed, 41.0))) * 10.0);
+  return d;
 }
 void surface(vec2 uv, inout Surface s) {
   vec2 p = uv * 2.0 - 1.0;
   float r = length(p);
   float a = atan(p.y, p.x);
-  // field: polished lapis -- deep ultramarine clouds, soft low-frequency veining, a few pyrite flecks
-  vec2 lw = vec2(fbm(p * 1.3 + 2.0, vec2(64.0), 4), fbm(p * 1.3 + 9.0, vec2(64.0), 4));
-  float lc = fbm(p * 1.6 + lw * 0.8, vec2(64.0), 5) * 0.5 + 0.5;
-  float lv = 1.0 - smoothstep(0.0, 0.06, abs(fbm(p * 1.1 + lw * 1.2 + 5.0, vec2(64.0), 4)));
-  vec3 nero = mix(vec3(0.018, 0.024, 0.06), vec3(0.05, 0.07, 0.17), smoothstep(0.3, 0.8, lc));
-  nero = mix(nero, vec3(0.32, 0.36, 0.44), lv * 0.35);
-  float pyr = smoothstep(0.93, 0.98, vnoise(p * 70.0, vec2(1e4))) * smoothstep(0.45, 0.7, lc);
-  nero = mix(nero, vec3(0.7, 0.58, 0.3), pyr * 0.6);
-  vec3 rosso = marbleCol(p, vec3(0.24, 0.045, 0.04), vec3(0.55, 0.36, 0.3), 4.0, 1.6);
-  // malachite heart: concentric botryoidal banding
-  // verde antico: deep bottle-green serpentine breccia, pale veins and milky clasts (no banding to moire)
-  // malachite heart: soft concentric botryoidal banding, warped, in deep-to-mid greens (smooth, no grain)
-  float mw = fbm(p * 3.0 + 4.0, vec2(64.0), 4);
-  float bands = 0.5 + 0.5 * sin((r + mw * 0.05) * 160.0 + mw * 6.0);
-  vec3 verde = mix(vec3(0.015, 0.07, 0.04), vec3(0.06, 0.2, 0.11), smoothstep(0.2, 0.9, bands));
-  verde = mix(verde, vec3(0.005, 0.03, 0.02), (1.0 - smoothstep(0.0, 0.08, abs(fract((r + mw * 0.05) * 14.0) - 0.5))) * 0.5);
-  // the border ring uses the hall's own aged ivory Carrara (same albedo, veins and polish as the floor)
-  vec3 carrara = marbleCol(p, vec3(0.6, 0.58, 0.53), vec3(0.3, 0.31, 0.33), 13.0, 1.4);
-  vec3 brassC = vec3(0.86, 0.66, 0.34);
-  vec3 col = nero;
-  float metal = 0.0;
-  float rough = 0.12;
-  float h = 0.6;
-  float inl = 0.0;            // brass inlay mask
-  float joint = 0.0;          // fine stone joints
-  // ---- field: octagram lines + inscribed circle
   float PR = uPR;
+  // ---- field: polished obsidian. True black with deep smoky-blue depth clouds and flow banding,
+  // a glassy conchoidal sheen variation in the roughness (no speckle)
+  vec2 w = vec2(N(p * 2.0 + 3.0, 4), N(p * 2.0 + 11.0, 4));
+  float cl = N(p * 1.6 + w * 0.9, 5) * 0.5 + 0.5;
+  float flow = 0.5 + 0.5 * sin((p.x * 0.7 + p.y * 0.4 + w.x * 0.8) * 26.0);
+  vec3 col = mix(vec3(0.006, 0.007, 0.01), vec3(0.018, 0.024, 0.04), smoothstep(0.35, 0.85, cl));
+  col *= 0.85 + 0.25 * flow * smoothstep(0.3, 0.9, cl);
+  float rough = 0.05 + 0.06 * smoothstep(0.4, 0.9, N(p * 3.0 + 5.0, 4) * 0.5 + 0.5);
+  float metal = 0.0, h = 0.6, inl = 0.0, eng = 0.0, joint = 0.0;
+  // ---- octagram: brass rods are geometry; here the groove they sit in + a fine engraved double line
   float dl = 1e3;
   for (int i = 0; i < 8; i++) {
-    float a0 = float(i) * TAU / 8.0 + PI * 0.5;
-    float a1 = float(i + 3) * TAU / 8.0 + PI * 0.5;
+    float a0 = float(i) * TAU / 8.0 + PI * 0.5, a1 = float(i + 3) * TAU / 8.0 + PI * 0.5;
     dl = min(dl, sdSegment(p, vec2(cos(a0), sin(a0)) * PR, vec2(cos(a1), sin(a1)) * PR));
   }
-  inl = max(inl, stroke(dl, 0.0055, 0.0015));
-  inl = max(inl, stroke(r - PR, 0.003, 0.0012));
-  inl = max(inl, stroke(r - PR * 0.36, 0.0025, 0.0012));
-  // inner star (the octagon where the lines cross) in rosso
+  float groove = stroke(dl, 0.0075, 0.0015);
+  eng = max(eng, stroke(abs(dl - 0.016), 0.0012, 0.0008) * step(r, PR));
+  // the star's inner octagon: deep oxblood rosso antico, its own veins
   float st = sdStar(p, PR * 0.405, 8.0, 3.0);
-  col = mix(col, rosso, step(st, 0.0) * step(PR * 0.36, r));
-  col = mix(col, verde, step(r, PR * 0.36));
-  // ray lozenges between the star points (verde slivers)
-  // ---- rings
-  float ringIn = 0.84;
-  if (r > ringIn) {
-    // band 1: brass thin
-    col = carrara * 0.6;
-    if (r < 0.845) { inl = 1.0; }
+  vec3 rosso = mix(vec3(0.07, 0.012, 0.012), vec3(0.16, 0.03, 0.025), N(p * 4.0 + w * 1.2, 5) * 0.5 + 0.5);
+  rosso = mix(rosso, vec3(0.32, 0.2, 0.17), (1.0 - smoothstep(0.0, 0.03, abs(N(p * 2.5 + w * 1.5 + 7.0, 5)))) * 0.5);
+  float inStar = step(st, 0.0) * step(PR * 0.36, r);
+  col = mix(col, rosso, inStar);
+  rough = mix(rough, 0.09, inStar);
+  // the heart: a gilded sunburst engraved into the obsidian
+  if (r < PR * 0.36) {
+    float k = (a / TAU + 0.5) * 32.0, f = abs(fract(k) - 0.5);
+    float ray = (1.0 - smoothstep(0.08, 0.14, f * (1.0 + (1.0 - mod(floor(k), 2.0)) * 0.8))) * smoothstep(0.03, 0.06, r) * (1.0 - smoothstep(PR * 0.3, PR * 0.33, r));
+    eng = max(eng, ray * 0.9);
+    eng = max(eng, stroke(r - 0.035, 0.004, 0.001));
+    eng = max(eng, 1.0 - smoothstep(0.018, 0.021, r));
+  }
+  inl = max(inl, stroke(r - PR * 0.36, 0.004, 0.0012));
+  // ---- outer bands
+  if (r > 0.84) {
+    col = vec3(0.012, 0.012, 0.014);
+    if (r < 0.847) { inl = 1.0; }
     else if (r < 0.925) {
-      // rosso band with verde cartouches every 22.5deg
-      float k = (a / TAU + 0.5) * 16.0;
-      float f = fract(k) - 0.5;
-      vec2 q = vec2(f * 0.885 * TAU / 16.0 * 6.0, (r - 0.885) * 6.0);
-      float ov = sdEllipse(q, vec2(0.36, 0.18));
-      col = mix(rosso, verde, step(ov, 0.0));
-      inl = max(inl, stroke(ov, 0.006, 0.003));
-      joint = max(joint, 1.0 - smoothstep(0.0, 0.0025, abs(f) * 0.885 * TAU / 16.0));
-    } else if (r < 0.932) { inl = 1.0; }
+      // honed black slate (matte, faintly grey), runes cut into it and filled with gold leaf
+      vec2 sw = vec2(N(p * 5.0 + 2.0, 4), N(p * 9.0 + 4.0, 3));
+      col = vec3(0.035, 0.037, 0.04) * (0.85 + 0.25 * (sw.x * 0.5 + 0.5)) + vec3(0.01) * smoothstep(0.3, 0.8, sw.y);
+      rough = 0.42 + 0.12 * (sw.y * 0.5 + 0.5);
+      float k = (a / TAU + 0.5) * 40.0;
+      float cell = floor(k), f = fract(k) - 0.5;
+      float arcW = TAU * 0.886 / 40.0;
+      vec2 g = vec2(f * arcW, r - 0.886) / 0.026;
+      float isSep = step(0.84, hash12(vec2(cell, 3.0)));     // the odd word-dot
+      float gd = glyphStroke(g, cell + 17.0) * 0.026;
+      float dot2 = length(g) * 0.026 - 0.004;
+      float cut = isSep > 0.5 ? (1.0 - smoothstep(0.0, 0.0012, dot2)) : (1.0 - smoothstep(0.0012, 0.0024, gd));
+      eng = max(eng, cut);
+    }
+    else if (r < 0.934) { inl = 1.0; }
     else {
-      // Nero border with fine radial joints: the medallion reads as inlaid in the checker, not a disc laid on it
-      float k = (a / TAU + 0.5) * 48.0;
-      float f = fract(k);
-      joint = max(joint, 1.0 - smoothstep(0.0, 0.0018, min(f, 1.0 - f) * TAU / 48.0));
-      col = marbleCol(p, vec3(0.03, 0.029, 0.032), vec3(0.4, 0.39, 0.37), 17.0, 1.8);
+      // Nero Marquina border, radially jointed, with a sparse white vein
+      float k = (a / TAU + 0.5) * 32.0, f = fract(k);
+      joint = max(joint, 1.0 - smoothstep(0.0, 0.0016, min(f, 1.0 - f) * TAU / 32.0));
+      float vv = 1.0 - smoothstep(0.004, 0.02, abs(N(p * 3.0 + w + 19.0, 5)));
+      col = mix(vec3(0.014, 0.0135, 0.015), vec3(0.55, 0.54, 0.52), vv * 0.6);
+      rough = 0.08;
     }
   } else {
-    // compass ticks just inside the rings
-    float k = (a / TAU + 0.5) * 64.0;
-    float f = fract(k);
-    float tick = (1.0 - smoothstep(0.0, 0.08, min(f, 1.0 - f))) * step(0.8, r) * step(r, 0.835);
-    float big = (1.0 - smoothstep(0.0, 0.2, min(fract(k / 8.0), 1.0 - fract(k / 8.0)) * 8.0)) * step(0.78, r) * step(r, 0.835);
-    inl = max(inl, max(tick, big));
-    inl = max(inl, stroke(r - 0.8, 0.0018, 0.001));
+    // engraved compass ticks inside the inner brass band
+    float k = (a / TAU + 0.5) * 128.0, f = fract(k);
+    float tick = (1.0 - smoothstep(0.0, 0.1, min(f, 1.0 - f))) * step(0.81, r) * step(r, 0.835);
+    float big = (1.0 - smoothstep(0.0, 0.25, min(fract(k / 8.0), 1.0 - fract(k / 8.0)) * 8.0)) * step(0.79, r) * step(r, 0.835);
+    eng = max(eng, max(tick, big));
+    eng = max(eng, stroke(r - 0.8, 0.0014, 0.0008));
   }
   joint = max(joint, stroke(r - 0.925, 0.0, 0.0015));
-  joint = max(joint, stroke(r - PR * 0.36, 0.0, 0.001));
-  // brass with wear
-  float wear = fbm(p * 6.0, vec2(64.0), 4) * 0.5 + 0.5;
-  vec3 b = brassC * (0.75 + 0.35 * wear);
-  col = mix(col, b, inl);
-  metal = inl;
-  rough = mix(0.14 + 0.08 * wear, 0.22 + 0.08 * wear, inl);
-  col = mix(col, vec3(0.08, 0.07, 0.06), joint * 0.8);
-  h = 0.6 - joint * 0.3 + inl * 0.07;   // brass strips stand a hair proud, bevelled by the normal pass
-  // scuffs & dull traffic patina
-  float scuff = smoothstep(0.55, 0.8, fbm(p * 2.2 + 3.0, vec2(64.0), 5) * 0.5 + 0.5);
-  rough = mix(rough, rough + 0.12, scuff);
+  // gold-filled engraving: sunk, leaf a little rubbed so the cut edges catch light
+  float wear = N(p * 7.0, 4) * 0.5 + 0.5;
+  vec3 leaf = vec3(0.78, 0.58, 0.28) * (0.7 + 0.35 * wear);
+  vec3 brassC = vec3(0.86, 0.66, 0.34) * (0.75 + 0.3 * wear);
+  col = mix(col, leaf, eng * 0.92);
+  col = mix(col, vec3(0.02, 0.017, 0.012), groove);
+  col = mix(col, brassC, inl);
+  metal = max(inl, eng * 0.9);
+  rough = mix(rough, 0.3 + 0.12 * wear, eng);
+  rough = mix(rough, 0.22 + 0.08 * wear, inl);
+  rough = mix(rough, 0.5, groove);
+  col = mix(col, vec3(0.05, 0.045, 0.04), joint * 0.8);
+  h = 0.6 - eng * 0.18 - groove * 0.25 - joint * 0.3 + inl * 0.05;
+  // traffic: a dull scuffed film near the rim where feet cross, never on the heart
+  float scuff = smoothstep(0.6, 0.85, N(p * 2.2 + 3.0, 5) * 0.5 + 0.5) * smoothstep(0.4, 0.9, r);
+  rough = mix(rough, rough + 0.15, scuff);
   s.albedo = col;
   s.alpha = step(r, 1.0);
-  s.height = h; s.rough = rough; s.metal = metal; s.ao = 1.0 - joint * 0.4;
+  s.height = h; s.rough = rough; s.metal = metal; s.ao = 1.0 - joint * 0.4 - groove * 0.5 - eng * 0.25;
 }`,
   });
 }
@@ -934,17 +940,20 @@ vec3 renderSitter(vec2 p, vec2 uv, vec3 bg, float variant) {
  * grout is dark and grimy; the chamfered edges are slightly lifted; light scuffing.
  */
 export function floorTexture(forge, size = 1024) {
-  return forge.generate('foyer:floor5', {
-    size, aspect: 1, tile: true, normalStrength: 1.0,
+  return forge.generate('foyer:floor9', {
+    size, aspect: 1, tile: true, normalStrength: 0.55,
     glsl: /* glsl */ `
-// domain-warped marble in tile-local space: soft cloudy drifts, a few wandering veins with a crisp core
-// and a blurred halo, fine crackle; each tile has its own rotation, offset, tint and polish
-float warpedVein(vec2 q, float k, out float halo) {
-  vec2 w1 = vec2(fbm(q * 1.1 + k, vec2(1e3), 5), fbm(q * 1.1 + k + 5.2, vec2(1e3), 5));
-  vec2 w2 = vec2(fbm(q * 2.3 + w1 * 1.6 + k * 1.7, vec2(1e3), 4), fbm(q * 2.3 + w1 * 1.6 + k * 2.3 + 1.3, vec2(1e3), 4));
-  float v = fbm(q * 0.9 + w2 * 0.9 + k * 0.3, vec2(1e3), 6);
-  halo = 1.0 - smoothstep(0.0, 0.2, abs(v));
-  return 1.0 - smoothstep(0.006, 0.045, abs(v));
+// Carrara + Nero Marquina checker. Everything here is LOW frequency on purpose: soft clouds, drifting
+// veins with a crisp core and a milky halo -- no speckle/crackle terms (they alias into sparkle on a
+// polished, clear-coated floor). Each slab has its own cut of the block: rotation, offset, tint, polish.
+float warpedVein(vec2 q, float k, float w, out float halo) {
+  // veins = the zero set of a warped, anisotropic field: long drifting lines along the bedding direction
+  vec2 w1 = vec2(fbm((q * 0.6 + k) / 64.0, vec2(64.0), 3), fbm((q * 0.6 + k + 5.2) / 64.0, vec2(64.0), 3));
+  vec2 w2 = vec2(fbm((q * 1.2 + w1 * 1.2 + k * 1.7) / 64.0, vec2(64.0), 4), fbm((q * 1.2 + w1 * 1.2 + k * 2.3 + 1.3) / 64.0, vec2(64.0), 4));
+  vec2 qa = q * vec2(0.3, 1.0);
+  float v = fbm((qa * 0.7 + w2 * 0.3 + k * 0.3) / 64.0, vec2(64.0), 3) + 0.06 * fbm((q * 3.0 + k) / 64.0, vec2(64.0), 3);
+  halo = 1.0 - smoothstep(0.0, 0.16, abs(v));
+  return 1.0 - smoothstep(w * 0.25, w, abs(v));
 }
 void surface(vec2 uv, inout Surface s) {
   const float T = 4.0;
@@ -955,51 +964,49 @@ void surface(vec2 uv, inout Surface s) {
   float which = mod(id.x + id.y, 2.0);
   vec2 tid = mod(id, vec2(T));
   float h1 = hash12(tid + 11.3), h2 = hash12(tid * 1.7 + 3.1), h3 = hash12(tid * 2.3 + 7.9), h4 = hash12(tid * 3.1 + 1.7);
-  // tile-local frame: each slab was cut from a different part of the block
-  vec2 q = rot2(h1 * TAU) * (f - 0.5) * (1.6 + h2 * 0.8) + vec2(h3, h4) * 40.0;
-  float halo, halo2;
-  float vein = warpedVein(q, h2 * 13.0, halo);
-  float vein2 = warpedVein(q * 1.9 + 7.0, h3 * 9.0 + 3.0, halo2);
-  float cloud = fbm(q * 0.8 + 2.0, vec2(1e3), 5) * 0.5 + 0.5;
-  float crackle = 1.0 - smoothstep(0.0, 0.01, abs(fbm(q * 5.0 + 11.0, vec2(1e3), 4)));
+  // neighbouring slabs are book-matched cuts: veins run roughly diagonally, continuing across a pair
+  vec2 q = rot2(h1 * 1.2 - 0.6 + (which > 0.5 ? 0.8 : 0.0)) * (f - 0.5) * (1.2 + h2 * 0.6) + vec2(h3, h4) * 40.0;
+  float halo, halo2, halo3;
+  float cloud = fbm((q * 0.6 + 2.0) / 64.0, vec2(64.0), 4) * 0.5 + 0.5;
+  float drift = fbm((q * 1.3 + 9.0) / 64.0, vec2(64.0), 3) * 0.5 + 0.5;
   vec3 col;
   float rough;
   if (which < 0.5) {
-    // aged Carrara: ivory with grey drifts, the odd grey vein; never paper white
-    vec3 base = vec3(0.6, 0.58, 0.53) * (0.9 + 0.14 * h1) * vec3(1.0 + (h2 - 0.5) * 0.05, 1.0, 1.0 - (h2 - 0.5) * 0.09);
-    col = base * (0.86 + 0.2 * cloud);
-    col = mix(col, vec3(0.36, 0.37, 0.39), halo * 0.42);
-    col = mix(col, vec3(0.16, 0.17, 0.19), vein * (0.62 + 0.3 * h3));
-    col = mix(col, vec3(0.34, 0.35, 0.36), halo2 * 0.2 + vein2 * 0.25);
-    col = mix(col, col * vec3(0.95, 0.88, 0.74), smoothstep(0.6, 0.95, cloud) * 0.45);
-    col = mix(col, vec3(0.5, 0.5, 0.5), crackle * 0.04);
-    rough = 0.25 + 0.06 * (h2 - 0.5);
+    // Statuario/Carrara: warm ivory, soft grey drifts, a few grey veins with smoky halos, a fainter secondary web
+    float vein = warpedVein(q, h2 * 13.0, 0.03, halo);
+    float vein2 = warpedVein(q * 1.6 + 7.0, h3 * 9.0 + 3.0, 0.02, halo2);
+    vec3 base = vec3(0.66, 0.645, 0.6) * (0.93 + 0.1 * h1) * vec3(1.0 + (h2 - 0.5) * 0.04, 1.0, 1.0 - (h2 - 0.5) * 0.07);
+    col = base * (0.9 + 0.12 * cloud);
+    col = mix(col, vec3(0.47, 0.475, 0.49), smoothstep(0.55, 0.9, drift) * 0.25);
+    col = mix(col, vec3(0.5, 0.505, 0.52), halo * 0.35);
+    col = mix(col, vec3(0.36, 0.37, 0.39), vein * (0.4 + 0.3 * h3));
+    col = mix(col, vec3(0.5, 0.51, 0.52), halo2 * 0.12 + vein2 * 0.22);
+    rough = 0.1 + 0.03 * (h2 - 0.5) + vein * 0.03;
   } else {
-    // Nero Marquina: a deep black body, sparse white calcite veins with soft milky halos
-    vec3 base = vec3(0.028, 0.027, 0.03) * (0.85 + 0.3 * h1);
+    // Nero Marquina: deep true-black body with sparse, branching white calcite veins and milky halos
+    float vein = warpedVein(q * 0.8, h2 * 11.0 + 2.0, 0.022, halo);
+    float vein2 = warpedVein(q * 1.4 + 3.0, h3 * 7.0 + 5.0, 0.014, halo2);
+    float vein3 = warpedVein(q * 2.6 + 9.0, h4 * 5.0 + 1.0, 0.012, halo3);
+    vec3 base = vec3(0.014, 0.0135, 0.015) * (0.85 + 0.3 * h1);
     col = base * (0.85 + 0.3 * cloud);
-    float strong = step(0.2, h4);
-    col = mix(col, vec3(0.16, 0.16, 0.16), halo * 0.18 * strong);
-    col = mix(col, vec3(0.62, 0.61, 0.58), vein * (0.45 + 0.4 * h3) * strong);
-    col = mix(col, vec3(0.3, 0.3, 0.29), vein2 * 0.1);
-    col = mix(col, vec3(0.08, 0.08, 0.08), crackle * 0.05);
-    rough = 0.15 + 0.05 * (h2 - 0.5);
+    float strong = step(0.25, h4);
+    col = mix(col, vec3(0.1, 0.1, 0.1), halo * 0.12 * strong);
+    col = mix(col, vec3(0.7, 0.69, 0.66), vein * (0.55 + 0.35 * h3) * strong);
+    col = mix(col, vec3(0.45, 0.45, 0.44), vein2 * 0.3 * step(0.55, h1));
+    col = mix(col, vec3(0.2, 0.2, 0.19), vein3 * 0.1);
+    rough = 0.08 + 0.03 * (h2 - 0.5) + vein * 0.05;
   }
-  // grout + a bevelled arris on every slab
+  // grout + a softly arrised edge on every slab (3 mm joint: texture spans 3.2 m, 1 mm = 0.0003 uv)
   float e = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)) / T;
-  // 3 mm recessed grout line (texture spans 3.2 m: 1 mm = 0.0003 uv)
   float groutM = 1.0 - smoothstep(0.0005, 0.0009, e);
-  float bevel = smoothstep(0.0006, 0.004, e);
-  col = mix(col, vec3(0.07, 0.064, 0.056), groutM);
-  col *= mix(0.84, 1.0, smoothstep(0.0, 0.007, e));
-  float sc = fbm(uv * vec2(9.0, 40.0) + h1 * 3.0, vec2(9.0, 40.0), 3) * 0.5 + 0.5;
-  float scuff = smoothstep(0.7, 0.85, sc) * (0.5 + 0.5 * hash12(floor(uv * 60.0)));
-  float pits = step(0.9995, hash12(floor(uv * 1100.0)));
-  s.albedo = col * (1.0 - scuff * 0.05);
-  s.height = mix(0.42 + 0.12 * sqrt(bevel) + cloud * 0.01 - pits * 0.1 - crackle * 0.006, 0.18, groutM);
-  s.rough = mix(rough + vein * 0.04 + scuff * 0.2 + pits * 0.3 + crackle * 0.05, 0.85, groutM);
+  float bevel = smoothstep(0.0006, 0.0035, e);
+  col = mix(col, vec3(0.06, 0.055, 0.05), groutM);
+  col *= mix(0.86, 1.0, smoothstep(0.0, 0.006, e));
+  s.albedo = col;
+  s.height = mix(0.45 + 0.1 * sqrt(bevel), 0.2, groutM);
+  s.rough = mix(rough, 0.8, groutM);
   s.metal = 0.0;
-  s.ao = mix(1.0, 0.5, groutM) * (1.0 - pits * 0.3);
+  s.ao = mix(1.0, 0.45, groutM);
 }`,
   });
 }

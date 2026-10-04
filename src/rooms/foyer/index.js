@@ -7,6 +7,8 @@ import { createWebPuzzle, webMeta, WEB_ID } from './puzzleWeb.js';
 import { palmOnPedestal, hallStand, umbrellaStand, hallBench, portieres, corbelGeometry, torchere } from './dressing.js';
 import { buildChandelier } from '../../engine/lib/contrib/foyer-chandelier.js';
 import { roomBeyond } from './interiors.js';
+import { planarReflection } from './reflect.js';
+import { moonVolume } from './moonVolume.js';
 import { drapeGeometry, velvetDrapeMaterial } from './dressing.js';
 
 /**
@@ -70,11 +72,25 @@ export default {
       parent.add(o); return o;
     };
     const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+    // hung pictures must keep >= 10 cm clear of the gallery entablature belt and the top frieze/cornice
+    const MOULD_BANDS = [[UF - 0.34, UF + 0.56], [H - 0.42 - 0.32 - 0.08, H]];
+    const hangClear = (y, halfH, clear = 0.1) => {
+      for (const [a, b] of MOULD_BANDS) {
+        if (y - halfH - clear < b && y + halfH + clear > a) {
+          const up = b + clear + halfH;
+          const ny = a > UF + 1 ? a - clear - halfH : up;   // below the top frieze, above the belt
+          console.warn(`[foyer] picture at y=${y.toFixed(2)} overlaps a moulding band; re-hung at ${ny.toFixed(2)}`);
+          return ny;
+        }
+      }
+      return y;
+    };
     const big = Q.textureSize >= 2048 ? 2048 : 1024;
+    let floorRefl = null;
     const ROOM_GRADE = {
-      exposure: 1.12, contrast: 1.1, saturation: 0.86, lift: [0.017, 0.02, 0.03], gamma: [1.0, 1.0, 0.98], blackPoint: 0.0, highlightRolloff: 1.35, chromaticAberration: 0.0003,
+      exposure: 1.2, contrast: 1.16, saturation: 0.88, lift: [0.002, 0.003, 0.007], gamma: [1.02, 1.02, 1.0], blackPoint: 0.012, highlightRolloff: 1.35, chromaticAberration: 0.0003,
       shadowTint: [0.64, 0.98, 1.06], highlightTint: [1.1, 1.0, 0.86], splitAmount: 0.6,
-      bloomStrength: 0.32, bloomThreshold: 3.0, bloomRadius: 0.4, godRayWeight: 1.0, vignette: 0.3, aoIntensity: 1.1, aoRadius: 0.45, grain: 0.017,
+      bloomStrength: 0.32, bloomThreshold: 3.0, bloomRadius: 0.4, godRayWeight: 1.0, vignette: 0.3, aoIntensity: 1.3, aoRadius: 0.32, grain: 0.015,
     };
     // review knobs (stills only): &tm=agx &exp=1.2 &sat=1
     if (ctx.params.get('tm')) ROOM_GRADE.toneMapping = ctx.params.get('tm');
@@ -122,7 +138,7 @@ export default {
       // aged marble checker: ivory Carrara (~0.62 albedo) and Nero, per-tile jitter, dark grout, scuffs;
       // a worn traffic path (door -> stair, door -> music room) is added in world space below
       const fs = floorTexture(ctx.textures, big);
-      mat.floor = new THREE.MeshPhysicalMaterial({ map: fs.map, normalMap: fs.normalMap, roughnessMap: fs.ormMap, aoMap: fs.ormMap, roughness: 1, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.22, envMapIntensity: 1.0, specularIntensity: 0.6 });
+      mat.floor = new THREE.MeshPhysicalMaterial({ map: fs.map, normalMap: fs.normalMap, roughnessMap: fs.ormMap, aoMap: fs.ormMap, roughness: 1, metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.05, envMapIntensity: 0.4, specularIntensity: 0.7 });
       for (const t of [fs.map, fs.normalMap, fs.ormMap]) t.repeat.set(1 / 3.2, 1 / 3.2);
       mat.floor.onBeforeCompile = (sh) => {
         sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
@@ -131,6 +147,7 @@ export default {
 varying vec3 vWPos;
 float fyPath(vec2 p, vec2 a, vec2 b, float w) { vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return 1.0 - smoothstep(w * 0.4, w, length(pa - ba * h)); }
 float fyDustG = 0.0;
+vec2 fyTilt = vec2(0.0);
 float fyHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(fyHash(i), fyHash(i + vec2(1, 0)), f.x), mix(fyHash(i + vec2(0, 1)), fyHash(i + vec2(1, 1)), f.x), f.y); }
 `).replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
@@ -141,9 +158,10 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
     vec2 tq = mat2(0.70710678, -0.70710678, 0.70710678, 0.70710678) * vMapUv * 1.41421356 * 4.0;   // same lattice as floorTexture, unwrapped
     vec2 tcell = floor(tq);
     float th = fyHash(tcell + 17.0), th2 = fyHash(tcell * 1.3 + 5.0);
-    diffuseColor.rgb *= 0.9 + 0.2 * th;
-    diffuseColor.rgb *= mix(vec3(1.0), vec3(1.03, 1.0, 0.95), th2);
-    roughnessFactor = clamp(roughnessFactor + (th2 - 0.5) * 0.08, 0.0, 1.0);
+    diffuseColor.rgb *= 0.94 + 0.12 * th;
+    diffuseColor.rgb *= mix(vec3(1.0), vec3(1.02, 1.0, 0.97), th2);
+    roughnessFactor = clamp(roughnessFactor + (th2 - 0.5) * 0.04, 0.0, 1.0);
+    fyTilt = vec2(th - 0.5, th2 - 0.5) * 0.035;   // lippage: every slab sits a hair off level
   }
   float wear = max(max(fyPath(wp, vec2(0.0, 6.8), vec2(0.0, 2.2), 1.3), fyPath(wp, vec2(0.0, 2.2), vec2(4.2, 1.6), 1.1)),
                    max(fyPath(wp, vec2(0.0, 2.2), vec2(-1.6, -6.8), 1.0), fyPath(wp, vec2(-1.0, 1.0), vec2(-5.8, -1.6), 0.9)));
@@ -154,41 +172,60 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
   float dust = (1.0 - wear) * (0.45 + 0.55 * fyNoise(wp * 1.3 + 4.0)) * (0.6 + 0.4 * (1.0 - smoothstep(0.0, 1.5, edgeD)));
   float scuffs = smoothstep(0.62, 0.8, fyNoise(vec2(wp.x * 9.0 + wp.y * 3.0, wp.y * 26.0))) * wear;
   // polished slabs (~0.08-0.12) away from traffic, dulled to ~0.3 along the worn paths, a dull dust film in the corners
-  roughnessFactor = clamp(roughnessFactor * 0.55 + wear * 0.17 + dust * 0.16 + scuffs * 0.22 + 0.05 * fyNoise(wp * 0.7), 0.0, 1.0);
+  roughnessFactor = clamp(roughnessFactor + wear * 0.1 + dust * 0.16 + scuffs * 0.12 + 0.03 * fyNoise(wp * 0.7), 0.0, 1.0);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.16, 0.15, 0.135), dust * 0.22);
   fyDustG = dust;
   // grime gathers along the skirting
   diffuseColor.rgb *= mix(0.6, 1.0, smoothstep(0.0, 0.7, edgeD)) * (1.0 - scuffs * 0.06);
-}`).replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
+}`).replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+  normal = normalize(normal + mat3(viewMatrix) * vec3(fyTilt.x, 0.0, fyTilt.y));
+`).replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
 #ifdef USE_CLEARCOAT
   material.clearcoat *= 1.0 - fyDustG * 0.7;
   material.clearcoatRoughness = clamp(material.clearcoatRoughness + fyDustG * 0.45, 0.0, 1.0);
 #endif`);
+        floorRefl?.inject(sh, 'fyDustG * 1.2');
       };
     }
     const carpetSet = carpetTexture(ctx.textures);
     mat.carpet = new THREE.MeshPhysicalMaterial({ map: carpetSet.map, normalMap: carpetSet.normalMap, roughnessMap: carpetSet.ormMap, aoMap: carpetSet.ormMap, roughness: 1, metalness: 0, sheen: 0.6, sheenRoughness: 0.55, sheenColor: new THREE.Color(0.7, 0.35, 0.32), envMapIntensity: 0.4 });
-    mat.rimBrass = mat.brass.clone(); mat.rimBrass.roughness = 0.55; mat.rimBrass.polygonOffset = true; mat.rimBrass.polygonOffsetFactor = -2;
+    mat.rimBrass = mat.brass.clone(); mat.rimBrass.roughness = 0.4;
     mat.shade = new THREE.MeshStandardMaterial({ color: 0x2a2116, emissive: new THREE.Color(1.0, 0.6, 0.28), emissiveIntensity: 2.6, roughness: 0.35, transparent: true, opacity: 0.94 });
     // black-widow chitin: near-black, glossy clearcoat; legs a touch rougher; the hourglass is paint, not a light
-    mat.spider = new THREE.MeshPhysicalMaterial({ color: 0x0c0405, roughness: 0.35, metalness: 0.0, clearcoat: 0.6, clearcoatRoughness: 0.3, specularIntensity: 0.6, sheen: 0.8, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.32, 0.05, 0.05), envMapIntensity: 0.7 });
-    mat.spiderLeg = new THREE.MeshPhysicalMaterial({ color: 0x080708, roughness: 0.42, clearcoat: 0.5, clearcoatRoughness: 0.25, sheen: 0.6, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.18, 0.16, 0.18), envMapIntensity: 0.9 });
-    mat.mark = new THREE.MeshPhysicalMaterial({ color: 0x6a0805, roughness: 0.3, clearcoat: 0.9, clearcoatRoughness: 0.12, polygonOffset: true, polygonOffsetFactor: -2 });
+    mat.spider = new THREE.MeshPhysicalMaterial({ color: 0x050405, roughness: 0.2, metalness: 0.0, clearcoat: 1.0, clearcoatRoughness: 0.05, specularIntensity: 0.8, vertexColors: true, envMapIntensity: 1.3 });
+    mat.spiderLeg = new THREE.MeshPhysicalMaterial({ color: 0x060506, roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.12, sheen: 0.5, sheenRoughness: 0.4, sheenColor: new THREE.Color(0.1, 0.1, 0.11), envMapIntensity: 1.1 });
+    mat.mark = new THREE.MeshPhysicalMaterial({ color: 0x8a0a06, roughness: 0.25, clearcoat: 1.0, clearcoatRoughness: 0.06, polygonOffset: true, polygonOffsetFactor: -2 });
 
     // ================================================================ floor, medallion, ceiling
     {
       const floor = new THREE.Mesh(G.planeUV(X1 - X0, Z1 - Z0, 1), mat.floor);
       floor.rotation.x = -Math.PI / 2; floor.name = 'floor';
+      // the marble mirrors the room: chandelier, flames, columns (fog/dust/beam volumes stay out of it)
+      floorRefl = planarReflection(ctx, floor, { scale: 0.5, strength: Number(ctx.params.get('refl') || 1.0), hide: (o) => /LightShaft|FogVolume|DustMotes|MoonVolume|webPuzzle/.test(o.name) || o.userData.reflHide });
       add(floor, { cast: false });
       const medSet = medallionTexture(ctx.textures, MED_PR / MED_R);
-      const medMat = new THREE.MeshPhysicalMaterial({ map: medSet.map, normalMap: medSet.normalMap, roughnessMap: medSet.ormMap, metalnessMap: medSet.ormMap, aoMap: medSet.ormMap, roughness: 1, metalness: 1, clearcoat: 0.35, clearcoatRoughness: 0.3, envMapIntensity: 0.8, specularIntensity: 0.6, polygonOffset: true, polygonOffsetFactor: -1 });
+      // an inlaid occult floor piece: polished obsidian field, honed slate rune band (gold-filled engraving),
+      // set flush in the marble inside a bevelled brass rim; it mirrors the chandelier like the floor does
+      const medMat = new THREE.MeshPhysicalMaterial({ map: medSet.map, normalMap: medSet.normalMap, normalScale: new THREE.Vector2(1.2, 1.2), roughnessMap: medSet.ormMap, metalnessMap: medSet.ormMap, aoMap: medSet.ormMap, roughness: 1, metalness: 1, envMapIntensity: 0.6, specularIntensity: 0.8, polygonOffset: true, polygonOffsetFactor: -1 });
+      medMat.onBeforeCompile = (sh) => floorRefl?.inject(sh, '0.0');
       const med = new THREE.Mesh(new THREE.CircleGeometry(MED_R, 160), medMat);
       med.rotation.x = -Math.PI / 2; med.position.copy(MED); med.name = 'medallion';
       add(med, { cast: false });
-      // a narrow (1.5 cm) polished brass fillet set flush between the medallion and the tiles
-      const ring = new THREE.Mesh(new THREE.RingGeometry(MED_R - 0.002, MED_R + 0.015, 160), mat.rimBrass);
-      ring.rotation.x = -Math.PI / 2; ring.position.copy(MED).add(V3(0, 0.001, 0));
+      // bevelled brass rim (5 cm, standing 4 mm proud of the marble) round the inlay
+      const rimG = G.latheFromProfile([[MED_R + 0.034, 0.0], [MED_R + 0.026, 0.0028], [MED_R + 0.016, 0.0042], [MED_R - 0.002, 0.0045], [MED_R - 0.012, 0.0036], [MED_R - 0.018, 0.0015], [MED_R - 0.02, 0.0]], 200);
+      const ring = new THREE.Mesh(rimG, mat.rimBrass);
+      ring.position.set(MED.x, 0.0, MED.z); ring.name = 'medRim';
       add(ring, { cast: false });
+      // contact occlusion where the rim meets the tiles (and a faint dust line in the joint)
+      {
+        const rg = new THREE.RingGeometry(MED_R + 0.03, MED_R + 0.2, 160, 1);
+        const pos = rg.attributes.position, colA = new Float32Array(pos.count * 4);
+        for (let i = 0; i < pos.count; i++) { const rr = Math.hypot(pos.getX(i), pos.getY(i)); const t = (rr - (MED_R + 0.03)) / 0.17; colA.set([0, 0, 0, t < 0.5 ? 0.62 : 0.0], i * 4); }
+        rg.setAttribute('color', new THREE.BufferAttribute(colA, 4));
+        const aoRing = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 }));
+        aoRing.rotation.x = -Math.PI / 2; aoRing.position.set(MED.x, 0.0015, MED.z); aoRing.renderOrder = 1; aoRing.name = 'contactAO';
+        add(aoRing, { cast: false });
+      }
       const ceil = new THREE.Mesh(G.planeUV(X1 - X0, Z1 - Z0, 1), mat.ceiling);
       ceil.rotation.x = Math.PI / 2; ceil.position.y = H; ceil.name = 'ceiling';
       add(ceil, { cast: false });
@@ -411,6 +448,92 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
       }
     }
 
+    // ---------------------------------------------------------------- upper register + ceiling enrichment
+    // the double-height volume must not read as empty navy: tall gilt-bead panel mouldings on every upper
+    // wall (the big canvas sits inside one), carved rosettes in every coffer and bosses on the beam crossings
+    {
+      const rosetteGeo = (r, petals = 8, depth = 0.09) => {
+        const g = G.latheFromProfile([[0.0001, 0], [r, 0], [r * 0.98, -depth * 0.2], [r * 0.82, -depth * 0.45], [r * 0.62, -depth * 0.5], [r * 0.48, -depth * 0.62], [r * 0.3, -depth * 0.8], [r * 0.16, -depth * 0.85], [r * 0.12, -depth], [0.0001, -depth * 1.05]], petals * 8);
+        const ps = g.attributes.position;
+        for (let i = 0; i < ps.count; i++) {
+          const x = ps.getX(i), z = ps.getZ(i), y = ps.getY(i), rr = Math.hypot(x, z);
+          if (rr < 1e-4) continue;
+          const a = Math.atan2(z, x);
+          const t = Math.min(1, rr / r);
+          // acanthus petals: scalloped outline, each leaf cupped (lower at the midrib) with a turned-over tip
+          const lobe = Math.abs(Math.cos(a * petals / 2));
+          const k = 1 - 0.22 * (1 - lobe ** 0.6) * t;
+          const cup = 0.02 * Math.sin(t * Math.PI) * (lobe - 0.5) * (depth / 0.09);
+          ps.setXYZ(i, x * k, y + cup, z * k);
+        }
+        g.computeVertexNormals();
+        return g;
+      };
+      const roses = [], bosses = [], panels = [];
+      const beamXs = [-2, 2], beamZs = [-4.3, -1.4, 2.2, 5.0];
+      const cx = [X0 + 0.32, ...beamXs, X1 - 0.32], cz = [Z0 + 0.32, ...beamZs, Z1 - 0.32];
+      for (let i = 0; i < cx.length - 1; i++) for (let j = 0; j < cz.length - 1; j++) {
+        const x0 = cx[i] + 0.18, x1 = cx[i + 1] - 0.18, z0 = cz[j] + 0.18, z1 = cz[j + 1] - 0.18;
+        const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+        if (Math.abs(mx - MED.x) < 0.5 && Math.abs(mz - MED.z) < 1.5) continue;   // the chandelier coffer has its medallion
+        // sunk inner panel framed by a gilt bead, inset from the cove
+        const w = x1 - x0 - 0.5, d = z1 - z0 - 0.5;
+        if (w > 0.4 && d > 0.4) {
+          const f = G.frameGeometry(w, d, { width: 0.045, depth: 0.025, uvScale: 1 });
+          f.rotateX(Math.PI / 2); f.translate(mx, H - 0.004, mz); panels.push(f.index ? f.toNonIndexed() : f);
+        }
+        const rg = rosetteGeo(Math.min(0.26, Math.min(w, d) * 0.22), 8, 0.08); rg.translate(mx, H - 0.004, mz); roses.push(rg.index ? rg.toNonIndexed() : rg);
+      }
+      for (const x of beamXs) for (const z of beamZs) { const b = rosetteGeo(0.16, 6, 0.07); b.translate(x, H - 0.52, z); bosses.push(b.index ? b.toNonIndexed() : b); }
+      add(new THREE.Mesh(G.mergeGeometries(panels), mat.gilt), { cast: false });
+      add(new THREE.Mesh(G.mergeGeometries(roses), mat.crown), { cast: false });
+      add(new THREE.Mesh(G.mergeGeometries(bosses), mat.crown), { cast: false });
+      // a ring of small rosettes round the chandelier medallion
+      const rr = [];
+      for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2 + Math.PI / 8; const b = rosetteGeo(0.07, 6, 0.04); b.translate(MED.x + Math.cos(a) * 1.68, H - 0.002, MED.z + Math.sin(a) * 1.68); rr.push(b.index ? b.toNonIndexed() : b); }
+      add(new THREE.Mesh(G.mergeGeometries(rr), mat.crown), { cast: false });
+
+      // upper-wall panel mouldings: outer gilt moulding + an inner fillet, in each wall's local frame
+      const Y0 = UF + 0.62, Y1 = H - 0.42 - 0.32 - 0.2;   // between the belt and the frieze
+      const ph = Y1 - Y0, pyc = (Y0 + Y1) / 2;
+      const wallPanels = { right: [], front: [], left: [] };
+      // east wall over the straight flight (z from the curve start to the front wall); the canvas sits in the middle one
+      wallPanels.right.push([lx.right(-1.05), 1.75], [lx.right(1.15), 2.05], [lx.right(3.6), 2.6], [lx.right(5.95), 1.6]);
+      wallPanels.front.push([6 - 2.6, 1.8], [6 + 2.6, 1.8], [6 - 4.75, 1.3], [6 + 4.75, 1.3]);
+      wallPanels.left.push([lx.left(0.8), 1.3], [lx.left(5.9), 1.5]);
+      for (const [wk, list] of Object.entries(wallPanels)) {
+        const gs = [], ig = [];
+        for (const [along, w] of list) {
+          const f = G.frameGeometry(w, ph, { width: 0.07, depth: 0.04, uvScale: 1 }); f.translate(along, pyc, 0.004); gs.push(f.index ? f.toNonIndexed() : f);
+          const f2 = G.frameGeometry(w - 0.24, ph - 0.24, { width: 0.022, depth: 0.014, uvScale: 1 }); f2.translate(along, pyc, 0.004); ig.push(f2.index ? f2.toNonIndexed() : f2);
+        }
+        walls[wk].group.add(new THREE.Mesh(G.mergeGeometries(gs), mat.frame));
+        walls[wk].group.add(new THREE.Mesh(G.mergeGeometries(ig), mat.gilt));
+      }
+      // the curved stair wall: the same panels, bent round the drum (bead mouldings swept along the curve)
+      const cy0 = 5.78, cy1 = Y1;
+      const Rp = CURVE_R - 0.012;
+      const arcPanels = [[-0.08, -0.42], [-0.5, -0.86], [-0.94, -1.3], [-1.38, -1.5]];
+      const tubes = [];
+      const P = (a, y, r = Rp) => V3(STAIR.cx + Math.cos(a) * r, y, STAIR.cz + Math.sin(a) * r);
+      for (const [a0, a1] of arcPanels) {
+        for (const [inset, rad] of [[0, 0.022], [0.12, 0.01]]) {
+          const da = inset / Rp;
+          const b0 = a0 - da, b1 = a1 + da, y0 = cy0 + inset, y1 = cy1 - inset;
+          const pts = [];
+          const n = Math.max(6, Math.round(Math.abs(b1 - b0) * Rp / 0.08));
+          for (let k = 0; k <= n; k++) pts.push(P(b0 + (b1 - b0) * (k / n), y0));
+          for (let k = 1; k <= 6; k++) pts.push(P(b1, y0 + (y1 - y0) * (k / 6)));
+          for (let k = 1; k <= n; k++) pts.push(P(b1 + (b0 - b1) * (k / n), y1));
+          for (let k = 1; k < 6; k++) pts.push(P(b0, y1 + (y0 - y1) * (k / 6)));
+          const curve = new THREE.CatmullRomCurve3(pts, true, 'catmullrom', 0.05);
+          const tg = new THREE.TubeGeometry(curve, pts.length * 3, rad, 8, true);
+          tubes.push([tg, rad > 0.015 ? mat.frame : mat.gilt]);
+        }
+      }
+      for (const [tg, m] of tubes) add(new THREE.Mesh(tg, m), { cast: false });
+    }
+
     // ================================================================ doors
     const doorMats = { noCartouche: true, leafMat: mat.mahogany, caseMat: mat.panel, giltMat: mat.crown, brassMat: mat.brass, friezeMat: mat.frieze, ironMat: mat.iron, thresholdMat: mat.columns };
     const placeOnWall = (wall, along, obj, y = 0) => { obj.position.set(along, y, 0); walls[wall].group.add(obj); return obj; };
@@ -437,16 +560,16 @@ float fyNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
       obj.add(beyond);
       const grp = walls[wall].group;
       grp.updateMatrixWorld(true);
-      const wp = new THREE.Vector3(along, d.h * 0.62, 0.3).applyMatrix4(grp.matrixWorld);
+      const wp = new THREE.Vector3(along, d.h * 0.62, 0.5).applyMatrix4(grp.matrixWorld);
       const wn = new THREE.Vector3(0, -0.45, 1).applyQuaternion(grp.quaternion);
-      const al = new THREE.RectAreaLight(color, areaI, 0.35, d.h * 0.9);
+      const al = new THREE.RectAreaLight(color, areaI, 0.28, d.h * 0.8);
       al.position.copy(wp); al.lookAt(wp.clone().add(wn)); al.name = 'spill';
       root.add(al);
       if (flick) ctx.onUpdate((dt, t) => { const f = 0.8 + 0.2 * Math.sin(t * 6.3) * Math.sin(t * 2.3 + 1.0) + 0.06 * Math.sin(t * 17.0); al.intensity = areaI * f; });
     };
     walls.back.group.position && root.updateMatrixWorld(true);
-    spill('dining', 'left', lx.left(DOORS.dining.z), DOORS.dining, 0xffa060, 1.1, 4, false);     // the dining room's candles
-    spill('library', 'right', lx.right(DOORS.library.z), DOORS.library, 0xff8240, 1.25, 5, true);  // the library fire
+    spill('dining', 'left', lx.left(DOORS.dining.z), DOORS.dining, 0xffa060, 1.6, 1.3, false);     // the dining room's candles
+    spill('library', 'right', lx.right(DOORS.library.z), DOORS.library, 0xff8240, 1.5, 1.8, true);  // the library fire
     spill('music', 'back', lx.back(DOORS.music.x), DOORS.music, 0x7f98d8, 0.8, 4, false);         // a moonlit music room
     spill('kitchen', 'back', lx.back(DOORS.kitchen.x), DOORS.kitchen, 0xffb070, 0.8, 3, false);   // the range, banked low
 
@@ -730,7 +853,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     const gutter = (on) => chand.candles.forEach((c, i) => { const f = c.userData.flame; if (f) f.visible = on || (i * 7) % 5 < 3; c.userData.body.material.emissiveIntensity = f?.visible ? 0.04 : 0; });
     gutter(false);
     // one shadowed key hung just below the crystal cascade: far enough from the brass that nothing blows out
-    const chandLight = new THREE.PointLight(0xffc088, 16, 16, 2);
+    const chandLight = new THREE.PointLight(0xffc088, 30, 20, 2);
     chandLight.position.copy(chand.lightAnchor).add(chand.group.position).add(V3(0, -1.15, 0));
     chandLight.castShadow = Q.shadows; chandLight.name = 'chand';
     chandLight.shadow.mapSize.set(512, 512);
@@ -738,10 +861,10 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     chandLight.shadow.camera.near = 0.25;
     root.add(chandLight);
     // a faint warm bounce thrown up onto the rose and the coffers so the plasterwork reads
-    const chandUp = new THREE.PointLight(0xffc890, 2.6, 6, 2);
+    const chandUp = new THREE.PointLight(0xffc890, 6, 10, 2);
     chandUp.position.set(MED.x, H - 1.2, MED.z); chandUp.name = 'chandUp';
     root.add(chandUp);
-    let chandBase = 16;
+    let chandBase = 30;
     ctx.onUpdate((dt, t) => { chandLight.intensity = chandBase * (0.95 + 0.05 * Math.sin(t * 7.3) * Math.sin(t * 2.9 + 1.0)); });
 
     // ================================================================ oil paintings (offline: tools/genPaintings.py)
@@ -846,7 +969,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
       const g = new THREE.Group();
       g.add(new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), M.create('painting', { subject: 0, seed: 21, aspect: pw / ph, size: 1024, cracks: 0.6, varnish: 0.8, clearcoat: 0.4, clearcoatRoughness: 0.35 })));
       g.add(new THREE.Mesh(G.frameGeometry(pw, ph, { width: 0.13, depth: 0.07, uvScale: 1 }), mat.frame));
-      g.position.set(X1 - 0.05, 5.0, 3.6); g.rotation.y = -Math.PI / 2;
+      g.position.set(X1 - 0.05, hangClear((UF + 0.62 + H - 0.94) / 2, ph / 2 + 0.13), 3.6); g.rotation.y = -Math.PI / 2;
       add(g);
       // seascape on the west wall between the windows
       const s = new THREE.Group();
@@ -995,25 +1118,28 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     }
     // gas sconces: flanking the front door and the music-room doors, plus one on the gallery
     const sconceLights = [];
-    const sconceAt = (wall, along, y, light = true) => {
-      const s = buildSconce(ctx, { brass: mat.brass, shadeMat: mat.shade, arms: 2 });
+    // not a procedural row of identical lamps: each gas jet burns at its own level, one has guttered out
+    const shadeFor = (lvl) => { if (lvl === 1) return mat.shade; const m = mat.shade.clone(); m.emissiveIntensity = mat.shade.emissiveIntensity * (lvl <= 0 ? 0 : 0.25 + lvl * 0.75); if (lvl <= 0) m.emissive.setRGB(0, 0, 0); return m; };
+    const sconceAt = (wall, along, y, light = true, lvl = 1) => {
+      if (!light) lvl = 0;
+      const s = buildSconce(ctx, { brass: mat.brass, shadeMat: shadeFor(lvl), arms: 2 });
       s.position.set(along, y, 0.02);
       walls[wall].group.add(s);
       if (light) {
         const wp = new THREE.Vector3(along, y + 0.12, 0.3).applyMatrix4(walls[wall].group.matrixWorld.compose(walls[wall].group.position, walls[wall].group.quaternion, walls[wall].group.scale));
-        const l = new THREE.PointLight(0xffa860, 4.5, 5.5, 2);
+        const l = new THREE.PointLight(lvl < 0.6 ? 0xff9a4a : 0xffa860, 4.5 * lvl, 5.5, 2);
         l.position.copy(wp);
         root.add(l);
         sconceLights.push(l);
       }
       return s;
     };
-    sconceAt('front', 6 - 2.25, 2.2); sconceAt('front', 6 + 2.25, 2.2);
+    sconceAt('front', 6 - 2.25, 2.2, true, 1.0); sconceAt('front', 6 + 2.25, 2.2, true, 0.5);
     sconceAt('back', lx.back(-3.3) - 0.0, 2.4, false);
-    sconceAt('back', lx.back(DOORS.music.x) + 1.35, 2.4);
-    sconceAt('left', lx.left(DOORS.dining.z) + 1.35, 2.4);
-    sconceAt('left', lx.left(DOORS.gallery.z) - 0.9, UF + 2.05);       // lights the way into the upstairs hall
-    sconceAt('left', lx.left(DOORS.gallery.z) + 0.85, UF + 2.05);
+    sconceAt('back', lx.back(DOORS.music.x) + 1.35, 2.4, true, 0.4);
+    sconceAt('left', lx.left(DOORS.dining.z) + 1.35, 2.4, true, 0.85);
+    sconceAt('left', lx.left(DOORS.gallery.z) - 0.9, UF + 2.05, true, 0.7);       // lights the way into the upstairs hall
+    sconceAt('left', lx.left(DOORS.gallery.z) + 0.85, UF + 2.05, false);          // guttered
     // a lone sconce on the curved stair wall, half way up
     {
       const a = -(5.62 - STAIR.straight) / STAIR.R, y = pitchY(5.62) + 1.45;
@@ -1028,9 +1154,9 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     // a second sconce over the straight flight, between the first two ancestors
     {
       const sz = STAIR.z0 - 1.78, y = pitchY(1.78) + 1.45;
-      const s2 = buildSconce(ctx, { brass: mat.brass, shadeMat: mat.shade, arms: 2 });
+      const s2 = buildSconce(ctx, { brass: mat.brass, shadeMat: shadeFor(0.45), arms: 2 });
       s2.position.set(lx.right(sz), y, 0.02); walls.right.group.add(s2);
-      const l = new THREE.PointLight(0xffa860, 3.5, 4, 2); l.position.set(X1 - 0.32, y + 0.12, sz); root.add(l); sconceLights.push(l);
+      const l = new THREE.PointLight(0xff9a4a, 3.5 * 0.45, 4, 2); l.position.set(X1 - 0.32, y + 0.12, sz); root.add(l); sconceLights.push(l);
     }
     // the clock: a warm grazing light from the sconce side models the hood, trunk door and plinth
     {
@@ -1067,7 +1193,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
       root.add(cs, cs.target);
     }
     sconceLights.forEach((l) => { l.userData.base = l.intensity; });
-    ctx.onUpdate((dt, t) => sconceLights.forEach((l, i) => { l.intensity = l.userData.base * (0.97 + 0.03 * Math.sin(t * (8.3 + i) + i * 2.1)); }));
+    ctx.onUpdate((dt, t) => sconceLights.forEach((l, i) => { const low = l.userData.base < 2.5 ? 1 : 0; l.intensity = l.userData.base * (0.96 + (0.03 + low * 0.06) * Math.sin(t * (8.3 + i * 1.7) + i * 2.1) * Math.sin(t * (2.1 + i * 0.37) + i)); }));
 
     // ================================================================ chandelier crystal, halos, caustics
     {
@@ -1222,12 +1348,47 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
       add(rug, { cast: false });
     }
 
+    // ================================================================ contact shadows
+    // GTAO only sees a few pixels of contact at this distance: every floor-standing piece also gets a
+    // soft baked occlusion blob, darkest right under its base, so nothing floats on the polished marble
+    const blobTex = ctx.textures.canvas('foyer:blob', 128, 128, (g2, w2, h2) => {
+      g2.clearRect(0, 0, w2, h2);
+      const gr = g2.createRadialGradient(w2 / 2, h2 / 2, 0, w2 / 2, h2 / 2, w2 / 2);
+      gr.addColorStop(0, 'rgba(0,0,0,0.95)'); gr.addColorStop(0.35, 'rgba(0,0,0,0.75)'); gr.addColorStop(0.65, 'rgba(0,0,0,0.3)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g2.fillStyle = gr; g2.fillRect(0, 0, w2, h2);
+    }, { tile: false });
+    const blobGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    const blobMats = new Map();
+    const contact = (x, z, rx, rz = rx, k = 0.8, rot = 0, y = 0.0018) => {
+      const key = k.toFixed(2);
+      if (!blobMats.has(key)) blobMats.set(key, new THREE.MeshBasicMaterial({ map: blobTex, color: 0x000000, transparent: true, opacity: k, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+      const b = new THREE.Mesh(blobGeo, blobMats.get(key));
+      b.scale.set(rx * 2, 1, rz * 2); b.rotation.y = rot; b.position.set(x, y, z);
+      b.renderOrder = 1; b.userData.noShadow = true; b.name = 'contactAO';
+      root.add(b); return b;
+    };
+    ctx._contact = contact;
+    for (const x of [-3.3, 0.15]) { contact(x, BAL_Z - 0.17, 0.62, 0.62, 0.85); contact(x, BAL_Z - 0.17, 0.42, 0.42, 0.6); }
+    for (const sx of [-1, 1]) { contact(MED.x + sx * 2.45, MED.z - 1.4, 0.32, 0.32, 0.8); contact(MED.x + sx * 2.45, MED.z - 1.4, 0.14, 0.14, 0.7); }
+    contact(-1.6, -2.75, 0.62, 0.62, 0.7); contact(-1.6, -2.75, 0.3, 0.3, 0.6);
+    contact(X0 + 0.27, -3.75, 0.32, 0.52, 0.9);
+    contact(X0 + 0.3, 0.4, 0.22, 0.22, 0.85);
+    contact(4.6, 6.35, 0.36, 0.36, 0.85);
+    for (const [x, z] of [[-3.27, -6.55], [0.86, -6.6], [-5.45, 6.45]]) contact(x, z, 0.36, 0.36, 0.8);
+    contact(X0 + 0.2, 1.95, 0.3, 0.55, 0.75);
+    for (const dz of [-1.45, 1.45]) contact(X0 + 0.34, DOORS.dining.z + dz, 0.34, 0.34, 0.65);
+    contact(X0 + 0.27, 4.7, 0.33, 0.75, 0.7);
+    for (const sx of [-1, 1]) contact(sx * 2.5, Z1 - 0.27, 0.75, 0.33, 0.7);
+    { const a = -0.3, r = 3.95; contact(STAIR.cx + Math.cos(a) * r, STAIR.cz + Math.sin(a) * r, 0.55, 0.32, 0.7, -a + Math.PI / 2); }
+    { const a = -0.8, pr = CURVE_R - 0.012 - 0.55; contact(STAIR.cx + Math.cos(a) * pr, STAIR.cz + Math.sin(a) * pr, 0.34, 0.34, 0.8); }
+    { const np = stair.newel.position; contact(np.x, np.z, 0.32, 0.32, 0.75, 0, np.y + 0.0018); }
+
     // ================================================================ the puzzle
     const puzzleHide = [];   // atmosphere that only adds speckle when looking straight down at the board
     const web = createWebPuzzle(ctx, {
       onView: (on) => puzzleHide.forEach((o) => { o.visible = !on; }),
       root, center: MED, radius: MED_R, pointsR: MED_PR,
-      materials: { brass: mat.brass, spider: mat.spider, spiderLeg: mat.spiderLeg, mark: mat.mark, spiderGeo: spiderGeometry(G) },
+      materials: { brass: mat.brass, spider: mat.spider, spiderLeg: mat.spiderLeg, mark: mat.mark, spiderGeo: spiderGeometry(G), blob: { geo: blobGeo, mat: new THREE.MeshBasicMaterial({ map: blobTex, color: 0x000000, transparent: true, opacity: 0.75, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }) } },
       grade: ROOM_GRADE,
       onSolved: async (p) => {
         rekindle(true);
@@ -1236,7 +1397,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     });
     const rekindle = (instant) => {
       gutter(true);
-      chandBase = 34;
+      chandBase = 48;
       ctx.state.set('foyer.chandelierLit', true);
       if (!instant) ctx.post?.set?.({ exposure: 1.2 }, 1.5);
     };
@@ -1296,7 +1457,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     const beamDir = new THREE.Vector3().subVectors(moon.target.position, moon.position).normalize();
     const shaft = fx.shaft({
       center: V3(0, WIN.great.y + 1.25, Z1 - 0.02), right: V3(WIN.great.w / 2 - 0.05, 0, 0), up: V3(0, WIN.great.h / 2 - 0.05, 0),
-      direction: beamDir, length: 11.5, color: 0xa3b4ff, intensity: Number(ctx.params.get('shaft') || 0.022), softness: 0.35, falloff: 0.55, panes: [4, 5], mullion: 0.02, noise: 0.7,
+      direction: beamDir, length: 11.5, color: 0xa3b4ff, intensity: Number(ctx.params.get('shaft') || 0.035), softness: 0.35, falloff: 0.55, panes: [4, 5], mullion: 0.02, noise: 0.7,
     });
     root.add(shaft);
     const fanShaft = fx.shaft({
@@ -1310,7 +1471,7 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     const westShafts = WIN.west.map((wi, wIdx) => {
       const sh = fx.shaft({
         center: V3(X0 + 0.02, WIN.westY + WIN.westH * 0.42, wi.z), right: V3(0, 0, -(WIN.westW / 2 - 0.05)), up: V3(0, WIN.westH * 0.42, 0),
-        direction: westDir, length: 9.5, color: 0x9fb2ff, intensity: Number(ctx.params.get('wshaft') || 0.09), softness: 0.3, falloff: 0.9, panes: [3, 4], mullion: 0.025, noise: 0.75,
+        direction: westDir, length: 9.5, color: 0x9fb2ff, intensity: Number(ctx.params.get('wshaft') || 0.16), softness: 0.3, falloff: 0.9, panes: [3, 4], mullion: 0.025, noise: 0.75,
       });
       root.add(sh);
       // matching unshadowed moon spot so the leaded panes land on the floor
@@ -1327,7 +1488,15 @@ float sgN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
       }
       return sh;
     });
-    const dustFx = fx.dust({ box: new THREE.Box3(V3(-5.6, 0.2, -4), V3(2.6, 7.5, 6.8)), count: 800, shafts: [shaft, ...westShafts.slice(0, 2)], size: 0.017, intensity: 0.3, ambient: 0.0 });
+    // the air itself: haze lit by the moon through the stained glass (coloured shafts), darker towards the ceiling
+    const mvol = moonVolume(ctx, {
+      moon, box: new THREE.Box3(V3(X0 + 0.02, 0.012, Z0 + 0.02), V3(X1 - 0.02, H - 0.02, Z1 - 0.05)),
+      occ: [BAL_X1, BAL_Z, UF - 0.4, 0],
+      intensity: Number(ctx.params.get('mvol') || 650), density: Number(ctx.params.get('mdens') || 0.035), heightK: 0.8,
+      topExt: Number(ctx.params.get('mtop') || 0.07), topY: UF + 0.6, steps: Q.volumetricSteps ? Math.max(20, Math.min(40, Q.volumetricSteps * 2)) : 28,
+    });
+    root.add(mvol.mesh); puzzleHide.push(mvol.mesh);
+    const dustFx = fx.dust({ box: new THREE.Box3(V3(-5.0, 0.2, -3.5), V3(3.0, 7.5, 6.8)), count: 1400, shafts: [shaft, ...westShafts.slice(0, 2)], size: 0.013, intensity: 1.1, ambient: 0.0 });
     root.add(dustFx); puzzleHide.push(dustFx);
     const floorFog = fx.fog({ box: new THREE.Box3(V3(X0 + 0.3, 0, -6.5), V3(X1 - 0.3, 0.6, 6.5)), color: 0x0a0f1c, litColor: 0x2c3a5c, density: 0.14, heightFalloff: 5 });
     root.add(floorFog); puzzleHide.push(floorFog);
@@ -1481,6 +1650,8 @@ void main(){ vec3 c = vec3(0.0); float ws = 0.0;
       scene.traverse((o) => { if (o.isMesh) o.material.dispose(); });
       moon.map = rt.texture;
       moon.penumbra = 0.45;
+      mvol.sync();
+      if (typeof window !== 'undefined') window.__foyerMoon = { moon, mvol, rt, renderer: r };
     }
 
     // review knob (stills only): &kill=area,point,spot,hemi,fx  -- isolate light contributions

@@ -93,6 +93,7 @@ export function createWebPuzzle(ctx, { root, center, radius, pointsR, materials,
     const body = new THREE.Mesh(spiderGeo.body, materials.spider); body.castShadow = true; sp.add(body);
     const legs = new THREE.Mesh(spiderGeo.legs, materials.spiderLeg || materials.spider); legs.castShadow = true; sp.add(legs);
     const m = new THREE.Mesh(spiderGeo.hourglass, materials.mark); sp.add(m);
+    if (materials.blob) { const b = new THREE.Mesh(materials.blob.geo, materials.blob.mat); b.scale.set(0.085, 1, 0.1); b.position.set(0, -0.0008, -0.012); b.renderOrder = 2; sp.add(b); }
     sp.position.copy(home[k]);
     const restYaw = (kk) => Math.PI + (kk - 3) * 0.16 + [0.5, -0.9, 0.3, 1.4, -0.4, 0.8, -1.2][kk];
     sp.rotation.y = restYaw(k);
