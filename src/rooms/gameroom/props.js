@@ -689,7 +689,7 @@ export function buildFireplace(ctx, mats, { seed = 3 } = {}) {
   // ------------------------------------------------ marble surround: pilasters with sunk fluted panels, plinths, corbels
   for (const sx of [-1, 1]) {
     const px = sx * (openW / 2 + 0.17);
-    g.add(at(new THREE.Mesh(new G.RoundedBoxGeometry(0.3, Hm - 0.12, D, 2, 0.008), mats.marble), px, (Hm - 0.12) / 2, D / 2));
+    g.add(at(new THREE.Mesh(new G.RoundedBoxGeometry(0.3, Hm - 0.12, D, 5, 0.016), mats.marble), px, (Hm - 0.12) / 2, D / 2));
     // sunk panel with flutes and a carved patera at the top
     const pnl = new THREE.Mesh(G.raisedPanel(0.2, Hm - 0.5, { border: 0.018, bevel: 0.01, fieldDepth: 0.003, frameDepth: 0.006 }), mats.marble);
     pnl.position.set(px, 0.14 + (Hm - 0.5) / 2, D + 0.001); g.add(pnl);

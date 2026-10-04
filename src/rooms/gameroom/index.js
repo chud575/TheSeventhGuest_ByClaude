@@ -89,7 +89,7 @@ export default {
           sheen: 0.6, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.1, 0.17, 0.11), envMapIntensity: 0.35, color: new THREE.Color(1.25, 1.2, 1.15), name: 'flockDamask' });
       })(),
       ceiling: M.create('plaster', { color: [0.06, 0.08, 0.15], cracks: 0.25, stains: 0.45, repeat: [0.5, 0.5] }),
-      floor: M.create('parquet', { species: 'oak', ratio: 5, planksAcross: 2, repeat: [1.0, 1.0], polish: 0.2, wear: 0.85, color: [0.5, 0.45, 0.43], clearcoat: 0.12, clearcoatRoughness: 0.5, macro: 0.6, macroScale: 1.4 }),
+      floor: M.create('parquet', { species: 'oak', ratio: 5, planksAcross: 2, repeat: [1.0, 1.0], polish: 0.2, wear: 0.85, tint: [0.86, 0.85, 0.97], color: [0.54, 0.48, 0.46], clearcoat: 0.12, clearcoatRoughness: 0.5, macro: 0.6, macroScale: 1.4 }),
       wood: M.create('mahogany', { repeat: [1.4, 1.4], color: [0.6, 0.4, 0.34] }),
       panel: M.create('wood', { species: 'mahogany', boards: 0, polish: 0.6, repeat: [1.1, 1.1], clearcoat: 0.25, clearcoatRoughness: 0.45, color: [0.34, 0.22, 0.19] }),
       tableWood: M.create('mahogany', { repeat: [1.6, 1.6], color: [0.5, 0.31, 0.26] }),
@@ -784,7 +784,7 @@ export default {
     root.add(fx.areaLight({ center: [X1 - 0.7, 0.5, FIRE_Z], normal: [-1, 0.35, 0], width: 1.3, height: 0.9, color: 0xff9a52, intensity: 0.5 }));
     for (const wx of WIN.xs) root.add(fx.areaLight({ center: [wx, WIN.sill + WIN.h / 2, Z0 - 0.1], normal: [0, -0.3, 1], width: WIN.w - 0.1, height: WIN.h - 0.1, color: 0xa6b6d4, intensity: 1.7 }));
     {
-      const pls = new THREE.SpotLight(0xffc890, 2.2, 3, 0.7, 0.6, 2);
+      const pls = new THREE.SpotLight(0xffc890, 1.5, 3, 0.75, 0.75, 2);
       pls.position.set(0, 2.2 + 0.41 + 0.18, Z0 + 0.14); pls.target.position.set(0, 2.0, Z0); root.add(pls, pls.target);
       // picture light over the hunting scene
       if (paintingLightAt) {
@@ -901,7 +901,7 @@ export default {
       homeZ: BOARD / 2 + 0.055, homeY: 0.005, homeSpacing: 0.058,
       mats: { ivory: mat.queenIvory },
       borderOuter: (BOARD - FIELD) / 2 * 0.42,
-      camera: { position: [C.x, boardY + 0.84, C.z + 0.6], target: [C.x, boardY, C.z + 0.1], fov: 40 },
+      camera: { position: [C.x, boardY + 0.92, C.z + 0.64], target: [C.x, boardY, C.z + 0.1], fov: 40 },
       onSolved: async () => {
         ctx.state.set('gameroom.queensSolved', true);
         ctx.audio.sfx?.('chime', { freq: 880 });

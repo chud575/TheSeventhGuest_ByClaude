@@ -211,7 +211,7 @@ void surface(vec2 uv, inout Surface s) {
  * and a sparse fine one (~0.03 m), both domain-warped along a dominant diagonal, white-grey #cfc6b8, ~10% coverage.
  * 1 tile = 0.6 m. */
 export function marbleNero3Texture(forge, { key = 'gameroom:nero3', seed = 0 } = {}) {
-  return forge.generate(key + 'b', {
+  return forge.generate(key + 'c', {
     size: 1024, normalStrength: 0.1,
     uniforms: { uVar: seed },
     glsl: /* glsl */ `
@@ -232,14 +232,14 @@ void surface(vec2 uv, inout Surface s) {
   // fine fracture veins (~3 cm cells), straight-ish segments stretched along the flow, kept sparse
   vec2 fq = vec2(along * 10.0, across * 26.0) + vec2(wB, wA) * 1.5;
   float fe = voronoiEdge(fq, vec2(1000.0), 1.0);
-  float veinF = (1.0 - smoothstep(0.0, 0.035, fe)) * smoothstep(0.62, 0.8, fbmv(p * 3.0 + 5.0, vec2(3.0), 3));
+  float veinF = (1.0 - smoothstep(0.0, 0.025, fe)) * smoothstep(0.7, 0.86, fbmv(p * 3.0 + 5.0, vec2(3.0), 3));
   // clouded mid-grey drifts under the veins
   float cloud = fbmv(vec2(along * 1.5, across * 3.0) + 2.0, vec2(1000.0), 5);
   vec3 base = vec3(0.034, 0.033, 0.036);
   base = mix(base, vec3(0.1, 0.098, 0.1), smoothstep(0.52, 0.85, cloud) * 0.7);
   base = mix(base, vec3(0.15, 0.145, 0.14), veinW * 0.5);
   vec3 vein = vec3(0.81, 0.776, 0.72);
-  float v = max(coreW * 0.85, veinF * 0.6);
+  float v = max(coreW * 0.8, veinF * 0.45);
   v *= 0.75 + 0.25 * vnoise(p * 80.0, vec2(80.0));
   vec3 col = mix(base, vein, v);
   s.albedo = col;
