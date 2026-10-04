@@ -325,8 +325,8 @@ export default {
         skyFar.position.set(2.5 + k * 14, 1.0, Z0 - 14); skyFar.userData.noShadow = true; skyFar.userData.noBake = true; skyFar.renderOrder = -3; root.add(skyFar);
       }
       const tt = treeSilhouetteTexture(ctx.textures, { aspect: 0.75, key: 'gameroom:trees8m' });
-      const elms = new THREE.Mesh(new THREE.PlaneGeometry(9.6, 12.8), new THREE.MeshBasicMaterial({ map: tt.map, transparent: true, depthWrite: false, color: new THREE.Color(9, 10.5, 13.5), toneMapped: false, name: 'elms8m' }));
-      elms.position.set(1.6, 3.6, Z0 - 8); elms.userData.noShadow = true; elms.userData.noBake = true; elms.renderOrder = -2; root.add(elms);
+      const elms = new THREE.Mesh(new THREE.PlaneGeometry(13, 12.8), new THREE.MeshBasicMaterial({ map: tt.map, transparent: true, depthWrite: false, color: new THREE.Color(9, 10.5, 13.5), toneMapped: false, name: 'elms8m' }));
+      elms.position.set(1.0, 3.6, Z0 - 8); elms.userData.noShadow = true; elms.userData.noBake = true; elms.renderOrder = -2; root.add(elms);
     }
     const branchTex = ctx.textures.canvas('gameroom:branch', 1024, 768, (c) => {
       const rnd = ctx.random.fork('branch');
