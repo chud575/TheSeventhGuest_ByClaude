@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { baizeTexture, chessboardTexture, furTexture, nightSkyTexture, ballAtlas, cardAtlas, CARD_FACES, marbleNeroTexture, logTextures, sootTexture, antlerTexture, cofferTexture, huntPaintingTexture, ivoryTexture, persianRugTexture, castIronTexture, majolicaTileTexture } from './textures.js';
 import { buildStag, buildBoar } from './trophy.js';
+import { flockDamaskTexture, hairStrandTexture, glassEyeTexture, boxwoodTexture, marbleNero3Texture, oilPortraitTexture, engravingTexture, clubLeatherTexture, treeSilhouetteTexture } from './textures2.js';
 import { clippedShaft, hazeCone } from './fx.js';
 import {
   TABLE, buildBilliardTable, ballGeometry, cueGeometry, buildBilliardLamp, buildCueRack, buildSideChair, buildChesterfield,
@@ -8,6 +9,7 @@ import {
 } from './props.js';
 import { createQueensPuzzle, queensMeta, QUEENS_ID, queenGeometry } from './puzzleQueens.js';
 import { mergeStatic } from './merge.js';
+import { buildChesterfield2 } from './props2.js';
 import { drapeGeometry, swagGeometry, jabotGeometry, tiebackGeometry } from './drapery.js';
 import { buildScoreboard, buildPrint, buildDrinksCart, buildSpittoon, buildHatStand } from './clutter.js';
 
@@ -80,7 +82,12 @@ export default {
     const boarSet = furTexture(ctx.textures, { a: [0.09, 0.07, 0.055], b: [0.44, 0.34, 0.25], key: 'boar3' }).withRepeat(8, 8);
     const furMat = (set) => new THREE.MeshStandardMaterial({ map: set.map, normalMap: set.normalMap, roughnessMap: set.ormMap, aoMap: set.ormMap, roughness: 1, metalness: 0, envMapIntensity: 0.4, name: 'fur' });
     const mat = {
-      wall: M.create('damask', { repeat: [1 / 0.78, 1 / 0.78], base: [0.028, 0.055, 0.12], motif: [0.13, 0.21, 0.38], sheen: 0.75, variant: 1 }),
+      wall: (() => {
+        // dense flock damask, bottle green: velvet flock motif on a satin ground, 0.35 m repeat
+        const t = flockDamaskTexture(ctx.textures).withRepeat(1 / 0.35, 1 / 0.35);
+        return new THREE.MeshPhysicalMaterial({ map: t.map, normalMap: t.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), roughnessMap: t.ormMap, aoMap: t.ormMap, roughness: 1, metalness: 0,
+          sheen: 0.6, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.1, 0.17, 0.11), envMapIntensity: 0.35, color: new THREE.Color(1.25, 1.2, 1.15), name: 'flockDamask' });
+      })(),
       ceiling: M.create('plaster', { color: [0.06, 0.08, 0.15], cracks: 0.25, stains: 0.45, repeat: [0.5, 0.5] }),
       floor: M.create('parquet', { species: 'oak', ratio: 5, planksAcross: 2, repeat: [1.0, 1.0], polish: 0.2, wear: 0.7, color: [0.62, 0.55, 0.5], clearcoat: 0.12, clearcoatRoughness: 0.5, macro: 0.6, macroScale: 1.4 }),
       wood: M.create('mahogany', { repeat: [1.4, 1.4], color: [0.6, 0.4, 0.34] }),
@@ -139,16 +146,29 @@ export default {
       const soot = sootTexture(ctx.textures);
       mat.soot = new THREE.MeshStandardMaterial({ map: soot.map, normalMap: soot.normalMap, roughness: 0.95, name: 'soot' });
       const at2 = antlerTexture(ctx.textures).withRepeat(1, 1);
-      mat.antler = new THREE.MeshPhysicalMaterial({ map: at2.map, normalMap: at2.normalMap, roughnessMap: at2.ormMap, roughness: 1, vertexColors: true, clearcoat: 0.2, clearcoatRoughness: 0.5, name: 'antler' });
+      // antler: rough bone, colour entirely from the vertex ramp (dark burr -> brown beam -> ivory tips)
+      mat.antler = new THREE.MeshPhysicalMaterial({ normalMap: at2.normalMap, normalScale: new THREE.Vector2(1.2, 1.2), roughness: 0.7, vertexColors: true, clearcoat: 0.12, clearcoatRoughness: 0.6, envMapIntensity: 0.5, name: 'antler' });
+      mat.tusk = new THREE.MeshPhysicalMaterial({ roughness: 0.35, vertexColors: true, clearcoat: 0.4, clearcoatRoughness: 0.3, envMapIntensity: 0.7, name: 'tusk' });
       const fs2 = furTexture(ctx.textures, { a: [0.11, 0.08, 0.055], b: [0.5, 0.37, 0.23], key: 'stag4' }).withRepeat(5, 5);
-      mat.stagFur = new THREE.MeshStandardMaterial({ map: fs2.map, normalMap: fs2.normalMap, roughnessMap: fs2.ormMap, aoMap: fs2.ormMap, roughness: 1, metalness: 0, vertexColors: true, envMapIntensity: 0.4, name: 'stagFur' });
+      mat.stagFur = new THREE.MeshStandardMaterial({ map: fs2.map, normalMap: fs2.normalMap, normalScale: new THREE.Vector2(1.3, 1.3), roughnessMap: fs2.ormMap, aoMap: fs2.ormMap, roughness: 1, metalness: 0, vertexColors: true, envMapIntensity: 0.4, color: new THREE.Color(0.95, 0.82, 0.7), name: 'stagFur' });
       mat.stagFurD = mat.stagFur.clone(); mat.stagFurD.side = THREE.DoubleSide; mat.stagFurD.name = 'stagFurD';
-      mat.stagRuff = new THREE.MeshStandardMaterial({ map: fs2.map, color: new THREE.Color(0.7, 0.6, 0.5), roughness: 0.9, side: THREE.DoubleSide, name: 'stagRuff' });
-      mat.boarFur = new THREE.MeshStandardMaterial({ map: boarSet.map, normalMap: boarSet.normalMap, roughnessMap: boarSet.ormMap, aoMap: boarSet.ormMap, roughness: 1, metalness: 0, vertexColors: true, envMapIntensity: 0.4, name: 'boarFur' });
+      const strand = hairStrandTexture(ctx.textures, { root: [0.08, 0.05, 0.032], tip: [0.42, 0.31, 0.2] });
+      mat.stagHair = new THREE.MeshStandardMaterial({ map: strand.map, normalMap: strand.normalMap, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.72, metalness: 0, vertexColors: true, envMapIntensity: 0.3, name: 'stagHair' });
+      const strandB = hairStrandTexture(ctx.textures, { root: [0.05, 0.04, 0.032], tip: [0.36, 0.33, 0.3], key: 'gameroom:strandBoar' });
+      mat.boarHair = new THREE.MeshStandardMaterial({ map: strandB.map, normalMap: strandB.normalMap, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.7, metalness: 0, vertexColors: true, envMapIntensity: 0.3, name: 'boarHair' });
+      mat.boarFur = new THREE.MeshStandardMaterial({ map: boarSet.map, normalMap: boarSet.normalMap, normalScale: new THREE.Vector2(1.4, 1.4), roughnessMap: boarSet.ormMap, aoMap: boarSet.ormMap, roughness: 1, metalness: 0, vertexColors: true, envMapIntensity: 0.4, color: new THREE.Color(0.85, 0.8, 0.76), name: 'boarFur' });
       mat.boarFurD = mat.boarFur.clone(); mat.boarFurD.side = THREE.DoubleSide; mat.boarFurD.name = 'boarFurD';
-      mat.bristle = new THREE.MeshStandardMaterial({ color: 0x3a2e24, roughness: 0.75, name: 'bristle' });
-      mat.noseLeather = new THREE.MeshPhysicalMaterial({ color: 0x0a0807, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.3, name: 'noseLeather' });
-      mat.shieldWalnut = M.create('walnut', { repeat: [3, 3], color: [0.2, 0.16, 0.135], roughness: 0.8, clearcoat: 0.25, clearcoatRoughness: 0.5 });
+      mat.bristle = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65, name: 'bristle' });
+      mat.noseLeather = new THREE.MeshPhysicalMaterial({ color: 0x090706, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.12, name: 'noseLeather' });
+      mat.nostril = new THREE.MeshStandardMaterial({ color: 0x020101, roughness: 0.9, name: 'nostril' });
+      mat.snout = new THREE.MeshPhysicalMaterial({ color: 0x6a5048, roughness: 0.45, clearcoat: 0.5, clearcoatRoughness: 0.3, name: 'snout' });
+      const eyeT = glassEyeTexture(ctx.textures, { iris: [0.3, 0.15, 0.05], pupilW: 0.48, pupilH: 0.2 });
+      mat.glassEye = new THREE.MeshPhysicalMaterial({ map: eyeT.map, roughness: 0.25, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.0, transmission: 0, envMapIntensity: 1.5, name: 'glassEye' });
+      const eyeB = glassEyeTexture(ctx.textures, { iris: [0.34, 0.2, 0.06], pupilW: 0.32, pupilH: 0.32, key: 'gameroom:eyeBoar' });
+      mat.glassEyeBoar = new THREE.MeshPhysicalMaterial({ map: eyeB.map, roughness: 0.25, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.0, envMapIntensity: 1.5, name: 'glassEyeBoar' });
+      // shields: the room's dark walnut (~#3a1f12) under a clearcoat, not orange
+      const wal = M.create('walnut', { repeat: [3, 3] });
+      mat.shieldWalnut = new THREE.MeshPhysicalMaterial({ map: wal.map, normalMap: wal.normalMap, roughnessMap: wal.roughnessMap, color: new THREE.Color(0.36, 0.25, 0.2), roughness: 0.6, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.3, envMapIntensity: 0.08, name: 'shieldWalnut' });
       const iv = ivoryTexture(ctx.textures).withRepeat(1, 1);
       mat.queenIvory = new THREE.MeshPhysicalMaterial({ color: 0xefe6d4, map: iv.map, normalMap: iv.normalMap, roughnessMap: iv.ormMap, roughness: 1.0, metalness: 0, sheen: 0.35, sheenRoughness: 0.4, sheenColor: new THREE.Color(1, 0.93, 0.8), clearcoat: 0.6, clearcoatRoughness: 0.15, envMapIntensity: 0.85, name: 'queenIvory' });
     }
@@ -479,8 +499,8 @@ export default {
       og.position.set(lx.right(FIRE_Z), fire.userData.Hm + 0.2 + mh / 2, 0.035);
       S.right.grp.add(og);
       // the stag, on its own carved shield on the bare damask further along the wall, over the armchair
-      const stag = buildStag(ctx, { shield: mat.shieldWalnut, fur: mat.stagFur, furDouble: mat.stagFurD, ruff: mat.stagRuff, eye: mat.eye, nose: mat.noseLeather, antler: mat.antler, gilt: mat.gilt });
-      stag.position.set(lx.right(STAG_Z), 2.18, 0.035); stag.rotation.y = -0.12; stag.scale.setScalar(0.95);
+      const stag = buildStag(ctx, { shield: mat.shieldWalnut, fur: mat.stagFur, furDouble: mat.stagFurD, hair: mat.stagHair, eye: mat.glassEye, nose: mat.noseLeather, nostril: mat.nostril, antler: mat.antler, gilt: mat.gilt });
+      stag.position.set(lx.right(STAG_Z), 2.02, 0.035); stag.rotation.y = -0.14; stag.scale.setScalar(1.1);
       S.right.grp.add(stag);
       // mantel garniture: clock and two candlesticks
       const my = fire.userData.Hm;
@@ -515,7 +535,7 @@ export default {
     {
       const rack = buildCueRack(ctx, { wood: mat.wood, brass: mat.brass, gilt: mat.gilt, dark: mat.dark, ivory: mat.ivory, ebony: mat.ebony, maple: mat.maple, tip: mat.tip, leather: mat.leather });
       rack.position.set(lx.left(0.85), 0.3, 0.02); S.left.grp.add(rack);
-      const boar = buildBoar(ctx, { shield: mat.shieldWalnut, fur: mat.boarFur, furDouble: mat.boarFurD, eye: mat.eye, nose: mat.noseLeather, antler: mat.antler, bristle: mat.bristle });
+      const boar = buildBoar(ctx, { shield: mat.shieldWalnut, fur: mat.boarFur, furDouble: mat.boarFurD, hair: mat.boarHair, eye: mat.glassEyeBoar, nose: mat.noseLeather, nostril: mat.nostril, snout: mat.snout, tusk: mat.tusk, antler: mat.antler, bristle: mat.bristle, gilt: mat.gilt });
       boar.position.set(lx.left(0.85), 2.72, 0.04); S.left.grp.add(boar);
       // hunting landscape
       const pg = new THREE.Group();
@@ -624,8 +644,9 @@ export default {
       const lf = fx.flame({ height: 0.045, width: 0.014, intensity: 7, seed: 77 });
       lf.position.set(CARD.x - 0.05, y0 + 0.19, CARD.z - 0.3); add(lf);
     }
-    const oxblood = M.create('leather', { color: [0.36, 0.07, 0.05], wear: 0.45, repeat: [3, 3], clearcoat: 0.3, clearcoatRoughness: 0.45, roughness: 0.75, normalScale: 1.4 });
-    const chest = buildChesterfield(ctx, { leather: oxblood, leatherDark: mat.leatherDark, wood: mat.wood, brass: mat.brass });
+    const clT = clubLeatherTexture(ctx.textures).withRepeat(2.4, 2.4);
+    const oxblood = new THREE.MeshPhysicalMaterial({ map: clT.map, normalMap: clT.normalMap, normalScale: new THREE.Vector2(1.1, 1.1), roughnessMap: clT.ormMap, aoMap: clT.ormMap, roughness: 1.0, metalness: 0, vertexColors: true, clearcoat: 0.35, clearcoatRoughness: 0.4, envMapIntensity: 0.45, color: new THREE.Color(1.0, 0.95, 0.92), name: 'clubLeather' });
+    const chest = buildChesterfield2(ctx, { leather: oxblood, leatherDark: mat.leatherDark, wood: mat.wood, brass: mat.brass });
     chest.position.set(2.0, 0, -2.08); chest.rotation.y = -0.75; add(chest);
     {
       // small wine table by the armchair with a brandy balloon
@@ -670,15 +691,18 @@ export default {
     // ================================================================ lights
     // Hierarchy: the billiard lamp is the key (warm, hot pool on the baize), the moon a cold
     // rim through the windows, fire + sconces warm practicals; everything else falls to blue-black.
-    const moonPos = V3(-0.7, 8.65, Z0 - 5.0), moonTarget = V3(-0.3, 0, -2.5);
-    const moon = new THREE.SpotLight(0xb8c4dc, 520, 26, 0.38, 0.6, 2);
+    const moonPos = V3(-0.7, 8.65, Z0 - 5.0), moonTarget = V3(-1.0, 0, -2.6);
+    const moon = new THREE.SpotLight(0xb8c4dc, 520, 26, 0.31, 0.6, 2);
     moon.position.copy(moonPos); moon.target.position.copy(moonTarget);
     moon.castShadow = Q.shadows;
     moon.shadow.mapSize.set(Q.shadowMapSize, Q.shadowMapSize);
     moon.shadow.bias = -0.0005; moon.shadow.normalBias = 0.02; moon.shadow.radius = Math.max(4, Q.shadowRadius || 0);
     moon.shadow.camera.near = 3; moon.shadow.camera.far = 22;
     root.add(moon, moon.target);
-    root.add(new THREE.HemisphereLight(0x2c3344, 0x1e140c, 0.7));
+    root.add(new THREE.HemisphereLight(0x323a48, 0x2a1c10, 0.92));
+    // soft bounce: the lamp pool on the baize lifts the upper walls and ceiling, the hearth warms its corner
+    root.add(fx.areaLight({ center: [T.x, 0.84, T.z], normal: [0.001, 1, 0.01], width: 1.3, height: 2.4, color: 0xc8b080, intensity: 0.55 }));
+    root.add(fx.areaLight({ center: [X1 - 0.7, 0.5, FIRE_Z], normal: [-1, 0.35, 0], width: 1.3, height: 0.9, color: 0xff9a52, intensity: 0.5 }));
     for (const wx of WIN.xs) root.add(fx.areaLight({ center: [wx, WIN.sill + WIN.h / 2, Z0 - 0.1], normal: [0, -0.3, 1], width: WIN.w - 0.1, height: WIN.h - 0.1, color: 0xa6b6d4, intensity: 1.7 }));
     {
       const pls = new THREE.SpotLight(0xffc890, 2.2, 3, 0.7, 0.6, 2);
@@ -710,10 +734,16 @@ export default {
     // fire: low in the firebox, flickering +-25% at 2-4 Hz
     const fireLight = new THREE.PointLight(0xff7c34, 5, 7, 2); fireLight.position.set(X1 - 0.48, 0.42, FIRE_Z); root.add(fireLight);
     {
-      const sl = new THREE.SpotLight(0xffb27a, 14, 4, 0.42, 0.8, 2);
-      sl.position.set(X1 - 1.4, 1.35, STAG_Z + 0.9); sl.target.position.set(X1 - 0.25, 2.3, STAG_Z); root.add(sl, sl.target);
-      const bl = new THREE.SpotLight(0xffb27a, 10, 4, 0.4, 0.8, 2);
-      bl.position.set(X0 + 1.3, 1.6, 0.1); bl.target.position.set(X0 + 0.2, 2.72, 0.85); root.add(bl, bl.target);
+      // dedicated narrow picture-light spots on the trophies: warm, from above and in front, so the antlers
+      // rim-light and throw their shadow on the damask
+      const sl = new THREE.SpotLight(0xffcf98, 11, 4.5, 0.28, 0.55, 2);
+      sl.position.set(X1 - 1.05, 3.32, STAG_Z + 0.42); sl.target.position.set(X1 - 0.3, 2.3, STAG_Z - 0.02);
+      sl.castShadow = Q.shadows; sl.shadow.mapSize.set(1024, 1024); sl.shadow.bias = -0.0008; sl.shadow.normalBias = 0.01; sl.shadow.radius = 3; sl.shadow.camera.near = 0.3; sl.shadow.camera.far = 3;
+      root.add(sl, sl.target);
+      const bl = new THREE.SpotLight(0xffcf98, 8, 4, 0.36, 0.55, 2);
+      bl.position.set(X0 + 1.0, 3.4, 1.6); bl.target.position.set(X0 + 0.25, 2.66, 0.85);
+      bl.castShadow = Q.shadows; bl.shadow.mapSize.set(512, 512); bl.shadow.bias = -0.0008; bl.shadow.normalBias = 0.01; bl.shadow.radius = 3; bl.shadow.camera.near = 0.3; bl.shadow.camera.far = 3;
+      root.add(bl, bl.target);
     }
     // card table oil lamp
     const oilLight = new THREE.PointLight(0xffa04a, 1.5, 4, 2); oilLight.position.set(CARD.x - 0.05, 1.0, CARD.z - 0.3); root.add(oilLight);
@@ -754,7 +784,7 @@ export default {
     for (const wx of WIN.xs) {
       const winCenter = V3(wx, WIN.sill + WIN.h / 2, Z0 - 0.05);
       const dir = new THREE.Vector3().subVectors(winCenter, moonPos).normalize();
-      const sh = clippedShaft({ center: winCenter, right: V3(WIN.w / 2 - 0.02, 0, 0), up: V3(0, WIN.h / 2 - 0.02, 0), direction: dir, length: 4.4, color: 0xa8b8d8, intensity: wx < 0 ? 0.15 : 0.11, softness: 0.25, falloff: 1.5, panes: [2, 4], mullion: 0.03, noise: 0.75, roomMin, roomMax, occluders: wx < 0 ? [gtOcc] : [], time: ctx.time, steps: Math.round((Q.volumetricSteps || 16) * 1.25) });
+      const sh = clippedShaft({ center: winCenter, right: V3(WIN.w / 2 - 0.02, 0, 0), up: V3(0, WIN.h / 2 - 0.02, 0), direction: dir, length: wx < 0 ? 4.4 : 2.3, color: 0xa8b8d8, intensity: wx < 0 ? 0.14 : 0.1, softness: 0.25, falloff: 1.5, panes: [2, 4], mullion: 0.03, noise: 0.75, roomMin, roomMax, occluders: wx < 0 ? [gtOcc] : [], time: ctx.time, steps: Math.round((Q.volumetricSteps || 16) * 1.25) });
       root.add(sh); shafts.push(sh);
     }
     lamp.userData.bulbs.forEach((b, i) => {
